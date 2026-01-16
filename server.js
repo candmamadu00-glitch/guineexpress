@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const app = express();
+app.use('/uploads', express.static('uploads'));
 const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
@@ -118,7 +119,6 @@ if (!db || typeof db.get !== 'function') {
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
-app.use('/uploads', express.static('uploads')); // Serve imagens antigas
 app.use(session({
     store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), // Salva sessão em arquivo
     secret: process.env.SESSION_SECRET || 'segredo_padrao',
