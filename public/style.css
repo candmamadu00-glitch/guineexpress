@@ -710,3 +710,100 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 .dot:nth-child(2) { animation-delay: -0.16s; }
 @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+/* No arquivo style.css */
+body {
+    background-image: url('bg-login-logistics.jpg'); /* Coloque o nome da sua imagem */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    height: 100vh;
+    margin: 0;
+}
+/* --- ESTILO CÂMERA TELA CHEIA (TIPO INSTAGRAM/WHATSAPP) --- */
+#fullscreen-camera-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: black;
+    z-index: 99999; /* Fica em cima de tudo */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+#fullscreen-camera-overlay video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Isso faz o vídeo preencher a tela sem bordas pretas */
+}
+
+.camera-floating-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding-bottom: 40px;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+/* Botão Gravar (Bola Vermelha com Borda) */
+.btn-record-circle {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background-color: #ff3b30;
+    border: 4px solid white;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.btn-record-circle:active { transform: scale(0.9); }
+
+/* Botão Parar (Quadrado Vermelho) */
+.btn-stop-square {
+    width: 70px;
+    height: 70px;
+    border-radius: 10px;
+    background-color: transparent;
+    border: 4px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.btn-stop-square::after {
+    content: '';
+    width: 30px;
+    height: 30px;
+    background: #ff3b30;
+    border-radius: 4px;
+}
+
+.btn-icon {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+#recording-timer {
+    color: white;
+    font-weight: bold;
+    background: red;
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}

@@ -217,43 +217,60 @@
     <div id="print-area" class="hidden-print-area"></div>
 </section>
         <section id="videos-section" class="hidden">
-            <div class="card">
-                <h3>Central de Gravação</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <div>
-                        <div class="video-container" style="background: #000; height: 350px; border-radius: 8px; position: relative; overflow: hidden; margin-bottom: 10px;">
-                            <video id="camera-feed" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
-                            <video id="video-preview" controls style="width: 100%; height: 100%; object-fit: contain; display: none; background: black;"></video>
-                            <span id="recording-indicator" style="position: absolute; top: 10px; right: 10px; background: red; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; display: none;">REC ●</span>
-                        </div>
-                        <div id="camera-controls-ui">
-                            <button onclick="startCamera('user')" class="btn-secondary">📷 Frontal</button>
-                            <button onclick="startCamera('environment')" class="btn-secondary">📸 Traseira</button>
-                            <button id="btn-start-rec" onclick="startRecording()" class="btn-primary" style="background: #28a745; margin-top:5px;">▶ Gravar</button>
-                            <button id="btn-stop-rec" onclick="stopRecording()" class="btn-primary" style="background: #dc3545; display: none; margin-top:5px;">⏹ Parar</button>
-                        </div>
-                        <div id="preview-controls-ui" style="display: none; gap: 10px; margin-top:5px;">
-                            <button onclick="discardVideo()" class="btn-secondary">🗑 Descartar</button>
-                            <button onclick="confirmUpload()" class="btn-primary">🚀 Enviar</button>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="form-group">
-                            <label>Selecione o Cliente:</label>
-                            <select id="video-client-select" class="form-control"><option value="">Carregando...</option></select>
-                        </div>
-                        
-                        <div id="video-order-info" style="opacity: 0.5; background:#f4f7f6; padding:15px; border-radius:8px;">
-                            <h4>📦 Informação</h4>
-                            <p><strong>Descrição:</strong> <span id="info-desc">-</span></p>
-                            <span id="info-weight" style="display:none;"></span>
-                            <span id="info-name" style="display:none;"></span>
-                            <span id="info-email" style="display:none;"></span>
-                        </div>
+    <div class="card">
+        <h3>🎥 Nova Gravação</h3>
+        
+        <div class="form-group">
+            <label>1. Selecione a Encomenda para vincular:</label>
+            <select id="video-client-select" class="form-control" onchange="checkVideoPermission()">
+                <option value="">Carregando lista...</option>
+            </select>
+        </div>
 
-                    </div>
+        <div id="video-order-info" style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+            <small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>
+        </div>
+
+        <button id="btn-open-fullscreen" onclick="openFullscreenCamera()" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px; background: #2c3e50;" disabled>
+            <i class="fas fa-camera"></i> ABRIR CÂMERA
+        </button>
+    </div>
+
+    <div id="fullscreen-camera-overlay" class="hidden">
+        
+        <button onclick="closeFullscreenCamera()" style="position: absolute; top: 20px; right: 20px; z-index: 10001; background: none; border: none; color: white; font-size: 30px;">&times;</button>
+        
+        <video id="camera-feed" autoplay playsinline muted></video>
+        <video id="video-preview" controls style="display: none;"></video>
+
+        <div class="camera-floating-controls">
+            
+            <div id="record-ui">
+                <p id="recording-timer" class="hidden">00:00</p>
+                
+                <div style="display: flex; align-items: center; gap: 30px;">
+                    <button onclick="switchCamera()" class="btn-icon">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+
+                    <button id="btn-start-rec" onclick="startRecording()" class="btn-record-circle"></button>
+                    
+                    <button id="btn-stop-rec" onclick="stopRecording()" class="btn-stop-square hidden"></button>
+                    
+                    <div style="width: 40px;"></div> 
                 </div>
             </div>
+
+            <div id="upload-ui" class="hidden" style="width: 100%; padding: 20px;">
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button onclick="retakeVideo()" class="btn-secondary" style="background: white; color: black; border: none;">Descartar</button>
+                    <button onclick="confirmUpload()" class="btn-primary" style="background: #28a745; border: none; flex: 1;">Enviar Vídeo 🚀</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
             <div class="card" style="margin-top: 20px;">
                 <h3>Histórico de Vídeos</h3>
                 <table class="data-table"><thead><tr><th>ID</th><th>Cliente</th><th>Data</th><th>Ação</th></tr></thead><tbody id="admin-video-list"></tbody></table>

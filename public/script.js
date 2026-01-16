@@ -968,18 +968,145 @@ async function updateProfile() {
         alert('Erro de conexão.');
     }
 }
-function initVideoSection() {
-    if(currentUser.role !== 'client') {
-        // --- ALTERAÇÃO AQUI: ---
-        // Em vez de loadClientsForVideoSelect(), chamamos a nova função de encomendas
-        loadOrdersForVideo(); 
-        // -----------------------
-        
-        startCamera(); 
-        loadAdminVideos(); 
-    } else {
-        loadClientVideos(); 
+// --- VARIÁVEIS GLOBAIS DE VÍDEO ---
+let currentFacingMode = 'environment'; // Começa com a câmera traseira
+
+// 1. Habilita o botão apenas se selecionar cliente
+function checkVideoPermission() {
+    const sel = document.getElementById('video-client-select');
+    const btn = document.getElementById('btn-open-fullscreen');
+    if(sel && btn) {
+        btn.disabled = !sel.value;
+        if(sel.value) {
+            btn.innerHTML = '<i class="fas fa-camera"></i> ABRIR CÂMERA';
+            btn.style.background = '#28a745';
+        } else {
+            btn.innerHTML = 'Selecione uma encomenda acima';
+            btn.style.background = '#2c3e50';
+        }
     }
+}
+
+// 2. Abre o Modo Tela Cheia
+async function openFullscreenCamera() {
+    const overlay = document.getElementById('fullscreen-camera-overlay');
+    overlay.classList.remove('hidden'); // Mostra a div preta
+    overlay.style.display = 'flex'; // Garante o display flex
+    
+    // Reseta UI
+    document.getElementById('record-ui').classList.remove('hidden');
+    document.getElementById('upload-ui').classList.add('hidden');
+    document.getElementById('camera-feed').style.display = 'block';
+    document.getElementById('video-preview').style.display = 'none';
+    
+    await startCamera(currentFacingMode);
+}
+
+// 3. Fecha o Modo Tela Cheia
+function closeFullscreenCamera() {
+    const overlay = document.getElementById('fullscreen-camera-overlay');
+    overlay.classList.add('hidden');
+    overlay.style.display = 'none';
+    
+    // Para a câmera para economizar bateria
+    if(currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+    }
+}
+
+// 4. Inicia o Stream da Câmera
+async function startCamera(facingMode) {
+    const video = document.getElementById('camera-feed');
+    
+    // Para stream anterior se existir
+    if(currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: facingMode,
+                width: { ideal: 1280 }, // Tenta HD
+                height: { ideal: 720 }
+            }, 
+            audio: true 
+        });
+        currentStream = stream;
+        video.srcObject = stream;
+    } catch (err) {
+        alert("Erro ao acessar câmera: " + err);
+        closeFullscreenCamera();
+    }
+}
+
+function switchCamera() {
+    currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
+    startCamera(currentFacingMode);
+}
+
+// 5. Gravação
+function startRecording() {
+    recordedChunks = [];
+    
+    // Tenta codecs melhores para celular
+    let options = { mimeType: 'video/webm;codecs=vp8' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm' }; // Fallback
+    }
+
+    try {
+        mediaRecorder = new MediaRecorder(currentStream, options);
+    } catch(e) {
+        mediaRecorder = new MediaRecorder(currentStream);
+    }
+
+    mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+    };
+
+    mediaRecorder.onstop = () => {
+        currentBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        const videoURL = URL.createObjectURL(currentBlob);
+        
+        const previewEl = document.getElementById('video-preview');
+        previewEl.src = videoURL;
+        
+        // Troca visualização: Câmera -> Preview Gravado
+        document.getElementById('camera-feed').style.display = 'none';
+        previewEl.style.display = 'block';
+        
+        // Troca botões: Gravar -> Enviar
+        document.getElementById('record-ui').classList.add('hidden');
+        document.getElementById('upload-ui').classList.remove('hidden');
+        
+        previewEl.play(); // Toca o vídeo automaticamente pra conferir
+    };
+
+    mediaRecorder.start();
+
+    // UI de gravando
+    document.getElementById('btn-start-rec').classList.add('hidden');
+    document.getElementById('btn-stop-rec').classList.remove('hidden');
+    document.getElementById('recording-timer').classList.remove('hidden');
+}
+
+function stopRecording() {
+    mediaRecorder.stop();
+    document.getElementById('btn-start-rec').classList.remove('hidden');
+    document.getElementById('btn-stop-rec').classList.add('hidden');
+    document.getElementById('recording-timer').classList.add('hidden');
+}
+
+// 6. Refazer vídeo (Botão Descartar)
+function retakeVideo() {
+    currentBlob = null;
+    document.getElementById('camera-feed').style.display = 'block';
+    document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('video-preview').src = "";
+    
+    document.getElementById('record-ui').classList.remove('hidden');
+    document.getElementById('upload-ui').classList.add('hidden');
 }
 async function loadOrdersForVideo() {
     const select = document.getElementById('video-client-select');
@@ -1016,64 +1143,7 @@ async function loadOrdersForVideo() {
         }
     };
 }
-async function startCamera(facingMode = 'user') {
-    const video = document.getElementById('camera-feed');
-    if(!video) return;
-    if(currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-    }
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: facingMode }, 
-            audio: true 
-        });
-        currentStream = stream;
-        video.srcObject = stream;
-    } catch (err) {
-        alert("Erro ao acessar câmera: " + err);
-    }
-}
 
-function startRecording() {
-    const clientSelect = document.getElementById('video-client-select');
-    if(!clientSelect.value) return alert("Por favor, selecione um Cliente antes de gravar!");
-
-    document.getElementById('camera-feed').style.display = 'block';
-    document.getElementById('video-preview').style.display = 'none';
-    document.getElementById('camera-controls-ui').style.display = 'block';
-    document.getElementById('preview-controls-ui').style.display = 'none';
-
-    recordedChunks = [];
-    mediaRecorder = new MediaRecorder(currentStream);
-
-    mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) recordedChunks.push(event.data);
-    };
-
-    mediaRecorder.onstop = () => {
-        currentBlob = new Blob(recordedChunks, { type: 'video/webm' });
-        const videoURL = URL.createObjectURL(currentBlob);
-        const previewEl = document.getElementById('video-preview');
-        previewEl.src = videoURL;
-        document.getElementById('camera-feed').style.display = 'none';
-        previewEl.style.display = 'block';
-        document.getElementById('camera-controls-ui').style.display = 'none';
-        document.getElementById('preview-controls-ui').style.display = 'flex';
-        previewEl.play(); 
-    };
-
-    mediaRecorder.start();
-    document.getElementById('btn-start-rec').style.display = 'none';
-    document.getElementById('btn-stop-rec').style.display = 'inline-block';
-    document.getElementById('recording-indicator').style.display = 'block';
-}
-
-function stopRecording() {
-    mediaRecorder.stop();
-    document.getElementById('btn-start-rec').style.display = 'inline-block';
-    document.getElementById('btn-stop-rec').style.display = 'none';
-    document.getElementById('recording-indicator').style.display = 'none';
-}
 
 function discardVideo() {
     currentBlob = null;
