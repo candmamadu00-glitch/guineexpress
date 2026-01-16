@@ -193,7 +193,6 @@ async function initDashboard() {
     try {
         const res = await fetch('/api/user');
         
-        // Se der erro (401 ou 403), manda pro login
         if(res.status !== 200) {
             console.warn("Sessão inválida ou expirada.");
             return window.location.href = 'index.html';
@@ -210,32 +209,36 @@ async function initDashboard() {
             document.getElementById('profile-name').value = currentUser.name || '';
             document.getElementById('profile-email').value = currentUser.email || '';
             document.getElementById('profile-phone').value = currentUser.phone || '';
+
+            // --- ADICIONE ISTO AQUI (CORREÇÃO DA FOTO) ---
+            const imgDisplay = document.getElementById('profile-img-display');
+            if(currentUser.profile_pic && imgDisplay) {
+                // Adiciona um número aleatório (?v=...) para forçar o navegador a não usar cache velho
+                imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
+            }
+            // ---------------------------------------------
         }
 
-        // Carregamentos iniciais de dados
+        // ... resto do código (loadPrice, loadOrders, etc) ...
         loadPrice(); 
         if(currentUser.role !== 'client') loadClients();
         loadOrders();
         loadSchedules();
 
-        // --- RECUPERA A ABA ANTERIOR ---
+        // ... (código das abas) ...
         const lastTab = localStorage.getItem('activeTab');
-        
-        // Verifica se existe uma aba salva e se esse elemento existe na tela
         if (lastTab && document.getElementById(lastTab)) {
             showSection(lastTab);
         } else {
-            // Se não tiver histórico (primeiro acesso), define a padrão
             if(currentUser.role === 'client') {
-                showSection('orders-view'); // Aba padrão do Cliente
+                showSection('orders-view'); 
             } else {
-                showSection('orders-view'); // Aba padrão do Admin
+                showSection('orders-view'); 
             }
         }
 
     } catch (error) {
         console.error("Erro ao iniciar dashboard:", error);
-        // Opcional: window.location.href = 'index.html';
     }
 }
 // --- CONFIGURAÇÃO DE PREÇO ---

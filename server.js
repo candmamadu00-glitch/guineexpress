@@ -541,7 +541,47 @@ app.post('/api/boxes/create', (req, res) => {
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
 });
 app.post('/api/boxes/delete', (req, res) => db.run("DELETE FROM boxes WHERE id = ?", [req.body.id], (err) => res.json({success: !err})));
-app.post('/api/user/update', (req, res) => db.run("UPDATE users SET name=?, phone=?, email=? WHERE id=?", [req.body.name, req.body.phone, req.body.email, req.session.userId], (err) => res.json({success: !err})));
+// --- ROTA: Atualizar Perfil (Com Foto) ---
+app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
+    // Se não estiver logado, bloqueia
+    if (!req.session.userId) return res.status(401).json({ success: false });
+
+    const { name, phone, email } = req.body;
+    const userId = req.session.userId;
+
+    // Cenário 1: Usuário enviou uma foto nova
+    if (req.file) {
+        const sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?";
+        const params = [name, phone, email, req.file.filename, userId];
+        
+        db.run(sql, params, function(err) {
+            if (err) {
+                console.error(err);
+                return res.json({ success: false, message: "Erro ao salvar no banco." });
+            }
+            // Atualiza a sessão
+            if(req.session.user) req.session.user.profile_pic = req.file.filename;
+            
+            // --- AQUI ESTA A CORREÇÃO ---
+            // Devolve o link para o site mostrar a foto na hora
+            res.json({ 
+                success: true, 
+                newProfilePicUrl: '/uploads/' + req.file.filename 
+            });
+            // ----------------------------
+        });
+    } 
+    // Cenário 2: Usuário SÓ mudou o texto (sem foto nova)
+    else {
+        const sql = "UPDATE users SET name=?, phone=?, email=? WHERE id=?";
+        const params = [name, phone, email, userId];
+
+        db.run(sql, params, function(err) {
+            if (err) return res.json({ success: false });
+            res.json({ success: true });
+        });
+    }
+});
 app.post('/api/clients/toggle', (req, res) => db.run("UPDATE users SET active = ? WHERE id = ?", [req.body.active, req.body.id], () => res.json({ success: true })));
 // --- ROTA DE PREÇO (CONFIGURAÇÃO) ---
 app.get('/api/config/price', (req, res) => {
