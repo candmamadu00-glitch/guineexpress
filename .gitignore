@@ -1,0 +1,17 @@
+# Dependências do Node (muito pesado, não enviar)
+node_modules/
+
+# Variáveis de Ambiente (TEM AS SENHAS! NUNCA ENVIE)
+.env
+
+# Banco de Dados (O servidor criará o dele ou você sobe manualmente)
+*.db
+*.sqlite
+
+# Logs de erro
+npm-debug.log
+
+# Arquivos de sistema Mac/Windows
+.DS_Store
+Thumbs.db
+guineexpress_v4.db

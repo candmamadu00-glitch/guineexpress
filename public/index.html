@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <link rel="stylesheet" href="cici.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Guineexpress</title>
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/imask"></script>
+</head>
+<body>
+
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="company-header">
+            <h1>Guineexpress</h1>
+            <p>Logística Internacional</p>
+            <p style="font-size: 10px; margin-top: 5px;">📍 Av. Tristão Gonçalves, 1203 - (85) 98239-207</p>
+        </div>
+
+        <div id="role-selector" class="form-group" style="display: flex; gap: 10px; justify-content: center; margin-bottom: 25px;">
+            <button onclick="setRole('client')" class="btn btn-primary" id="btn-client">Sou Cliente</button>
+            <button onclick="setRole('employee')" class="btn" style="background:#eee; color:#333;" id="btn-employee">Funcionário</button>
+            <button onclick="setRole('admin')" class="btn" style="background:#eee; color:#333;" id="btn-admin">Admin</button>
+        </div>
+
+        <form id="login-form">
+            <h3 style="text-align:center; margin-bottom:20px; color: var(--primary);">Acessar Conta</h3>
+            
+            <div class="form-group">
+                <label>Email ou Celular</label>
+                <input type="text" id="login-user" class="form-control" placeholder="ex: lelo@guineexpress.com" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" id="login-pass" class="form-control" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="btn btn-accent" style="width: 100%; font-weight: bold;">ENTRAR</button>
+            
+            <div id="client-links" style="margin-top: 15px;">
+                <p id="forgot-pass" onclick="openRecoverModal()" style="text-align:center; font-size:13px; cursor:pointer; color:var(--primary);">Esqueci minha senha</p>
+                <p onclick="showRegister()" id="register-link" style="text-align:center; margin-top:10px; font-size:13px; cursor:pointer; color:var(--accent);">Não tem conta? Cadastre-se</p>
+            </div>
+        </form>
+
+        <form id="register-form" class="hidden">
+            <h3 style="text-align:center; margin-bottom:20px;">Novo Cliente</h3>
+            
+            <div class="form-group">
+                <label>País</label>
+                <select id="reg-country" class="form-control" onchange="updateMasks()">
+                    <option value="GW">Guiné-Bissau</option>
+                    <option value="BR">Brasil</option>
+                    <option value="PT">Portugal</option>
+                    <option value="SN">Senegal</option>
+                    <option value="MA">Marrocos</option>
+                    <option value="US">Estados Unidos</option>
+                    <option value="FR">França</option>
+                    <option value="ES">Espanha</option>
+                    <option value="UK">Inglaterra</option>
+                    <option value="BE">Bélgica</option>
+                    <option value="CV">Cabo Verde</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="reg-name" class="form-control" placeholder="Nome Completo" required autocomplete="name">
+            </div>
+            <div class="form-group">
+                <input type="email" id="reg-email" class="form-control" placeholder="Gmail ou Hotmail" required autocomplete="email">
+            </div>
+            <div class="form-group">
+                <input type="text" id="reg-phone" class="form-control" placeholder="Celular" required autocomplete="tel">
+            </div>
+            <div class="form-group">
+                <input type="text" id="reg-doc" class="form-control" placeholder="Documento (ID/CPF)" required autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="reg-pass" class="form-control" placeholder="Senha" required autocomplete="new-password">
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="reg-pass2" class="form-control" placeholder="Confirmar Senha" required autocomplete="new-password">
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">CADASTRAR</button>
+            <p onclick="showLogin()" style="text-align:center; margin-top:15px; font-size:13px; cursor:pointer;">Voltar para Login</p>
+        </form>
+    </div>
+</div>
+
+<div id="modal-recover" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>🔒 Recuperar Acesso</h3>
+            <button class="btn-close" onclick="closeRecoverModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                Digite seu E-mail ou Celular cadastrado.
+            </p>
+            <div class="form-group">
+                <input type="text" id="recover-input" class="form-control" placeholder="ex: seuemail@gmail.com">
+            </div>
+            <button id="btn-send-recover" onclick="sendRecoveryRequest()" class="btn btn-primary" style="width: 100%; margin-top: 10px;">ENVIAR</button>
+        </div>
+    </div>
+</div>
+<script src="cici.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

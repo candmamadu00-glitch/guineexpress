@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <link rel="stylesheet" href="cici.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão - Guineexpress</title>
+        <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="dashboard-nav">
+        <div style="font-weight:bold; font-size:18px;">
+            GUINEEXPRESS 
+            <span id="user-role-display" style="font-size:12px; font-weight:normal; opacity:0.8;"></span>
+        </div>
+        <div class="nav-links">
+            <button onclick="showSection('dashboard-home')" class="nav-btn"><i class="fas fa-chart-line"></i> Visão Geral</button>
+            <button onclick="showSection('expenses-view')">💸 Despesas</button>
+            <button onclick="showSection('logs-view')" style="color: #ffc107;"><i class="fas fa-shield-alt"></i> Auditoria</button>
+            <button onclick="showSection('employees-view'); loadEmployees();"><i class="fas fa-users-cog"></i> Funcionários</button>
+            <button onclick="showSection('shipments-view')"><i class="fas fa-shipping-fast"></i> Embarques</button>
+            <button onclick="showSection('orders-view')"><i class="fas fa-box"></i> Encomendas</button>
+            <button onclick="showSection('history-view')" class="nav-btn"><i class="fas fa-history"></i> Histórico</button>
+            <button onclick="showSection('box-view')">📦 Box</button>
+            <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn"><i class="fas fa-tags"></i> Etiquetas</button>
+            <button onclick="showSection('billing-view')">💲 Financeiro</button> 
+            <button onclick="showSection('schedule-view')">📅 Agendamentos</button>
+            <button onclick="showSection('receipts-view')"><i class="fas fa-file-invoice"></i> Recibos</button>
+            <button onclick="showSection('price-section')">💰 Preço</button>
+            <button onclick="showSection('videos-section')">🎥 Vídeos</button>
+            <button onclick="showSection('clients-view')"><i class="fas fa-users"></i> Clientes</button>
+            <button onclick="logout()" style="color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Sair</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        
+        <section id="schedule-view" class="hidden">
+            <div class="card" style="margin-bottom: 20px;">
+                <h3>Criar Vagas de Atendimento</h3>
+                <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <input type="date" id="sched-date" class="form-control" required>
+                    <input type="time" id="sched-start" class="form-control" required>
+                    <input type="time" id="sched-end" class="form-control" required>
+                    <input type="number" id="sched-slots" class="form-control" placeholder="Qtd Vagas" style="width:100px;" required>
+                    <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
+                </form>
+            </div>
+            <div class="card">
+                <h3>Solicitações de Agendamento</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th><th>Ação</th></tr>
+                    </thead>
+                    <tbody id="admin-schedule-list"></tbody>
+                </table>
+            </div>
+        </section>
+        <div style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
+    <button onclick="forceBackup()" class="btn" style="background: #28a745; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border-radius: 50px; padding: 15px 25px;">
+        <i class="fas fa-shield-alt"></i> Backup Agora
+    </button>
+</div>
+<section id="dashboard-home">
+    <div class="header-flex">
+        <h2>📊 Visão Geral do Negócio</h2>
+        <button onclick="loadDashboardStats()" class="btn btn-primary" style="width: auto;">
+            <i class="fas fa-sync-alt"></i> Atualizar
+        </button>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: #d4af37;"><i class="fas fa-coins"></i></div>
+            <div class="kpi-info">
+                <h3>Faturamento Total</h3>
+                <p id="kpi-revenue">R$ 0,00</p>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: #0a1931;"><i class="fas fa-weight-hanging"></i></div>
+            <div class="kpi-info">
+                <h3>Peso Total</h3>
+                <p id="kpi-weight">0 kg</p>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: #28a745;"><i class="fas fa-box-open"></i></div>
+            <div class="kpi-info">
+                <h3>Encomendas</h3>
+                <p id="kpi-orders">0</p>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: #17a2b8;"><i class="fas fa-users"></i></div>
+            <div class="kpi-info">
+                <h3>Clientes Ativos</h3>
+                <p id="kpi-clients">0</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="charts-grid">
+        <div class="chart-container">
+            <h3>📈 Movimentação Financeira (Últimos 6 Meses)</h3>
+            <canvas id="revenueChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>📦 Status das Encomendas</h3>
+            <div style="height: 250px; display: flex; justify-content: center;">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+    </div>
+</section>
+        <section id="orders-view">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>Gestão de Encomendas</h3>
+            <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
+                + Nova Encomenda
+            </button>
+        </div>
+
+        <div style="margin: 15px 0; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+            <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
+                   placeholder="Buscar por código, cliente ou status..." 
+                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="orders-list"></tbody>
+        </table>
+    </div>
+
+    <div id="modal-order" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-order-title">📦 Nova Encomenda</h3>
+                <button class="btn-close" onclick="closeModal('modal-order')">&times;</button>
+            </div>
+            
+            <form id="new-order-form" onsubmit="handleOrderSubmit(event)">
+                <input type="hidden" id="editing-order-id">
+
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <select id="order-client-select" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Código</label>
+                    <input type="text" id="order-code" class="form-control" placeholder="Ex: ENC-1234" required>
+                </div>
+                <div class="form-group">
+                    <label>Descrição</label>
+                    <input type="text" id="order-desc" class="form-control" placeholder="Ex: Roupas">
+                </div>
+                <div class="form-group">
+                    <label>Peso (Kg)</label>
+                    <input type="number" id="order-weight" class="form-control" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="order-status" class="form-control">
+                        <option value="Processando">Processando</option>
+                        <option value="Pendente Pagamento">Pendente Pagamento</option>
+                        <option value="Pago">Pago</option>
+                        <option value="Enviado">Enviado</option>
+                        <option value="Entregue">Entregue</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick="closeModal('modal-order')" style="background:#ccc; width:auto;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+        <section id="clients-view" class="hidden">
+            <div class="card">
+                <h3>Base de Clientes</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Foto</th><th>Nome</th><th>Email</th><th>Tel</th><th>País</th><th>Status</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody id="clients-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="box-view" class="hidden">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3>Gestão de Box</h3>
+               <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
+                </div>
+                <div style="margin: 15px 0; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+                    <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" 
+                           placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody id="box-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="modal-box" class="modal-overlay" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>📦 Criar Novo Box</h3>
+                        <button class="btn-close" onclick="closeModal('modal-box')">&times;</button>
+                    </div>
+                    <form id="new-box-form" onsubmit="createBox(event)">
+                        <div class="form-group">
+                            <label>Cliente</label>
+                            <select id="box-client-select" class="form-control" required onchange="loadClientOrdersInBox(this.value)"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Vincular Encomenda</label>
+                            <select id="box-order-select" class="form-control" disabled onchange="autoFillBoxData(this)">
+                                <option value="">Selecione o Cliente Primeiro...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Número Box</label>
+                            <input type="text" id="box-code" class="form-control" required placeholder="Ex: BOX-001">
+                        </div>
+                        <div class="form-group">
+                            <label>Produtos</label>
+                            <textarea id="box-products" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Valor (opcional)</label>
+                            <input type="number" id="box-amount" class="form-control" step="0.01">
+                        </div>
+
+                        <div class="modal-actions">
+                            <button type="button" class="btn" onclick="closeModal('modal-box')" style="background:#ccc; width:auto;">Cancelar</button>
+                            <button type="submit" class="btn btn-primary" style="width:auto;">Criar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section id="billing-view" class="hidden">
+            <div class="card" id="admin-billing-panel" style="background: #e8f0fe; border-left: 5px solid #0a1931;">
+                <h3><i class="fas fa-file-invoice-dollar"></i> Gerar Nova Cobrança</h3>
+                <p style="font-size:13px; color:#666; margin-bottom:15px;">Selecione um cliente e um box para gerar o QR Code Pix e link de pagamento.</p>
+                
+                <form onsubmit="createInvoice(event)" style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end;">
+                    <div class="form-group">
+                        <label>1. Selecione o Cliente</label>
+                        <select id="bill-client-select" class="form-control" onchange="loadClientBoxesForBilling(this.value)" required>
+                            <option value="">Carregando...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>2. Selecione o Box</label>
+                        <select id="bill-box-select" class="form-control" onchange="calculateBillAmount(this)" required disabled>
+                            <option value="">Selecione Cliente...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Valor Total (Calculado)</label>
+                        <input type="number" id="bill-amount" class="form-control" step="0.01" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="height: 45px; margin-bottom: 2px; font-weight:bold;">
+                        <i class="fas fa-qrcode"></i> Gerar Fatura
+                    </button>
+                </form>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3>Status de Pagamentos</h3>
+                    <button onclick="loadInvoices()" class="btn-secondary" style="width:auto;">🔄 Atualizar Lista</button>
+                </div>
+                
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Cliente</th>
+                            <th>Box Ref</th>
+                            <th>Valor</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoices-list"></tbody>
+                </table>
+            </div>
+        </section>
+<section id="expenses-view" class="hidden">
+    <div class="kpi-grid" style="margin-bottom: 30px;">
+        <div class="kpi-card" style="border-left-color: #28a745;">
+            <div class="kpi-info">
+                <h3>Entradas (Faturamento)</h3>
+                <p id="fin-revenue" style="color: #28a745;">R$ 0,00</p>
+            </div>
+        </div>
+        <div class="kpi-card" style="border-left-color: #dc3545;">
+            <div class="kpi-info">
+                <h3>Saídas (Despesas)</h3>
+                <p id="fin-expenses" style="color: #dc3545;">R$ 0,00</p>
+            </div>
+        </div>
+        <div class="kpi-card" style="border-left-color: #0a1931;">
+            <div class="kpi-info">
+                <h3>Lucro Líquido</h3>
+                <p id="fin-profit" style="color: #0a1931;">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Cadastrar Nova Despesa</h3>
+        <form onsubmit="addExpense(event)" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+            <div class="form-group">
+                <label>Descrição</label>
+                <input type="text" id="exp-desc" class="form-control" placeholder="Ex: Aluguel Galpão" required>
+            </div>
+            <div class="form-group">
+                <label>Categoria</label>
+                <select id="exp-cat" class="form-control">
+                    <option value="Operacional">Operacional</option>
+                    <option value="Frete">Frete Aéreo/Marítimo</option>
+                    <option value="Salário">Salário/Pessoal</option>
+                    <option value="Outros">Outros</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Valor (R$)</label>
+                <input type="number" id="exp-amount" class="form-control" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>Data</label>
+                <input type="date" id="exp-date" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="background: #dc3545; height: 45px; margin-bottom: 2px;">
+                <i class="fas fa-minus-circle"></i> Registrar Saída
+            </button>
+        </form>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3>Histórico de Gastos</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Descrição</th>
+                    <th>Categoria</th>
+                    <th>Valor</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="expenses-list"></tbody>
+        </table>
+    </div>
+</section>
+<section id="logs-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>🛡️ Auditoria e Segurança</h3>
+            <button onclick="loadSystemLogs()" class="btn-secondary" style="font-size: 12px;">🔄 Atualizar</button>
+        </div>
+        <p style="color:#666; font-size:13px; margin-bottom:15px;">Monitoramento de ações sensíveis no sistema (Últimos 100 registros).</p>
+        
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Usuário</th>
+                        <th>Ação</th>
+                        <th>Detalhes</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-list"></tbody>
+            </table>
+        </div>
+    </div>
+</section>
+<section id="shipments-view" class="hidden">
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+        
+        <div>
+            <div class="card">
+                <h3>✈️ Gerenciar Embarques</h3>
+                <form onsubmit="createShipment(event)" style="display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end;">
+                    <div class="form-group">
+                        <label>Código do Lote</label>
+                        <input type="text" id="ship-code" class="form-control" placeholder="Ex: LOTE-500" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <select id="ship-type" class="form-control">
+                            <option value="Aéreo">Aéreo</option>
+                            <option value="Marítimo">Marítimo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Data Saída</label>
+                        <input type="date" id="ship-date" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="height: 45px; margin-bottom: 2px;">Criar</button>
+                </form>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Lote</th>
+                            <th>Tipo</th>
+                            <th>Saída</th>
+                            <th>Qtd. Caixas</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shipments-list"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card" style="background: #fff3cd; border: 1px solid #ffeeba;">
+            <h3>📦 Caixas Pendentes</h3>
+            <p style="font-size: 12px; margin-bottom: 10px;">Selecione um lote abaixo e clique na caixa para adicionar.</p>
+            
+            <div class="form-group">
+                <label>Selecionar Lote de Destino:</label>
+                <select id="target-shipment" class="form-control" style="background: white;">
+                    <option value="">-- Escolha um Lote --</option>
+                </select>
+            </div>
+
+            <div style="max-height: 400px; overflow-y: auto; margin-top: 10px;">
+                <ul id="pending-boxes-list" style="list-style: none; padding: 0;">
+                    </ul>
+            </div>
+        </div>
+    </div>
+</section>
+        <section id="labels-view" class="hidden">
+            <div class="header-flex">
+                <h2>🏷️ Gerador de Etiquetas</h2>
+                <div>
+                    <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold;">
+                        <i class="fas fa-print"></i> Imprimir Selecionadas
+                    </button>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 20px;">
+                <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control">
+            </div>
+
+            <div class="card">
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" onclick="toggleAllLabels(this)"></th>
+                                <th>Data</th>
+                                <th>Código</th>
+                                <th>Cliente</th>
+                                <th>Descrição</th>
+                                <th>Peso</th>
+                            </tr>
+                        </thead>
+                        <tbody id="labels-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="price-section" class="hidden">
+            <div class="card">
+                <h3>💰 Definição de Preço por Kg</h3>
+                <p>Defina o valor base cobrado por cada Quilograma para o cálculo automático.</p>
+                <div class="form-group">
+                    <label>Preço por Kg (R$):</label>
+                    <input type="number" id="price-input" class="form-control" step="0.01" placeholder="Ex: 5.50">
+                </div>
+                <button onclick="savePrice()" class="btn btn-primary" style="width:auto;">Salvar Novo Preço</button>
+            </div>
+        </section>
+
+        <section id="videos-section" class="hidden">
+            <div class="card">
+                <h3>🎥 Central de Gravação</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <div class="video-container" style="background: #000; height: 350px; border-radius: 8px; position: relative; overflow: hidden; margin-bottom: 10px;">
+                            <video id="camera-feed" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                            <video id="video-preview" controls style="width: 100%; height: 100%; object-fit: contain; display: none; background: black;"></video>
+                            <span id="recording-indicator" style="position: absolute; top: 10px; right: 10px; background: red; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; display: none;">REC ●</span>
+                        </div>
+                        <div id="camera-controls-ui">
+                            <button onclick="startCamera('user')" class="btn-secondary">📷 Frontal</button>
+                            <button onclick="startCamera('environment')" class="btn-secondary">📸 Traseira</button>
+                            <button id="btn-start-rec" onclick="startRecording()" class="btn-primary" style="background: #28a745; margin-top:5px;">▶ Gravar</button>
+                            <button id="btn-stop-rec" onclick="stopRecording()" class="btn-primary" style="background: #dc3545; display: none; margin-top:5px;">⏹ Parar</button>
+                        </div>
+                        <div id="preview-controls-ui" style="display: none; gap: 10px; margin-top:5px;">
+                            <button onclick="discardVideo()" class="btn-secondary">🗑 Descartar</button>
+                            <button onclick="confirmUpload()" class="btn-primary">🚀 Enviar</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="form-group">
+                            <label>Selecione a Encomenda (Para Vincular):</label>
+                            <select id="video-client-select" class="form-control">
+                                <option value="">Carregando lista...</option>
+                            </select>
+                        </div>
+                        <div id="video-order-info" style="opacity: 0.5; background:#f4f7f6; padding:15px; border-radius:8px;">
+                            <h4>📦 Informação da Encomenda</h4>
+                            <p><strong>Descrição:</strong> <span id="info-desc">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <h3>Histórico de Vídeos Enviados</h3>
+                <table class="data-table">
+                    <thead><tr><th>ID</th><th>Cliente</th><th>Data</th><th>Ação</th></tr></thead>
+                    <tbody id="admin-video-list"></tbody>
+                </table>
+            </div>
+        </section>
+<section id="receipts-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3><i class="fas fa-file-invoice"></i> Recibos e Comprovantes</h3>
+        </div>
+        <p style="color:#666; font-size:13px; margin-bottom:15px;">
+            Recibos gerados automaticamente a partir das Boxes cadastradas.
+        </p>
+
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>N° Box</th>
+                        <th id="rec-col-client">Cliente</th> <th>Conteúdo</th>
+                        <th>Peso</th>
+                        <th>Valor</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="receipts-list">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+<section id="employees-view" class="hidden">
+    <div class="header-flex">
+        <h2>👷 Gestão de Funcionários</h2>
+    </div>
+
+    <div class="card">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="employees-list">
+                </tbody>
+        </table>
+        <p style="margin-top: 15px; font-size: 12px; color: #666; text-align: center;">
+            * Funcionários desativados perdem acesso imediato ao sistema.
+        </p>
+    </div>
+</section>
+        <section id="history-view" class="hidden">
+            <div class="header-flex">
+                <h2>📜 Histórico Global de Envios</h2>
+                <input type="text" id="history-search" onkeyup="filterHistory()" placeholder="Filtrar por código ou nome..." class="form-control" style="max-width: 300px;"> 
+            </div>
+
+            <div class="card-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Código</th>
+                            <th id="hist-col-client">Cliente</th> 
+                            <th>Descrição</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+    </div> 
+    
+<div id="print-area" class="hidden-print-area"></div>
+    <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => { 
+            initDashboard(); 
+            // Inicia o carregamento dos clientes para a aba financeira
+            if(typeof loadClientsForBilling === 'function') {
+                loadClientsForBilling();
+                loadDashboardStats();
+            }
+        });
+        // Carregar Lista de Funcionários
+async function loadEmployees() {
+    try {
+        const res = await fetch('/api/admin/employees');
+        const data = await res.json();
+
+        const list = document.getElementById('employees-list');
+        list.innerHTML = '';
+
+        if (!data.success || data.employees.length === 0) {
+            list.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum funcionário encontrado.</td></tr>';
+            return;
+        }
+
+        data.employees.forEach(emp => {
+            const isActive = emp.active === 1;
+            const statusLabel = isActive 
+                ? '<span style="color: green; font-weight: bold;">Ativo</span>' 
+                : '<span style="color: red; font-weight: bold;">Inativo</span>';
+            
+            const btnColor = isActive ? '#dc3545' : '#28a745'; // Vermelho se for pra desativar, Verde se for pra ativar
+            const btnText = isActive ? 'Desativar' : 'Ativar';
+            const newStatus = isActive ? 0 : 1;
+
+            const row = `
+                <tr>
+                    <td>${emp.name}</td>
+                    <td>${emp.email}</td>
+                    <td>${statusLabel}</td>
+                    <td>
+                        <button onclick="toggleEmployee(${emp.id}, ${newStatus})" 
+                                class="btn" 
+                                style="padding: 5px 10px; font-size: 12px; background-color: ${btnColor}; color: white;">
+                            ${btnText}
+                        </button>
+                    </td>
+                </tr>
+            `;
+            list.innerHTML += row;
+        });
+
+    } catch (error) {
+        console.error("Erro ao carregar funcionários:", error);
+    }
+}
+
+// Alternar Status (Ativar/Desativar)
+async function toggleEmployee(id, newStatus) {
+    if(!confirm(newStatus === 0 ? "Tem certeza que deseja BLOQUEAR este funcionário?" : "Deseja reativar este funcionário?")) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/toggle-employee', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, active: newStatus })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            // Recarrega a lista para mostrar o novo status
+            loadEmployees();
+        } else {
+            alert("Erro ao alterar status.");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão.");
+    }
+}
+    </script>
+<script src="cici.js"></script>
+</body>
+</html>

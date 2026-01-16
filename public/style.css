@@ -1,0 +1,712 @@
+/* =========================================
+   1. VARIÁVEIS E RESET GERAL
+   ========================================= */
+:root {
+    --primary: #0a1931; /* Azul Marinho Profundo */
+    --accent: #d4af37;  /* Dourado Premium */
+    --light: #f4f7f6;   /* Fundo Claro */
+    --dark: #1e1e2d;    /* Texto Escuro */
+    --success: #28a745;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --white: #ffffff;
+    --gray: #6c757d;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+
+body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
+
+/* Utilitários */
+.hidden { display: none !important; }
+.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+
+/* =========================================
+   2. BOTÕES E FORMULÁRIOS
+   ========================================= */
+.btn { 
+    padding: 10px 20px; border: none; border-radius: 8px; 
+    cursor: pointer; font-weight: bold; transition: 0.3s; 
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-primary { background: var(--primary); color: var(--white); }
+.btn-primary:hover { background: #152b4a; }
+.btn-accent { background: var(--accent); color: var(--primary); }
+.btn-secondary { background: var(--gray); color: var(--white); }
+
+.form-group { margin-bottom: 15px; text-align: left; }
+.form-group label { display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 600; }
+.form-control {
+    width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 15px; transition: border-color 0.3s;
+}
+.form-control:focus { border-color: var(--accent); outline: none; }
+
+/* =========================================
+   3. LAYOUT E NAVEGAÇÃO (ESTILO INSTAGRAM)
+   ========================================= */
+.dashboard-nav {
+    background: var(--primary);
+    color: white;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    display: flex; flex-direction: column; /* Empilha Logo e Menu */
+}
+
+/* Cabeçalho com Logo */
+.nav-header {
+    padding: 10px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Container dos botões com SCROLL HORIZONTAL */
+.nav-links {
+    display: flex;
+    overflow-x: auto; /* Permite deslizar para o lado */
+    white-space: nowrap; /* Impede quebra de linha */
+    padding: 10px 15px;
+    gap: 10px;
+    -webkit-overflow-scrolling: touch; /* Rolagem suave no iPhone */
+    scrollbar-width: none; /* Esconde barra de rolagem no Firefox */
+}
+
+/* Esconde barra de rolagem no Chrome/Safari/Android */
+.nav-links::-webkit-scrollbar { display: none; }
+
+.nav-links button {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #ccc;
+    padding: 8px 16px;
+    border-radius: 20px; /* Formato de pílula */
+    font-size: 14px;
+    cursor: pointer;
+    flex: 0 0 auto; /* Impede o botão de encolher */
+    transition: all 0.2s;
+}
+
+.nav-links button:hover { background: rgba(255,255,255,0.2); color: white; }
+
+/* Botão Ativo */
+.nav-links button.active {
+    background: var(--accent);
+    color: var(--primary);
+    font-weight: bold;
+    border-color: var(--accent);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Botão Sair */
+.nav-links button:last-child { margin-left: auto; border-color: var(--danger); color: #ffadad; }
+
+/* =========================================
+   4. CARDS E TABELAS
+   ========================================= */
+.card {
+    background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 4px solid var(--primary);
+}
+.card h3 { color: var(--primary); margin-bottom: 15px; font-size: 18px; border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; }
+
+/* Tabela Padrão */
+.data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+.data-table th { background-color: #f8f9fa; color: var(--primary); font-weight: 700; }
+
+/* Badges de Status */
+.status-badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; display: inline-block; }
+.status-Processando { background-color: #17a2b8; }
+.status-Pendente { background-color: var(--warning); color: #333; }
+.status-Enviado { background-color: #007bff; }
+.status-Entregue { background-color: var(--success); }
+
+/* =========================================
+   5. MODAIS
+   ========================================= */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6); z-index: 1000;
+    display: none; justify-content: center; align-items: center;
+    backdrop-filter: blur(2px);
+}
+.modal-content {
+    background: white; padding: 25px; border-radius: 10px;
+    width: 90%; max-width: 500px; position: relative;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    max-height: 90vh; overflow-y: auto;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* =========================================
+   6. RESPONSIVIDADE (MOBILE)
+   ========================================= */
+@media (max-width: 768px) {
+    .container { padding: 10px; }
+    
+    /* Ajuste da Navegação Mobile */
+    .dashboard-nav { padding: 0; }
+    .nav-header { padding: 10px 15px; }
+    .nav-links { padding: 5px 15px 10px 15px; }
+
+    /* Tabela vira Card no Mobile */
+    .data-table, .data-table thead, .data-table tbody, .data-table th, .data-table td, .data-table tr { 
+        display: block; 
+    }
+    .data-table thead { display: none; }
+    .data-table tr { 
+        background: #fff; margin-bottom: 10px; border: 1px solid #e0e0e0; 
+        border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .data-table td { 
+        padding: 10px 15px; border-bottom: 1px solid #f5f5f5; 
+        display: flex; justify-content: space-between; align-items: center;
+        text-align: right; 
+    }
+    .data-table td::before { 
+        content: attr(data-label); 
+        font-weight: bold; color: var(--primary); font-size: 12px; text-transform: uppercase; 
+    }
+    .data-table td:last-child { border-bottom: none; justify-content: center; padding-top: 15px; }
+    
+    /* Ajustes Gerais */
+    .header-flex { flex-direction: column; gap: 10px; align-items: flex-start; }
+    .btn { width: 100%; margin-bottom: 5px; }
+}
+/* =========================================
+   6. TELA DE LOGIN (ESTILO PREMIUM)
+   ========================================= */
+.login-wrapper {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Fundo degradê elegante usando suas cores */
+    background: linear-gradient(135deg, var(--primary) 0%, #000000 100%);
+    padding: 20px;
+}
+
+.login-card {
+    background: #ffffff;
+    width: 100%;
+    max-width: 420px;
+    padding: 40px;
+    border-radius: 16px;
+    /* Sombra forte para destacar do fundo escuro */
+    box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+    /* Borda dourada no topo para o toque premium */
+    border-top: 5px solid var(--accent);
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.company-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.company-header h1 {
+    color: var(--primary);
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 5px;
+    letter-spacing: -0.5px;
+}
+
+.company-header p {
+    color: #777;
+    font-size: 14px;
+}
+
+/* Ajuste específico para os inputs do login ficarem mais "altos" */
+.login-card .form-control {
+    padding: 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.login-card .form-control:focus {
+    background-color: #fff;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15); /* Brilho dourado suave */
+}
+
+/* Animação suave de entrada */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Ajuste para telas muito pequenas (celulares antigos) */
+@media (max-width: 480px) {
+    .login-card {
+        padding: 25px;
+    }
+}
+
+/* =========================================
+   7. IMPRESSÃO INTELIGENTE (Etiqueta + A4)
+   ========================================= */
+.hidden-print-area { display: none; }
+
+@media print {
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    
+    #print-area {
+        position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+        display: block !important; background-color: white; z-index: 9999;
+    }
+
+    /* --- DEFINIÇÃO DOS TAMANHOS DE PAPEL --- */
+    
+    /* Configuração para ETIQUETA (Pequena) */
+    @page label-page { size: 100mm 150mm; margin: 0mm; }
+    .shipping-label-container { page: label-page; break-after: page; width: 100mm; height: 149mm; overflow: hidden; }
+
+    /* Configuração para RECIBO (A4 Normal) */
+    @page a4-page { size: A4 portrait; margin: 5mm; }
+    .receipt-a4-container { page: a4-page; break-after: page; width: 200mm; min-height: 280mm; }
+
+    /* --- ESTILOS VISUAIS DA ETIQUETA (Baseado no seu PDF) --- */
+    .shipping-label-container {
+        border: 2px solid #000; display: flex; flex-direction: column; font-family: 'Arial', sans-serif; box-sizing: border-box; background: white;
+    }
+    .lbl-header { background: #000; color: #d4af37; padding: 8px; height: 75px; display: flex; justify-content: space-between; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    
+    /* Logo Circular GE */
+    .lbl-logo { width: 55px; height: 55px; border: 2px solid #d4af37; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .lbl-logo-main { font-size: 20px; font-weight: 900; line-height: 1; color: #d4af37; }
+    .lbl-logo-sub { font-size: 8px; text-transform: uppercase; color: #fff; }
+
+    .lbl-body { padding: 8px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .lbl-box { border: 1px solid #000; padding: 6px; border-radius: 4px; }
+    .lbl-title { font-size: 9px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #ccc; margin-bottom: 3px; color: #333; }
+    .lbl-text { font-size: 13px; font-weight: 700; line-height: 1.2; color: #000; }
+    
+    .lbl-footer { background: #f4f4f4; border-top: 2px solid #000; padding: 8px; height: 90px; display: flex; justify-content: space-between; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* --- ESTILOS VISUAIS DO RECIBO A4 (Baseado no seu PDF) --- */
+    .receipt-a4-container {
+        padding: 20px; font-family: 'Times New Roman', serif; position: relative; color: #000;
+    }
+    .rec-header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+    .rec-title-bar { background: #eee; border: 1px solid #000; padding: 8px; display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 20px; font-size: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .rec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 20px; }
+    .rec-box h3 { border-bottom: 1px solid #000; font-size: 14px; margin-bottom: 5px; text-transform: uppercase; }
+    .rec-line { font-size: 13px; margin-bottom: 4px; }
+    
+    .rec-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #000; }
+    .rec-table th { border: 1px solid #000; padding: 8px; text-align: left; background: #eee; font-size: 12px; -webkit-print-color-adjust: exact; }
+    .rec-table td { border: 1px solid #000; padding: 8px; font-size: 13px; }
+    
+    .rec-footer-text { margin-top: 40px; text-align: center; font-size: 11px; color: #333; }
+    .rec-signatures { display: flex; justify-content: space-between; margin-top: 50px; }
+    .rec-sign-line { width: 40%; border-top: 1px solid #000; text-align: center; font-size: 12px; font-weight: bold; padding-top: 5px; }
+}
+/* --- CSS DO MODAL DE RECUPERAÇÃO --- */
+
+/* Fundo escuro que cobre a tela toda */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6); /* Fundo preto transparente */
+    display: flex; /* Centraliza o conteúdo */
+    justify-content: center;
+    align-items: center;
+    z-index: 9999; /* Garante que fique na frente de tudo */
+    opacity: 1;
+    visibility: visible;
+    transition: all 0.3s ease;
+}
+
+/* A classe que esconde o modal */
+.modal-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none; /* Impede clique quando invisível */
+}
+
+/* O cartão branco (janelinha) */
+.modal-card {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    position: relative;
+    transform: translateY(0);
+    transition: transform 0.3s ease;
+}
+
+/* Efeito de subida quando esconde (opcional, fica bonito) */
+.modal-overlay.hidden .modal-card {
+    transform: translateY(-20px);
+}
+
+/* Cabeçalho do modal */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+/* Botão de fechar (X) */
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+}
+/* =========================================
+   7. ESTILOS DO DASHBOARD (KPIs e Gráficos)
+   ========================================= */
+/* Grid dos Cards Superiores (Receita, Peso, Pedidos, Clientes) */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.kpi-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border-bottom: 4px solid var(--primary); /* Detalhe colorido em baixo */
+    transition: transform 0.2s;
+}
+
+.kpi-card:hover { transform: translateY(-3px); }
+
+.kpi-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--primary);
+    margin: 10px 0;
+}
+
+.kpi-label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+/* Área dos Gráficos (Rosca e Barras) */
+.charts-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 2fr; /* Gráfico de barras maior que o de rosca */
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.chart-container {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    position: relative;
+    height: 350px; /* Altura fixa para alinhar */
+}
+
+@media (max-width: 900px) {
+    .charts-wrapper { grid-template-columns: 1fr; height: auto; }
+    .chart-container { height: auto; min-height: 300px; }
+}
+
+/* =========================================
+   8. ESTILOS FINANCEIROS (Despesas)
+   ========================================= */
+/* Cards de Resumo Financeiro (Receita x Despesa x Lucro) */
+.financial-summary {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.fin-card {
+    flex: 1;
+    min-width: 150px;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.fin-card span { font-size: 11px; color: #777; text-transform: uppercase; }
+.fin-card strong { font-size: 20px; color: var(--dark); margin-top: 5px; }
+
+/* Formulário de Adicionar Despesa */
+.expense-form-inline {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    background: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.expense-form-inline .form-group { margin-bottom: 0; flex: 1; min-width: 150px; }
+.expense-form-inline button { height: 42px; margin-bottom: 1px; }
+
+/* =========================================
+   9. ESTILOS DE EMBARQUES (Manifesto)
+   ========================================= */
+/* Lista de Caixas Pendentes (Scrollável) */
+#pending-boxes-list {
+    list-style: none;
+    max-height: 350px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background: #f9f9f9;
+}
+
+/* Estilo do botão de remover/adicionar (Círculo) */
+.btn-circle-action {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.2s;
+}
+.btn-circle-action:hover { transform: scale(1.1); }
+
+/* =========================================
+   10. ESTILOS ESPECÍFICOS DE PRINT (Manifesto)
+   ========================================= */
+/* Oculta a área de impressão na tela normal */
+#print-area { display: none; }
+
+@media print {
+    /* Esconde tudo, mostra só o manifesto */
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    
+    #print-area {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        display: block !important;
+        background: white;
+        padding: 20px;
+    }
+
+    /* Reset de estilos para impressão limpa */
+    .print-container { font-family: 'Arial', sans-serif; color: black; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #000 !important; padding: 6px; }
+}
+/* cici.css - Versão Corrigida e Estável */
+#cici-widget {
+    position: fixed;
+    bottom: 90px;
+    right: 25px;
+    z-index: 10000;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Avatar Pulsante */
+#cici-avatar {
+    width: 65px;
+    height: 65px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    cursor: pointer;
+    border: 3px solid #d4af37;
+    /* Imagem de avatar de mulher (link estável) */
+    background-image: url('https://img.freepik.com/fotos-gratis/mulher-de-negocios-confiante-sorrindo-e-olhando-para-a-camera_1157-38666.jpg?w=200');
+    background-size: cover;
+    background-position: center top;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+}
+
+#cici-avatar:hover { transform: scale(1.1); }
+
+.cici-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background: #ff4757;
+    color: white;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    border: 2px solid white;
+    animation: bounce 2s infinite;
+}
+
+/* Janela do Chat */
+#cici-chat-window {
+    position: fixed;
+    bottom: 100px;
+    right: 25px;
+    width: 360px;
+    height: 500px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease-out;
+}
+
+#cici-chat-window.open {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Header com Gradiente */
+.cici-header {
+    background: linear-gradient(135deg, #0a1931 0%, #1a3c6e 100%);
+    color: white;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.cici-info h4 { margin: 0; font-size: 16px; font-weight: 600; }
+.cici-info small { font-size: 11px; color: #d4af37; letter-spacing: 0.5px; }
+
+/* Corpo das Mensagens */
+.cici-body {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
+
+/* Balões */
+.msg {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    position: relative;
+    word-wrap: break-word;
+}
+
+.msg.cici {
+    background: white;
+    align-self: flex-start;
+    border-bottom-left-radius: 2px;
+    color: #1c1e21;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.msg.user {
+    background: #0a1931;
+    color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 2px;
+}
+
+/* Sugestões de Botões */
+.cici-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 5px;
+    justify-content: flex-start;
+}
+.cici-btn-opt {
+    background: white;
+    border: 1px solid #d4af37;
+    color: #0a1931;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.2s;
+}
+.cici-btn-opt:hover { background: #d4af37; color: white; }
+
+/* Input Area */
+.cici-input-area {
+    padding: 12px;
+    border-top: 1px solid #e4e6eb;
+    background: white;
+    display: flex;
+    gap: 8px;
+}
+.cici-input-area input {
+    flex: 1;
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+    border-radius: 20px;
+    outline: none;
+    font-size: 13px;
+    background: #f0f2f5;
+    transition: 0.2s;
+}
+.cici-input-area input:focus { border-color: #0a1931; background: white; }
+
+/* Animação de Digitando */
+.typing-indicator {
+    padding: 10px;
+    background: white;
+    border-radius: 12px;
+    display: inline-flex;
+    gap: 4px;
+    width: fit-content;
+    align-self: flex-start;
+    margin-bottom: 5px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.dot {
+    width: 6px;
+    height: 6px;
+    background: #b0b3b8;
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out both;
+}
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+@keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }

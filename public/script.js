@@ -1,0 +1,2873 @@
+let currentRole = 'client';
+let currentUser = null;
+let globalPricePerKg = 0; 
+let mediaRecorder;
+let recordedChunks = [];
+let currentStream = null;
+let currentBlob = null;
+// --- 1. CONFIGURAÇÃO DE MÁSCARAS (TELEFONE E DOCUMENTO) ---
+// ==========================================
+// AUTO-LOGIN (Ao atualizar a página)
+// ==========================================
+async function checkAutoLogin() {
+    try {
+        const res = await fetch('/api/check-session');
+        const data = await res.json();
+
+        if (data.loggedIn) {
+            // Salva dados globais
+            currentUser = data.user;
+            currentRole = data.user.role;
+
+            // Esconde Login e Mostra Dashboard
+            document.getElementById('login-screen').classList.add('hidden');
+            
+            if (currentRole === 'admin') {
+                window.location.href = 'dashboard-admin.html'; // Ou exibe a div do admin
+            } else {
+                // Se estivermos no index.html e for cliente, manda pro dashboard
+                // Se já estivermos no dashboard-client.html, apenas carrega a Home
+                if(window.location.pathname.includes('index') || window.location.pathname === '/') {
+                     window.location.href = 'dashboard-client.html';
+                } else {
+                     showSection('home-view'); // Garante que vá para a Home
+                }
+            }
+        }
+    } catch (error) {
+        console.log("Sessão expirada ou inválida.");
+    }
+}
+
+// Executa ao abrir a página
+document.addEventListener('DOMContentLoaded', () => {
+    checkAutoLogin();
+});
+// Máscaras de Telefone
+const countryMasks = {
+    'GW': '+245 00 000 00 00', // Guiné-Bissau
+    'BR': '(00) 00000-0000',    // Brasil
+    'PT': '+351 000 000 000',   // Portugal
+    'SN': '+221 00 000 00 00',  // Senegal
+    'MA': '+212 0 00 00 00 00', // Marrocos
+    'US': '+1 (000) 000-0000',  // EUA
+    'FR': '+33 0 00 00 00 00',  // França
+    'ES': '+34 000 000 000',    // Espanha
+    'UK': '+44 0000 000000',    // Reino Unido
+    'BE': '+32 000 00 00 00',   // Bélgica
+    'CV': '+238 000 00 00'      // Cabo Verde
+};
+
+// Máscaras de Documento (Novas)
+// '0' = apenas números, 'a' = letras, '*' = letras e números
+const countryDocMasks = {
+    'GW': '000000000',          // Guiné (Exemplo numérico)
+    'BR': '000.000.000-00',     // Brasil (CPF)
+    'PT': '000000000',          // Portugal (NIF)
+    'US': '000-00-0000',        // EUA (SSN)
+    'SN': '0 000 0000 00000',   // Senegal (Exemplo CNI)
+    'CV': '000000000',          // Cabo Verde
+    // Para outros países, deixamos uma máscara genérica de 12 a 15 caracteres
+    'default': '****************' 
+};
+
+// Variáveis de controle para limpar a máscara anterior ao trocar
+let phoneMaskInstance = null;
+let docMaskInstance = null;
+
+function updateMasks() {
+    // Verifica se a biblioteca IMask carregou
+    if (typeof IMask === 'undefined') {
+        console.warn("Biblioteca IMask não carregada.");
+        return;
+    }
+
+    const countrySelect = document.getElementById('reg-country');
+    const phoneInput = document.getElementById('reg-phone');
+    const docInput = document.getElementById('reg-doc');
+    
+    if (!countrySelect || !phoneInput || !docInput) return;
+
+    const country = countrySelect.value;
+
+    // --- A. ATUALIZA MÁSCARA DE TELEFONE ---
+    const phonePattern = countryMasks[country] || '0000000000000'; 
+    
+    if (phoneMaskInstance) phoneMaskInstance.destroy(); 
+    
+    try {
+        phoneMaskInstance = IMask(phoneInput, { mask: phonePattern });
+        phoneInput.placeholder = phonePattern.replace(/[0-9]/g, 'X'); 
+    } catch (e) { console.warn("Erro IMask Phone:", e); }
+
+    // --- B. ATUALIZA MÁSCARA DE DOCUMENTO ---
+    const docPattern = countryDocMasks[country] || countryDocMasks['default'];
+
+    if (docMaskInstance) docMaskInstance.destroy(); 
+
+    try {
+        docMaskInstance = IMask(docInput, { 
+            mask: docPattern,
+            prepare: function (str) { return str.toUpperCase(); } 
+        });
+        
+        docInput.placeholder = docPattern.replace(/[0-9a*]/g, 'X'); 
+        if(country === 'BR') docInput.placeholder = "CPF (000.000.000-00)";
+        if(country === 'PT') docInput.placeholder = "NIF (000000000)";
+
+    } catch (e) { console.warn("Erro IMask Doc:", e); }
+}
+// --- LOGIN & CADASTRO (CORRIGIDO) ---
+document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const login = document.getElementById('login-user').value;
+    const pass = document.getElementById('login-pass').value;
+    
+    // Envia a role atual (que vem dos botões "Sou Cliente", "Funcionário", etc)
+    const res = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, password: pass, role: currentRole })
+    });
+    
+    const data = await res.json();
+    
+    if(data.success) {
+        localStorage.setItem('userRole', data.role);
+        
+        // --- AQUI ESTÁ A CORREÇÃO DO REDIRECIONAMENTO ---
+        if (data.role === 'client') {
+            window.location.href = 'dashboard-client.html';
+        } else if (data.role === 'employee') {
+            window.location.href = 'dashboard-employee.html'; // <--- O NOVO ARQUIVO
+        } else {
+            window.location.href = 'dashboard-admin.html';
+        }
+        // ------------------------------------------------
+    } else {
+        alert(data.msg);
+    }
+});
+
+document.getElementById('register-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if(document.getElementById('reg-pass').value !== document.getElementById('reg-pass2').value) return alert('Senhas não conferem');
+    
+    const formData = {
+        name: document.getElementById('reg-name').value, email: document.getElementById('reg-email').value,
+        phone: document.getElementById('reg-phone').value, country: document.getElementById('reg-country').value,
+        document: document.getElementById('reg-doc').value, password: document.getElementById('reg-pass').value
+    };
+    const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData)});
+    const data = await res.json();
+    if(data.success) { alert('Sucesso! Faça login.'); showLogin(); } else alert(data.msg);
+});
+function showSection(id) {
+    // 1. Esconde todas as seções
+    document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+    
+    // 2. Mostra a seção desejada
+    const section = document.getElementById(id);
+    if(section) {
+        section.classList.remove('hidden');
+        localStorage.setItem('activeTab', id);
+    }
+
+    // 3. Carrega os dados específicos
+    if(id === 'videos-section') initVideoSection();
+    if(id === 'orders-view') loadOrders();
+    if(id === 'schedule-view') loadSchedules();
+    if(id === 'box-view') loadBoxes(); 
+    if(id === 'price-section') loadPrice(); 
+    if(id === 'billing-view') loadClientInvoices();
+    if(id === 'history-view') loadHistory(); 
+    if(id === 'labels-view') loadLabels();
+    if(id === 'expenses-view') loadExpenses();
+    if(id === 'logs-view') loadSystemLogs();
+    if(id === 'shipments-view') loadShipments();
+    
+    // --- NOVO: Carrega os Recibos ---
+    if(id === 'receipts-view') loadReceipts();
+}
+// --- INICIALIZAÇÃO DO DASHBOARD ---
+async function initDashboard() {
+    try {
+        const res = await fetch('/api/user');
+        
+        // Se der erro (401 ou 403), manda pro login
+        if(res.status !== 200) {
+            console.warn("Sessão inválida ou expirada.");
+            return window.location.href = 'index.html';
+        }
+
+        currentUser = await res.json();
+        
+        // Exibe cargo no topo
+        const roleDisplay = document.getElementById('user-role-display');
+        if(roleDisplay) roleDisplay.innerText = `| ${currentUser.role.toUpperCase()}`;
+
+        // Preenche perfil se for cliente
+        if(currentUser.role === 'client' && document.getElementById('profile-name')) {
+            document.getElementById('profile-name').value = currentUser.name || '';
+            document.getElementById('profile-email').value = currentUser.email || '';
+            document.getElementById('profile-phone').value = currentUser.phone || '';
+        }
+
+        // Carregamentos iniciais de dados
+        loadPrice(); 
+        if(currentUser.role !== 'client') loadClients();
+        loadOrders();
+        loadSchedules();
+
+        // --- RECUPERA A ABA ANTERIOR ---
+        const lastTab = localStorage.getItem('activeTab');
+        
+        // Verifica se existe uma aba salva e se esse elemento existe na tela
+        if (lastTab && document.getElementById(lastTab)) {
+            showSection(lastTab);
+        } else {
+            // Se não tiver histórico (primeiro acesso), define a padrão
+            if(currentUser.role === 'client') {
+                showSection('orders-view'); // Aba padrão do Cliente
+            } else {
+                showSection('orders-view'); // Aba padrão do Admin
+            }
+        }
+
+    } catch (error) {
+        console.error("Erro ao iniciar dashboard:", error);
+        // Opcional: window.location.href = 'index.html';
+    }
+}
+// --- CONFIGURAÇÃO DE PREÇO ---
+function loadPrice() {
+    fetch('/api/config/price')
+        .then(res => res.json())
+        .then(data => {
+            globalPricePerKg = data.price;
+            const input = document.getElementById('price-input');
+            if(input) input.value = globalPricePerKg;
+            
+            const boxSection = document.getElementById('boxes-section') || document.getElementById('box-view');
+            if(boxSection && !boxSection.classList.contains('hidden')) {
+                loadBoxes();
+            }
+        });
+}
+
+function savePrice() {
+    const price = parseFloat(document.getElementById('price-input').value);
+    if (isNaN(price)) return alert("Digite um valor válido");
+
+    fetch('/api/config/price', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ price: price })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            alert("Preço atualizado com sucesso!");
+            loadPrice(); 
+        } else {
+            alert("Erro ao salvar.");
+        }
+    });
+}
+
+// --- SISTEMA DE ENCOMENDAS E CAIXAS ---
+async function loadBoxes() {
+    const res = await fetch('/api/boxes');
+    const list = await res.json();
+    const tbody = document.getElementById('box-table-body');
+    
+    if(tbody) {
+        tbody.innerHTML = '';
+        list.forEach(b => {
+            const act = (currentUser.role !== 'client') ? 
+                `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer;">Excluir</button>` : '-';
+            
+            const weight = parseFloat(b.order_weight) || 0;
+            const totalValue = (weight * globalPricePerKg).toFixed(2);
+
+            tbody.innerHTML += `
+            <tr>
+                <td>${b.box_code}</td>
+                <td>${b.client_name || '-'}</td>
+                <td>${b.order_code || '-'}</td>
+                <td>${weight} Kg</td>
+                <td style="font-weight:bold; color:green;">${totalValue}</td> <td>${b.products || '-'}</td>
+                <td>${act}</td>
+            </tr>`; 
+        });
+        // CORREÇÃO 1: Adicionado para funcionar no mobile
+        makeTablesResponsive();
+    }
+}
+// ==========================================
+// FUNÇÃO QUE FALTAVA: CRIAR ENCOMENDA
+// ==========================================
+async function createOrder() {
+    // 1. Pega os dados do formulário
+    const clientId = document.getElementById('order-client-select').value;
+    const code = document.getElementById('order-code').value;
+    const desc = document.getElementById('order-desc').value;
+    const weight = document.getElementById('order-weight').value;
+    const status = document.getElementById('order-status').value;
+
+    // 2. Validação simples
+    if (!clientId || !code || !weight) {
+        return alert("Preencha Cliente, Código e Peso!");
+    }
+
+    const data = {
+        client_id: clientId,
+        code: code,
+        description: desc,
+        weight: weight,
+        status: status
+    };
+
+    try {
+        // 3. Envia para o servidor
+        const res = await fetch('/api/orders/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const json = await res.json();
+
+        if (json.success) {
+            alert("✅ Encomenda criada com sucesso!");
+            
+            // 4. Limpa e fecha
+            document.getElementById('new-order-form').reset();
+            closeModal('modal-order');
+            
+            // 5. Atualiza a lista na tela
+            loadOrders();
+        } else {
+            alert("Erro ao criar: " + (json.msg || "Verifique se o código já existe."));
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão com o servidor.");
+    }
+}
+async function createBox(e) {
+    if(e) e.preventDefault();
+
+    // 1. Captura os ELEMENTOS primeiro (para verificar se existem)
+    const clientEl = document.getElementById('box-client-select');
+    const orderEl = document.getElementById('box-order-select');
+    const codeEl = document.getElementById('box-code');
+    const prodEl = document.getElementById('box-products');
+    const amountEl = document.getElementById('box-amount'); // <--- Esse pode ser null no painel de funcionário
+
+    // Se por acaso o HTML não carregou direito, evita erro
+    if(!clientEl || !codeEl) {
+        return alert("Erro de interface: Campos obrigatórios não encontrados.");
+    }
+
+    // 2. Pega os valores com segurança
+    const clientVal = clientEl.value;
+    const codeVal = codeEl.value;
+    const orderVal = orderEl ? orderEl.value : ""; // Se não existir, vazio
+    const prodVal = prodEl ? prodEl.value : "";   // Se não existir, vazio
+    
+    // --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
+    // Se o campo de valor (amountEl) existir, pega o valor. Se não existir (funcionário), usa 0.
+    const amountVal = amountEl ? amountEl.value : 0; 
+    // --------------------------------------
+
+    if(!clientVal || !codeVal) {
+        return alert("Erro: O Cliente e o Número do Box são obrigatórios.");
+    }
+
+    const d = {
+        client_id: clientVal,
+        order_id: orderVal === "" ? null : orderVal, 
+        box_code: codeVal,
+        products: prodVal,
+        amount: amountVal === "" ? 0 : amountVal 
+    };
+
+    try {
+        const res = await fetch('/api/boxes/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(d)
+        });
+        
+        const json = await res.json();
+
+        if(json.success) {
+            closeModal('modal-box'); 
+            
+            // Reseta o formulário
+            const form = document.getElementById('new-box-form');
+            if(form) form.reset();
+            
+            loadBoxes();
+            alert("✅ Box criado com sucesso!");
+        } else {
+            console.error("Erro servidor:", json);
+            const msg = json.err ? json.err.message : (json.msg || "Erro desconhecido");
+            
+            if (msg.includes("FOREIGN KEY")) {
+                alert("Erro: O Cliente selecionado não confere.");
+            } else if (msg.includes("UNIQUE")) {
+                alert("Erro: Já existe um Box com este código.");
+            } else {
+                alert("❌ Erro ao salvar: " + msg);
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erro de conexão com o sistema.");
+    }
+}
+async function deleteBox(id) {
+    if(confirm('Apagar esta caixa?')) {
+        await fetch('/api/boxes/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+        loadBoxes();
+    }
+}
+
+// --- SISTEMA DE AGENDAMENTO ---
+async function createAvailability(e) {
+    e.preventDefault();
+    const data = {
+        date: document.getElementById('sched-date').value,
+        start_time: document.getElementById('sched-start').value,
+        end_time: document.getElementById('sched-end').value,
+        max_slots: document.getElementById('sched-slots').value
+    };
+    const res = await fetch('/api/schedule/create-availability', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)});
+    const json = await res.json();
+    if(json.success) { alert('Horário liberado!'); loadSchedules(); } else alert('Erro.');
+}
+
+async function loadSchedules() {
+    const resSlots = await fetch('/api/schedule/slots-15min');
+    const slots15min = await resSlots.json();
+    const resAppoint = await fetch('/api/schedule/appointments');
+    const appointments = await resAppoint.json();
+
+    if(currentUser.role !== 'client') {
+        renderAdminSchedule(appointments);
+        renderAdminAvailabilities();
+        return;
+    }
+
+    const container = document.getElementById('available-slots-container');
+    if(container) {
+        container.innerHTML = '';
+        const bookedDates = appointments.filter(app => app.status !== 'Cancelado').map(app => app.date);
+        const groups = {};
+        slots15min.forEach(slot => { if(!groups[slot.date]) groups[slot.date] = []; groups[slot.date].push(slot); });
+
+        if(Object.keys(groups).length === 0) container.innerHTML = '<p style="text-align:center; color:#666;">Sem horários disponíveis.</p>';
+
+        for (const [date, slots] of Object.entries(groups)) {
+            const alreadyBookedThisDay = bookedDates.includes(date);
+            const dateObj = new Date(date + 'T00:00:00');
+            const dateStr = dateObj.toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric', month: 'long'});
+            
+            let html = `<div class="schedule-group" style="margin-bottom: 25px;">
+                <h4 style="border-bottom: 2px solid #0a1931; color: #0a1931; padding-bottom: 5px; margin-bottom: 10px; text-transform: capitalize;">
+                    📅 ${dateStr} ${alreadyBookedThisDay ? '<span style="font-size:12px; color:red;">(Já agendado)</span>' : ''}
+                </h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">`;
+
+            slots.forEach(slot => {
+                const isFull = slot.available <= 0;
+                const isBlocked = isFull || alreadyBookedThisDay;
+                let style = `border: 1px solid ${isBlocked?'#ccc':'#28a745'}; background: ${isBlocked?'#eee':'#fff'}; color: ${isBlocked?'#999':'#28a745'}; padding: 8px 15px; border-radius: 5px; cursor: ${isBlocked?'not-allowed':'pointer'}; font-weight:bold; min-width: 80px; text-align:center;`;
+                
+                html += `<div onclick="${isBlocked ? '' : `bookSlot(${slot.availability_id}, '${slot.date}', '${slot.time}')`}" style="${style}">
+                    ${slot.time} ${isFull ? '(Cheio)' : ''}
+                </div>`;
+            });
+            html += `</div></div>`;
+            container.innerHTML += html;
+        }
+    }
+
+    const tbody = document.getElementById('client-schedule-list');
+    if(tbody) {
+        tbody.innerHTML = '';
+        appointments.forEach(app => {
+            const canCancel = app.status !== 'Cancelado' && app.status !== 'Recusado';
+            const btn = canCancel ? `<button onclick="cancelBooking(${app.id})" style="color:red; border:1px solid red; background:white; padding:2px 5px; cursor:pointer;">Cancelar</button>` : '-';
+            tbody.innerHTML += `<tr><td>${formatDate(app.date)}</td><td>${app.time_slot}</td><td>${app.status}</td><td>${btn}</td></tr>`;
+        });
+        // Mobile schedule fix could go here if table used
+    }
+}
+
+async function bookSlot(availId, date, time) {
+    if(!confirm(`Confirmar agendamento dia ${formatDate(date)} às ${time}?`)) return;
+    const res = await fetch('/api/schedule/book', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ availability_id: availId, date: date, time: time }) });
+    const json = await res.json();
+    if(json.success) { alert('Sucesso!'); loadSchedules(); } else alert(json.msg);
+}
+
+// Funções Administrativas de Agenda
+async function renderAdminAvailabilities() {
+    const res = await fetch('/api/schedule/availability');
+    const list = await res.json();
+    const tbody = document.getElementById('admin-availability-list');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    list.forEach(item => {
+        tbody.innerHTML += `<tr><td>${formatDate(item.date)}</td><td>${item.start_time}</td><td>${item.end_time}</td><td>${item.max_slots}</td><td><button onclick="deleteAvailability(${item.id})" style="color:white; background:red; border:none; padding:5px; cursor:pointer;">Excluir</button></td></tr>`;
+    });
+}
+
+async function deleteAvailability(id) {
+    if(!confirm('Isso excluirá todos os agendamentos deste dia. Continuar?')) return;
+    await fetch('/api/schedule/delete-availability', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id}) });
+    renderAdminAvailabilities();
+}
+
+function renderAdminSchedule(appointments) {
+    const tbody = document.getElementById('admin-schedule-list');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    appointments.forEach(app => {
+        let actions = '-';
+        if(app.status === 'Pendente') {
+            actions = `<button onclick="updateScheduleStatus(${app.id}, 'Aprovado')" style="color:green; cursor:pointer;">✔</button> <button onclick="updateScheduleStatus(${app.id}, 'Recusado')" style="color:red; cursor:pointer;">✖</button>`;
+        }
+        tbody.innerHTML += `<tr><td>${formatDate(app.date)}</td><td>${app.time_slot}</td><td>${app.client_name}<br><small>${app.client_phone}</small></td><td>${app.status}</td><td>${actions}</td></tr>`;
+    });
+}
+
+async function updateScheduleStatus(id, newStatus) {
+    if(!confirm(`Alterar para ${newStatus}?`)) return;
+    await fetch('/api/schedule/status', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: id, status: newStatus }) });
+    loadSchedules();
+}
+
+async function cancelBooking(id) {
+    if(!confirm('Deseja cancelar?')) return;
+    await fetch('/api/schedule/cancel', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: id }) });
+    loadSchedules();
+}
+
+// --- FUNÇÕES AUXILIARES ---
+function formatDate(dateStr) { if(!dateStr) return ''; const [y, m, d] = dateStr.split('-'); return `${d}/${m}/${y}`; }
+// Função atualizada para o novo design Dark/Gold
+function setRole(role) {
+    currentRole = role;
+    
+    // 1. Seleciona todos os botões dentro da div correta (#role-selector)
+    const buttons = document.querySelectorAll('#role-selector button');
+    
+    // 2. Reseta TODOS os botões para Cinza (Inativo)
+    buttons.forEach(b => {
+        b.style.background = '#eee';
+        b.style.color = '#333';
+        // Remove a classe btn-primary se ela estiver atrapalhando a cor
+        b.classList.remove('btn-primary'); 
+        b.classList.add('btn'); // Garante a formatação básica
+    });
+    
+    // 3. Pinta APENAS o botão clicado de Azul Escuro (Ativo)
+    const activeBtn = document.getElementById(`btn-${role}`);
+    if(activeBtn) {
+        activeBtn.style.background = '#0a1931'; // Cor Azul do seu tema
+        activeBtn.style.color = '#fff';         // Texto Branco
+    }
+
+    // 4. Controla visibilidade dos links (Esqueci a senha / Cadastro)
+    // Tenta pegar a div que agrupa os links, ou os links individuais
+    const linksContainer = document.getElementById('client-links');
+    
+    if (linksContainer) {
+        // Se você tem a div agrupando (como no código anterior)
+        if (role !== 'client') {
+            linksContainer.classList.add('hidden');
+        } else {
+            linksContainer.classList.remove('hidden');
+        }
+    } else {
+        // Caso não tenha a div, esconde item por item
+        const r = document.getElementById('register-link');
+        const f = document.getElementById('forgot-pass');
+        
+        if (role !== 'client') {
+            if(r) r.style.display = 'none'; 
+            if(f) f.style.display = 'none';
+        } else {
+            if(r) r.style.display = 'block'; 
+            if(f) f.style.display = 'block';
+        }
+    }
+}
+// No arquivo script.js
+
+function showRegister() {
+    // Esconde Login, Mostra Cadastro
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.remove('hidden');
+    
+    // --- SEGURANÇA VISUAL ---
+    // Esconde os botões de Funcionário e Admin
+    document.getElementById('btn-employee').style.display = 'none';
+    document.getElementById('btn-admin').style.display = 'none';
+
+    // Força a seleção ser "Cliente" automaticamente
+    setRole('client');
+
+    updateMasks();
+}
+
+function showLogin() {
+    // Esconde Cadastro, Mostra Login
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+
+    // Mostra os botões novamente (para o staff poder logar)
+    document.getElementById('btn-employee').style.display = 'inline-block';
+    document.getElementById('btn-admin').style.display = 'inline-block';
+}
+// A LINHA DO ERRO ESTAVA AQUI (updateMasks duplicada) - FOI REMOVIDA
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function logout() { fetch('/api/logout'); window.location.href = 'index.html'; }
+
+async function loadClients() { 
+    try {
+        const res = await fetch('/api/clients'); 
+        const list = await res.json(); 
+        
+        // --- ALTERAÇÃO AQUI: REMOVI O 'video-client-select' DESTA LISTA ---
+        const selects = [
+            document.getElementById('order-client-select'),
+            document.getElementById('box-client-select')
+            // O 'video-client-select' foi removido daqui pois terá função própria
+        ];
+
+        selects.forEach(sel => {
+            if(sel) {
+                sel.innerHTML = '<option value="">Selecione o Cliente...</option>'; 
+                list.forEach(c => {
+                    if(c.name) {
+                        sel.innerHTML += `<option value="${c.id}">${c.name} | ${c.email || 'Sem email'}</option>`; 
+                    }
+                });
+            }
+        });
+        // 2. TABELA DE CLIENTES (Aba Clientes)
+        const tbody = document.getElementById('clients-list'); 
+        if(tbody) {
+            tbody.innerHTML = ''; 
+            
+            list.forEach(c => { 
+                if(!c.name) return; 
+
+                // Botão Ativar/Desativar
+                let actionBtn = '';
+                if (currentUser && currentUser.role === 'admin') {
+                    const btnColor = c.active ? '#dc3545' : '#28a745';
+                    const btnText = c.active ? 'Desativar' : 'Ativar';
+                    actionBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">${btnText}</button>`;
+                } else {
+                    actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
+                }
+
+                // Status Badge
+                const statusBadge = c.active 
+                    ? '<span style="background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Ativo</span>' 
+                    : '<span style="background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Inativo</span>';
+
+                // --- CORREÇÃO DO ERRO 404 DA IMAGEM ---
+                // Se a foto for nula ou 'default.png', usa um avatar gerado automaticamente
+                let imgUrl = c.photo;
+                if (!imgUrl || imgUrl === 'default.png') {
+                    // Usa serviço gratuito para gerar avatar com iniciais (ex: Lelo -> LE)
+                    imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
+                }
+
+                const photoHtml = `<img src="${imgUrl}" 
+                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=User&background=ccc'" 
+                    style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
+                // --------------------------------------
+
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee; text-align: center;">
+                        <td style="padding:10px;">${photoHtml}</td>  
+                        <td style="text-align:left; font-weight:bold;">${c.name}</td> 
+                        <td>${c.email || '-'}</td> 
+                        <td>${c.phone || '-'}</td> 
+                        <td>${c.country || 'BR'}</td> 
+                        <td>${statusBadge}</td> 
+                        <td>${actionBtn}</td> 
+                    </tr>`; 
+            }); 
+            
+            if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
+        }
+    } catch (error) {
+        console.error("Erro ao carregar clientes:", error);
+    }
+}
+async function toggleClient(id, active) { await fetch('/api/clients/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,active})}); loadClients(); }
+
+// --- SUBSTITUIR A FUNÇÃO loadOrders EXISTENTE POR ESTA ---
+async function loadOrders() {
+    if (!currentUser) return; 
+
+    try {
+        const res = await fetch('/api/orders');
+        const list = await res.json();
+        const tbody = document.getElementById('orders-list') || document.querySelector('.data-table tbody');
+        
+        if(tbody) {
+            tbody.innerHTML='';
+            
+            list.forEach(o => {
+                // --- CORREÇÃO DE TELEFONE E EMAIL ---
+                // Tenta encontrar os dados em qualquer variação possível
+                const phone = o.client_phone || o.phone || o.whatsapp || ''; 
+                const email = o.client_email || o.email || o.mail || ''; 
+                
+                const name = o.client_name || o.name || 'Cliente';
+                const price = o.price || 0; 
+
+                // 1. MENU DE STATUS
+                let statusMenu = `<span class="status-badge status-${o.status}">${o.status}</span>`;
+                
+                if (currentUser.role !== 'client') {
+                    // Nota: Passamos 'phone' aqui para o updateOrderStatus usar no WhatsApp automático
+                    statusMenu = `
+                    <select onchange="updateOrderStatus(${o.id}, this.value, '${name}', '${o.code}', '${phone}')" 
+                            style="padding:5px; border-radius:4px; border:1px solid #ccc;">
+                        <option value="Processando" ${o.status=='Processando'?'selected':''}>Processando</option>
+                        <option value="Pendente Pagamento" ${o.status=='Pendente Pagamento'?'selected':''}>Pendente Pagamento</option>
+                        <option value="Pago" ${o.status=='Pago'?'selected':''}>Pago</option>
+                        <option value="Enviado" ${o.status=='Enviado'?'selected':''}>Enviado</option>
+                        <option value="Entregue" ${o.status=='Entregue'?'selected':''}>Entregue</option>
+                    </select>`;
+                }
+
+                // 2. BOTÕES DE AÇÃO
+                let actions = '-';
+                
+                if (currentUser.role !== 'client') {
+                    // --- ADMIN ---
+                    // Se não tiver telefone ou email, o botão fica cinza claro para indicar
+                    const whatsappColor = phone ? '#25D366' : '#ccc';
+                    const emailColor = email ? '#007bff' : '#ccc';
+
+                    actions = `
+                    <div style="display:flex; gap:5px; justify-content:center;">
+                        <button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" 
+                                title="Enviar WhatsApp ${phone ? '' : '(Sem número)'}"
+                                style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="fab fa-whatsapp"></i>
+                        </button>
+                        <button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" 
+                                title="Enviar Email ${email ? '' : '(Sem email)'}"
+                                style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="far fa-envelope"></i>
+                        </button>
+                    </div>`;
+                } else {
+                    // --- CLIENTE ---
+                    if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
+                        actions = `
+                        <button onclick="openPaymentModal(${o.id}, '${o.description}', ${price})" 
+                            class="btn-pay-pulse"
+                            style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                            <i class="fas fa-dollar-sign"></i> PAGAR
+                        </button>`;
+                    } 
+                    else if (o.status === 'Pago') {
+                        actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
+                    } 
+                    else {
+                        actions = `<button onclick="alert('Detalhes: ${o.description} | R$ ${price}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer;">Detalhes</button>`;
+                    }
+                }
+                
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding:12px;"><strong>${o.code}</strong></td>
+                        <td>${name}</td>
+                        <td>${o.description||'-'}</td>
+                        <td>${o.weight} Kg</td>
+                        <td>R$ ${parseFloat(price).toFixed(2)}</td> 
+                        <td>${statusMenu}</td>
+                        <td>${actions}</td>
+                    </tr>`; 
+            });
+            
+            if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
+        }
+    } catch (error) {
+        console.error("Erro ao carregar encomendas:", error);
+    }
+}
+async function openBoxModal() { document.getElementById('box-modal').classList.remove('hidden'); loadClientsBox(); }
+async function loadClientsBox() { const res = await fetch('/api/clients'); const list = await res.json(); const sel = document.getElementById('box-client-select'); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`); }
+async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
+function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
+// Função Principal de Carregar Encomendas
+async function loadOrders() {
+    if (!currentUser) return; 
+
+    try {
+        const res = await fetch('/api/orders');
+        const list = await res.json();
+        const tbody = document.getElementById('orders-list') || document.querySelector('.data-table tbody');
+        
+        if(tbody) {
+            tbody.innerHTML='';
+            
+            list.forEach(o => {
+                // --- CORREÇÃO DE TELEFONE E EMAIL ---
+                const phone = o.client_phone || o.phone || o.whatsapp || ''; 
+                const email = o.client_email || o.email || o.mail || ''; 
+                
+                const name = o.client_name || o.name || 'Cliente';
+                const price = o.price || 0; 
+
+                // 1. MENU DE STATUS
+                let statusMenu = `<span class="status-badge status-${o.status}">${o.status}</span>`;
+                
+                if (currentUser.role !== 'client') {
+                    statusMenu = `
+                    <select onchange="updateOrderStatus(${o.id}, this.value, '${name}', '${o.code}', '${phone}')" 
+                            style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px;">
+                        <option value="Processando" ${o.status=='Processando'?'selected':''}>Processando</option>
+                        <option value="Pendente Pagamento" ${o.status=='Pendente Pagamento'?'selected':''}>Pendente Pagamento</option>
+                        <option value="Pago" ${o.status=='Pago'?'selected':''}>Pago</option>
+                        <option value="Enviado" ${o.status=='Enviado'?'selected':''}>Enviado</option>
+                        <option value="Entregue" ${o.status=='Entregue'?'selected':''}>Entregue</option>
+                    </select>`;
+                }
+
+                // 2. BOTÕES DE AÇÃO
+                let actions = '-';
+                
+                if (currentUser.role !== 'client') {
+                    // --- ADMIN / FUNCIONÁRIO ---
+                    const whatsappColor = phone ? '#25D366' : '#ccc';
+                    const emailColor = email ? '#007bff' : '#ccc';
+
+                    // Aqui adicionei os botões de EDITAR e EXCLUIR
+                    actions = `
+                    <div style="display:flex; gap:5px; justify-content:center;">
+                        <button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" 
+                                title="Enviar WhatsApp"
+                                style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="fab fa-whatsapp"></i>
+                        </button>
+                        
+                        <button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" 
+                                title="Enviar Email"
+                                style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="far fa-envelope"></i>
+                        </button>
+
+                        <button onclick="editOrder(${o.id})" 
+                                title="Editar Encomenda"
+                                style="background:#ffc107; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+
+                        <button onclick="deleteOrder(${o.id})" 
+                                title="Excluir Encomenda"
+                                style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>`;
+                } else {
+                    // --- CLIENTE (Mantive igual) ---
+                    if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
+                        actions = `
+                        <button onclick="openPaymentModal(${o.id}, '${o.description}', ${price})" 
+                            class="btn-pay-pulse"
+                            style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                            <i class="fas fa-dollar-sign"></i> PAGAR
+                        </button>`;
+                    } 
+                    else if (o.status === 'Pago') {
+                        actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
+                    } 
+                    else {
+                        actions = `<button onclick="alert('Detalhes: ${o.description} | R$ ${price}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer;">Detalhes</button>`;
+                    }
+                }
+                
+                // Renderização da linha
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding:12px;"><strong>${o.code}</strong></td>
+                        <td>${name}</td>
+                        <td>${o.description||'-'}</td>
+                        <td>${o.weight} Kg</td>
+                        <td>R$ ${parseFloat(price).toFixed(2)}</td> 
+                        <td>${statusMenu}</td>
+                        <td>${actions}</td>
+                    </tr>`; 
+            });
+            
+            if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
+        }
+    } catch (error) {
+        console.error("Erro ao carregar encomendas:", error);
+    }
+}
+function toggleOrderForm() { const f = document.getElementById('new-order-form'); f.classList.toggle('hidden'); if(!f.classList.contains('hidden')) loadClients(); }
+async function updateOrderStatus(id, status) { await fetch('/api/orders/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status})}); loadOrders(); }
+// 2. Função de Salvar (Agora usando FormData para enviar a Imagem)
+async function updateProfile() {
+    const fileInput = document.getElementById('profile-upload');
+    const nameInput = document.getElementById('profile-name');
+    const emailInput = document.getElementById('profile-email');
+    const phoneInput = document.getElementById('profile-phone');
+
+    // Cria um formulário de dados para envio de arquivo
+    const formData = new FormData();
+    formData.append('name', nameInput.value);
+    formData.append('email', emailInput.value);
+    formData.append('phone', phoneInput.value);
+
+    // Só adiciona a foto se o usuário tiver escolhido uma nova
+    if (fileInput.files.length > 0) {
+        formData.append('profile_pic', fileInput.files[0]);
+    }
+
+    try {
+        const response = await fetch('/api/user/update', {
+            method: 'POST',
+            // NOTA: Não defina 'Content-Type': 'application/json' aqui. 
+            // O navegador define automaticamente como multipart/form-data quando usa FormData
+            body: formData 
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            alert('Perfil atualizado com sucesso!');
+            
+            // Atualiza a foto na tela se o servidor devolveu a nova URL
+            if(result.newProfilePicUrl) {
+                document.getElementById('profile-img-display').src = result.newProfilePicUrl;
+            }
+        } else {
+            alert('Erro ao atualizar perfil.');
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Erro de conexão.');
+    }
+}
+function initVideoSection() {
+    if(currentUser.role !== 'client') {
+        // --- ALTERAÇÃO AQUI: ---
+        // Em vez de loadClientsForVideoSelect(), chamamos a nova função de encomendas
+        loadOrdersForVideo(); 
+        // -----------------------
+        
+        startCamera(); 
+        loadAdminVideos(); 
+    } else {
+        loadClientVideos(); 
+    }
+}
+async function loadOrdersForVideo() {
+    const select = document.getElementById('video-client-select');
+    if (!select) return;
+
+    // Busca as encomendas (que já trazem o nome do cliente)
+    const res = await fetch('/api/orders');
+    const orders = await res.json();
+
+    select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
+
+    orders.forEach(o => {
+        // Mostra apenas encomendas que não foram entregues (opcional, se quiser todas, remova o if)
+        // O value é o client_id (porque o vídeo pertence ao cliente)
+        // O data-code é o código da encomenda para usarmos na descrição
+        const clientName = o.client_name || 'Cliente Desconhecido';
+        const label = `${clientName} | Encomenda: ${o.code} (${o.description})`;
+        
+        select.innerHTML += `<option value="${o.client_id}" data-order-code="${o.code}" data-desc="${o.description}">
+            ${label}
+        </option>`;
+    });
+
+    // Adiciona evento: Quando mudar a seleção, atualiza o texto da descrição automaticamente
+    select.onchange = function() {
+        const selectedOption = select.options[select.selectedIndex];
+        const code = selectedOption.getAttribute('data-order-code');
+        const desc = selectedOption.getAttribute('data-desc');
+        
+        if (code) {
+            // Atualiza o texto visual 'info-desc' na tela de gravação
+            const infoDesc = document.getElementById('info-desc');
+            if(infoDesc) infoDesc.innerText = `Vídeo da Encomenda ${code} - ${desc}`;
+        }
+    };
+}
+async function startCamera(facingMode = 'user') {
+    const video = document.getElementById('camera-feed');
+    if(!video) return;
+    if(currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: facingMode }, 
+            audio: true 
+        });
+        currentStream = stream;
+        video.srcObject = stream;
+    } catch (err) {
+        alert("Erro ao acessar câmera: " + err);
+    }
+}
+
+function startRecording() {
+    const clientSelect = document.getElementById('video-client-select');
+    if(!clientSelect.value) return alert("Por favor, selecione um Cliente antes de gravar!");
+
+    document.getElementById('camera-feed').style.display = 'block';
+    document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('camera-controls-ui').style.display = 'block';
+    document.getElementById('preview-controls-ui').style.display = 'none';
+
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(currentStream);
+
+    mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+    };
+
+    mediaRecorder.onstop = () => {
+        currentBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        const videoURL = URL.createObjectURL(currentBlob);
+        const previewEl = document.getElementById('video-preview');
+        previewEl.src = videoURL;
+        document.getElementById('camera-feed').style.display = 'none';
+        previewEl.style.display = 'block';
+        document.getElementById('camera-controls-ui').style.display = 'none';
+        document.getElementById('preview-controls-ui').style.display = 'flex';
+        previewEl.play(); 
+    };
+
+    mediaRecorder.start();
+    document.getElementById('btn-start-rec').style.display = 'none';
+    document.getElementById('btn-stop-rec').style.display = 'inline-block';
+    document.getElementById('recording-indicator').style.display = 'block';
+}
+
+function stopRecording() {
+    mediaRecorder.stop();
+    document.getElementById('btn-start-rec').style.display = 'inline-block';
+    document.getElementById('btn-stop-rec').style.display = 'none';
+    document.getElementById('recording-indicator').style.display = 'none';
+}
+
+function discardVideo() {
+    currentBlob = null;
+    recordedChunks = [];
+    document.getElementById('video-preview').pause();
+    document.getElementById('video-preview').src = "";
+    document.getElementById('camera-feed').style.display = 'block';
+    document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('camera-controls-ui').style.display = 'block';
+    document.getElementById('preview-controls-ui').style.display = 'none';
+}
+
+async function confirmUpload() {
+    if(!currentBlob) return alert("Erro: Nenhum vídeo gravado.");
+
+    const clientSelect = document.getElementById('video-client-select');
+    const clientId = clientSelect ? clientSelect.value : null;
+    
+    if (!clientId) return alert("⚠️ Erro: Selecione um Cliente/Encomenda na lista antes de enviar!");
+
+    // Dados descritivos
+    const descEl = document.getElementById('info-desc');
+    const descText = descEl ? descEl.innerText : 'Vídeo de Encomenda';
+    
+    // Preparação do envio
+    const formData = new FormData();
+    formData.append('client_id', clientId);
+    formData.append('description', descText);
+    formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
+
+    // Feedback visual no botão
+    let btn = document.querySelector('#preview-controls-ui .btn-primary');
+    // Fallback se não achar o botão específico
+    if(!btn) btn = document.querySelector('button[onclick="confirmUpload()"]');
+    
+    const oldText = btn ? btn.innerText : 'Enviar';
+    if(btn) {
+        btn.innerText = "Enviando... ⏳"; 
+        btn.disabled = true;
+    }
+
+    try {
+        const res = await fetch('/api/videos/upload', { method: 'POST', body: formData });
+        
+        // Verifica se a resposta é JSON válido
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new Error("Erro de servidor (Resposta não é JSON)");
+        }
+
+        const data = await res.json();
+        
+        if(data.success) {
+            alert("✅ Vídeo enviado com sucesso!");
+            
+            // Recarrega a lista apropriada
+            if(currentUser.role !== 'client') {
+                 if(typeof loadAdminVideos === 'function') loadAdminVideos(); 
+            } else {
+                 if(typeof loadClientVideos === 'function') loadClientVideos();
+            }
+            
+            // Reseta a interface de gravação
+            discardVideo(); 
+        } else {
+            throw new Error(data.msg || "Erro desconhecido no upload");
+        }
+    } catch(e) { 
+        console.error(e);
+        alert("❌ Falha no envio: " + e.message); 
+    } finally {
+        // Restaura o botão sempre, mesmo se der erro
+        if(btn) {
+            btn.innerText = oldText; 
+            btn.disabled = false;
+        }
+    }
+}
+
+async function loadClientsForVideoSelect() {
+    const res = await fetch('/api/clients');
+    const clients = await res.json();
+    const sel = document.getElementById('video-client-select');
+    if(!sel) return;
+    sel.innerHTML = '<option value="">Selecione para vincular...</option>';
+    clients.forEach(c => {
+        sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+    });
+}
+
+async function loadClientInfoForVideo(clientId) {
+    const divInfo = document.getElementById('video-order-info');
+    if(!clientId) {
+        divInfo.style.opacity = '0.5';
+        document.getElementById('info-name').innerText = '-';
+        return;
+    }
+    const res = await fetch(`/api/orders/by-client/${clientId}`);
+    const orders = await res.json();
+    const resC = await fetch('/api/clients'); 
+    const allClients = await resC.json();
+    const client = allClients.find(c => c.id == clientId);
+
+    divInfo.style.opacity = '1';
+    document.getElementById('info-name').innerText = client ? client.name : 'Erro';
+    document.getElementById('info-email').innerText = client ? client.email : '-';
+
+    if(orders.length > 0) {
+        const lastOrder = orders[orders.length - 1]; 
+        document.getElementById('info-desc').innerText = lastOrder.description;
+        document.getElementById('info-weight').innerText = lastOrder.weight + ' Kg';
+    } else {
+        document.getElementById('info-desc').innerText = "Nenhum pedido recente";
+        document.getElementById('info-weight').innerText = "-";
+    }
+}
+
+async function loadAdminVideos() {
+    const res = await fetch('/api/videos/list');
+    const list = await res.json();
+    const tbody = document.getElementById('admin-video-list');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    list.forEach(v => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${v.id}</td>
+                <td>${v.client_name || 'Desconhecido'}</td>
+                <td>${formatDate(v.created_at)}</td>
+                <td>
+                    <a href="/uploads/videos/${v.filename}" target="_blank" style="color:blue">Ver</a> | 
+                    <button onclick="deleteVideo(${v.id}, '${v.filename}')" style="color:red; border:none; background:none; cursor:pointer;">Excluir</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+async function loadClientVideos() {
+    const grid = document.getElementById('client-video-grid');
+    if(!grid) return; // Se o elemento não existe (ex: painel admin), sai silenciosamente
+    
+    try {
+        const res = await fetch('/api/videos/list');
+        const list = await res.json();
+        
+        grid.innerHTML = '';
+        
+        if(list.length === 0) {
+            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%;">Nenhum vídeo disponível no momento.</p>';
+            return;
+        }
+
+        list.forEach(v => {
+            // Formata a data para ficar mais amigável
+            const dateStr = new Date(v.created_at).toLocaleDateString('pt-BR');
+            
+            grid.innerHTML += `
+                <div class="video-card" style="border:1px solid #ddd; padding:15px; border-radius:8px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 100%; max-width: 320px;">
+                    <div style="margin-bottom:10px; font-weight:bold; color:#0a1931; font-size:14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        📦 ${v.description || 'Sem descrição'}
+                    </div>
+                    <video controls style="width:100%; border-radius:5px; background:black; aspect-ratio: 16/9;">
+                        <source src="/uploads/videos/${v.filename}" type="video/webm">
+                        Seu navegador não suporta vídeos.
+                    </video>
+                    <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#666;">📅 ${dateStr}</span>
+                        <a href="/uploads/videos/${v.filename}" download="video-encomenda.webm" class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">⬇ Baixar</a>
+                    </div>
+                </div>
+            `;
+        });
+    } catch (error) {
+        console.error("Erro ao carregar vídeos do cliente:", error);
+        grid.innerHTML = '<p style="color:red; text-align:center;">Erro ao carregar vídeos.</p>';
+    }
+}
+
+async function deleteVideo(id, filename) {
+    if(!confirm("Excluir este vídeo permanentemente?")) return;
+    await fetch('/api/videos/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id, filename})
+    });
+    loadAdminVideos();
+    
+}
+
+// --- FUNÇÃO DE PESQUISA GLOBAL ---
+function searchTable(inputId, tableBodyId) {
+    const input = document.getElementById(inputId);
+    const filter = input.value.toLowerCase();
+    
+    const tbody = document.getElementById(tableBodyId);
+    const rows = tbody.getElementsByTagName('tr');
+
+    for (let i = 0; i < rows.length; i++) {
+        const rowText = rows[i].innerText.toLowerCase();
+        if (rowText.includes(filter)) {
+            rows[i].style.display = "";
+        } else {
+            rows[i].style.display = "none";
+        }
+    }
+}
+
+// --- RESPONSIVIDADE: CORRIGIDA E COMPLETADA ---
+function makeTablesResponsive() {
+    const tables = document.querySelectorAll('.data-table');
+    
+    tables.forEach(table => {
+        const headers = table.querySelectorAll('thead th');
+        const rows = table.querySelectorAll('tbody tr');
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            cells.forEach((cell, index) => {
+                if (headers[index]) {
+                    // Pega o texto do cabeçalho e coloca no atributo
+                    cell.setAttribute('data-label', headers[index].innerText);
+                }
+            });
+        });
+    });
+}
+// --- SISTEMA DE NOTIFICAÇÕES (WhatsApp & Email) ---
+function sendNotification(type, contact, name, code, status) {
+    if(!contact || contact === 'undefined') {
+        return alert("Erro: Contato (Telefone/Email) não encontrado para este pedido. Verifique o cadastro do cliente.");
+    }
+
+    // Mensagem Padrão Profissional
+    const message = `Olá *${name}*! 👋\n\nPassando para informar sobre sua encomenda *${code}* na Guineexpress.\n\n📦 *Novo Status:* ${status.toUpperCase()}\n\nAcesse nosso painel para mais detalhes.\nObrigado!`;
+
+    if (type === 'whatsapp') {
+        // Limpa o numero deixando apenas digitos
+        let cleanPhone = contact.replace(/\D/g, '');
+        
+        // Verifica se tem código do país, se não tiver e for Guiné, adiciona (Exemplo) ou Brasil
+        // Ajuste conforme sua necessidade. Se seus numeros ja tem DDI, remova esse if.
+        if(cleanPhone.length <= 11) { 
+             // Assumindo Brasil (55) se for curto, ou adicione o da Guiné (245)
+             // cleanPhone = '245' + cleanPhone; 
+        }
+
+        const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+    
+    } else if (type === 'email') {
+        const subject = `📦 Atualização de Encomenda: ${code}`;
+        const body = message;
+        const url = `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(url, '_blank');
+    }
+}
+
+// Atualiza o status e PERGUNTA se quer notificar
+async function updateOrderStatus(id, status, name, code, phone) { 
+    await fetch('/api/orders/update', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id,status})
+    });
+    
+    // Feedback visual e sugestão de notificação
+    if(confirm(`Status alterado para ${status}! \n\nDeseja enviar uma notificação no WhatsApp do cliente agora?`)) {
+        sendNotification('whatsapp', phone, name, code, status);
+    }
+    
+    loadOrders(); 
+}
+document.addEventListener('DOMContentLoaded', () => {
+    if(document.getElementById('user-role-display')) { // Só roda se estiver no painel
+        initDashboard();
+    }
+});
+// --- FUNÇÕES PARA ABRIR E FECHAR MODAIS ---
+
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        // Isso aqui anula o display: none que colocamos no HTML
+        modal.style.display = 'flex'; 
+        // Remove a classe hidden caso ela exista
+        modal.classList.remove('hidden');
+    } else {
+        console.error("Modal não encontrado: " + modalId);
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        // Volta a esconder
+        modal.style.display = 'none';
+    }
+}
+
+// Update the existing openBoxModal to use the new generic openModal
+async function openBoxModal() {
+    // Ensure the ID matches your HTML ('modal-box')
+    openModal('modal-box'); 
+    loadClientsBox(); 
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+        event.target.classList.remove('active');
+    }
+}
+// --- SISTEMA FINANCEIRO E COBRANÇA ---
+
+// 1. Carregar Clientes no Select de Cobrança
+async function loadClientsForBilling() {
+    const sel = document.getElementById('bill-client-select');
+    if(!sel) return;
+    const res = await fetch('/api/clients');
+    const list = await res.json();
+    sel.innerHTML = '<option value="">Selecione...</option>';
+    list.forEach(c => {
+        sel.innerHTML += `<option value="${c.id}" data-email="${c.email}">${c.name}</option>`;
+    });
+}
+
+// 2. Quando seleciona cliente, busca os BOXES dele
+async function loadClientBoxesForBilling(clientId) {
+    const boxSel = document.getElementById('bill-box-select');
+    boxSel.innerHTML = '<option value="">Carregando...</option>';
+    boxSel.disabled = true;
+
+    if(!clientId) return;
+
+    // Precisamos de uma rota que filtre boxes. Vamos usar a existente e filtrar no JS por simplicidade
+    // Idealmente: /api/boxes?client_id=X
+    const res = await fetch('/api/boxes'); 
+    const allBoxes = await res.json();
+    
+    // Filtra boxes do cliente
+    const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
+
+    boxSel.innerHTML = '<option value="">Selecione o Box...</option>';
+    clientBoxes.forEach(b => {
+        // Guarda peso e descrição nos atributos para calcular preço
+        const weight = b.order_weight || 0; // Pega o peso da encomenda vinculada
+        const desc = b.products || `Box ${b.box_code}`;
+        boxSel.innerHTML += `<option value="${b.id}" data-weight="${weight}" data-desc="${desc}">
+            ${b.box_code} (${weight} Kg)
+        </option>`;
+    });
+    boxSel.disabled = false;
+}
+
+// 3. Calcula o Valor (Peso * Preço Global)
+function calculateBillAmount(selectElement) {
+    const option = selectElement.options[selectElement.selectedIndex];
+    const weight = parseFloat(option.getAttribute('data-weight')) || 0;
+    
+    // Usa o preço global carregado no inicio do dashboard
+    // Se globalPricePerKg for 0, certifique-se que loadPrice() foi chamado
+    const total = (weight * globalPricePerKg).toFixed(2);
+    document.getElementById('bill-amount').value = total;
+}
+
+// 4. Criar a Fatura no Mercado Pago
+async function createInvoice(e) {
+    e.preventDefault();
+    
+    const clientSelect = document.getElementById('bill-client-select');
+    const boxSelect = document.getElementById('bill-box-select');
+    
+    const data = {
+        client_id: clientSelect.value,
+        email: clientSelect.options[clientSelect.selectedIndex].getAttribute('data-email'),
+        box_id: boxSelect.value,
+        description: boxSelect.options[boxSelect.selectedIndex].getAttribute('data-desc'),
+        amount: document.getElementById('bill-amount').value
+    };
+
+    if(!confirm(`Gerar cobrança de ${data.amount} para este cliente?`)) return;
+
+    const btn = e.target.querySelector('button');
+    const originalText = btn.innerText;
+    btn.innerText = "Gerando Pix e Link...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/invoices/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        
+        if(json.success) {
+            alert("✅ Cobrança Gerada! O cliente já pode ver no painel dele.");
+            loadInvoices(); // Atualiza tabela
+            e.target.reset();
+        } else {
+            alert("Erro: " + json.msg);
+        }
+    } catch(err) {
+        alert("Erro de conexão.");
+    }
+    
+    btn.innerText = originalText;
+    btn.disabled = false;
+}
+
+// Função INTELIGENTE: Esconde o valor se for funcionário
+async function loadInvoices() {
+    const tbody = document.getElementById('invoices-list');
+    if(!tbody) return;
+
+    const res = await fetch('/api/invoices/list');
+    const list = await res.json();
+
+    tbody.innerHTML = '';
+    
+    list.forEach(inv => {
+        let statusHtml = '';
+        if(inv.status === 'approved') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+        else if(inv.status === 'pending') statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
+        else statusHtml = '<span style="color:red;">Cancelado</span>';
+
+        // Botão de Excluir (SÓ ADMIN VÊ)
+        let deleteBtn = '';
+        if(currentUser && currentUser.role === 'admin') {
+            deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
+        }
+
+        const checkBtn = `<button onclick="checkInvoiceStatus('${inv.mp_payment_id}', ${inv.id})" style="font-size:12px; cursor:pointer;" title="Verificar">🔄</button>`;
+
+        // AQUI ESTÁ O TRUQUE:
+        if (currentUser && currentUser.role === 'admin') {
+            // ADMIN: Vê coluna de VALOR e AÇÕES completas
+            tbody.innerHTML += `
+            <tr>
+                <td>#${inv.id}</td>
+                <td>${inv.client_name}</td>
+                <td>${inv.box_code || '-'}</td>
+                <td>R$ ${inv.amount}</td> <td>${statusHtml}</td>
+                <td>${checkBtn} ${deleteBtn}</td>
+            </tr>`;
+        } else {
+            // FUNCIONÁRIO: Não tem a coluna de valor
+            tbody.innerHTML += `
+            <tr>
+                <td>#${inv.id}</td>
+                <td>${inv.client_name}</td>
+                <td>${inv.box_code || '-'}</td>
+                <td>${statusHtml}</td>
+                <td>${checkBtn}</td>
+            </tr>`;
+        }
+    });
+}
+// 6. Verificar Status no Mercado Pago (Sincronização)
+async function checkInvoiceStatus(mpId, localId) {
+    const res = await fetch('/api/invoices/check-status', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ mp_payment_id: mpId, invoice_id: localId })
+    });
+    const json = await res.json();
+    if(json.success) {
+        if(json.status === 'approved') alert("Pagamento Confirmado!");
+        else alert("Ainda consta como: " + json.status);
+        loadInvoices();
+    }
+}
+
+async function deleteInvoice(id) {
+    if(!confirm("Apagar esta cobrança?")) return;
+    await fetch('/api/invoices/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
+    loadInvoices();
+}
+// --- FUNÇÕES DE FATURA DO CLIENTE ---
+
+async function loadClientInvoices() {
+    const tbody = document.getElementById('client-invoices-list');
+    if(!tbody) return; 
+
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Carregando...</td></tr>';
+
+    try {
+        const res = await fetch('/api/invoices/my_invoices'); 
+        const list = await res.json();
+
+        tbody.innerHTML = '';
+        if(list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Nenhuma fatura encontrada.</td></tr>';
+            return;
+        }
+
+        list.forEach(inv => {
+            let statusHtml = '';
+            let actionHtml = '';
+
+            // Define uma descrição segura
+            const descricao = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
+
+            if(inv.status === 'approved') {
+                statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+                actionHtml = '<button class="btn-secondary" disabled style="opacity:0.5; cursor:not-allowed;">Concluído</button>';
+            } else if(inv.status === 'pending') {
+                statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
+                
+                // --- AQUI ESTAVA O ERRO, VEJA A CORREÇÃO ABAIXO ---
+                // Agora passamos: ID, DESCRIÇÃO e VALOR (nesta ordem exata)
+                actionHtml = `<button onclick="openPaymentModal('${inv.id}', '${descricao}', '${inv.amount}')" class="btn-primary" style="padding:5px 10px; font-size:12px;">💸 Pagar</button>`;
+                // --------------------------------------------------
+
+            } else {
+                statusHtml = '<span style="color:red;">Cancelado</span>';
+                actionHtml = '-';
+            }
+
+            tbody.innerHTML += `
+            <tr>
+                <td>#${inv.id}</td>
+                <td>${descricao}</td>
+                <td>R$ ${inv.amount}</td>
+                <td>${statusHtml}</td>
+                <td>${actionHtml}</td>
+            </tr>`;
+        });
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
+    }
+}
+function openPaymentModal(orderId, description, amount) {
+    console.log("Tentando abrir modal:", { orderId, description, amount }); // Debug no Console
+
+    document.getElementById('modal-payment').style.display = 'block';
+
+    // 1. Limpa o valor recebido
+    let valorNumerico = limparValor(amount);
+
+    // 2. Preenche os inputs ocultos (importante para o envio ao backend)
+    document.getElementById('pay-order-id').value = orderId;
+    document.getElementById('pay-amount').value = valorNumerico; 
+
+    // 3. Formata para exibir bonito no título (Ex: R$ 4,00)
+    let valorParaExibir = valorNumerico.toLocaleString('pt-BR', { 
+        style: 'currency', 
+        currency: 'BRL' 
+    });
+
+    // Atualiza o texto visual
+    document.getElementById('pay-desc').innerText = `${description} - ${valorParaExibir}`;
+    
+    // Reseta visualização do QR Code
+    document.getElementById('qrcode-container').innerHTML = '';
+    document.getElementById('pix-copy-paste').value = '';
+    
+    showMethod('pix');
+}
+
+function closePaymentModal() {
+    document.getElementById('modal-payment').style.display = 'none';
+}
+
+// 2. Alternar Abas (Pix vs Cartão)
+function showMethod(method) {
+    const pixArea = document.getElementById('area-pix');
+    const cardArea = document.getElementById('area-card');
+    const btnPix = document.getElementById('btn-tab-pix');
+    const btnCard = document.getElementById('btn-tab-card');
+
+    if(method === 'pix') {
+        pixArea.style.display = 'block';
+        cardArea.style.display = 'none';
+        btnPix.style.background = '#0a1931';
+        btnPix.style.color = '#fff';
+        btnCard.style.background = '#eee';
+        btnCard.style.color = '#333';
+    } else {
+        pixArea.style.display = 'none';
+        cardArea.style.display = 'block';
+        btnCard.style.background = '#009ee3';
+        btnCard.style.color = '#fff';
+        btnPix.style.background = '#eee';
+        btnPix.style.color = '#333';
+    }
+}
+// Função robusta para limpar dinheiro (aceita "R$ 4", "R$ 4,00" e "1.200,50")
+function limparValor(valor) {
+    if (!valor) return 0;
+    
+    // Converte para string para garantir
+    let str = valor.toString();
+
+    // 1. Remove "R$", espaços e qualquer letra
+    str = str.replace(/[^\d.,]/g, '');
+
+    // 2. Lógica para diferenciar milhar de decimal
+    // Se tiver ponto E vírgula (ex: 1.200,50), remove o ponto
+    if (str.includes('.') && str.includes(',')) {
+        str = str.replace(/\./g, ''); 
+    }
+    
+    // 3. Troca vírgula por ponto (para o JavaScript entender)
+    str = str.replace(',', '.');
+
+    // 4. Converte para float
+    let numero = parseFloat(str);
+
+    // Se der NaN, retorna 0
+    return isNaN(numero) ? 0 : numero;
+}
+
+async function generatePixPayment() {
+    const btn = document.getElementById('btn-gen-pix');
+    const orderId = document.getElementById('pay-order-id').value;
+    
+    // PEGA O VALOR LIMPO DO INPUT
+    let rawAmount = document.getElementById('pay-amount').value; 
+    let amountVal = parseFloat(rawAmount); // Como já limpamos no modal, aqui basta um parseFloat
+
+    if (!amountVal || amountVal <= 0) { 
+        alert('Erro: Valor inválido para pagamento (R$ 0,00).'); 
+        return; 
+    }
+
+    btn.innerHTML = 'Gerando... <i class="fas fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/create-pix', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                amount: amountVal,
+                description: `Pagamento Fatura #${orderId}`,
+                email: 'cliente@email.com', 
+                firstName: 'Cliente'
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.error) throw new Error(data.error);
+
+        // Exibe o QR Code
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = '';
+
+        if(data.qr_code_base64) {
+            const img = document.createElement('img');
+            img.src = `data:image/png;base64,${data.qr_code_base64}`;
+            img.style.maxWidth = '100%';
+            container.appendChild(img);
+        }
+        
+        document.getElementById('pix-copy-paste').value = data.qr_code;
+        btn.style.display = 'none';
+
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao gerar PIX: " + error.message);
+        btn.innerHTML = 'Tentar Novamente';
+        btn.disabled = false;
+    }
+}
+
+// --- CARTÃO CORRIGIDO ---
+async function goToCardCheckout() {
+    const orderId = document.getElementById('pay-order-id').value;
+    
+    // PEGA O VALOR E LIMPA
+    let rawAmount = document.getElementById('pay-amount').value;
+    let amountVal = limparValor(rawAmount);
+
+    if(!amountVal || amountVal <= 0) { 
+        alert('Valor inválido.'); 
+        return; 
+    }
+
+    try {
+        const response = await fetch('/api/create-preference', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: `Encomenda #${orderId}`,
+                price: amountVal, // Número limpo
+                quantity: 1
+            })
+        });
+
+        const data = await response.json();
+        
+        if(data.init_point) {
+            window.location.href = data.init_point; 
+        } else {
+            alert("Erro ao criar link de pagamento");
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao conectar com pagamento.");
+    }
+}
+
+// Função auxiliar para copiar o código Pix
+function copyPix() {
+    const copyText = document.getElementById("pix-copy-paste");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); 
+    navigator.clipboard.writeText(copyText.value);
+    alert("Código PIX copiado!");
+}
+async function recoverPassword() {
+    // 1. Pergunta o e-mail ao usuário
+    const email = prompt("🔒 RECUPERAÇÃO DE SENHA\n\nDigite seu E-mail ou Celular cadastrado:");
+    
+    if (!email) return; // Se cancelar, para aqui
+
+    // 2. Envia para o servidor verificar (usando a Role atual selecionada nos botões)
+    try {
+        const res = await fetch('/api/recover-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, role: currentRole }) 
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ " + data.msg);
+        } else {
+            alert("❌ " + data.msg);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao tentar recuperar senha. Verifique sua conexão.");
+    }
+}
+// --- LÓGICA DO MODAL DE RECUPERAÇÃO ---
+
+function openRecoverModal() {
+    document.getElementById('modal-recover').classList.remove('hidden');
+    document.getElementById('recover-input').value = ''; // Limpa o campo
+    document.getElementById('recover-input').focus(); // Foca no campo
+}
+
+function closeRecoverModal() {
+    document.getElementById('modal-recover').classList.add('hidden');
+}
+
+// Fecha o modal se clicar fora da caixinha branca
+document.getElementById('modal-recover')?.addEventListener('click', (e) => {
+    if (e.target.id === 'modal-recover') {
+        closeRecoverModal();
+    }
+});
+
+async function sendRecoveryRequest() {
+    const inputVal = document.getElementById('recover-input').value;
+    const btn = document.getElementById('btn-send-recover');
+
+    if (!inputVal) {
+        alert("⚠️ Por favor, digite seu e-mail ou telefone.");
+        return;
+    }
+
+    // Muda botão para carregando
+    const originalText = btn.innerText;
+    btn.innerText = "Verificando...";
+    btn.disabled = true;
+
+    try {
+        // Envia para o backend (mantendo a role selecionada: cliente ou admin)
+        const res = await fetch('/api/recover-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: inputVal, role: currentRole }) 
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ Sucesso!\n" + data.msg);
+            closeRecoverModal();
+        } else {
+            alert("❌ Erro: " + data.msg);
+        }
+
+    } catch (err) {
+        console.error(err);
+        alert("Erro de conexão com o servidor.");
+    }
+
+    // Restaura o botão
+    btn.innerText = originalText;
+    btn.disabled = false;
+}
+// --- FUNÇÕES DO HISTÓRICO ---
+
+async function loadHistory() {
+    const tbody = document.getElementById('history-list');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="5" align="center">Carregando histórico...</td></tr>';
+
+    try {
+        const res = await fetch('/api/history');
+        const list = await res.json();
+        
+        tbody.innerHTML = '';
+        
+        if (list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" align="center">Nenhum registro encontrado.</td></tr>';
+            return;
+        }
+
+        list.forEach(item => {
+            const date = new Date(item.created_at).toLocaleDateString('pt-BR');
+            const statusClass = `status-${item.status}`; 
+            
+            // 1. CORREÇÃO DE ALINHAMENTO: 
+            // Só cria a string da coluna se NÃO for cliente. 
+            // Se for cliente, a coluna simplesmente não existirá no HTML da linha.
+            let clientCellHtml = '';
+            if (currentUser.role !== 'client') {
+                clientCellHtml = `<td>${item.client_name || 'Desconhecido'}</td>`;
+            }
+
+            // 2. CORREÇÃO DA DESCRIÇÃO:
+            // Tenta pegar 'description' (da tabela orders) ou 'products' (da tabela boxes)
+            const conteudo = item.description || item.products || 'Sem descrição';
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${date}</td>
+                    <td style="font-weight:bold;">${item.code}</td>
+                    ${clientCellHtml}
+                    <td>${conteudo}</td>
+                    <td><span class="status-badge ${statusClass}">${item.status}</span></td>
+                </tr>
+            `;
+        });
+        
+        // 3. AJUSTE DO CABEÇALHO (TH):
+        const thClient = document.getElementById('hist-col-client');
+        if(thClient) {
+            thClient.style.display = (currentUser.role === 'client') ? 'none' : 'table-cell';
+        }
+
+    } catch (err) {
+        console.error("Erro histórico:", err);
+        tbody.innerHTML = '<tr><td colspan="5" align="center">Erro ao carregar histórico.</td></tr>';
+    }
+}
+// Função de filtro para o Histórico
+function filterHistory() {
+    searchTable('history-search', 'history-list');
+}
+// --- SISTEMA DE ETIQUETAS ---
+
+async function loadLabels() {
+    // CORREÇÃO: Permite Admin e Employee (Funcionário)
+    if (currentUser.role === 'client') {
+        alert("Acesso restrito.");
+        showSection('orders-view');
+        return;
+    }
+
+    const tbody = document.getElementById('labels-list');
+    if(!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="6" align="center">Carregando encomendas...</td></tr>';
+
+    try {
+        const res = await fetch('/api/orders'); 
+        const orders = await res.json();
+        
+        tbody.innerHTML = '';
+
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" align="center">Nenhuma encomenda encontrada.</td></tr>';
+            return;
+        }
+
+        // Ordena por data (mais recente primeiro)
+        orders.sort((a, b) => b.id - a.id);
+
+        orders.forEach(order => {
+            const date = new Date(order.created_at).toLocaleDateString('pt-BR');
+            // Sanitiza o JSON para o atributo data-obj não quebrar o HTML
+            const orderJson = JSON.stringify(order).replace(/'/g, "&#39;");
+            
+            let row = `
+                <tr>
+                    <td><input type="checkbox" class="label-check" value="${order.id}" data-obj='${orderJson}'></td>
+                    <td>${date}</td>
+                    <td style="font-weight:bold;">${order.code}</td>
+                    <td>${order.client_name || 'Desconhecido'} <br> <span style="font-size:11px; color:#666;">${order.client_phone || ''}</span></td>
+                    <td>${order.description || '---'}</td>
+                    <td>${order.weight || 0} kg</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+
+    } catch (err) {
+        console.error("Erro ao carregar etiquetas:", err);
+        tbody.innerHTML = '<tr><td colspan="6" align="center">Erro ao carregar dados.</td></tr>';
+    }
+}
+
+// 2. Selecionar Todos
+function toggleAllLabels(source) {
+    document.querySelectorAll('.label-check').forEach(c => c.checked = source.checked);
+}
+
+// 3. Filtro de pesquisa na tabela
+function filterLabels() {
+    const term = document.getElementById('label-search').value.toLowerCase();
+    document.querySelectorAll('#labels-list tr').forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(term) ? '' : 'none';
+    });
+}
+
+// 4. GERAR E IMPRIMIR ETIQUETAS (Tamanho Pequeno 100x150mm)
+function printSelectedLabels() {
+    const checked = document.querySelectorAll('.label-check:checked');
+    if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
+
+    const printArea = document.getElementById('print-area');
+    printArea.innerHTML = ''; 
+
+    // Dados Fixos da Empresa
+    const company = {
+        name: "Guineexpress Logística",
+        address: "Av. Tristão Gonçalves, 1203",
+        contact: "(85) 98239-207",
+        cnpj: "49.356.085/0001-34"
+    };
+
+    checked.forEach(box => {
+        const data = JSON.parse(box.getAttribute('data-obj'));
+        
+        // Estrutura HTML Otimizada para Térmica
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'shipping-label-container'; // Classe conectada ao @page label-page
+        
+        labelDiv.innerHTML = `
+            <div class="lbl-header">
+                <div class="lbl-logo">
+                    <span class="lbl-logo-main">GE</span>
+                    <span class="lbl-logo-sub">Ltda</span>
+                </div>
+                <div style="text-align: right; font-size: 9px; color: #fff; line-height: 1.3;">
+                    <strong style="font-size:11px; color:#d4af37;">${company.name}</strong><br>
+                    ${company.address}<br>
+                    ${company.contact}<br>
+                    CNPJ: ${company.cnpj}
+                </div>
+            </div>
+
+            <div class="lbl-body">
+                <div class="lbl-box">
+                    <div class="lbl-title">DESTINATÁRIO (GUINÉ-BISSAU)</div>
+                    <div class="lbl-text" style="font-size: 14px;">${data.client_name || 'CLIENTE'}</div>
+                    <div style="font-size: 11px; margin-top: 2px;">
+                        Tel: ${data.client_phone || '-'}<br>
+                        Email: ${data.client_email ? data.client_email.substring(0, 25) : '-'}
+                    </div>
+                </div>
+
+                <div style="display:flex; gap: 5px;">
+                    <div class="lbl-box" style="flex: 2;">
+                        <div class="lbl-title">CONTEÚDO</div>
+                        <div class="lbl-text" style="font-size: 12px;">${data.description ? data.description.substring(0, 40) : '-'}</div>
+                    </div>
+                    <div class="lbl-box" style="flex: 1; text-align: center;">
+                        <div class="lbl-title">PESO</div>
+                        <div class="lbl-text" style="font-size: 16px;">${data.weight} kg</div>
+                    </div>
+                </div>
+                
+                <div class="lbl-box">
+                    <div class="lbl-title">OBSERVAÇÕES</div>
+                    <div style="font-size: 10px;">Entrega prevista: 14/01/2026 (Est.)</div>
+                </div>
+            </div>
+
+            <div class="lbl-footer">
+                <div>
+                    <div class="lbl-title" style="border:none; margin:0;">RASTREIO</div>
+                    <div style="font-size: 26px; font-weight: 900; letter-spacing: 2px;">${data.code}</div>
+                </div>
+                <div id="qr-${data.id}" style="background:#fff; padding:2px; border:1px solid #ddd;"></div>
+            </div>
+        `;
+
+        printArea.appendChild(labelDiv);
+
+        // QR Code
+        new QRCode(document.getElementById(`qr-${data.id}`), {
+            text: `CODE:${data.code}|${data.client_name}`,
+            width: 70, height: 70,
+            correctLevel : QRCode.CorrectLevel.L
+        });
+    });
+
+    setTimeout(() => { window.print(); }, 500);
+}
+// ============================================================
+// LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)
+// ============================================================
+
+// 1. Carrega a tabela na aba (Moeda R$)
+async function loadReceipts() {
+    const list = document.getElementById('receipts-list');
+    if (!list) return;
+
+    list.innerHTML = '<tr><td colspan="6" align="center">Carregando recibos...</td></tr>';
+
+    try {
+        const response = await fetch('/api/boxes');
+        let boxes = response.ok ? await response.json() : [];
+
+        if (currentUser && currentUser.role === 'client') {
+            boxes = boxes.filter(b => b.client_id === currentUser.id);
+        }
+
+        list.innerHTML = '';
+        if (boxes.length === 0) {
+            list.innerHTML = '<tr><td colspan="6" align="center">Nenhum recibo disponível.</td></tr>';
+            return;
+        }
+
+        boxes.sort((a, b) => b.id - a.id);
+
+        boxes.forEach(box => {
+            // CORREÇÃO: Usa 'box' aqui dentro do loop
+            const peso = parseFloat(box.order_weight || 0).toFixed(2);
+            
+            // Lógica visual para valor (apenas visualização rápida na tabela)
+            // O valor real calculado vem na hora de imprimir
+            let valorNum = parseFloat(box.amount || 0);
+            
+            // Se o valor for 0, tenta estimar visualmente (peso * preço global) para a tabela não ficar zerada
+            if(valorNum === 0 && globalPricePerKg > 0) {
+                valorNum = parseFloat(peso) * globalPricePerKg;
+            }
+
+            const valorReais = valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const produtos = box.products || '---';
+            
+            let clientCol = '';
+            if (currentUser.role !== 'client') {
+                clientCol = `<td>${box.client_name || 'Desconhecido'}</td>`;
+            }
+
+            const row = `
+                <tr>
+                    <td><strong>#${box.box_code}</strong></td>
+                    ${clientCol}
+                    <td><small>${produtos.substring(0, 30)}...</small></td>
+                    <td>${peso} kg</td>
+                    <td style="font-weight:bold; color:#0a1931;">${valorReais}</td>
+                    <td>
+                        <button onclick="printReceipt(${box.id})" class="btn" style="background:#000; color:#d4af37; border:1px solid #d4af37; padding:5px 10px; font-size:11px; font-weight:bold;">
+                            <i class="fas fa-print"></i> RECIBO
+                        </button>
+                    </td>
+                </tr>
+            `;
+            list.innerHTML += row;
+        });
+        
+        const thClient = document.getElementById('rec-col-client');
+        if(thClient && currentUser.role === 'client') thClient.style.display = 'none';
+
+    } catch (err) {
+        console.error(err);
+        list.innerHTML = '<tr><td colspan="6">Erro ao carregar dados.</td></tr>';
+    }
+}
+
+// 5. GERAR RECIBO A4 (Tamanho Normal)
+async function printReceipt(boxId) {
+    const printArea = document.getElementById('print-area');
+    try {
+        const res = await fetch(`/api/receipt-data/${boxId}`); // Supondo que sua API funciona assim
+        const response = await res.json();
+        
+        // Fallback se não tiver API, usa dados locais ou de teste para não quebrar
+        // (Ajuste conforme sua lógica real de dados)
+        const d = response.success ? response.data : { 
+            client_name: 'Cliente', weight: '0.00', amount: 0, 
+            box_code: '000', order_code: '000', 
+            is_paid: false, products: 'Serviços Logísticos' 
+        };
+
+        const valorReais = parseFloat(d.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const dataHoje = new Date().toLocaleDateString('pt-BR');
+        const stampStatus = d.is_paid ? 'PAGO' : 'PENDENTE';
+        const stampColor = d.is_paid ? '#28a745' : '#dc3545';
+
+        printArea.innerHTML = '';
+        
+        // Estrutura HTML Otimizada para A4
+        const receiptDiv = document.createElement('div');
+        receiptDiv.className = 'receipt-a4-container'; // Classe conectada ao @page a4-page
+        
+        receiptDiv.innerHTML = `
+            <div style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); 
+                        font-size: 60px; font-weight: 900; color: ${stampColor}; opacity: 0.2; border: 5px solid ${stampColor}; padding: 10px 40px; text-transform:uppercase;">
+                ${stampStatus}
+            </div>
+
+            <div class="rec-header">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <div style="width:70px; height:70px; border:3px solid #d4af37; border-radius:50%; background:#000; color:#d4af37; display:flex; flex-direction:column; align-items:center; justify-content:center; -webkit-print-color-adjust: exact;">
+                        <b style="font-size:24px; line-height:1;">GE</b>
+                        <span style="font-size:9px; color:#fff;">LTDA</span>
+                    </div>
+                    <div>
+                        <h1 style="margin:0; font-size:22px; color:#0a1931;">GUINEEXPRESS</h1>
+                        <p style="margin:0; font-size:10px; font-weight:bold;">LOGÍSTICA INTERNACIONAL</p>
+                        <p style="margin:2px 0 0 0; font-size:10px;">CNPJ: 49.356.085/0001-34</p>
+                    </div>
+                </div>
+                <div style="text-align:right; font-size:11px;">
+                    <strong>Av. Tristão Gonçalves, 1203</strong><br>
+                    Centro - Fortaleza / CE<br>
+                    (85) 98239-207<br>
+                    Comercialguineexpress245@gmail.com
+                </div>
+            </div>
+
+            <div class="rec-title-bar">
+                <span>RECIBO DE ENCOMENDA</span>
+                <span>Box Nº ${d.box_code || '1'} | Ref: ${d.order_code}</span>
+                <span>Emissão: ${dataHoje}</span>
+            </div>
+
+            <div class="rec-grid">
+                <div class="rec-box">
+                    <h3>DADOS DO CLIENTE</h3>
+                    <div class="rec-line"><strong>Nome:</strong> ${d.client_name}</div>
+                    <div class="rec-line"><strong>Telefone:</strong> ${d.phone || d.client_phone || '-'}</div>
+                    <div class="rec-line"><strong>Documento:</strong> ${d.document || d.doc || '-'}</div>
+                    <div class="rec-line"><strong>Email:</strong> ${d.email || d.client_email || '-'}</div>
+                </div>
+                <div class="rec-box">
+                    <h3>DADOS DO ENVIO</h3>
+                    <div class="rec-line"><strong>Destino:</strong> Guiné-Bissau (GW)</div>
+                    <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code}</div>
+                    <div class="rec-line"><strong>Peso Registrado:</strong> ${d.weight} kg</div>
+                    <div class="rec-line"><strong>Status:</strong> ${d.status || 'Em processamento'}</div>
+                </div>
+            </div>
+
+            <table class="rec-table">
+                <thead>
+                    <tr>
+                        <th>DESCRIÇÃO DOS SERVIÇOS</th>
+                        <th style="width:100px; text-align:center;">PESO</th>
+                        <th style="width:120px; text-align:right;">VALOR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <strong>Frete Aéreo/Marítimo Internacional</strong><br>
+                            <small>Conteúdo: ${d.products || d.description}</small>
+                        </td>
+                        <td style="text-align:center;">${d.weight} kg</td>
+                        <td style="text-align:right;">${valorReais}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="text-align:right; font-weight:bold; padding-top:15px;">TOTAL LÍQUIDO:</td>
+                        <td style="text-align:right; font-weight:bold; font-size:16px; padding-top:15px;">${valorReais}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="rec-footer-text">
+                Declaro que os itens acima listados foram conferidos e pesados na minha presença. <br>
+                A Guineexpress não se responsabiliza por itens não declarados ou frágeis sem embalagem adequada.
+            </div>
+
+            <div class="rec-signatures">
+                <div class="rec-sign-line">GUINEEXPRESS LOGÍSTICA</div>
+                <div class="rec-sign-line">ASSINATURA DO CLIENTE</div>
+            </div>
+        `;
+
+        printArea.appendChild(receiptDiv);
+        setTimeout(() => { window.print(); }, 500);
+
+    } catch (e) {
+        alert("Erro ao gerar recibo: " + e.message);
+    }
+}
+// ==========================================
+// LÓGICA DO DASHBOARD (GRÁFICOS)
+// ==========================================
+let chartRevenue = null;
+let chartStatus = null;
+
+async function loadDashboardStats() {
+    // Só roda se a seção de dashboard existir na página (evita erro na área do cliente)
+    if (!document.getElementById('dashboard-home')) return;
+
+    try {
+        const res = await fetch('/api/dashboard-stats');
+        const response = await res.json();
+        
+        if (!response.success) return;
+
+        const d = response.data;
+
+        // 1. Atualiza os Cards (KPIs)
+        // Formata para Reais
+        document.getElementById('kpi-revenue').innerText = parseFloat(d.revenue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        
+        // Formata Peso e Números
+        document.getElementById('kpi-weight').innerText = parseFloat(d.weight).toFixed(2) + ' kg';
+        document.getElementById('kpi-orders').innerText = d.totalOrders;
+        document.getElementById('kpi-clients').innerText = d.totalClients;
+
+        // 2. Prepara dados para o Gráfico de Rosca (Status)
+        // Mapeia os status do banco para cores e labels
+        const statusMap = { 'Pendente': 0, 'Recebido': 0, 'Enviado': 0, 'Entregue': 0 };
+        
+        d.statusDistribution.forEach(item => {
+            if (statusMap[item.status] !== undefined) {
+                statusMap[item.status] = item.count;
+            } else {
+                // Caso tenha algum status diferente, agrupa em 'Pendente' ou cria outro
+                statusMap['Pendente'] += item.count;
+            }
+        });
+
+        // 3. Renderiza Gráfico de Status (Doughnut)
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        
+        if (chartStatus) chartStatus.destroy(); // Limpa anterior para não sobrepor
+
+        chartStatus = new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pendente', 'Recebido', 'Enviado', 'Entregue'],
+                datasets: [{
+                    data: [statusMap['Pendente'], statusMap['Recebido'], statusMap['Enviado'], statusMap['Entregue']],
+                    backgroundColor: ['#ffc107', '#17a2b8', '#007bff', '#28a745'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // 4. Renderiza Gráfico Financeiro (Simulação de Meses para Exemplo)
+        // (Para fazer real precisaria agrupar por data no SQL, mas faremos visual primeiro)
+        const ctxRevenue = document.getElementById('revenueChart').getContext('2d');
+        
+        if (chartRevenue) chartRevenue.destroy();
+
+        chartRevenue = new Chart(ctxRevenue, {
+            type: 'bar',
+            data: {
+                labels: ['Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan'],
+                datasets: [{
+                    label: 'Faturamento (R$)',
+                    data: [0, 0, 0, 0, d.revenue * 0.4, d.revenue * 0.6], // Simulando distribuição histórica baseada no total
+                    backgroundColor: '#0a1931',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error("Erro ao carregar dashboard:", err);
+    }
+}
+// ==========================================
+// FUNÇÃO DE BACKUP MANUAL
+// ==========================================
+async function forceBackup() {
+    if (!confirm("Deseja criar uma cópia de segurança do banco de dados agora?")) return;
+
+    try {
+        const btn = document.querySelector('button[onclick="forceBackup()"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+        
+        const res = await fetch('/api/admin/force-backup');
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ " + data.msg);
+        } else {
+            alert("❌ Erro: " + data.msg);
+        }
+
+        btn.innerHTML = originalText;
+
+    } catch (err) {
+        console.error(err);
+        alert("Erro ao conectar com servidor.");
+    }
+}
+// ==========================================
+// LÓGICA DE DESPESAS
+// ==========================================
+
+async function loadExpenses() {
+    // 1. Carrega a Lista
+    const res = await fetch('/api/expenses/list');
+    const list = await res.json();
+    const tbody = document.getElementById('expenses-list');
+    
+    if(tbody) {
+        tbody.innerHTML = '';
+        list.forEach(e => {
+            const val = parseFloat(e.amount).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+            const date = new Date(e.date).toLocaleDateString('pt-BR');
+            tbody.innerHTML += `
+                <tr>
+                    <td>${date}</td>
+                    <td>${e.description}</td>
+                    <td><span class="status-badge" style="background:#eee; color:#333;">${e.category}</span></td>
+                    <td style="color:red; font-weight:bold;">- ${val}</td>
+                    <td><button onclick="deleteExpense(${e.id})" style="color:red; border:none; cursor:pointer;">X</button></td>
+                </tr>
+            `;
+        });
+    }
+
+    // 2. Carrega o Relatório Financeiro (Cards Coloridos)
+    const resFin = await fetch('/api/financial-report');
+    const fin = await resFin.json();
+
+    if(document.getElementById('fin-revenue')) {
+        document.getElementById('fin-revenue').innerText = parseFloat(fin.revenue).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+        document.getElementById('fin-expenses').innerText = parseFloat(fin.expenses).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+        
+        const profitEl = document.getElementById('fin-profit');
+        profitEl.innerText = parseFloat(fin.profit).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+        
+        // Se prejuízo, fica vermelho. Se lucro, verde.
+        profitEl.style.color = fin.profit >= 0 ? '#28a745' : '#dc3545';
+    }
+}
+
+async function addExpense(e) {
+    e.preventDefault();
+    const data = {
+        description: document.getElementById('exp-desc').value,
+        category: document.getElementById('exp-cat').value,
+        amount: document.getElementById('exp-amount').value,
+        date: document.getElementById('exp-date').value
+    };
+
+    if(!confirm(`Registrar saída de R$ ${data.amount}?`)) return;
+
+    await fetch('/api/expenses/add', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+    });
+    
+    document.getElementById('exp-desc').value = '';
+    document.getElementById('exp-amount').value = '';
+    loadExpenses();
+}
+
+async function deleteExpense(id) {
+    if(!confirm('Apagar este registro?')) return;
+    await fetch('/api/expenses/delete', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id})
+    });
+    loadExpenses();
+}
+// ==========================================
+// LÓGICA DE AUDITORIA
+// ==========================================
+async function loadSystemLogs() {
+    const list = document.getElementById('logs-list');
+    if(!list) return;
+
+    list.innerHTML = '<tr><td colspan="5" align="center">Carregando logs...</td></tr>';
+
+    try {
+        const res = await fetch('/api/admin/logs');
+        const logs = await res.json();
+        
+        list.innerHTML = '';
+        if(logs.length === 0) {
+            list.innerHTML = '<tr><td colspan="5" align="center">Nenhum registro de segurança.</td></tr>';
+            return;
+        }
+
+        logs.forEach(log => {
+            const date = new Date(log.created_at).toLocaleString('pt-BR');
+            
+            // Corzinha para ações perigosas
+            let colorStyle = '';
+            if(log.action.includes('DELETE') || log.action.includes('EXCLUSÃO')) colorStyle = 'color:red; font-weight:bold;';
+            if(log.action.includes('LOGIN')) colorStyle = 'color:green;';
+
+            list.innerHTML += `
+                <tr style="font-size: 12px;">
+                    <td>${date}</td>
+                    <td><strong>${log.user_name}</strong></td>
+                    <td style="${colorStyle}">${log.action}</td>
+                    <td>${log.details}</td>
+                    <td style="color:#999;">${log.ip_address || '-'}</td>
+                </tr>
+            `;
+        });
+
+    } catch (err) {
+        console.error(err);
+        list.innerHTML = '<tr><td colspan="5">Erro ao carregar logs.</td></tr>';
+    }
+}
+// ==========================================
+// LÓGICA DE EMBARQUES (MANIFESTO)
+// ==========================================
+
+async function loadShipments() {
+    // 1. Carrega Embarques Existentes
+    const res = await fetch('/api/shipments/list');
+    const shipments = await res.json();
+    
+    const table = document.getElementById('shipments-list');
+    const select = document.getElementById('target-shipment');
+    
+    table.innerHTML = '';
+    select.innerHTML = '<option value="">-- Selecione para Adicionar --</option>';
+
+    shipments.forEach(s => {
+        // Preenche Tabela
+        table.innerHTML += `
+            <tr>
+                <td><strong>${s.code}</strong></td>
+                <td>${s.type}</td>
+                <td>${new Date(s.departure_date).toLocaleDateString('pt-BR')}</td>
+                <td>${s.box_count} caixas</td>
+                <td>
+                    <button onclick="printManifest(${s.id})" class="btn" style="padding: 5px 10px; font-size: 11px; background: #0a1931;">
+                        <i class="fas fa-file-alt"></i> MANIFESTO
+                    </button>
+                </td>
+            </tr>
+        `;
+        
+        // Preenche Select (Apenas se estiver Aberto)
+        if(s.status === 'Aberto') {
+            select.innerHTML += `<option value="${s.id}">${s.code} (${s.type})</option>`;
+        }
+    });
+
+    // 2. Carrega Caixas Pendentes (Sem lote)
+    const resBoxes = await fetch('/api/shipments/pending-boxes');
+    const boxes = await resBoxes.json();
+    const list = document.getElementById('pending-boxes-list');
+    
+    list.innerHTML = '';
+    if(boxes.length === 0) list.innerHTML = '<li style="padding:10px; text-align:center; color:#777;">Nenhuma caixa pendente.</li>';
+
+    boxes.forEach(b => {
+        list.innerHTML += `
+            <li style="background: white; padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>${b.box_code}</strong><br>
+                    <small>${b.client_name}</small>
+                </div>
+                <button onclick="addToShipment(${b.id})" style="background: #28a745; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer;">+</button>
+            </li>
+        `;
+    });
+}
+
+// Criar Embarque
+async function createShipment(e) {
+    e.preventDefault();
+    const data = {
+        code: document.getElementById('ship-code').value,
+        type: document.getElementById('ship-type').value,
+        departure_date: document.getElementById('ship-date').value
+    };
+    
+    await fetch('/api/shipments/create', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+    });
+    
+    loadShipments();
+}
+
+// Adicionar Caixa ao Lote Selecionado
+async function addToShipment(boxId) {
+    const shipId = document.getElementById('target-shipment').value;
+    if(!shipId) return alert("Selecione um Lote de Destino no menu acima primeiro!");
+
+    await fetch('/api/shipments/add-box', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ shipment_id: shipId, box_id: boxId })
+    });
+    
+    loadShipments(); // Recarrega tudo
+}
+
+// GERAR PDF DO MANIFESTO
+async function printManifest(shipId) {
+    const res = await fetch(`/api/shipments/manifest/${shipId}`);
+    const data = await res.json();
+    if(!data.success) return alert("Erro ao carregar dados.");
+
+    const s = data.shipment;
+    const items = data.items;
+    let totalWeight = 0;
+
+    // Gera linhas da tabela
+    let rowsHtml = '';
+    items.forEach((item, index) => {
+        const w = parseFloat(item.weight || 0);
+        totalWeight += w;
+        rowsHtml += `
+            <tr style="border-bottom: 1px solid #ccc;">
+                <td style="padding: 8px; text-align: center;">${index + 1}</td>
+                <td style="padding: 8px;">${item.box_code}</td>
+                <td style="padding: 8px;">${item.client_name}<br><small>Doc: ${item.document || '-'}</small></td>
+                <td style="padding: 8px;">${item.country}</td>
+                <td style="padding: 8px; font-size: 11px;">${item.products.substring(0, 50)}</td>
+                <td style="padding: 8px; text-align: center;">${w.toFixed(2)} kg</td>
+            </tr>
+        `;
+    });
+
+    const printArea = document.getElementById('print-area');
+    printArea.innerHTML = `
+        <div class="print-container">
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px;">
+                <h1 style="margin: 0;">GUINEEXPRESS LOGÍSTICA</h1>
+                <h2 style="margin: 5px 0;">MANIFESTO DE CARGA INTERNACIONAL</h2>
+                <p style="margin: 0;">LOTE: <strong>${s.code}</strong> | TIPO: ${s.type.toUpperCase()}</p>
+                <p style="margin: 0; font-size: 12px;">Saída: ${new Date(s.departure_date).toLocaleDateString('pt-BR')} | Total Volumes: ${items.length}</p>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead>
+                    <tr style="background: #eee; font-weight: bold;">
+                        <th style="border: 1px solid #000; padding: 5px;">#</th>
+                        <th style="border: 1px solid #000; padding: 5px;">BOX ID</th>
+                        <th style="border: 1px solid #000; padding: 5px;">DESTINATÁRIO</th>
+                        <th style="border: 1px solid #000; padding: 5px;">DESTINO</th>
+                        <th style="border: 1px solid #000; padding: 5px;">CONTEÚDO</th>
+                        <th style="border: 1px solid #000; padding: 5px;">PESO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr style="background: #000; color: #fff; font-weight: bold;">
+                        <td colspan="5" style="text-align: right; padding: 8px;">PESO TOTAL EMBARCADO:</td>
+                        <td style="padding: 8px; text-align: center;">${totalWeight.toFixed(2)} kg</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <br><br>
+            <div style="text-align: center; font-size: 10px;">
+                <p>Certifico que este manifesto representa fielmente a carga consolidada neste lote.</p>
+                <br>
+                __________________________________________<br>
+                Assinatura Responsável Guineexpress
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => { window.print(); }, 500);
+}
+// --- FUNÇÃO: EXCLUIR ENCOMENDA ---
+async function deleteOrder(id) {
+    if (!confirm("⚠️ Tem certeza que deseja EXCLUIR esta encomenda? Essa ação não pode ser desfeita.")) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ Encomenda excluída!");
+            loadOrders(); // Recarrega a tabela
+        } else {
+            alert("Erro ao excluir: " + data.message);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão.");
+    }
+}
+
+// ==========================================
+// FUNÇÕES DE EDIÇÃO E EXCLUSÃO
+// ==========================================
+
+// 1. Prepara o Modal para NOVA encomenda (Limpa tudo)
+function prepareNewOrder() {
+    document.getElementById('new-order-form').reset();
+    document.getElementById('editing-order-id').value = ''; 
+    document.getElementById('modal-order-title').innerText = '📦 Nova Encomenda';
+    
+    loadClientsToSelect(); // Carrega a lista de clientes
+    openModal('modal-order');
+}
+
+// 2. Prepara o Modal para EDITAR encomenda (Preenche dados)
+async function editOrder(id) {
+    try {
+        await loadClientsToSelect(); // Garante que a lista de clientes esteja carregada
+
+        const res = await fetch(`/api/orders/${id}`);
+        const order = await res.json();
+
+        if (!order) return alert('Encomenda não encontrada!');
+
+        // Preenche o formulário com os dados do banco
+        document.getElementById('editing-order-id').value = order.id;
+        document.getElementById('order-code').value = order.code;
+        document.getElementById('order-desc').value = order.description;
+        document.getElementById('order-weight').value = order.weight;
+        document.getElementById('order-status').value = order.status;
+        document.getElementById('order-client-select').value = order.client_id;
+
+        // Muda título e abre
+        document.getElementById('modal-order-title').innerText = '✏️ Editar Encomenda';
+        openModal('modal-order');
+
+    } catch (error) {
+        console.error(error);
+        alert('Erro ao carregar dados.');
+    }
+}
+
+// 3. Função EXCLUIR
+async function deleteOrder(id) {
+    if (!confirm("⚠️ Tem certeza que deseja EXCLUIR esta encomenda?")) return;
+
+    try {
+        const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ Excluído com sucesso!");
+            loadOrders(); // Recarrega a tabela
+        } else {
+            alert("Erro ao excluir.");
+        }
+    } catch (error) {
+        alert("Erro de conexão.");
+    }
+}
+
+// 4. Decide se CRIA ou ATUALIZA ao clicar em Salvar
+async function handleOrderSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('editing-order-id').value;
+
+    if (id) {
+        await updateOrder(id); // Edição
+    } else {
+        await createOrder(); // Criação (você já deve ter essa função, ou adapte)
+    }
+}
+
+// 5. Envia a atualização (PUT)
+async function updateOrder(id) {
+    const data = {
+        client_id: document.getElementById('order-client-select').value,
+        code: document.getElementById('order-code').value,
+        description: document.getElementById('order-desc').value,
+        weight: document.getElementById('order-weight').value,
+        status: document.getElementById('order-status').value
+    };
+
+    const res = await fetch(`/api/orders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    
+    const response = await res.json();
+    if (response.success) {
+        alert('✅ Atualizado!');
+        closeModal('modal-order');
+        loadOrders();
+    } else {
+        alert('Erro: ' + response.message);
+    }
+}
+
+// 6. Carrega clientes no <select> do modal
+async function loadClientsToSelect() {
+    const res = await fetch('/api/users-all');
+    const users = await res.json();
+    
+    const select = document.getElementById('order-client-select');
+    select.innerHTML = '<option value="">Selecione o Cliente...</option>';
+    
+    users.forEach(u => {
+        if(u.role === 'client') {
+            select.innerHTML += `<option value="${u.id}">${u.name} (${u.email})</option>`;
+        }
+    });
+}
+// --- FUNÇÃO: Carregar Lista de Funcionários ---
+async function loadEmployees() {
+    try {
+        const res = await fetch('/api/admin/employees');
+        const data = await res.json();
+        const list = document.getElementById('employees-list');
+        
+        // Se a lista não existir no HTML, para a função (evita erros)
+        if (!list) return;
+
+        list.innerHTML = '';
+
+        if (!data.success || data.employees.length === 0) {
+            list.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum funcionário encontrado.</td></tr>';
+            return;
+        }
+
+        data.employees.forEach(emp => {
+            // Define cor e texto baseados no status (1 = Ativo, 0 = Inativo)
+            const isActive = emp.active === 1;
+            const statusLabel = isActive 
+                ? '<span style="color: green; font-weight: bold;">Ativo</span>' 
+                : '<span style="color: red; font-weight: bold;">Bloqueado</span>';
+            
+            const btnColor = isActive ? '#dc3545' : '#28a745'; // Vermelho p/ desativar, Verde p/ ativar
+            const btnText = isActive ? 'Bloquear' : 'Ativar';
+            const newStatus = isActive ? 0 : 1;
+
+            const row = `
+                <tr>
+                    <td>${emp.name}</td>
+                    <td>${emp.email}</td>
+                    <td>${statusLabel}</td>
+                    <td>
+                        <button onclick="toggleEmployee(${emp.id}, ${newStatus})" 
+                                class="btn" 
+                                style="padding: 5px 10px; font-size: 12px; background-color: ${btnColor}; color: white;">
+                            ${btnText}
+                        </button>
+                    </td>
+                </tr>
+            `;
+            list.innerHTML += row;
+        });
+
+    } catch (error) {
+        console.error("Erro ao carregar funcionários:", error);
+    }
+}
+
+// --- FUNÇÃO: Botão de Ativar/Desativar ---
+async function toggleEmployee(id, newStatus) {
+    if(!confirm(newStatus === 0 ? "Tem certeza que deseja BLOQUEAR o acesso deste funcionário?" : "Deseja REATIVAR este funcionário?")) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/toggle-employee', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, active: newStatus })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            loadEmployees(); // Recarrega a tabela para ver a mudança
+        } else {
+            alert("Erro ao alterar status.");
+        }
+    } catch (error) {
+        alert("Erro de conexão.");
+    }
+}
