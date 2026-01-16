@@ -409,62 +409,64 @@
         document.addEventListener('DOMContentLoaded', () => { 
             initDashboard(); 
             
-            // Aguarda 1 segundo para garantir que o 'currentUser' foi carregado pelo script.js
+            // Aguarda 1 segundo para garantir que o 'currentUser' foi carregado
             setTimeout(() => {
                 if(currentUser) {
                     // 1. Mensagem de Boas-vindas
                     if(currentUser.name) {
                         document.getElementById('welcome-msg').innerText = `Olá, ${currentUser.name.split(' ')[0]}!`;
-                        
-                        // Preenche o input de Nome no Perfil
                         const nameInput = document.getElementById('profile-name');
                         if(nameInput) nameInput.value = currentUser.name;
                     }
 
-                    // 2. Preenche Email e Telefone nos inputs
+                    // 2. Preenche Email e Telefone
                     const emailInput = document.getElementById('profile-email');
                     if(emailInput && currentUser.email) emailInput.value = currentUser.email;
 
                     const phoneInput = document.getElementById('profile-phone');
                     if(phoneInput && currentUser.phone) phoneInput.value = currentUser.phone;
 
-                    // 3. CARREGA A FOTO SALVA (AQUI ESTÁ A CORREÇÃO)
+                    // --- CORREÇÃO AQUI (ADICIONADO '/uploads/') ---
                     if(currentUser.profile_pic) {
                         const imgDisplay = document.getElementById('profile-img-display');
                         if(imgDisplay) {
-                            // O '?v=' + time serve para forçar o navegador a baixar a foto nova se você acabou de trocar
-                            imgDisplay.src = currentUser.profile_pic + '?v=' + new Date().getTime();
+                            // Adicionamos '/uploads/' antes do nome do arquivo
+                            imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
                         }
                     }
+                    // ----------------------------------------------
                 }
                 
-                // Carregamentos das tabelas
+                // Carregamentos das tabelas (mantive igual)
                 if(typeof loadOrders === 'function') loadOrders().then(() => {
-                    const count = document.getElementById('orders-list').rows.length || 0;
-                    document.getElementById('dash-orders-count').innerText = count;
+                    const count = document.getElementById('orders-list')?.rows.length || 0;
+                    if(document.getElementById('dash-orders-count')) document.getElementById('dash-orders-count').innerText = count;
                 });
 
                 if(typeof loadBoxes === 'function') loadBoxes().then(() => {
-                    const count = document.getElementById('box-table-body').rows.length || 0;
-                    document.getElementById('dash-boxes-count').innerText = count;
+                    const count = document.getElementById('box-table-body')?.rows.length || 0;
+                    if(document.getElementById('dash-boxes-count')) document.getElementById('dash-boxes-count').innerText = count;
                 });
 
                 if(typeof loadClientInvoices === 'function') loadClientInvoices().then(() => {
-                    const rows = document.getElementById('client-invoices-list').querySelectorAll('tr');
-                    let pending = 0;
-                    rows.forEach(r => { if(r.innerHTML.includes('Pagar')) pending++; });
-                    document.getElementById('dash-invoices-count').innerText = pending;
+                    const list = document.getElementById('client-invoices-list');
+                    if(list) {
+                        const rows = list.querySelectorAll('tr');
+                        let pending = 0;
+                        rows.forEach(r => { if(r.innerHTML.includes('Pagar')) pending++; });
+                        if(document.getElementById('dash-invoices-count')) document.getElementById('dash-invoices-count').innerText = pending;
+                    }
                 });
 
             }, 1000);
 
-            // Mantém a aba ativa se der F5
+            // Mantém a aba ativa
             const activeTab = localStorage.getItem('activeTab');
             if(activeTab) showSection(activeTab);
             else showSection('home-view');
         });
 
-       function previewImage(event) {
+        function previewImage(event) {
             const reader = new FileReader();
             reader.onload = function(){ document.getElementById('profile-img-display').src = reader.result; };
             reader.readAsDataURL(event.target.files[0]);
