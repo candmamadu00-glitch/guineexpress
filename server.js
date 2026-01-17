@@ -775,10 +775,11 @@ app.post('/api/invoices/check-status', async (req, res) => {
 // 🚀 INÍCIO DAS ROTAS DE PAGAMENTO (PIX E CARTÃO)
 // ======================================================
 
-// 1. Rota para gerar PIX (O QRCode vem aqui)
+// ======================================================
+// 1. ROTA DE PIX (ATUALIZADA)
+// ======================================================
 app.post('/api/create-pix', async (req, res) => {
     try {
-        // Pega os dados enviados pelo Javascript do navegador
         const { amount, description, email, firstName } = req.body;
 
         const payment = new Payment(client);
@@ -791,15 +792,14 @@ app.post('/api/create-pix', async (req, res) => {
                 email: email || 'email@cliente.com',
                 first_name: firstName || 'Cliente'
             },
-            // O Pix expira em 30 minutos
             date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString()
         };
 
         const result = await payment.create({ body });
 
-        // Devolve para o site o QR Code e o Copia e Cola
+        // RETORNA O ID DO PAGAMENTO PARA O FRONTEND MONITORAR
         res.json({
-            id: result.id,
+            payment_id: result.id, // O frontend precisa disso para o Robô
             qr_code: result.point_of_interaction.transaction_data.qr_code,
             qr_code_base64: result.point_of_interaction.transaction_data.qr_code_base64
         });
@@ -809,6 +809,55 @@ app.post('/api/create-pix', async (req, res) => {
         res.status(500).json({ error: 'Erro ao conectar com Mercado Pago' });
     }
 });
+
+// ======================================================
+// 2. NOVA ROTA: CHECAR STATUS (O ROBÔ USA ESSA)
+// ======================================================
+app.post('/api/check-payment-status', async (req, res) => {
+    try {
+        // Recebe o ID do pagamento (MP) e o ID da fatura (Banco de dados)
+        const { payment_id, invoice_id } = req.body;
+
+        const payment = new Payment(client);
+        
+        // Pergunta ao Mercado Pago: "E aí, esse ID já pagou?"
+        const result = await payment.get({ id: payment_id });
+
+        const status = result.status; // 'pending', 'approved', 'rejected'
+
+        if (status === 'approved') {
+            // SE O DINHEIRO CAIU, ATUALIZA O BANCO SOZINHO!
+            
+            // 1. Atualiza a fatura para 'approved'
+            db.run("UPDATE invoices SET status = 'approved', mp_payment_id = ? WHERE id = ?", 
+                [payment_id, invoice_id], 
+                (err) => {
+                    if (err) console.error("Erro ao atualizar fatura:", err);
+                    else console.log(`✅ Fatura #${invoice_id} paga via PIX Automático!`);
+                }
+            );
+
+            // 2. (Opcional) Se a fatura for de um Box, acha o Box e a Encomenda e marca como Pago
+            // Isso garante que a encomenda mude de cor na tabela
+            db.get("SELECT box_id FROM invoices WHERE id = ?", [invoice_id], (err, row) => {
+                if(row && row.box_id) {
+                    db.run("UPDATE orders SET status = 'Pago' WHERE id IN (SELECT order_id FROM boxes WHERE id = ?)", [row.box_id]);
+                }
+            });
+        }
+
+        // Responde para o frontend (o robô vai ler isso)
+        res.json({ status: status });
+
+    } catch (error) {
+        console.error("Erro ao verificar status:", error);
+        res.status(500).json({ error: "Erro na verificação" });
+    }
+});
+
+// ======================================================
+// 3. ROTA CARTÃO (MANTENHA COMO ESTÁ, SÓ PULE ELA)
+// ======================================================
 
 // 2. Rota para gerar Link de Cartão (Checkout Pro)
 app.post('/api/create-preference', async (req, res) => {
@@ -1325,6 +1374,30 @@ app.post('/api/admin/toggle-employee', (req, res) => {
     db.run("UPDATE users SET active = ? WHERE id = ?", [active, id], (err) => {
         res.json({ success: !err });
     });
+});
+// ATUALIZAÇÃO DE STATUS DE ENCOMENDA + FOTO (NO SERVER.JS)
+app.post('/api/orders/update', (req, res) => {
+    const { id, status, location, delivery_proof } = req.body;
+    
+    // Se tiver foto (delivery_proof), atualiza ela também
+    if (delivery_proof) {
+        db.run(`UPDATE orders SET status = ?, description = ?, delivery_proof = ? WHERE id = ?`, 
+            [status, location, delivery_proof, id], // Nota: usei 'description' ou 'location' dependendo da sua estrutura, verifique se vc usa location ou description para atualizar onde está
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ message: "Status e Foto salvos com sucesso!" });
+            }
+        );
+    } else {
+        // Atualização normal sem foto
+        db.run(`UPDATE orders SET status = ?, description = ? WHERE id = ?`, 
+            [status, location, id], 
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ message: "Status atualizado!" });
+            }
+        );
+    }
 });
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR

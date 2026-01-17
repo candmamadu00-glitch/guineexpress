@@ -737,7 +737,7 @@ async function openBoxModal() { document.getElementById('box-modal').classList.r
 async function loadClientsBox() { const res = await fetch('/api/clients'); const list = await res.json(); const sel = document.getElementById('box-client-select'); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`); }
 async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
 function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
-// Função Principal de Carregar Encomendas
+// Função Principal de Carregar Encomendas (ATUALIZADA COM FOTO)
 async function loadOrders() {
     if (!currentUser) return; 
 
@@ -758,11 +758,13 @@ async function loadOrders() {
                 const price = o.price || 0; 
 
                 // 1. MENU DE STATUS
+                // MUDANÇA AQUI: Adicionei lógica para detectar se tem foto (checkDeliveryStatus)
                 let statusMenu = `<span class="status-badge status-${o.status}">${o.status}</span>`;
                 
                 if (currentUser.role !== 'client') {
+                    // Nota: Mudei o 'onchange' para chamar 'checkDeliveryStatus'
                     statusMenu = `
-                    <select onchange="updateOrderStatus(${o.id}, this.value, '${name}', '${o.code}', '${phone}')" 
+                    <select onchange="checkDeliveryStatus(this, ${o.id}, '${name}', '${o.code}', '${phone}')" 
                             style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px;">
                         <option value="Processando" ${o.status=='Processando'?'selected':''}>Processando</option>
                         <option value="Pendente Pagamento" ${o.status=='Pendente Pagamento'?'selected':''}>Pendente Pagamento</option>
@@ -780,35 +782,56 @@ async function loadOrders() {
                     const whatsappColor = phone ? '#25D366' : '#ccc';
                     const emailColor = email ? '#007bff' : '#ccc';
 
-                    // Aqui adicionei os botões de EDITAR e EXCLUIR
-                    actions = `
-                    <div style="display:flex; gap:5px; justify-content:center;">
+                    // Inicio da DIV de botões
+                    actions = `<div style="display:flex; gap:5px; justify-content:center;">`;
+
+                    // Botão WhatsApp
+                    actions += `
                         <button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" 
                                 title="Enviar WhatsApp"
                                 style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="fab fa-whatsapp"></i>
-                        </button>
-                        
+                        </button>`;
+                    
+                    // Botão Email
+                    actions += `
                         <button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" 
                                 title="Enviar Email"
                                 style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="far fa-envelope"></i>
-                        </button>
+                        </button>`;
 
+                    // Botão Editar
+                    actions += `
                         <button onclick="editOrder(${o.id})" 
                                 title="Editar Encomenda"
                                 style="background:#ffc107; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="fas fa-edit"></i>
-                        </button>
+                        </button>`;
 
+                    // Botão Excluir
+                    actions += `
                         <button onclick="deleteOrder(${o.id})" 
                                 title="Excluir Encomenda"
                                 style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="fas fa-trash"></i>
-                        </button>
-                    </div>`;
+                        </button>`;
+
+                    // [NOVO] Botão Ver Foto (Só aparece se tiver foto no banco)
+                    if (o.delivery_proof) {
+                        actions += `
+                        <button onclick='DeliveryProof.view("${o.delivery_proof}")' 
+                                title="Ver Comprovante (Foto)"
+                                style="background:#6f42c1; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="fas fa-camera"></i>
+                        </button>`;
+                    }
+
+                    // Fecha a DIV
+                    actions += `</div>`;
+
                 } else {
-                    // --- CLIENTE (Mantive igual) ---
+                    // --- CLIENTE (Mantive igual, mas adicionei ver foto) ---
                     if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
                         actions = `
                         <button onclick="openPaymentModal(${o.id}, '${o.description}', ${price})" 
@@ -820,6 +843,10 @@ async function loadOrders() {
                     else if (o.status === 'Pago') {
                         actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
                     } 
+                    // [NOVO] Cliente também pode ver a foto se foi entregue
+                    else if (o.status === 'Entregue' && o.delivery_proof) {
+                        actions = `<button onclick='DeliveryProof.view("${o.delivery_proof}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:2px 8px; border-radius:4px; cursor:pointer;">Ver Foto 📸</button>`;
+                    }
                     else {
                         actions = `<button onclick="alert('Detalhes: ${o.description} | R$ ${price}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer;">Detalhes</button>`;
                     }
@@ -1682,9 +1709,6 @@ function openPaymentModal(orderId, description, amount) {
     showMethod('pix');
 }
 
-function closePaymentModal() {
-    document.getElementById('modal-payment').style.display = 'none';
-}
 
 // 2. Alternar Abas (Pix vs Cartão)
 function showMethod(method) {
@@ -1735,16 +1759,19 @@ function limparValor(valor) {
     return isNaN(numero) ? 0 : numero;
 }
 
+// Variável global para controlar o "robô" que verifica o pagamento
+let pixCheckInterval = null;
+
+// --- 1. GERAR PIX (Modificada para iniciar a verificação) ---
 async function generatePixPayment() {
     const btn = document.getElementById('btn-gen-pix');
-    const orderId = document.getElementById('pay-order-id').value;
+    const orderId = document.getElementById('pay-order-id').value; // ID da fatura no seu banco
     
-    // PEGA O VALOR LIMPO DO INPUT
     let rawAmount = document.getElementById('pay-amount').value; 
-    let amountVal = parseFloat(rawAmount); // Como já limpamos no modal, aqui basta um parseFloat
+    let amountVal = parseFloat(rawAmount); 
 
     if (!amountVal || amountVal <= 0) { 
-        alert('Erro: Valor inválido para pagamento (R$ 0,00).'); 
+        alert('Erro: Valor inválido.'); 
         return; 
     }
 
@@ -1752,14 +1779,18 @@ async function generatePixPayment() {
     btn.disabled = true;
 
     try {
+        // Pega o email do usuário logado se existir, senão usa genérico
+        const userEmail = currentUser ? currentUser.email : 'cliente@guineexpress.com';
+        const userName = currentUser ? currentUser.name : 'Cliente';
+
         const response = await fetch('/api/create-pix', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 amount: amountVal,
-                description: `Pagamento Fatura #${orderId}`,
-                email: 'cliente@email.com', 
-                firstName: 'Cliente'
+                description: `Fatura #${orderId}`,
+                email: userEmail, 
+                firstName: userName
             })
         });
 
@@ -1774,12 +1805,28 @@ async function generatePixPayment() {
         if(data.qr_code_base64) {
             const img = document.createElement('img');
             img.src = `data:image/png;base64,${data.qr_code_base64}`;
-            img.style.maxWidth = '100%';
+            img.style.maxWidth = '200px';
             container.appendChild(img);
         }
         
         document.getElementById('pix-copy-paste').value = data.qr_code;
-        btn.style.display = 'none';
+        btn.style.display = 'none'; // Esconde o botão de gerar
+        
+        // AVISO VISUAL
+        const containerArea = document.getElementById('area-pix');
+        let statusMsg = document.getElementById('pix-status-msg');
+        if(!statusMsg) {
+            statusMsg = document.createElement('p');
+            statusMsg.id = 'pix-status-msg';
+            statusMsg.style.fontWeight = 'bold';
+            statusMsg.style.color = '#d4af37';
+            statusMsg.style.marginTop = '10px';
+            containerArea.appendChild(statusMsg);
+        }
+        statusMsg.innerHTML = '<i class="fas fa-sync fa-spin"></i> Aguardando pagamento...';
+
+        // === A MÁGICA: INICIA O ROBÔ VIGILANTE ===
+        startPixPolling(data.payment_id, orderId);
 
     } catch (error) {
         console.error(error);
@@ -1789,43 +1836,64 @@ async function generatePixPayment() {
     }
 }
 
-// --- CARTÃO CORRIGIDO ---
-async function goToCardCheckout() {
-    const orderId = document.getElementById('pay-order-id').value;
-    
-    // PEGA O VALOR E LIMPA
-    let rawAmount = document.getElementById('pay-amount').value;
-    let amountVal = limparValor(rawAmount);
+// --- 2. ROBÔ VIGILANTE (Verifica a cada 5 segundos) ---
+function startPixPolling(paymentId, invoiceId) {
+    // Limpa qualquer verificação anterior para não acumular
+    if(pixCheckInterval) clearInterval(pixCheckInterval);
 
-    if(!amountVal || amountVal <= 0) { 
-        alert('Valor inválido.'); 
-        return; 
-    }
+    pixCheckInterval = setInterval(async () => {
+        try {
+            const res = await fetch('/api/check-payment-status', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ payment_id: paymentId, invoice_id: invoiceId })
+            });
+            
+            const json = await res.json();
+            
+            if(json.status === 'approved') {
+                // SUCESSO! O DINHEIRO CAIU
+                clearInterval(pixCheckInterval); // Para o robô
+                
+                const statusMsg = document.getElementById('pix-status-msg');
+                if(statusMsg) {
+                    statusMsg.innerHTML = '✅ PAGAMENTO CONFIRMADO!';
+                    statusMsg.style.color = 'green';
+                }
 
-    try {
-        const response = await fetch('/api/create-preference', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: `Encomenda #${orderId}`,
-                price: amountVal, // Número limpo
-                quantity: 1
-            })
-        });
+                // Toca um som de sucesso (opcional)
+                // const audio = new Audio('sucesso.mp3'); audio.play();
 
-        const data = await response.json();
-        
-        if(data.init_point) {
-            window.location.href = data.init_point; 
-        } else {
-            alert("Erro ao criar link de pagamento");
+                setTimeout(() => {
+                    alert("Pagamento Recebido com Sucesso! ✈️");
+                    closePaymentModal();
+                    loadClientInvoices(); // Atualiza a tabela no fundo
+                }, 1000);
+            }
+        } catch (e) {
+            console.error("Erro verificando pix:", e);
         }
-
-    } catch (error) {
-        console.error(error);
-        alert("Erro ao conectar com pagamento.");
-    }
+    }, 5000); // 5000ms = 5 segundos
 }
+
+// --- 3. FECHAR MODAL (Importante parar o robô) ---
+function closePaymentModal() {
+    document.getElementById('modal-payment').style.display = 'none';
+    
+    // Para a verificação para não gastar internet do cliente
+    if(pixCheckInterval) clearInterval(pixCheckInterval);
+    
+    // Reseta visual
+    const btn = document.getElementById('btn-gen-pix');
+    if(btn) {
+        btn.style.display = 'block';
+        btn.innerHTML = 'GERAR QR CODE AGORA';
+        btn.disabled = false;
+    }
+    const statusMsg = document.getElementById('pix-status-msg');
+    if(statusMsg) statusMsg.remove();
+}
+
 
 // Função auxiliar para copiar o código Pix
 function copyPix() {
@@ -2967,5 +3035,203 @@ async function toggleEmployee(id, newStatus) {
     } catch (error) {
         console.error(error);
         alert("Erro de conexão.");
+    }
+}
+/* =========================================
+   SISTEMA DE COMPROVANTE DE ENTREGA (FOTO)
+   ========================================= */
+const DeliveryProof = {
+    stream: null,
+    capturedImage: null,
+    pendingShipmentId: null,
+
+    // Abre a câmera quando o funcionário seleciona "Entregue"
+    start: function(shipmentId) {
+        this.pendingShipmentId = shipmentId;
+        const modal = document.getElementById('delivery-photo-modal');
+        const video = document.getElementById('delivery-video');
+        const preview = document.getElementById('delivery-preview');
+        const btnSnap = document.getElementById('btn-snap-photo');
+        const btnConfirm = document.getElementById('btn-confirm-delivery');
+
+        // Resetar visual
+        preview.style.display = 'none';
+        video.style.display = 'block';
+        btnSnap.classList.remove('hidden');
+        btnConfirm.classList.add('hidden');
+        modal.classList.remove('hidden');
+
+        // Ligar câmera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => {
+                this.stream = stream;
+                video.srcObject = stream;
+            })
+            .catch(err => alert("Erro ao abrir câmera: " + err));
+    },
+
+    // Tira a foto
+    snap: function() {
+        const video = document.getElementById('delivery-video');
+        const canvas = document.getElementById('delivery-canvas');
+        const preview = document.getElementById('delivery-preview');
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Desenha o vídeo no canvas
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        // Converte para imagem Base64
+        this.capturedImage = canvas.toDataURL('image/jpeg', 0.7); // 0.7 = qualidade média (leve)
+        
+        // Mostra preview
+        preview.src = this.capturedImage;
+        preview.style.display = 'block';
+        
+        // Troca botões
+        document.getElementById('btn-snap-photo').classList.add('hidden');
+        document.getElementById('btn-confirm-delivery').classList.remove('hidden');
+    },
+
+    // Confirma e envia para o servidor
+    confirm: function() {
+        if (!this.capturedImage || !this.pendingShipmentId) return;
+
+        updateShipmentStatusWithProof(this.pendingShipmentId, 'Entregue', 'Entregue ao Cliente', this.capturedImage);
+        this.close();
+    },
+
+    close: function() {
+        const modal = document.getElementById('delivery-photo-modal');
+        modal.classList.add('hidden');
+        
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
+        }
+    },
+
+    // Para o cliente ver a foto
+    view: function(imgData) {
+        document.getElementById('proof-image-full').src = imgData;
+        document.getElementById('view-proof-modal').classList.remove('hidden');
+    }
+};
+function updateShipmentStatusWithProof(id, status, location, proofBase64) {
+    // CORREÇÃO: Mudar a URL para /api/orders/update
+    fetch('/api/orders/update', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, location, delivery_proof: proofBase64 })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert("Entrega confirmada com foto! 📸");
+        // Se sua função de carregar a tabela se chama loadOrders() ou loadShipments(), chame ela aqui:
+        if(typeof loadOrders === 'function') loadOrders(); 
+        else if(typeof loadShipments === 'function') loadShipments();
+        
+        if(typeof loadKpis === 'function') loadKpis();
+    })
+    .catch(err => console.error("Erro:", err));
+}
+// Função auxiliar para decidir se abre Câmera ou atualiza direto
+function checkDeliveryStatus(selectElement, id, name, code, phone) {
+    const newStatus = selectElement.value;
+    
+    if (newStatus === 'Entregue') {
+        // Se escolheu 'Entregue', ABRE A CÂMERA
+        DeliveryProof.start(id);
+    } else {
+        // Se for qualquer outro status, atualiza normal (como era antes)
+        updateOrderStatus(id, newStatus, name, code, phone);
+    }
+}
+/* =========================================
+   SISTEMA DE LEITOR DE QR CODE (SCANNER)
+   ========================================= */
+let html5QrcodeScanner = null;
+
+function startScanner() {
+    const modal = document.getElementById('scanner-modal');
+    modal.classList.remove('hidden');
+
+    // Configuração do Leitor
+    html5QrcodeScanner = new Html5Qrcode("reader");
+    
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    // Inicia a câmera traseira (environment)
+    html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+    .catch(err => {
+        console.error("Erro ao iniciar câmera:", err);
+        alert("Erro: Permita o acesso à câmera.");
+        stopScanner();
+    });
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+    // Toca um bipe (opcional, feedback sonoro)
+    // const audio = new Audio('/beep.mp3'); audio.play();
+
+    console.log(`Código lido: ${decodedText}`);
+    
+    // Para o scanner para não ficar lendo repetidamente
+    stopScanner();
+
+    // LÓGICA DE BUSCA:
+    // O seu QR Code na etiqueta é gerado assim: "CODE:ENC-123|NomeCliente"
+    // Vamos limpar para pegar só o código ou procurar o texto todo.
+    
+    let searchTerm = decodedText;
+    
+    // Se o QR Code tiver prefixo "CODE:", limpamos
+    if (decodedText.includes("CODE:")) {
+        const parts = decodedText.split('|'); // Separa o código do nome
+        searchTerm = parts[0].replace("CODE:", "").trim();
+    }
+
+    handleScannedCode(searchTerm);
+}
+
+function onScanFailure(error) {
+    // Não faça nada, apenas continua procurando
+    // console.warn(`Code scan error = ${error}`);
+}
+
+function stopScanner() {
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
+            html5QrcodeScanner.clear();
+            document.getElementById('scanner-modal').classList.add('hidden');
+        }).catch(err => console.error(err));
+    } else {
+        document.getElementById('scanner-modal').classList.add('hidden');
+    }
+}
+
+// O que fazer quando encontrar o código?
+async function handleScannedCode(code) {
+    // 1. Busca a encomenda no banco pelo código
+    try {
+        const res = await fetch('/api/orders');
+        const orders = await res.json();
+        
+        // Procura a encomenda exata
+        const found = orders.find(o => o.code === code || o.code.includes(code));
+
+        if (found) {
+            alert(`📦 Encomenda Encontrada: ${found.code}\nCliente: ${found.client_name}`);
+            
+            // AÇÃO AUTOMÁTICA: Abre o modal de edição dessa encomenda
+            // Se você for funcionário, pode já querer mudar status
+            editOrder(found.id); 
+            
+        } else {
+            alert(`❌ Encomenda com código "${code}" não encontrada no sistema.`);
+        }
+
+    } catch (err) {
+        alert("Erro ao buscar dados.");
     }
 }
