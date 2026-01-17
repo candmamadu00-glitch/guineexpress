@@ -4,7 +4,20 @@ const bcrypt = require('bcryptjs');
 
 // Cria/Conecta ao banco V4
 const db = new sqlite3.Database('./guineexpress_v4.db');
+// --- CORREÇÃO AUTOMÁTICA DO BANCO DE DADOS ---
+// Cole isso logo após a linha: const db = new sqlite3.Database...
 
+db.serialize(() => {
+    // 1. Cria coluna de FOTO se não existir
+    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", (err) => {
+        if (!err) console.log("✅ Coluna 'delivery_proof' adicionada com sucesso!");
+    });
+
+    // 2. Cria coluna de ID DO PIX se não existir
+    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", (err) => {
+        if (!err) console.log("✅ Coluna 'mp_payment_id' adicionada com sucesso!");
+    });
+});
 db.serialize(() => {
     // 1. Tabela de Usuários (CORRIGIDA - usa profile_pic)
     db.run(`CREATE TABLE IF NOT EXISTS users (

@@ -826,7 +826,14 @@ async function loadOrders() {
                             <i class="fas fa-camera"></i>
                         </button>`;
                     }
-
+                    // Botão de Imprimir Etiqueta
+actions += `
+    <button onclick="printLabel('${o.code}', '${name}', '${o.weight}', '${o.description}')" 
+            title="Imprimir Etiqueta"
+            style="background:#6c757d; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer;">
+        <i class="fas fa-print"></i>
+    </button>`;
+               
                     // Fecha a DIV
                     actions += `</div>`;
 
@@ -3234,4 +3241,30 @@ async function handleScannedCode(code) {
     } catch (err) {
         alert("Erro ao buscar dados.");
     }
+}
+function printLabel(code, name, weight, desc) {
+    const printWindow = window.open('', '', 'width=400,height=600');
+    printWindow.document.write(`
+        <html>
+        <body style="text-align:center; font-family:Arial;">
+            <div style="border:2px solid #000; padding:20px; margin:10px;">
+                <h1>GUINEEXPRESS</h1>
+                <h2 style="font-size:40px; margin:10px 0;">${code}</h2>
+                <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0;"></div>
+                <h3>${name}</h3>
+                <p>${desc} - ${weight}kg</p>
+                <p style="font-size:10px;">${new Date().toLocaleDateString()}</p>
+            </div>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+            <script>
+                new QRCode(document.getElementById("qrcode"), {
+                    text: "${code}|${name}", // O Scanner lê isso aqui
+                    width: 150,
+                    height: 150
+                });
+                setTimeout(() => { window.print(); window.close(); }, 1000);
+            </script>
+        </body>
+        </html>
+    `);
 }
