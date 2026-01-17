@@ -172,8 +172,7 @@ function showSection(id) {
         localStorage.setItem('activeTab', id);
     }
 
-    // 3. Carrega os dados específicos
-    if(id === 'videos-section') initVideoSection();
+    // 3. Carrega os dados específicos de cada aba
     if(id === 'orders-view') loadOrders();
     if(id === 'schedule-view') loadSchedules();
     if(id === 'box-view') loadBoxes(); 
@@ -184,17 +183,25 @@ function showSection(id) {
     if(id === 'expenses-view') loadExpenses();
     if(id === 'logs-view') loadSystemLogs();
     if(id === 'shipments-view') loadShipments();
-    
-    // --- NOVO: Carrega os Recibos ---
     if(id === 'receipts-view') loadReceipts();
+
+    // --- CORREÇÃO AQUI: Carrega dados para gravar vídeo ---
+    if(id === 'videos-section') {
+        // Se for admin/funcionário, carrega lista de encomendas para selecionar
+        if(currentUser.role !== 'client') {
+            loadOrdersForVideo(); 
+            loadAdminVideos(); // Lista os vídeos já feitos
+        } else {
+            loadClientVideos(); // Cliente só vê a galeria
+        }
+    }
 }
-// --- INICIALIZAÇÃO DO DASHBOARD ---
 async function initDashboard() {
     try {
         const res = await fetch('/api/user');
         
         if(res.status !== 200) {
-            console.warn("Sessão inválida ou expirada.");
+            console.warn("Sessão inválida.");
             return window.location.href = 'index.html';
         }
 
@@ -210,51 +217,57 @@ async function initDashboard() {
             document.getElementById('profile-email').value = currentUser.email || '';
             document.getElementById('profile-phone').value = currentUser.phone || '';
 
-            // --- ADICIONE ISTO AQUI (CORREÇÃO DA FOTO) ---
             const imgDisplay = document.getElementById('profile-img-display');
             if(currentUser.profile_pic && imgDisplay) {
-                // Adiciona um número aleatório (?v=...) para forçar o navegador a não usar cache velho
                 imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
             }
-            // ---------------------------------------------
         }
 
-        // ... resto do código (loadPrice, loadOrders, etc) ...
-        loadPrice(); 
+        // --- AQUI ESTAVA O ERRO DO PREÇO ZERADO ---
+        // O "await" obriga o código a parar aqui até o preço ser carregado do servidor
+        await loadPrice(); 
+        
+        // Só depois de ter o preço, carregamos as listas
         if(currentUser.role !== 'client') loadClients();
         loadOrders();
         loadSchedules();
 
-        // ... (código das abas) ...
+        // Recupera aba anterior
         const lastTab = localStorage.getItem('activeTab');
         if (lastTab && document.getElementById(lastTab)) {
             showSection(lastTab);
         } else {
-            if(currentUser.role === 'client') {
-                showSection('orders-view'); 
-            } else {
-                showSection('orders-view'); 
-            }
+            if(currentUser.role === 'client') showSection('orders-view'); 
+            else showSection('orders-view'); 
         }
 
     } catch (error) {
         console.error("Erro ao iniciar dashboard:", error);
     }
 }
-// --- CONFIGURAÇÃO DE PREÇO ---
-function loadPrice() {
-    fetch('/api/config/price')
-        .then(res => res.json())
-        .then(data => {
-            globalPricePerKg = data.price;
-            const input = document.getElementById('price-input');
-            if(input) input.value = globalPricePerKg;
-            
-            const boxSection = document.getElementById('boxes-section') || document.getElementById('box-view');
-            if(boxSection && !boxSection.classList.contains('hidden')) {
-                loadBoxes();
-            }
-        });
+
+// --- CONFIGURAÇÃO DE PREÇO (AGORA ASSÍNCRONA) ---
+async function loadPrice() {
+    try {
+        const res = await fetch('/api/config/price');
+        const data = await res.json();
+        
+        // Atualiza a variável global
+        globalPricePerKg = parseFloat(data.price) || 0;
+        
+        // Atualiza input se existir
+        const input = document.getElementById('price-input');
+        if(input) input.value = globalPricePerKg;
+        
+        // Se a aba de Box estiver aberta, recarrega para atualizar valores
+        const boxSection = document.getElementById('box-view');
+        if(boxSection && !boxSection.classList.contains('hidden')) {
+            loadBoxes();
+        }
+        console.log("Preço carregado:", globalPricePerKg);
+    } catch (e) {
+        console.error("Erro ao carregar preço:", e);
+    }
 }
 
 function savePrice() {
@@ -645,11 +658,10 @@ async function loadClients() {
         const res = await fetch('/api/clients'); 
         const list = await res.json(); 
         
-        // --- ALTERAÇÃO AQUI: REMOVI O 'video-client-select' DESTA LISTA ---
+        // Preenche os Selects (ex: na hora de criar encomenda)
         const selects = [
             document.getElementById('order-client-select'),
             document.getElementById('box-client-select')
-            // O 'video-client-select' foi removido daqui pois terá função própria
         ];
 
         selects.forEach(sel => {
@@ -662,7 +674,8 @@ async function loadClients() {
                 });
             }
         });
-        // 2. TABELA DE CLIENTES (Aba Clientes)
+
+        // Preenche a Tabela da Aba "Clientes"
         const tbody = document.getElementById('clients-list'); 
         if(tbody) {
             tbody.innerHTML = ''; 
@@ -685,18 +698,20 @@ async function loadClients() {
                     ? '<span style="background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Ativo</span>' 
                     : '<span style="background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Inativo</span>';
 
-                // --- CORREÇÃO DO ERRO 404 DA IMAGEM ---
-                // Se a foto for nula ou 'default.png', usa um avatar gerado automaticamente
-                let imgUrl = c.photo;
-                if (!imgUrl || imgUrl === 'default.png') {
-                    // Usa serviço gratuito para gerar avatar com iniciais (ex: Lelo -> LE)
+                // --- CORREÇÃO AQUI (profile_pic em vez de photo) ---
+                let imgUrl = '';
+                if (c.profile_pic && c.profile_pic !== 'default.png') {
+                    // Adiciona o caminho da pasta uploads
+                    imgUrl = '/uploads/' + c.profile_pic;
+                } else {
+                    // Avatar genérico com iniciais
                     imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
                 }
 
                 const photoHtml = `<img src="${imgUrl}" 
-                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=User&background=ccc'" 
+                    onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" 
                     style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
-                // --------------------------------------
+                // ----------------------------------------------------
 
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee; text-align: center;">
@@ -718,101 +733,6 @@ async function loadClients() {
 }
 async function toggleClient(id, active) { await fetch('/api/clients/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,active})}); loadClients(); }
 
-// --- SUBSTITUIR A FUNÇÃO loadOrders EXISTENTE POR ESTA ---
-async function loadOrders() {
-    if (!currentUser) return; 
-
-    try {
-        const res = await fetch('/api/orders');
-        const list = await res.json();
-        const tbody = document.getElementById('orders-list') || document.querySelector('.data-table tbody');
-        
-        if(tbody) {
-            tbody.innerHTML='';
-            
-            list.forEach(o => {
-                // --- CORREÇÃO DE TELEFONE E EMAIL ---
-                // Tenta encontrar os dados em qualquer variação possível
-                const phone = o.client_phone || o.phone || o.whatsapp || ''; 
-                const email = o.client_email || o.email || o.mail || ''; 
-                
-                const name = o.client_name || o.name || 'Cliente';
-                const price = o.price || 0; 
-
-                // 1. MENU DE STATUS
-                let statusMenu = `<span class="status-badge status-${o.status}">${o.status}</span>`;
-                
-                if (currentUser.role !== 'client') {
-                    // Nota: Passamos 'phone' aqui para o updateOrderStatus usar no WhatsApp automático
-                    statusMenu = `
-                    <select onchange="updateOrderStatus(${o.id}, this.value, '${name}', '${o.code}', '${phone}')" 
-                            style="padding:5px; border-radius:4px; border:1px solid #ccc;">
-                        <option value="Processando" ${o.status=='Processando'?'selected':''}>Processando</option>
-                        <option value="Pendente Pagamento" ${o.status=='Pendente Pagamento'?'selected':''}>Pendente Pagamento</option>
-                        <option value="Pago" ${o.status=='Pago'?'selected':''}>Pago</option>
-                        <option value="Enviado" ${o.status=='Enviado'?'selected':''}>Enviado</option>
-                        <option value="Entregue" ${o.status=='Entregue'?'selected':''}>Entregue</option>
-                    </select>`;
-                }
-
-                // 2. BOTÕES DE AÇÃO
-                let actions = '-';
-                
-                if (currentUser.role !== 'client') {
-                    // --- ADMIN ---
-                    // Se não tiver telefone ou email, o botão fica cinza claro para indicar
-                    const whatsappColor = phone ? '#25D366' : '#ccc';
-                    const emailColor = email ? '#007bff' : '#ccc';
-
-                    actions = `
-                    <div style="display:flex; gap:5px; justify-content:center;">
-                        <button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" 
-                                title="Enviar WhatsApp ${phone ? '' : '(Sem número)'}"
-                                style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="fab fa-whatsapp"></i>
-                        </button>
-                        <button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" 
-                                title="Enviar Email ${email ? '' : '(Sem email)'}"
-                                style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="far fa-envelope"></i>
-                        </button>
-                    </div>`;
-                } else {
-                    // --- CLIENTE ---
-                    if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
-                        actions = `
-                        <button onclick="openPaymentModal(${o.id}, '${o.description}', ${price})" 
-                            class="btn-pay-pulse"
-                            style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                            <i class="fas fa-dollar-sign"></i> PAGAR
-                        </button>`;
-                    } 
-                    else if (o.status === 'Pago') {
-                        actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
-                    } 
-                    else {
-                        actions = `<button onclick="alert('Detalhes: ${o.description} | R$ ${price}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer;">Detalhes</button>`;
-                    }
-                }
-                
-                tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding:12px;"><strong>${o.code}</strong></td>
-                        <td>${name}</td>
-                        <td>${o.description||'-'}</td>
-                        <td>${o.weight} Kg</td>
-                        <td>R$ ${parseFloat(price).toFixed(2)}</td> 
-                        <td>${statusMenu}</td>
-                        <td>${actions}</td>
-                    </tr>`; 
-            });
-            
-            if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
-        }
-    } catch (error) {
-        console.error("Erro ao carregar encomendas:", error);
-    }
-}
 async function openBoxModal() { document.getElementById('box-modal').classList.remove('hidden'); loadClientsBox(); }
 async function loadClientsBox() { const res = await fetch('/api/clients'); const list = await res.json(); const sel = document.getElementById('box-client-select'); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`); }
 async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
@@ -926,20 +846,25 @@ async function loadOrders() {
 }
 function toggleOrderForm() { const f = document.getElementById('new-order-form'); f.classList.toggle('hidden'); if(!f.classList.contains('hidden')) loadClients(); }
 async function updateOrderStatus(id, status) { await fetch('/api/orders/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status})}); loadOrders(); }
-// 2. Função de Salvar (Agora usando FormData para enviar a Imagem)
+// --- ATUALIZAR PERFIL (COM FOTO) ---
 async function updateProfile() {
     const fileInput = document.getElementById('profile-upload');
     const nameInput = document.getElementById('profile-name');
     const emailInput = document.getElementById('profile-email');
     const phoneInput = document.getElementById('profile-phone');
+    
+    // Feedback visual de carregamento
+    const btn = document.querySelector('#profile-view button');
+    const oldText = btn.innerText;
+    btn.innerText = "Salvando...";
+    btn.disabled = true;
 
-    // Cria um formulário de dados para envio de arquivo
+    // Cria o FormData para enviar arquivo + texto
     const formData = new FormData();
     formData.append('name', nameInput.value);
     formData.append('email', emailInput.value);
     formData.append('phone', phoneInput.value);
 
-    // Só adiciona a foto se o usuário tiver escolhido uma nova
     if (fileInput.files.length > 0) {
         formData.append('profile_pic', fileInput.files[0]);
     }
@@ -947,25 +872,29 @@ async function updateProfile() {
     try {
         const response = await fetch('/api/user/update', {
             method: 'POST',
-            // NOTA: Não defina 'Content-Type': 'application/json' aqui. 
-            // O navegador define automaticamente como multipart/form-data quando usa FormData
             body: formData 
         });
 
-        if (response.ok) {
-            const result = await response.json();
-            alert('Perfil atualizado com sucesso!');
+        const result = await response.json();
+
+        if (result.success) {
+            alert('✅ Perfil atualizado com sucesso!');
             
-            // Atualiza a foto na tela se o servidor devolveu a nova URL
+            // Atualiza a foto imediatamente na tela
             if(result.newProfilePicUrl) {
-                document.getElementById('profile-img-display').src = result.newProfilePicUrl;
+                const imgDisplay = document.getElementById('profile-img-display');
+                // Adiciona timestamp para forçar atualização do cache do navegador
+                imgDisplay.src = result.newProfilePicUrl + '?v=' + new Date().getTime();
             }
         } else {
-            alert('Erro ao atualizar perfil.');
+            alert('Erro: ' + (result.message || 'Falha ao salvar.'));
         }
     } catch (error) {
         console.error(error);
         alert('Erro de conexão.');
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
     }
 }
 // --- VARIÁVEIS GLOBAIS DE VÍDEO ---
@@ -1108,40 +1037,85 @@ function retakeVideo() {
     document.getElementById('record-ui').classList.remove('hidden');
     document.getElementById('upload-ui').classList.add('hidden');
 }
+// --- FUNÇÃO PARA PREENCHER O MENU DE SELEÇÃO DE ENCOMENDA ---
 async function loadOrdersForVideo() {
     const select = document.getElementById('video-client-select');
+    
+    // Se o elemento não existir na tela (ex: painel de cliente), sai
     if (!select) return;
 
-    // Busca as encomendas (que já trazem o nome do cliente)
-    const res = await fetch('/api/orders');
-    const orders = await res.json();
+    // Reseta o botão da câmera
+    const btnCamera = document.getElementById('btn-open-fullscreen');
+    if(btnCamera) {
+        btnCamera.disabled = true;
+        btnCamera.style.background = '#2c3e50';
+        btnCamera.innerHTML = '<i class="fas fa-camera"></i> Selecione uma encomenda';
+    }
 
-    select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
+    try {
+        // Busca todas as encomendas do sistema
+        const res = await fetch('/api/orders');
+        const orders = await res.json();
 
-    orders.forEach(o => {
-        // Mostra apenas encomendas que não foram entregues (opcional, se quiser todas, remova o if)
-        // O value é o client_id (porque o vídeo pertence ao cliente)
-        // O data-code é o código da encomenda para usarmos na descrição
-        const clientName = o.client_name || 'Cliente Desconhecido';
-        const label = `${clientName} | Encomenda: ${o.code} (${o.description})`;
-        
-        select.innerHTML += `<option value="${o.client_id}" data-order-code="${o.code}" data-desc="${o.description}">
-            ${label}
-        </option>`;
-    });
+        select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
 
-    // Adiciona evento: Quando mudar a seleção, atualiza o texto da descrição automaticamente
-    select.onchange = function() {
-        const selectedOption = select.options[select.selectedIndex];
-        const code = selectedOption.getAttribute('data-order-code');
-        const desc = selectedOption.getAttribute('data-desc');
-        
-        if (code) {
-            // Atualiza o texto visual 'info-desc' na tela de gravação
+        // Filtra para não mostrar encomendas finalizadas (Entregue)
+        // Se quiser mostrar todas, remova o .filter
+        const activeOrders = orders.filter(o => o.status !== 'Entregue');
+
+        activeOrders.forEach(o => {
+            const clientName = o.client_name || 'Sem Nome';
+            // O value é o ID do CLIENTE (para vincular o vídeo ao dono)
+            // Guardamos o Código da Encomenda no dataset para usar na descrição
+            select.innerHTML += `
+                <option value="${o.client_id}" data-code="${o.code}" data-desc="${o.description}">
+                    ${o.code} - ${clientName} (${o.description})
+                </option>
+            `;
+        });
+
+        // Adiciona evento para atualizar o texto da descrição ao mudar a seleção
+        select.onchange = function() {
+            checkVideoPermission(); // Libera o botão
+            
+            // Atualiza o resumo visual na tela
+            const option = select.options[select.selectedIndex];
             const infoDesc = document.getElementById('info-desc');
-            if(infoDesc) infoDesc.innerText = `Vídeo da Encomenda ${code} - ${desc}`;
+            
+            if (select.value && infoDesc) {
+                const code = option.getAttribute('data-code');
+                const desc = option.getAttribute('data-desc');
+                infoDesc.innerText = `Vídeo referente à encomenda ${code} (${desc})`;
+            } else if (infoDesc) {
+                infoDesc.innerText = "-";
+            }
+        };
+
+    } catch (error) {
+        console.error("Erro ao carregar encomendas para vídeo:", error);
+        select.innerHTML = '<option value="">Erro ao carregar lista</option>';
+    }
+}
+
+// --- FUNÇÃO PARA LIBERAR O BOTÃO DA CÂMERA ---
+function checkVideoPermission() {
+    const sel = document.getElementById('video-client-select');
+    const btn = document.getElementById('btn-open-fullscreen');
+    
+    if(sel && btn) {
+        // Se tem valor selecionado, ativa o botão
+        if(sel.value) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-camera"></i> ABRIR CÂMERA';
+            btn.style.background = '#28a745'; // Verde
+            btn.style.cursor = 'pointer';
+        } else {
+            btn.disabled = true;
+            btn.innerHTML = 'Selecione uma encomenda acima';
+            btn.style.background = '#2c3e50'; // Cinza escuro
+            btn.style.cursor = 'not-allowed';
         }
-    };
+    }
 }
 
 
@@ -1284,42 +1258,49 @@ async function loadAdminVideos() {
 
 async function loadClientVideos() {
     const grid = document.getElementById('client-video-grid');
-    if(!grid) return; // Se o elemento não existe (ex: painel admin), sai silenciosamente
+    if(!grid) return; 
     
     try {
         const res = await fetch('/api/videos/list');
         const list = await res.json();
         
-        grid.innerHTML = '';
-        
         if(list.length === 0) {
-            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%;">Nenhum vídeo disponível no momento.</p>';
+            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%; margin-top:20px;">Nenhum vídeo disponível no momento.</p>';
             return;
         }
 
+        // Monta todo o HTML numa variável primeiro (Mais rápido)
+        let htmlBuffer = '';
+
         list.forEach(v => {
-            // Formata a data para ficar mais amigável
             const dateStr = new Date(v.created_at).toLocaleDateString('pt-BR');
+            // Escapa aspas para evitar quebra de HTML
+            const descSafe = (v.description || 'Sem descrição').replace(/"/g, '&quot;');
             
-            grid.innerHTML += `
-                <div class="video-card" style="border:1px solid #ddd; padding:15px; border-radius:8px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 100%; max-width: 320px;">
-                    <div style="margin-bottom:10px; font-weight:bold; color:#0a1931; font-size:14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        📦 ${v.description || 'Sem descrição'}
+            htmlBuffer += `
+                <div class="video-card" style="border:1px solid #ddd; padding:15px; border-radius:8px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                    <div style="margin-bottom:10px; font-weight:bold; color:#0a1931; font-size:14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${descSafe}">
+                        📦 ${descSafe}
                     </div>
-                    <video controls style="width:100%; border-radius:5px; background:black; aspect-ratio: 16/9;">
+                    <video controls preload="metadata" style="width:100%; border-radius:5px; background:black; aspect-ratio: 16/9;">
                         <source src="/uploads/videos/${v.filename}" type="video/webm">
                         Seu navegador não suporta vídeos.
                     </video>
                     <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:#666;">📅 ${dateStr}</span>
-                        <a href="/uploads/videos/${v.filename}" download="video-encomenda.webm" class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">⬇ Baixar</a>
+                        <a href="/uploads/videos/${v.filename}" download="video-${v.id}.webm" class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">
+                            <i class="fas fa-download"></i> Baixar
+                        </a>
                     </div>
                 </div>
             `;
         });
+
+        grid.innerHTML = htmlBuffer;
+
     } catch (error) {
-        console.error("Erro ao carregar vídeos do cliente:", error);
-        grid.innerHTML = '<p style="color:red; text-align:center;">Erro ao carregar vídeos.</p>';
+        console.error("Erro ao carregar vídeos:", error);
+        grid.innerHTML = '<p style="color:red; text-align:center;">Erro de conexão ao buscar vídeos.</p>';
     }
 }
 
@@ -1417,11 +1398,7 @@ async function updateOrderStatus(id, status, name, code, phone) {
     
     loadOrders(); 
 }
-document.addEventListener('DOMContentLoaded', () => {
-    if(document.getElementById('user-role-display')) { // Só roda se estiver no painel
-        initDashboard();
-    }
-});
+
 // --- FUNÇÕES PARA ABRIR E FECHAR MODAIS ---
 
 function openModal(modalId) {
@@ -1636,7 +1613,7 @@ async function loadClientInvoices() {
 
         tbody.innerHTML = '';
         if(list.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Nenhuma fatura encontrada.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente.</td></tr>';
             return;
         }
 
@@ -1644,32 +1621,32 @@ async function loadClientInvoices() {
             let statusHtml = '';
             let actionHtml = '';
 
-            // Define uma descrição segura
-            const descricao = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
+            // Sanitiza a descrição (Troca aspas simples por código HTML)
+            let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
+            let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
 
             if(inv.status === 'approved') {
                 statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
-                actionHtml = '<button class="btn-secondary" disabled style="opacity:0.5; cursor:not-allowed;">Concluído</button>';
+                actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
             } else if(inv.status === 'pending') {
                 statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
                 
-                // --- AQUI ESTAVA O ERRO, VEJA A CORREÇÃO ABAIXO ---
-                // Agora passamos: ID, DESCRIÇÃO e VALOR (nesta ordem exata)
-                actionHtml = `<button onclick="openPaymentModal('${inv.id}', '${descricao}', '${inv.amount}')" class="btn-primary" style="padding:5px 10px; font-size:12px;">💸 Pagar</button>`;
-                // --------------------------------------------------
-
+                // CORREÇÃO: Usamos safeDesc para não quebrar o onclick
+                actionHtml = `<button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" class="btn-primary" style="padding:5px 15px; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                    💸 Pagar
+                </button>`;
             } else {
                 statusHtml = '<span style="color:red;">Cancelado</span>';
                 actionHtml = '-';
             }
 
             tbody.innerHTML += `
-            <tr>
-                <td>#${inv.id}</td>
-                <td>${descricao}</td>
-                <td>R$ ${inv.amount}</td>
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding:12px;">#${inv.id}</td>
+                <td>${rawDesc}</td>
+                <td style="font-weight:bold; color:#0a1931;">R$ ${parseFloat(inv.amount).toFixed(2)}</td>
                 <td>${statusHtml}</td>
-                <td>${actionHtml}</td>
+                <td style="text-align:center;">${actionHtml}</td>
             </tr>`;
         });
     } catch (err) {
@@ -2229,31 +2206,34 @@ async function loadReceipts() {
     }
 }
 
-// 5. GERAR RECIBO A4 (Tamanho Normal)
+// 5. GERAR RECIBO A4 (Tamanho Normal - CORRIGIDO)
 async function printReceipt(boxId) {
     const printArea = document.getElementById('print-area');
+    
     try {
-        const res = await fetch(`/api/receipt-data/${boxId}`); // Supondo que sua API funciona assim
+        // Busca dados reais do banco
+        const res = await fetch(`/api/receipt-data/${boxId}`); 
         const response = await res.json();
         
-        // Fallback se não tiver API, usa dados locais ou de teste para não quebrar
-        // (Ajuste conforme sua lógica real de dados)
-        const d = response.success ? response.data : { 
-            client_name: 'Cliente', weight: '0.00', amount: 0, 
-            box_code: '000', order_code: '000', 
-            is_paid: false, products: 'Serviços Logísticos' 
-        };
+        if (!response.success) {
+            return alert("Erro ao buscar dados do recibo: " + (response.msg || 'Erro desconhecido'));
+        }
 
+        const d = response.data; // Dados vindos do backend
+
+        // Formata valores
         const valorReais = parseFloat(d.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const dataHoje = new Date().toLocaleDateString('pt-BR');
+        
+        // Define Status baseado no pagamento real
         const stampStatus = d.is_paid ? 'PAGO' : 'PENDENTE';
-        const stampColor = d.is_paid ? '#28a745' : '#dc3545';
+        const stampColor = d.is_paid ? '#28a745' : '#dc3545'; // Verde ou Vermelho
 
         printArea.innerHTML = '';
         
         // Estrutura HTML Otimizada para A4
         const receiptDiv = document.createElement('div');
-        receiptDiv.className = 'receipt-a4-container'; // Classe conectada ao @page a4-page
+        receiptDiv.className = 'receipt-a4-container'; 
         
         receiptDiv.innerHTML = `
             <div style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); 
@@ -2283,7 +2263,7 @@ async function printReceipt(boxId) {
 
             <div class="rec-title-bar">
                 <span>RECIBO DE ENCOMENDA</span>
-                <span>Box Nº ${d.box_code || '1'} | Ref: ${d.order_code}</span>
+                <span>Box Nº ${d.box_code || '1'} | Ref: ${d.order_code || '-'}</span>
                 <span>Emissão: ${dataHoje}</span>
             </div>
 
@@ -2291,16 +2271,16 @@ async function printReceipt(boxId) {
                 <div class="rec-box">
                     <h3>DADOS DO CLIENTE</h3>
                     <div class="rec-line"><strong>Nome:</strong> ${d.client_name}</div>
-                    <div class="rec-line"><strong>Telefone:</strong> ${d.phone || d.client_phone || '-'}</div>
-                    <div class="rec-line"><strong>Documento:</strong> ${d.document || d.doc || '-'}</div>
-                    <div class="rec-line"><strong>Email:</strong> ${d.email || d.client_email || '-'}</div>
+                    <div class="rec-line"><strong>Telefone:</strong> ${d.phone || '-'}</div>
+                    <div class="rec-line"><strong>Documento:</strong> ${d.document || '-'}</div>
+                    <div class="rec-line"><strong>Email:</strong> ${d.email || '-'}</div>
                 </div>
                 <div class="rec-box">
                     <h3>DADOS DO ENVIO</h3>
-                    <div class="rec-line"><strong>Destino:</strong> Guiné-Bissau (GW)</div>
-                    <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code}</div>
+                    <div class="rec-line"><strong>Destino:</strong> ${d.country || 'Guiné-Bissau (GW)'}</div>
+                    <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code || '-'}</div>
                     <div class="rec-line"><strong>Peso Registrado:</strong> ${d.weight} kg</div>
-                    <div class="rec-line"><strong>Status:</strong> ${d.status || 'Em processamento'}</div>
+                    <div class="rec-line"><strong>Status:</strong> ${d.order_status || 'Processando'}</div>
                 </div>
             </div>
 
@@ -2316,7 +2296,7 @@ async function printReceipt(boxId) {
                     <tr>
                         <td>
                             <strong>Frete Aéreo/Marítimo Internacional</strong><br>
-                            <small>Conteúdo: ${d.products || d.description}</small>
+                            <small>Conteúdo: ${d.products || 'Diversos'}</small>
                         </td>
                         <td style="text-align:center;">${d.weight} kg</td>
                         <td style="text-align:right;">${valorReais}</td>
@@ -2343,6 +2323,7 @@ async function printReceipt(boxId) {
         setTimeout(() => { window.print(); }, 500);
 
     } catch (e) {
+        console.error(e);
         alert("Erro ao gerar recibo: " + e.message);
     }
 }
@@ -2830,7 +2811,7 @@ async function handleOrderSubmit(e) {
     }
 }
 
-// 5. Envia a atualização (PUT)
+// --- FUNÇÃO AUXILIAR: ATUALIZAR ENCOMENDA (PUT) ---
 async function updateOrder(id) {
     const data = {
         client_id: document.getElementById('order-client-select').value,
@@ -2840,36 +2821,78 @@ async function updateOrder(id) {
         status: document.getElementById('order-status').value
     };
 
-    const res = await fetch(`/api/orders/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    
-    const response = await res.json();
-    if (response.success) {
-        alert('✅ Atualizado!');
-        closeModal('modal-order');
-        loadOrders();
-    } else {
-        alert('Erro: ' + response.message);
+    try {
+        const res = await fetch(`/api/orders/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const json = await res.json();
+        if(json.success) {
+            alert("✅ Atualizado com sucesso!");
+            closeModal('modal-order');
+            loadOrders();
+        } else {
+            alert("Erro: " + json.message);
+        }
+    } catch (e) {
+        alert("Erro de conexão.");
     }
 }
 
-// 6. Carrega clientes no <select> do modal
+// --- FUNÇÃO AUXILIAR: CARREGAR CLIENTES NO SELECT DE EDIÇÃO ---
 async function loadClientsToSelect() {
-    const res = await fetch('/api/users-all');
-    const users = await res.json();
+    const sel = document.getElementById('order-client-select');
+    if(!sel) return;
     
-    const select = document.getElementById('order-client-select');
-    select.innerHTML = '<option value="">Selecione o Cliente...</option>';
-    
-    users.forEach(u => {
-        if(u.role === 'client') {
-            select.innerHTML += `<option value="${u.id}">${u.name} (${u.email})</option>`;
-        }
-    });
+    // Se já tiver opções carregadas (mais de 1), não recarrega para economizar dados
+    if(sel.options.length > 1) return;
+
+    try {
+        const res = await fetch('/api/clients');
+        const list = await res.json();
+        
+        sel.innerHTML = '<option value="">Selecione o Cliente...</option>';
+        list.forEach(c => {
+            sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+    } catch (e) {
+        console.error("Erro ao carregar lista de clientes para edição:", e);
+    }
 }
+
+// --- [IMPORTANTE] FUNÇÃO QUE FALTAVA: ATUALIZAR ENCOMENDA (PUT) ---
+async function updateOrder(id) {
+    const data = {
+        client_id: document.getElementById('order-client-select').value,
+        code: document.getElementById('order-code').value,
+        description: document.getElementById('order-desc').value,
+        weight: document.getElementById('order-weight').value,
+        status: document.getElementById('order-status').value
+    };
+
+    try {
+        const res = await fetch(`/api/orders/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const json = await res.json();
+        if(json.success) {
+            alert("✅ Atualizado com sucesso!");
+            closeModal('modal-order');
+            loadOrders(); // Atualiza a tabela no fundo
+        } else {
+            alert("Erro: " + (json.message || "Falha ao atualizar"));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erro de conexão.");
+    }
+}
+
 // --- FUNÇÃO: Carregar Lista de Funcionários ---
 async function loadEmployees() {
     try {
@@ -2877,19 +2900,19 @@ async function loadEmployees() {
         const data = await res.json();
         const list = document.getElementById('employees-list');
         
-        // Se a lista não existir no HTML, para a função (evita erros)
+        // Se a lista não existir no HTML (ex: painel do cliente), para a função
         if (!list) return;
 
         list.innerHTML = '';
 
-        if (!data.success || data.employees.length === 0) {
+        if (!data.success || !data.employees || data.employees.length === 0) {
             list.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum funcionário encontrado.</td></tr>';
             return;
         }
 
         data.employees.forEach(emp => {
-            // Define cor e texto baseados no status (1 = Ativo, 0 = Inativo)
             const isActive = emp.active === 1;
+            // Configuração visual do Status
             const statusLabel = isActive 
                 ? '<span style="color: green; font-weight: bold;">Ativo</span>' 
                 : '<span style="color: red; font-weight: bold;">Bloqueado</span>';
@@ -2920,9 +2943,10 @@ async function loadEmployees() {
     }
 }
 
-// --- FUNÇÃO: Botão de Ativar/Desativar ---
+// --- FUNÇÃO: Botão de Ativar/Desativar Funcionário ---
 async function toggleEmployee(id, newStatus) {
-    if(!confirm(newStatus === 0 ? "Tem certeza que deseja BLOQUEAR o acesso deste funcionário?" : "Deseja REATIVAR este funcionário?")) {
+    const action = newStatus === 0 ? "BLOQUEAR" : "REATIVAR";
+    if(!confirm(`Tem certeza que deseja ${action} o acesso deste funcionário?`)) {
         return;
     }
 
@@ -2941,6 +2965,7 @@ async function toggleEmployee(id, newStatus) {
             alert("Erro ao alterar status.");
         }
     } catch (error) {
+        console.error(error);
         alert("Erro de conexão.");
     }
 }

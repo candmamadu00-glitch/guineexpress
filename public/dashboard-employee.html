@@ -217,68 +217,63 @@
     <div id="print-area" class="hidden-print-area"></div>
 </section>
         <section id="videos-section" class="hidden">
-    <div class="card">
-        <h3>🎥 Nova Gravação</h3>
-        
-        <div class="form-group">
-            <label>1. Selecione a Encomenda para vincular:</label>
-            <select id="video-client-select" class="form-control" onchange="checkVideoPermission()">
-                <option value="">Carregando lista...</option>
-            </select>
-        </div>
-
-        <div id="video-order-info" style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-            <small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>
-        </div>
-
-        <button id="btn-open-fullscreen" onclick="openFullscreenCamera()" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px; background: #2c3e50;" disabled>
-            <i class="fas fa-camera"></i> ABRIR CÂMERA
-        </button>
-    </div>
-
-    <div id="fullscreen-camera-overlay" class="hidden">
-        
-        <button onclick="closeFullscreenCamera()" style="position: absolute; top: 20px; right: 20px; z-index: 10001; background: none; border: none; color: white; font-size: 30px;">&times;</button>
-        
-        <video id="camera-feed" autoplay playsinline muted></video>
-        <video id="video-preview" controls style="display: none;"></video>
-
-        <div class="camera-floating-controls">
-            
-            <div id="record-ui">
-                <p id="recording-timer" class="hidden">00:00</p>
+            <div class="card">
+                <h3>🎥 Nova Gravação</h3>
                 
-                <div style="display: flex; align-items: center; gap: 30px;">
-                    <button onclick="switchCamera()" class="btn-icon">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
+                <div class="form-group">
+                    <label>1. Selecione a Encomenda para vincular:</label>
+                    <select id="video-client-select" class="form-control" onchange="checkVideoPermission()">
+                        <option value="">Carregando lista...</option>
+                    </select>
+                </div>
 
-                    <button id="btn-start-rec" onclick="startRecording()" class="btn-record-circle"></button>
-                    
-                    <button id="btn-stop-rec" onclick="stopRecording()" class="btn-stop-square hidden"></button>
-                    
-                    <div style="width: 40px;"></div> 
+                <div id="video-order-info" style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>
+                </div>
+
+                <button id="btn-open-fullscreen" onclick="openFullscreenCamera()" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px; background: #2c3e50;" disabled>
+                    <i class="fas fa-camera"></i> ABRIR CÂMERA
+                </button>
+            </div>
+
+            <div id="fullscreen-camera-overlay" class="hidden">
+                <button onclick="closeFullscreenCamera()" style="position: absolute; top: 20px; right: 20px; z-index: 10001; background: none; border: none; color: white; font-size: 30px;">&times;</button>
+                
+                <video id="camera-feed" autoplay playsinline muted></video>
+                <video id="video-preview" controls style="display: none;"></video>
+
+                <div class="camera-floating-controls">
+                    <div id="record-ui">
+                        <p id="recording-timer" class="hidden">00:00</p>
+                        <div style="display: flex; align-items: center; gap: 30px;">
+                            <button onclick="switchCamera()" class="btn-icon">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                            <button id="btn-start-rec" onclick="startRecording()" class="btn-record-circle"></button>
+                            <button id="btn-stop-rec" onclick="stopRecording()" class="btn-stop-square hidden"></button>
+                            <div style="width: 40px;"></div> 
+                        </div>
+                    </div>
+
+                    <div id="upload-ui" class="hidden" style="width: 100%; padding: 20px;">
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button onclick="retakeVideo()" class="btn-secondary" style="background: white; color: black; border: none;">Descartar</button>
+                            <button onclick="confirmUpload()" class="btn-primary" style="background: #28a745; border: none; flex: 1;">Enviar Vídeo 🚀</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div id="upload-ui" class="hidden" style="width: 100%; padding: 20px;">
-                <div style="display: flex; gap: 10px; justify-content: center;">
-                    <button onclick="retakeVideo()" class="btn-secondary" style="background: white; color: black; border: none;">Descartar</button>
-                    <button onclick="confirmUpload()" class="btn-primary" style="background: #28a745; border: none; flex: 1;">Enviar Vídeo 🚀</button>
-                </div>
-            </div>
-
-        </div>
-    </div>
-</section>
             <div class="card" style="margin-top: 20px;">
                 <h3>Histórico de Vídeos</h3>
-                <table class="data-table"><thead><tr><th>ID</th><th>Cliente</th><th>Data</th><th>Ação</th></tr></thead><tbody id="admin-video-list"></tbody></table>
+                <table class="data-table">
+                    <thead><tr><th>ID</th><th>Cliente</th><th>Data</th><th>Ação</th></tr></thead>
+                    <tbody id="admin-video-list"></tbody>
+                </table>
             </div>
         </section>
 
-    </div> 
-<section id="history-view" class="hidden">
+        <section id="history-view" class="hidden">
             <div class="header-flex">
                 <h2>📜 Histórico de Envios</h2>
                 <input type="text" id="history-search" onkeyup="filterHistory()" placeholder="Filtrar por código ou nome..." class="form-control" style="max-width: 300px; display: none;"> 
@@ -299,13 +294,14 @@
             </div>
         </section>
 
-    </div>
+    </div> <div id="print-area" class="hidden-print-area"></div>
+
     <script src="script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { 
             initDashboard(); 
         });
     </script>
-<script src="cici.js"></script>
+    <script src="cici.js"></script>
 </body>
 </html>

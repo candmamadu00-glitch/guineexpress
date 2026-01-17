@@ -177,9 +177,11 @@
                         <thead>
                             <tr>
                                 <th>Código</th>
+                                <th style="display:none;">Cliente</th>
                                 <th>Descrição</th>
                                 <th>Peso</th>
-                                <th>Valor</th> <th>Status</th>
+                                <th>Valor</th> 
+                                <th>Status</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -215,13 +217,19 @@
                 <div style="overflow-x:auto;">
                     <table class="data-table">
                         <thead>
-                             <tr><th>N° Box</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th></tr>
+                             <tr>
+                                <th>N° Box</th>
+                                <th style="display:none;">Cliente</th>
+                                <th>Ref. Encomenda</th>
+                                <th>Peso</th>
+                                <th>Valor Estimado</th>
+                                <th>Produtos</th>
+                                <th>Ações</th> </tr>
                         </thead>
                         <tbody id="box-table-body"></tbody>
                     </table>
-                </div>
-            </div>
-        </section>
+                    </div> </div> </section>
+                
 
         <section id="receipts-view" class="hidden">
             <div class="card">
@@ -295,65 +303,65 @@
             </div>
         </section>
 
-        <section id="profile-view" class="hidden">
-    <div class="card" style="max-width: 500px; margin: 0 auto;">
-        <h3>👤 Meus Dados</h3>
-        <div style="text-align: center; margin-bottom: 25px;">
-            <div style="position: relative; display: inline-block;">
-                <img id="profile-img-display" 
-                     src="https://cdn-icons-png.flaticon.com/512/149/149071.png" 
-                     onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'"
-                     alt="Foto" 
-                     style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:4px solid #0a1931; background-color: #ccc;">
-                <label for="profile-upload" style="position:absolute; bottom:5px; right:5px; background:#d4af37; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
-                    <i class="fas fa-camera"></i>
-                </label>
-                <input type="file" id="profile-upload" accept="image/*" style="display:none;" onchange="previewImage(event)">
+       <section id="profile-view" class="hidden">
+            <div class="card" style="max-width: 500px; margin: 0 auto;">
+                <h3>👤 Meus Dados</h3>
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="position: relative; display: inline-block;">
+                        <img id="profile-img-display" 
+                             src="https://cdn-icons-png.flaticon.com/512/149/149071.png" 
+                             onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'"
+                             alt="Foto" 
+                             style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:4px solid #0a1931; background-color: #ccc;">
+                        <label for="profile-upload" style="position:absolute; bottom:5px; right:5px; background:#d4af37; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                            <i class="fas fa-camera"></i>
+                        </label>
+                        <input type="file" id="profile-upload" accept="image/*" style="display:none;" onchange="previewImage(event)">
+                    </div>
+                </div>              
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" id="profile-name" class="form-control" disabled> 
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="profile-email" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Telefone</label>
+                    <input type="text" id="profile-phone" class="form-control">
+                </div>
+                <button onclick="updateProfile()" class="btn btn-primary" style="width:100%;">Salvar Alterações</button>
             </div>
-        </div>               
-        <div class="form-group">
-            <label>Nome Completo</label>
-            <input type="text" id="profile-name" class="form-control" disabled> 
-        </div>
-        <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="profile-email" class="form-control">
-        </div>
-        <div class="form-group">
-            <label>Telefone</label>
-            <input type="text" id="profile-phone" class="form-control">
-        </div>
-        <button onclick="updateProfile()" class="btn btn-primary" style="width:100%;">Salvar Alterações</button>
-    </div>
 
-    <div class="card" style="max-width: 500px; margin: 25px auto; border-left: 5px solid #d4af37;">
-        <h3>🔐 Alterar Senha</h3>
-        <p style="margin-bottom: 15px; font-size: 13px; color: #666;">
-            Preencha abaixo para definir uma nova senha de acesso.
-        </p>
-        
-        <div class="form-group">
-            <label>Senha Atual</label>
-            <input type="password" id="profile-current-pass" class="form-control" placeholder="Digite sua senha atual">
-        </div>
+            <div class="card" style="max-width: 500px; margin: 25px auto; border-left: 5px solid #d4af37;">
+                <h3>🔐 Alterar Senha</h3>
+                <p style="margin-bottom: 15px; font-size: 13px; color: #666;">
+                    Preencha abaixo para definir uma nova senha de acesso.
+                </p>
+                
+                <div class="form-group">
+                    <label>Senha Atual</label>
+                    <input type="password" id="profile-current-pass" class="form-control" placeholder="Digite sua senha atual">
+                </div>
 
-        <div class="form-group">
-            <label>Nova Senha</label>
-            <input type="password" id="profile-new-pass" class="form-control" placeholder="Mínimo 6 caracteres">
-        </div>
+                <div class="form-group">
+                    <label>Nova Senha</label>
+                    <input type="password" id="profile-new-pass" class="form-control" placeholder="Mínimo 6 caracteres">
+                </div>
 
-        <div class="form-group">
-            <label>Confirmar Nova Senha</label>
-            <input type="password" id="profile-confirm-pass" class="form-control" placeholder="Repita a nova senha">
-        </div>
-        
-        <button onclick="changePassword()" class="btn" style="width:100%; background-color: #2c3e50; color: white;">
-            Atualizar Senha
-        </button>
-    </div>
-</section>
+                <div class="form-group">
+                    <label>Confirmar Nova Senha</label>
+                    <input type="password" id="profile-confirm-pass" class="form-control" placeholder="Repita a nova senha">
+                </div>
+                
+                <button onclick="changePassword()" class="btn" style="width:100%; background-color: #2c3e50; color: white;">
+                    Atualizar Senha
+                </button>
+            </div>
+        </section>
 
-    <div id="modal-payment" class="modal">
+    </div> <div id="modal-payment" class="modal">
         <div class="modal-content">
             <span onclick="closePaymentModal()" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px; color:#999;">&times;</span>
             
@@ -405,113 +413,116 @@
     </a>
 
     <script src="script.js"></script>
-   <script>
-        document.addEventListener('DOMContentLoaded', () => { 
-            initDashboard(); 
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => { 
+            // 1. Inicia o Dashboard e aguarda ele terminar
+            await initDashboard(); 
             
-            // Aguarda 1 segundo para garantir que o 'currentUser' foi carregado
-            setTimeout(() => {
-                if(currentUser) {
-                    // 1. Mensagem de Boas-vindas
-                    if(currentUser.name) {
-                        document.getElementById('welcome-msg').innerText = `Olá, ${currentUser.name.split(' ')[0]}!`;
-                        const nameInput = document.getElementById('profile-name');
-                        if(nameInput) nameInput.value = currentUser.name;
-                    }
-
-                    // 2. Preenche Email e Telefone
-                    const emailInput = document.getElementById('profile-email');
-                    if(emailInput && currentUser.email) emailInput.value = currentUser.email;
-
-                    const phoneInput = document.getElementById('profile-phone');
-                    if(phoneInput && currentUser.phone) phoneInput.value = currentUser.phone;
-
-                    // --- CORREÇÃO AQUI (ADICIONADO '/uploads/') ---
-                    if(currentUser.profile_pic) {
-                        const imgDisplay = document.getElementById('profile-img-display');
-                        if(imgDisplay) {
-                            // Adicionamos '/uploads/' antes do nome do arquivo
-                            imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
-                        }
-                    }
-                    // ----------------------------------------------
+            // 2. Agora que o currentUser já existe, preenche a tela
+            if(window.currentUser) {
+                // Mensagem de Boas-vindas
+                if(currentUser.name) {
+                    const firstName = currentUser.name.split(' ')[0];
+                    const welcomeMsg = document.getElementById('welcome-msg');
+                    if(welcomeMsg) welcomeMsg.innerText = `Olá, ${firstName}!`;
+                    
+                    const nameInput = document.getElementById('profile-name');
+                    if(nameInput) nameInput.value = currentUser.name;
                 }
-                
-                // Carregamentos das tabelas (mantive igual)
-                if(typeof loadOrders === 'function') loadOrders().then(() => {
-                    const count = document.getElementById('orders-list')?.rows.length || 0;
-                    if(document.getElementById('dash-orders-count')) document.getElementById('dash-orders-count').innerText = count;
-                });
 
-                if(typeof loadBoxes === 'function') loadBoxes().then(() => {
-                    const count = document.getElementById('box-table-body')?.rows.length || 0;
-                    if(document.getElementById('dash-boxes-count')) document.getElementById('dash-boxes-count').innerText = count;
-                });
+                // Preenche Email e Telefone
+                const emailInput = document.getElementById('profile-email');
+                if(emailInput && currentUser.email) emailInput.value = currentUser.email;
 
-                if(typeof loadClientInvoices === 'function') loadClientInvoices().then(() => {
-                    const list = document.getElementById('client-invoices-list');
-                    if(list) {
-                        const rows = list.querySelectorAll('tr');
-                        let pending = 0;
-                        rows.forEach(r => { if(r.innerHTML.includes('Pagar')) pending++; });
-                        if(document.getElementById('dash-invoices-count')) document.getElementById('dash-invoices-count').innerText = pending;
+                const phoneInput = document.getElementById('profile-phone');
+                if(phoneInput && currentUser.phone) phoneInput.value = currentUser.phone;
+
+                // Foto de Perfil
+                if(currentUser.profile_pic) {
+                    const imgDisplay = document.getElementById('profile-img-display');
+                    if(imgDisplay) {
+                        imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
                     }
-                });
+                }
+            }
+            
+            // 3. Carrega as tabelas específicas do Cliente
+            if(typeof loadOrders === 'function') loadOrders().then(() => {
+                const count = document.getElementById('orders-list')?.rows.length || 0;
+                const dashCount = document.getElementById('dash-orders-count');
+                if(dashCount) dashCount.innerText = count;
+            });
 
-            }, 1000);
+            if(typeof loadBoxes === 'function') loadBoxes().then(() => {
+                const count = document.getElementById('box-table-body')?.rows.length || 0;
+                const dashCount = document.getElementById('dash-boxes-count');
+                if(dashCount) dashCount.innerText = count;
+            });
 
-            // Mantém a aba ativa
+            if(typeof loadClientInvoices === 'function') loadClientInvoices().then(() => {
+                const list = document.getElementById('client-invoices-list');
+                if(list) {
+                    const rows = list.querySelectorAll('tr');
+                    let pending = 0;
+                    rows.forEach(r => { if(r.innerText.includes('Pendente')) pending++; });
+                    const dashCount = document.getElementById('dash-invoices-count');
+                    if(dashCount) dashCount.innerText = pending;
+                }
+            });
+
+            // 4. Mantém a aba ativa
             const activeTab = localStorage.getItem('activeTab');
             if(activeTab) showSection(activeTab);
             else showSection('home-view');
         });
 
+        // Pré-visualização da imagem
         function previewImage(event) {
             const reader = new FileReader();
             reader.onload = function(){ document.getElementById('profile-img-display').src = reader.result; };
             reader.readAsDataURL(event.target.files[0]);
         }
+
         // Função para Trocar a Senha
-async function changePassword() {
-    const currentPass = document.getElementById('profile-current-pass').value;
-    const newPass = document.getElementById('profile-new-pass').value;
-    const confirmPass = document.getElementById('profile-confirm-pass').value;
+        async function changePassword() {
+            const currentPass = document.getElementById('profile-current-pass').value;
+            const newPass = document.getElementById('profile-new-pass').value;
+            const confirmPass = document.getElementById('profile-confirm-pass').value;
 
-    if (!currentPass || !newPass || !confirmPass) {
-        return alert("Por favor, preencha todos os campos de senha.");
-    }
+            if (!currentPass || !newPass || !confirmPass) {
+                return alert("Por favor, preencha todos os campos de senha.");
+            }
 
-    if (newPass !== confirmPass) {
-        return alert("❌ A nova senha e a confirmação não coincidem.");
-    }
+            if (newPass !== confirmPass) {
+                return alert("❌ A nova senha e a confirmação não coincidem.");
+            }
 
-    if (newPass.length < 6) {
-        return alert("⚠️ A nova senha deve ter pelo menos 6 caracteres.");
-    }
+            if (newPass.length < 6) {
+                return alert("⚠️ A nova senha deve ter pelo menos 6 caracteres.");
+            }
 
-    try {
-        const res = await fetch('/api/users/change-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ currentPass, newPass })
-        });
-        
-        const data = await res.json();
-        
-        if (data.success) {
-            alert(data.message);
-            // Limpa os campos após o sucesso
-            document.getElementById('profile-current-pass').value = '';
-            document.getElementById('profile-new-pass').value = '';
-            document.getElementById('profile-confirm-pass').value = '';
-        } else {
-            alert(data.message);
+            try {
+                const res = await fetch('/api/users/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPass, newPass })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    document.getElementById('profile-current-pass').value = '';
+                    document.getElementById('profile-new-pass').value = '';
+                    document.getElementById('profile-confirm-pass').value = '';
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao conectar com o servidor.");
+            }
         }
-    } catch (error) {
-        console.error(error);
-        alert("Erro ao conectar com o servidor.");
-    }
-}
     </script>
     <script src="cici.js"></script>
 </body>

@@ -493,9 +493,33 @@ app.get('/api/orders', (req, res) => {
 });
 
 app.get('/api/orders/by-client/:id', (req, res) => db.all("SELECT * FROM orders WHERE client_id = ?", [req.params.id], (err, rows) => res.json(rows)));
+// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CÁLCULO DE PREÇO) ---
 app.post('/api/orders/create', (req, res) => {
-    const {client_id, code, description, weight, status} = req.body;
-    db.run("INSERT INTO orders (client_id, code, description, weight, status) VALUES (?,?,?,?,?)", [client_id, code, description, weight, status], (err) => res.json({success: !err}));
+    const { client_id, code, description, weight, status } = req.body;
+
+    // 1. Busca o valor do KG configurado no banco (tabela 'settings')
+    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+        // Se der erro ou não achar, assume 0
+        const pricePerKg = row ? parseFloat(row.value) : 0;
+        
+        // 2. Calcula o Total: Peso x Preço
+        // Ex: 10kg * 5.50 = 55.00
+        const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
+
+        console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
+
+        // 3. Insere no banco INCLUINDO o preço (coluna 'price')
+        const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) 
+                     VALUES (?, ?, ?, ?, ?, ?)`;
+                     
+        db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
+            if (err) {
+                if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "Código já existe." });
+                return res.json({ success: false, msg: err.message });
+            }
+            res.json({ success: true, id: this.lastID });
+        });
+    });
 });
 // ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO
 app.post('/api/orders/update', (req, res) => {
@@ -592,7 +616,10 @@ app.get('/api/config/price', (req, res) => {
 
 app.post('/api/config/price', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
-    db.run("UPDATE settings SET value = ? WHERE key = 'price_per_kg'", [req.body.price], (err) => {
+    
+    // Use INSERT OR REPLACE para garantir que funcione na primeira vez
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('price_per_kg', ?)", [req.body.price], (err) => {
+        if(err) console.error("Erro ao salvar preço:", err);
         res.json({ success: !err });
     });
 });
@@ -1219,31 +1246,37 @@ app.get('/api/orders/:id', (req, res) => {
     });
 });
 
-// --- ROTA: Atualizar Encomenda (PUT) ---
+// --- ROTA: Atualizar Encomenda (CORRIGIDA) ---
 app.put('/api/orders/:id', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ success: false });
 
     const { client_id, code, description, weight, status } = req.body;
     const id = req.params.id;
 
-    // Recalcula preço (Exemplo: Peso * 60) - Ajuste conforme sua regra de negócio
-    const price = parseFloat(weight) * 60; 
+    // 1. Busca o preço atual no banco para recalcular
+    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+        // Se não achar, usa 0
+        const pricePerKg = row ? parseFloat(row.value) : 0;
+        
+        // 2. Recalcula o preço novo (Peso Editado * Preço Atual)
+        const newPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
 
-    const sql = `
-        UPDATE orders 
-        SET client_id = ?, code = ?, description = ?, weight = ?, status = ?, price = ?
-        WHERE id = ?
-    `;
+        const sql = `
+            UPDATE orders 
+            SET client_id = ?, code = ?, description = ?, weight = ?, status = ?, price = ?
+            WHERE id = ?
+        `;
 
-    db.run(sql, [client_id, code, description, weight, status, price, id], function(err) {
-        if (err) {
-            console.error(err);
-            return res.json({ success: false, message: "Erro ao atualizar no banco." });
-        }
-        res.json({ success: true });
+        // 3. Salva com o preço correto
+        db.run(sql, [client_id, code, description, weight, status, newPrice, id], function(err) {
+            if (err) {
+                console.error(err);
+                return res.json({ success: false, message: "Erro ao atualizar no banco." });
+            }
+            res.json({ success: true });
+        });
     });
 });
-
 // --- ROTA: Excluir Encomenda (DELETE) ---
 app.delete('/api/orders/:id', (req, res) => {
     if (!req.session.userId || req.session.role === 'client') {

@@ -155,16 +155,31 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     .data-table, .data-table thead, .data-table tbody, .data-table th, .data-table td, .data-table tr { 
         display: block; 
     }
+    .data-table td[style*="display: none"] { display: none !important; }
     .data-table thead { display: none; }
     .data-table tr { 
         background: #fff; margin-bottom: 10px; border: 1px solid #e0e0e0; 
         border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
+    /* Dentro de @media (max-width: 768px) */
+    
     .data-table td { 
-        padding: 10px 15px; border-bottom: 1px solid #f5f5f5; 
-        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 15px; 
+        border-bottom: 1px solid #f5f5f5; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center;
         text-align: right; 
     }
+
+    /* --- ADICIONE ISTO PARA CORRIGIR O DESALINHAMENTO --- */
+    /* Garante que colunas ocultas via style="display:none" continuem ocultas no mobile */
+    .data-table td[style*="display: none"],
+    .data-table td[style*="display:none"] {
+        display: none !important;
+    }
+    /* ---------------------------------------------------- */
+
     .data-table td::before { 
         content: attr(data-label); 
         font-weight: bold; color: var(--primary); font-size: 12px; text-transform: uppercase; 
@@ -184,8 +199,10 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     display: flex;
     justify-content: center;
     align-items: center;
-    /* Fundo degradê elegante usando suas cores */
-    background: linear-gradient(135deg, var(--primary) 0%, #000000 100%);
+    /* Adicionei a imagem aqui, com o gradiente por cima para ficar legível */
+    background: linear-gradient(135deg, rgba(10, 25, 49, 0.9) 0%, rgba(0, 0, 0, 0.9) 100%), url('bg-login-logistics.jpg');
+    background-size: cover;
+    background-position: center;
     padding: 20px;
 }
 
@@ -319,7 +336,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     display: flex; /* Centraliza o conteúdo */
     justify-content: center;
     align-items: center;
-    z-index: 9999; /* Garante que fique na frente de tudo */
+    z-index: 99999; /* Garante que fique na frente de tudo */
     opacity: 1;
     visibility: visible;
     transition: all 0.3s ease;
@@ -710,15 +727,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 .dot:nth-child(2) { animation-delay: -0.16s; }
 @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-/* No arquivo style.css */
-body {
-    background-image: url('bg-login-logistics.jpg'); /* Coloque o nome da sua imagem */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    height: 100vh;
-    margin: 0;
-}
+
 /* --- ESTILO CÂMERA TELA CHEIA (TIPO INSTAGRAM/WHATSAPP) --- */
 #fullscreen-camera-overlay {
     position: fixed;
