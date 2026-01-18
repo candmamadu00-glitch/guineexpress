@@ -1071,12 +1071,13 @@ function retakeVideo() {
     document.getElementById('record-ui').classList.remove('hidden');
     document.getElementById('upload-ui').classList.add('hidden');
 }
-// --- FUNÇÃO PARA PREENCHER O MENU DE SELEÇÃO DE ENCOMENDA ---
+// --- FUNÇÃO CORRIGIDA: CARREGAR ENCOMENDAS NA ABA DE VÍDEO ---
 async function loadOrdersForVideo() {
     const select = document.getElementById('video-client-select');
+    const infoBox = document.getElementById('video-order-info');
     
-    // Se o elemento não existir na tela (ex: painel de cliente), sai
-    if (!select) return;
+    // Se não estiver na tela de admin/funcionário, sai
+    if (!select || !infoBox) return;
 
     // Reseta o botão da câmera
     const btnCamera = document.getElementById('btn-open-fullscreen');
@@ -1087,41 +1088,65 @@ async function loadOrdersForVideo() {
     }
 
     try {
-        // Busca todas as encomendas do sistema
+        // Busca todas as encomendas (que já trazem dados do cliente graças ao JOIN no server)
         const res = await fetch('/api/orders');
         const orders = await res.json();
 
         select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
 
-        // Filtra para não mostrar encomendas finalizadas (Entregue)
-        // Se quiser mostrar todas, remova o .filter
+        // Filtra para não mostrar encomendas já entregues (opcional)
+        // Se quiser ver todas, remova o .filter
         const activeOrders = orders.filter(o => o.status !== 'Entregue');
 
         activeOrders.forEach(o => {
-            const clientName = o.client_name || 'Sem Nome';
-            // O value é o ID do CLIENTE (para vincular o vídeo ao dono)
-            // Guardamos o Código da Encomenda no dataset para usar na descrição
+            const clientName = o.client_name || 'Cliente';
+            // Salva TUDO que precisamos nos atributos data-*
             select.innerHTML += `
-                <option value="${o.client_id}" data-code="${o.code}" data-desc="${o.description}">
-                    ${o.code} - ${clientName} (${o.description})
+                <option value="${o.client_id}" 
+                        data-code="${o.code}" 
+                        data-desc="${o.description || 'Sem descrição'}"
+                        data-name="${clientName}"
+                        data-weight="${o.weight || 0}">
+                    ${o.code} - ${clientName}
                 </option>
             `;
         });
 
-        // Adiciona evento para atualizar o texto da descrição ao mudar a seleção
+        // --- EVENTO: QUANDO O USUÁRIO SELECIONA UMA ENCOMENDA ---
         select.onchange = function() {
-            checkVideoPermission(); // Libera o botão
+            checkVideoPermission(); // Libera o botão da câmera
             
-            // Atualiza o resumo visual na tela
             const option = select.options[select.selectedIndex];
-            const infoDesc = document.getElementById('info-desc');
             
-            if (select.value && infoDesc) {
+            // Elementos visuais onde vamos jogar os dados
+            const spanResumo = document.getElementById('info-desc');
+            
+            // Se o usuário selecionou algo válido
+            if (select.value && spanResumo) {
                 const code = option.getAttribute('data-code');
                 const desc = option.getAttribute('data-desc');
-                infoDesc.innerText = `Vídeo referente à encomenda ${code} (${desc})`;
-            } else if (infoDesc) {
-                infoDesc.innerText = "-";
+                const name = option.getAttribute('data-name');
+                const weight = option.getAttribute('data-weight');
+
+                // Atualiza o visual bonito
+                infoBox.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong>${name}</strong><br>
+                            <span style="font-size:12px; color:#666;">${code}</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="font-weight:bold; color:#0a1931;">${weight} kg</span><br>
+                            <span style="font-size:11px;">${desc}</span>
+                        </div>
+                    </div>
+                `;
+                // Atualiza também o span oculto caso precise
+                if(spanResumo) spanResumo.innerText = `Vídeo da Encomenda ${code}`;
+
+            } else {
+                // Se desmarcou, limpa
+                infoBox.innerHTML = `<small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>`;
             }
         };
 
