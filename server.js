@@ -521,37 +521,59 @@ app.post('/api/orders/create', (req, res) => {
         });
     });
 });
-// ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO
+// ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO (COM FOTO)
 app.post('/api/orders/update', (req, res) => {
-    const { id, status } = req.body;
+    // Pegamos também delivery_proof e location
+    const { id, status, location, delivery_proof } = req.body;
 
     // 1. Busca os dados da encomenda e do cliente para o email
     db.get(`SELECT orders.code, orders.description, users.email, users.name 
             FROM orders JOIN users ON orders.client_id = users.id 
             WHERE orders.id = ?`, [id], (err, row) => {
         
-        if (row) {
-            // 2. Atualiza no banco
-            db.run("UPDATE orders SET status = ? WHERE id = ?", [status, id], (errUpdate) => {
-                if (errUpdate) return res.json({ success: false, msg: "Erro ao atualizar banco" });
-
-                // 3. SE TIVER EMAIL, ENVIA NOTIFICAÇÃO AUTOMÁTICA
-                if (row.email) {
-                    const subject = `Atualização: Encomenda ${row.code} - ${status}`;
-                    const title = `Status: ${status.toUpperCase()}`;
-                    const msg = `Olá, <strong>${row.name}</strong>.<br><br>
-                                 Informamos que o status da sua encomenda <strong>${row.code}</strong> (${row.description}) mudou para: <br>
-                                 <h3 style="color:#0a1931; background:#eee; padding:10px; display:inline-block;">${status}</h3><br>
-                                 Acompanhe pelo painel.`;
-                    
-                    sendEmailHtml(row.email, subject, title, msg);
-                }
-
-                res.json({ success: true });
-            });
-        } else {
-            res.json({ success: false, msg: "Encomenda não encontrada" });
+        if (err || !row) {
+            return res.json({ success: false, msg: "Encomenda não encontrada" });
         }
+
+        // 2. Define a Query SQL (Lógica Inteligente)
+        let sql, params;
+
+        if (delivery_proof) {
+            // Se tem foto, atualiza status, foto e localização
+            sql = "UPDATE orders SET status = ?, delivery_proof = ?, delivery_location = ? WHERE id = ?";
+            params = [status, delivery_proof, location || 'Local não informado', id];
+        } else {
+            // Se NÃO tem foto, atualiza só o status
+            sql = "UPDATE orders SET status = ? WHERE id = ?";
+            params = [status, id];
+        }
+
+        // 3. Executa no banco
+        db.run(sql, params, (errUpdate) => {
+            if (errUpdate) {
+                console.error(errUpdate);
+                return res.json({ success: false, msg: "Erro ao atualizar banco" });
+            }
+
+            // 4. SE TIVER EMAIL, ENVIA NOTIFICAÇÃO
+            if (row.email) {
+                const subject = `Atualização: Encomenda ${row.code} - ${status}`;
+                let msg = `Olá, <strong>${row.name}</strong>.<br><br>
+                           O status da encomenda <strong>${row.code}</strong> mudou para: <br>
+                           <h3 style="color:#0a1931; background:#eee; padding:10px;">${status}</h3>`;
+                
+                if (delivery_proof) {
+                    msg += `<br>📦 <strong>Entrega confirmada com foto/assinatura digital.</strong>`;
+                }
+                
+                // Verifica se a função de email existe antes de chamar
+                if (typeof sendEmailHtml === 'function') {
+                    sendEmailHtml(row.email, subject, `Status: ${status}`, msg);
+                }
+            }
+
+            res.json({ success: true });
+        });
     });
 });
 app.get('/api/boxes', (req, res) => {
@@ -1375,30 +1397,7 @@ app.post('/api/admin/toggle-employee', (req, res) => {
         res.json({ success: !err });
     });
 });
-// ATUALIZAÇÃO DE STATUS DE ENCOMENDA + FOTO (NO SERVER.JS)
-app.post('/api/orders/update', (req, res) => {
-    const { id, status, location, delivery_proof } = req.body;
-    
-    // Se tiver foto (delivery_proof), atualiza ela também
-    if (delivery_proof) {
-        db.run(`UPDATE orders SET status = ?, description = ?, delivery_proof = ? WHERE id = ?`, 
-            [status, location, delivery_proof, id], // Nota: usei 'description' ou 'location' dependendo da sua estrutura, verifique se vc usa location ou description para atualizar onde está
-            function(err) {
-                if (err) return res.status(500).json({ error: err.message });
-                res.json({ message: "Status e Foto salvos com sucesso!" });
-            }
-        );
-    } else {
-        // Atualização normal sem foto
-        db.run(`UPDATE orders SET status = ?, description = ? WHERE id = ?`, 
-            [status, location, id], 
-            function(err) {
-                if (err) return res.status(500).json({ error: err.message });
-                res.json({ message: "Status atualizado!" });
-            }
-        );
-    }
-});
+
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR
 // =====================================================

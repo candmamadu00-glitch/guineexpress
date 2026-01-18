@@ -2874,19 +2874,30 @@ async function deleteOrder(id) {
     }
 }
 
-// 4. Decide se CRIA ou ATUALIZA ao clicar em Salvar
 async function handleOrderSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('editing-order-id').value;
 
-    if (id) {
-        await updateOrder(id); // Edição
-    } else {
-        await createOrder(); // Criação (você já deve ter essa função, ou adapte)
+    // Bloqueia botão para evitar duplo clique
+    const btn = e.target.querySelector('button[type="submit"]');
+    const txtOriginal = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "Salvando...";
+
+    try {
+        if (id) {
+            await updateOrder(id); // Edição
+        } else {
+            // Verifica se a função createOrder existe antes de chamar
+            if(typeof createOrder === 'function') await createOrder(); 
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerText = txtOriginal;
     }
 }
 
-// --- FUNÇÃO AUXILIAR: ATUALIZAR ENCOMENDA (PUT) ---
+// --- FUNÇÃO 1: ATUALIZAR ENCOMENDA (Edição Admin) ---
 async function updateOrder(id) {
     const data = {
         client_id: document.getElementById('order-client-select').value,
@@ -2897,7 +2908,7 @@ async function updateOrder(id) {
     };
 
     try {
-        const res = await fetch(`/api/orders/${id}`, {
+        const res = await fetch(`/api/orders/${id}`, { // Note que aqui usa PUT para editar dados gerais
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -2906,12 +2917,13 @@ async function updateOrder(id) {
         const json = await res.json();
         if(json.success) {
             alert("✅ Atualizado com sucesso!");
-            closeModal('modal-order');
-            loadOrders();
+            if(typeof closeModal === 'function') closeModal('modal-order');
+            loadOrders(); 
         } else {
-            alert("Erro: " + json.message);
+            alert("Erro: " + (json.message || "Falha ao atualizar"));
         }
     } catch (e) {
+        console.error(e);
         alert("Erro de conexão.");
     }
 }
@@ -2937,36 +2949,6 @@ async function loadClientsToSelect() {
     }
 }
 
-// --- [IMPORTANTE] FUNÇÃO QUE FALTAVA: ATUALIZAR ENCOMENDA (PUT) ---
-async function updateOrder(id) {
-    const data = {
-        client_id: document.getElementById('order-client-select').value,
-        code: document.getElementById('order-code').value,
-        description: document.getElementById('order-desc').value,
-        weight: document.getElementById('order-weight').value,
-        status: document.getElementById('order-status').value
-    };
-
-    try {
-        const res = await fetch(`/api/orders/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        
-        const json = await res.json();
-        if(json.success) {
-            alert("✅ Atualizado com sucesso!");
-            closeModal('modal-order');
-            loadOrders(); // Atualiza a tabela no fundo
-        } else {
-            alert("Erro: " + (json.message || "Falha ao atualizar"));
-        }
-    } catch (e) {
-        console.error(e);
-        alert("Erro de conexão.");
-    }
-}
 
 // --- FUNÇÃO: Carregar Lista de Funcionários ---
 async function loadEmployees() {
@@ -3124,23 +3106,27 @@ const DeliveryProof = {
         document.getElementById('view-proof-modal').classList.remove('hidden');
     }
 };
-function updateShipmentStatusWithProof(id, status, location, proofBase64) {
-    // CORREÇÃO: Mudar a URL para /api/orders/update
-    fetch('/api/orders/update', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, location, delivery_proof: proofBase64 })
-    })
-    .then(res => res.json())
-    .then(data => {
-        alert("Entrega confirmada com foto! 📸");
-        // Se sua função de carregar a tabela se chama loadOrders() ou loadShipments(), chame ela aqui:
-        if(typeof loadOrders === 'function') loadOrders(); 
-        else if(typeof loadShipments === 'function') loadShipments();
+
+// --- FUNÇÃO AUXILIAR NECESSÁRIA PARA A CÂMERA FUNCIONAR ---
+async function updateShipmentStatusWithProof(id, status, location, proof) {
+    try {
+        const res = await fetch('/api/orders/update', { // Usa a rota POST que definimos no server.js
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id, status, location, delivery_proof: proof })
+        });
+        const json = await res.json();
         
-        if(typeof loadKpis === 'function') loadKpis();
-    })
-    .catch(err => console.error("Erro:", err));
+        if(json.success) {
+            alert("✅ Entrega confirmada com foto!");
+            loadOrders();
+        } else {
+            alert("Erro ao salvar comprovante: " + json.msg);
+        }
+    } catch(err) {
+        console.error(err);
+        alert("Erro de conexão ao enviar foto.");
+    }
 }
 // Função auxiliar para decidir se abre Câmera ou atualiza direto
 function checkDeliveryStatus(selectElement, id, name, code, phone) {

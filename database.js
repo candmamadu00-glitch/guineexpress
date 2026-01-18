@@ -4,9 +4,22 @@ const bcrypt = require('bcryptjs');
 
 // Cria/Conecta ao banco V4
 const db = new sqlite3.Database('./guineexpress_v4.db');
-// --- CORREÇÃO AUTOMÁTICA DO BANCO DE DADOS ---
-// Cole isso logo após a linha: const db = new sqlite3.Database...
+// --- CORREÇÃO AUTOMÁTICA DE COLUNAS (PATCH) ---
+db.serialize(() => {
+    // 1. Colunas para o Sistema de Entrega (Foto e Localização)
+    // O callback (err) => {} vazio serve para ignorar o erro caso a coluna já exista
+    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", (err) => {});
+    db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", (err) => {});      // Necessário para a Câmera
+    db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", (err) => {}); // Necessário para a Câmera
 
+    // 2. Coluna para o Financeiro (Mercado Pago)
+    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", (err) => {});
+    
+    // 3. Coluna para envio em Caixas (Logística)
+    db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", (err) => {});
+    
+    console.log("✅ Verificação de colunas do banco concluída.");
+});
 db.serialize(() => {
     // 1. Cria coluna de FOTO se não existir
     db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", (err) => {
