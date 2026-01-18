@@ -1411,51 +1411,50 @@ function makeTablesResponsive() {
         });
     });
 }
-// --- SISTEMA DE NOTIFICAÇÕES (WhatsApp & Email) ---
 function sendNotification(type, contact, name, code, status) {
-    if(!contact || contact === 'undefined') {
-        return alert("Erro: Contato (Telefone/Email) não encontrado para este pedido. Verifique o cadastro do cliente.");
+    if(!contact || contact === 'undefined' || contact === 'null') {
+        return alert("Erro: Contato não cadastrado para este cliente.");
     }
 
-    // Mensagem Padrão Profissional
     const message = `Olá *${name}*! 👋\n\nPassando para informar sobre sua encomenda *${code}* na Guineexpress.\n\n📦 *Novo Status:* ${status.toUpperCase()}\n\nAcesse nosso painel para mais detalhes.\nObrigado!`;
 
     if (type === 'whatsapp') {
         // Limpa o numero deixando apenas digitos
         let cleanPhone = contact.replace(/\D/g, '');
-        
-        // Verifica se tem código do país, se não tiver e for Guiné, adiciona (Exemplo) ou Brasil
-        // Ajuste conforme sua necessidade. Se seus numeros ja tem DDI, remova esse if.
-        if(cleanPhone.length <= 11) { 
-             // Assumindo Brasil (55) se for curto, ou adicione o da Guiné (245)
-             // cleanPhone = '245' + cleanPhone; 
-        }
-
         const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
         window.open(url, '_blank');
     
     } else if (type === 'email') {
-        const subject = `📦 Atualização de Encomenda: ${code}`;
-        const body = message;
-        const url = `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        // Abre o app de email do celular/pc
+        const subject = `📦 Atualização: ${code}`;
+        const url = `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
         window.open(url, '_blank');
     }
 }
 
-// Atualiza o status e PERGUNTA se quer notificar
-async function updateOrderStatus(id, status, name, code, phone) { 
-    await fetch('/api/orders/update', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({id,status})
-    });
-    
-    // Feedback visual e sugestão de notificação
-    if(confirm(`Status alterado para ${status}! \n\nDeseja enviar uma notificação no WhatsApp do cliente agora?`)) {
-        sendNotification('whatsapp', phone, name, code, status);
+async function updateOrderStatus(id, status, name, code, phone) {
+    // 1. Confirmação
+    if(!confirm(`Deseja alterar o status para: ${status}?`)) return;
+
+    try {
+        // 2. Envia para o servidor (que vai disparar o E-MAIL automático)
+        await fetch('/api/orders/update', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({id, status})
+        });
+        
+        // 3. Pergunta sobre o WhatsApp (Manual mas facilitado)
+        if(phone && confirm(`Status salvo! 💾\n\nDeseja avisar o cliente no WhatsApp agora?`)) {
+            sendNotification('whatsapp', phone, name, code, status);
+        }
+        
+        loadOrders(); // Recarrega a tabela
+
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao atualizar status.");
     }
-    
-    loadOrders(); 
 }
 
 // --- FUNÇÕES PARA ABRIR E FECHAR MODAIS ---
@@ -3056,31 +3055,41 @@ async function toggleEmployee(id, newStatus) {
 const DeliveryProof = {
     stream: null,
     capturedImage: null,
-    pendingShipmentId: null,
+    pendingOrderId: null, // Corrigido para OrderId
 
-    // Abre a câmera quando o funcionário seleciona "Entregue"
-    start: function(shipmentId) {
-        this.pendingShipmentId = shipmentId;
+    // Abre a câmera
+    start: function(orderId) {
+        this.pendingOrderId = orderId;
         const modal = document.getElementById('delivery-photo-modal');
         const video = document.getElementById('delivery-video');
         const preview = document.getElementById('delivery-preview');
         const btnSnap = document.getElementById('btn-snap-photo');
         const btnConfirm = document.getElementById('btn-confirm-delivery');
 
-        // Resetar visual
-        preview.style.display = 'none';
-        video.style.display = 'block';
-        btnSnap.classList.remove('hidden');
-        btnConfirm.classList.add('hidden');
-        modal.classList.remove('hidden');
+        // Reseta visual
+        if(preview) preview.style.display = 'none';
+        if(video) video.style.display = 'block';
+        if(btnSnap) btnSnap.classList.remove('hidden');
+        if(btnConfirm) btnConfirm.classList.add('hidden');
+        
+        // Usa a função de abrir modal genérica ou remove a classe hidden manualmente
+        if(typeof openModal === 'function') openModal('delivery-photo-modal');
+        else if(modal) modal.classList.remove('hidden');
 
-        // Ligar câmera
+        // Tenta câmera traseira (environment)
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(stream => {
                 this.stream = stream;
-                video.srcObject = stream;
+                if(video) {
+                    video.srcObject = stream;
+                    video.play();
+                }
             })
-            .catch(err => alert("Erro ao abrir câmera: " + err));
+            .catch(err => {
+                console.error(err);
+                alert("Erro ao abrir câmera. Verifique se está usando HTTPS.");
+                this.close();
+            });
     },
 
     // Tira a foto
@@ -3089,64 +3098,83 @@ const DeliveryProof = {
         const canvas = document.getElementById('delivery-canvas');
         const preview = document.getElementById('delivery-preview');
         
+        if(!canvas || !video) return;
+
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        
-        // Desenha o vídeo no canvas
         canvas.getContext('2d').drawImage(video, 0, 0);
         
-        // Converte para imagem Base64
-        this.capturedImage = canvas.toDataURL('image/jpeg', 0.7); // 0.7 = qualidade média (leve)
+        // Qualidade 0.7 (JPG)
+        this.capturedImage = canvas.toDataURL('image/jpeg', 0.7); 
         
-        // Mostra preview
-        preview.src = this.capturedImage;
-        preview.style.display = 'block';
+        if(preview) {
+            preview.src = this.capturedImage;
+            preview.style.display = 'block';
+        }
         
-        // Troca botões
+        video.style.display = 'none';
         document.getElementById('btn-snap-photo').classList.add('hidden');
         document.getElementById('btn-confirm-delivery').classList.remove('hidden');
     },
 
-    // Confirma e envia para o servidor
+    // Confirma e envia
     confirm: function() {
-        if (!this.capturedImage || !this.pendingShipmentId) return;
-
-        updateShipmentStatusWithProof(this.pendingShipmentId, 'Entregue', 'Entregue ao Cliente', this.capturedImage);
+        if (!this.capturedImage || !this.pendingOrderId) return;
+        
+        // Chama a função de update com foto
+        updateOrderWithProof(this.pendingOrderId, 'Entregue', 'Local: App', this.capturedImage);
         this.close();
     },
 
     close: function() {
         const modal = document.getElementById('delivery-photo-modal');
-        modal.classList.add('hidden');
+        if(typeof closeModal === 'function') closeModal('delivery-photo-modal');
+        else if(modal) modal.classList.add('hidden');
         
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
         }
     },
-
-    // Para o cliente ver a foto
+    
+    // Ver foto depois
     view: function(imgData) {
-        document.getElementById('proof-image-full').src = imgData;
-        document.getElementById('view-proof-modal').classList.remove('hidden');
+        const imgFull = document.getElementById('proof-image-full');
+        const modal = document.getElementById('view-proof-modal');
+        if(imgFull && modal) {
+            imgFull.src = imgData;
+            // Abre o modal de visualização
+            if(typeof openModal === 'function') openModal('view-proof-modal');
+            else modal.classList.remove('hidden');
+        }
     }
 };
-function updateShipmentStatusWithProof(id, status, location, proofBase64) {
-    // CORREÇÃO: Mudar a URL para /api/orders/update
-    fetch('/api/orders/update', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, location, delivery_proof: proofBase64 })
-    })
-    .then(res => res.json())
-    .then(data => {
-        alert("Entrega confirmada com foto! 📸");
-        // Se sua função de carregar a tabela se chama loadOrders() ou loadShipments(), chame ela aqui:
-        if(typeof loadOrders === 'function') loadOrders(); 
-        else if(typeof loadShipments === 'function') loadShipments();
+
+// --- FUNÇÃO DE UPDATE COM FOTO (Renomeada para ficar claro) ---
+async function updateOrderWithProof(id, status, location, proofBase64) {
+    const btn = document.getElementById('btn-confirm-delivery');
+    if(btn) btn.innerText = "Enviando...";
+
+    try {
+        const res = await fetch('/api/orders/update', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, status, location, delivery_proof: proofBase64 })
+        });
+        const data = await res.json();
         
-        if(typeof loadKpis === 'function') loadKpis();
-    })
-    .catch(err => console.error("Erro:", err));
+        if(data.success) {
+            alert("✅ Entrega confirmada com FOTO!");
+            loadOrders(); // Recarrega tabela
+        } else {
+            alert("Erro: " + data.msg);
+        }
+    } catch(err) {
+        console.error("Erro:", err);
+        alert("Erro de conexão ao enviar foto.");
+    } finally {
+        if(btn) btn.innerText = "Confirmar";
+    }
 }
 // Função auxiliar para decidir se abre Câmera ou atualiza direto
 function checkDeliveryStatus(selectElement, id, name, code, phone) {

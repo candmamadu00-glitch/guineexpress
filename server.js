@@ -563,7 +563,7 @@ app.post('/api/orders/update', (req, res) => {
                            <h3 style="color:#0a1931; background:#eee; padding:10px;">${status}</h3>`;
                 
                 if (delivery_proof) {
-                    msg += `<br>📦 <strong>Entrega confirmada com foto/assinatura digital.</strong>`;
+                    msg += `<br>📦 <strong>Entrega confirmada com foto/assinatura digital.</strong><br>Acesse seu painel para visualizar o comprovante.`;
                 }
                 
                 // Verifica se a função de email existe antes de chamar
