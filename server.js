@@ -34,10 +34,10 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    service: 'gmail', // Se for gmail, isso facilita muito
     auth: {
-        user: process.env.EMAIL_USER, // <--- Agora lê do arquivo .env (Mais seguro)
-        pass: process.env.EMAIL_PASS  // <--- Lê a senha do .env
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     }
 });
 
