@@ -1,27 +1,23 @@
-require('dotenv').config(); // Garante que lê o .env
+require('dotenv').config(); // Lê as variáveis de ambiente
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 
-// Cria/Conecta ao banco V4
-const db = new sqlite3.Database('./guineexpress_v4.db');
-// --- CORREÇÃO AUTOMÁTICA DO BANCO DE DADOS (PATCH) ---
-db.serialize(() => {
-    // 1. Colunas para o Sistema de Entrega (Foto e Localização)
-    // O callback vazio () => {} serve para ignorar o erro caso a coluna já exista
-    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
-    db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      // Essa estava faltando e causou o erro
-    db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
-
-    // 2. Coluna para o Financeiro (Mercado Pago)
-    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
-    
-    // 3. Coluna para envio em Caixas (Logística)
-    db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
-    
-    console.log("✅ Colunas verificadas: proof_image, delivery_proof, mp_payment_id.");
+// 1. Conecta ao banco de dados (Cria o arquivo se não existir)
+const db = new sqlite3.Database('./guineexpress_v4.db', (err) => {
+    if (err) {
+        console.error('❌ Erro ao conectar ao banco de dados:', err.message);
+    } else {
+        console.log('✅ Conectado ao banco de dados SQLite.');
+    }
 });
+
+// 2. Executa a criação e atualização das tabelas em sequência
 db.serialize(() => {
-    // 1. Tabela de Usuários (CORRIGIDA - usa profile_pic)
+    console.log("🔄 Verificando e atualizando estrutura do banco...");
+
+    // --- TABELAS PRINCIPAIS ---
+
+    // Tabela de Usuários
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         role TEXT, 
@@ -35,7 +31,7 @@ db.serialize(() => {
         active INTEGER DEFAULT 1
     )`);
    
-    // 2. Tabela de Encomendas
+    // Tabela de Encomendas
     db.run(`CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT UNIQUE,
@@ -44,11 +40,14 @@ db.serialize(() => {
         weight REAL,
         status TEXT,
         price REAL DEFAULT 0,
+        delivery_proof TEXT,      
+        proof_image TEXT,         
+        delivery_location TEXT,   
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(client_id) REFERENCES users(id)
     )`);
 
-    // 3. Tabela de Box
+    // Tabela de Box
     db.run(`CREATE TABLE IF NOT EXISTS boxes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER,
@@ -56,12 +55,14 @@ db.serialize(() => {
         box_code TEXT,
         products TEXT,
         amount REAL,
+        shipment_id INTEGER,      
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(client_id) REFERENCES users(id),
-        FOREIGN KEY(order_id) REFERENCES orders(id)
+        FOREIGN KEY(order_id) REFERENCES orders(id),
+        FOREIGN KEY(shipment_id) REFERENCES shipments(id)
     )`);
 
-    // 4. Tabela de Despesas
+    // Tabela de Despesas
     db.run(`CREATE TABLE IF NOT EXISTS expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         description TEXT,
@@ -70,7 +71,7 @@ db.serialize(() => {
         date DATE DEFAULT CURRENT_DATE
     )`);
 
-    // 5. Tabela de Logs de Auditoria
+    // Tabela de Logs (Auditoria)
     db.run(`CREATE TABLE IF NOT EXISTS system_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_name TEXT,
@@ -80,7 +81,7 @@ db.serialize(() => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 6. Tabela de Embarques (Shipments)
+    // Tabela de Embarques (Shipments)
     db.run(`CREATE TABLE IF NOT EXISTS shipments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT UNIQUE,   
@@ -91,12 +92,7 @@ db.serialize(() => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 7. Atualização para adicionar shipment_id em boxes
-    db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", (err) => {
-        // Ignora erro se coluna já existir
-    });
-
-    // 8. Tabela de Faturas (Cobranças)
+    // Tabela de Faturas (Financeiro)
     db.run(`CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER,
@@ -113,7 +109,7 @@ db.serialize(() => {
         FOREIGN KEY(box_id) REFERENCES boxes(id)
     )`);
 
-    // 9. Agendamento - Disponibilidade (VAGAS)
+    // Agendamento - Vagas
     db.run(`CREATE TABLE IF NOT EXISTS availability (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT, 
@@ -123,11 +119,11 @@ db.serialize(() => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 10. Configurações Globais (Preço kg)
+    // Configurações Globais
     db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT UNIQUE, value REAL)");
     db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('price_per_kg', 0.00)");
 
-    // 11. Agendamento - Pedidos
+    // Agendamento - Pedidos
     db.run(`CREATE TABLE IF NOT EXISTS appointments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         availability_id INTEGER, 
@@ -139,7 +135,7 @@ db.serialize(() => {
         FOREIGN KEY(client_id) REFERENCES users(id)
     )`);
 
-    // 12. Tabela de Vídeos
+    // Tabela de Vídeos
     db.run(`CREATE TABLE IF NOT EXISTS videos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER,
@@ -149,12 +145,23 @@ db.serialize(() => {
         FOREIGN KEY(client_id) REFERENCES users(id)
     )`);
 
+    // --- PATCH DE CORREÇÃO (ALTER TABLE) ---
+    // Isso garante que se o banco já existia sem essas colunas, elas serão criadas agora.
+    // O callback vazio () => {} serve para ignorar erros caso a coluna já exista.
+    
+    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
+    db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      
+    db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
+    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
+    db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
+
+    console.log("✅ Tabelas sincronizadas e colunas verificadas.");
+
     // =======================================================
-    // SEGURANÇA MÁXIMA: CRIAÇÃO DE USUÁRIOS VIA .ENV
+    // 3. SEGURANÇA: CRIAÇÃO DE USUÁRIOS (ADMIN/FUNCIONÁRIOS)
     // =======================================================
     const createUser = (role, name, email, password) => {
-        // Só cria se a senha existir (não cria usuário com senha vazia/indefinida)
-        if (!password) return; 
+        if (!password) return; // Não cria se não tiver senha no .env
 
         db.get("SELECT email FROM users WHERE email = ?", [email], (err, row) => {
             if (!row) {
@@ -166,8 +173,7 @@ db.serialize(() => {
         });
     };
 
-    // Aqui usamos as variáveis do arquivo .env
-    // Se você não colocar no .env, esses usuários NÃO SERÃO CRIADOS (Segurança)
+    // Lê do arquivo .env
     createUser('admin', 'Lelo (Admin)', 'lelo@guineexpress.com', process.env.PASS_ADMIN);
     createUser('employee', 'Cala', 'cala@guineexpress.com', process.env.PASS_CALA);
     createUser('employee', 'Guto', 'guto@guineexpress.com', process.env.PASS_GUTO);
@@ -175,4 +181,5 @@ db.serialize(() => {
     createUser('employee', 'Neu', 'neu@guineexpress.com', process.env.PASS_NEU);
 });
 
+// Exporta a conexão para ser usada no server.js
 module.exports = db;

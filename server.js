@@ -1,694 +1,481 @@
-require('dotenv').config(); // Lê o arquivo .env
+require('dotenv').config(); 
 const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const app = express();
-app.use('/uploads', express.static('uploads'));
 const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
-const helmet = require('helmet'); // Instale: npm install helmet
-const compression = require('compression'); // Instale: npm install compression
+const helmet = require('helmet'); 
+const compression = require('compression'); 
 const MercadoPagoConfig = require('mercadopago').MercadoPagoConfig;
 const Payment = require('mercadopago').Payment;
 const Preference = require('mercadopago').Preference;
-const cron = require('node-cron'); // Agendador de tarefas
-const path = require('path');      // Para lidar com caminhos de pastas
+const cron = require('node-cron'); 
+const path = require('path'); 
 const SQLiteStore = require('connect-sqlite3')(session);
-// --- CORREÇÃO DO BANCO DE DADOS (Adicione no server.js logo após conectar o banco) ---
-const db = require('./database'); // Ou onde você define o db
+const sqlite3 = require('sqlite3').verbose();
 
-// --- 4. CONFIGURAÇÃO DE UPLOAD (MULTER) ---
+// =============================================================
+// 1. CONEXÃO E CORREÇÃO DO BANCO DE DADOS (INTEGRADO)
+// =============================================================
+// Conecta ao banco principal
+const db = new sqlite3.Database('./guineexpress_v4.db', (err) => {
+    if (err) console.error("Erro ao conectar no banco:", err);
+    else console.log("✅ Banco de dados conectado.");
+});
+
+// --- PATCH DE CORREÇÃO E CRIAÇÃO DE TABELAS ---
+db.serialize(() => {
+    console.log("🔄 Verificando integridade do banco de dados...");
+
+    // 1. Adiciona colunas que faltavam (Corrige o erro SQLITE_ERROR)
+    // O callback vazio () => {} ignora o erro se a coluna já existir
+    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
+    db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      
+    db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
+    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
+    db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
+
+    // 2. Tabela de Usuários
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        role TEXT, 
+        name TEXT, 
+        email TEXT UNIQUE, 
+        phone TEXT, 
+        country TEXT, 
+        document TEXT, 
+        password TEXT,
+        profile_pic TEXT DEFAULT '/uploads/default.png', 
+        active INTEGER DEFAULT 1
+    )`);
+   
+    // 3. Tabela de Encomendas
+    db.run(`CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE,
+        client_id INTEGER,
+        description TEXT,
+        weight REAL,
+        status TEXT,
+        price REAL DEFAULT 0,
+        delivery_proof TEXT,
+        proof_image TEXT,
+        delivery_location TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(client_id) REFERENCES users(id)
+    )`);
+
+    // 4. Tabela de Box
+    db.run(`CREATE TABLE IF NOT EXISTS boxes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER,
+        order_id INTEGER, 
+        box_code TEXT,
+        products TEXT,
+        amount REAL,
+        shipment_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(client_id) REFERENCES users(id),
+        FOREIGN KEY(order_id) REFERENCES orders(id),
+        FOREIGN KEY(shipment_id) REFERENCES shipments(id)
+    )`);
+
+    // 5. Tabela de Despesas
+    db.run(`CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT,
+        category TEXT, 
+        amount REAL,
+        date DATE DEFAULT CURRENT_DATE
+    )`);
+
+    // 6. Logs e Outras Tabelas
+    db.run(`CREATE TABLE IF NOT EXISTS system_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_name TEXT, action TEXT, details TEXT, ip_address TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+    
+    db.run(`CREATE TABLE IF NOT EXISTS shipments (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE, type TEXT, status TEXT, departure_date DATE, arrival_forecast DATE, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+    
+    db.run(`CREATE TABLE IF NOT EXISTS invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER, box_id INTEGER, amount REAL, description TEXT, status TEXT DEFAULT 'pending', mp_payment_id TEXT, qr_code TEXT, qr_code_base64 TEXT, payment_link TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(client_id) REFERENCES users(id), FOREIGN KEY(box_id) REFERENCES boxes(id))`);
+    
+    db.run(`CREATE TABLE IF NOT EXISTS availability (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, start_time TEXT, end_time TEXT, max_slots INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+    
+    db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT UNIQUE, value REAL)");
+    db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('price_per_kg', 0.00)");
+    
+    db.run(`CREATE TABLE IF NOT EXISTS appointments (id INTEGER PRIMARY KEY AUTOINCREMENT, availability_id INTEGER, client_id INTEGER, time_slot TEXT, status TEXT DEFAULT 'Pendente', created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+    
+    db.run(`CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER, filename TEXT, description TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+
+    // 7. Usuários Iniciais (Segurança)
+    const createUser = (role, name, email, password) => {
+        if (!password) return; 
+        db.get("SELECT email FROM users WHERE email = ?", [email], (err, row) => {
+            if (!row) {
+                const hash = bcrypt.hashSync(password, 10);
+                db.run(`INSERT INTO users (role, name, email, password, country) VALUES (?, ?, ?, ?, ?)`, 
+                    [role, name, email, hash, 'Guiné-Bissau']);
+                console.log(`[SEGURANÇA] Usuário inicial criado: ${name}`);
+            }
+        });
+    };
+
+    createUser('admin', 'Lelo (Admin)', 'lelo@guineexpress.com', process.env.PASS_ADMIN);
+    createUser('employee', 'Cala', 'cala@guineexpress.com', process.env.PASS_CALA);
+    createUser('employee', 'Guto', 'guto@guineexpress.com', process.env.PASS_GUTO);
+    createUser('employee', 'Pedro', 'pedro@guineexpress.com', process.env.PASS_PEDRO);
+    createUser('employee', 'Neu', 'neu@guineexpress.com', process.env.PASS_NEU);
+});
+
+// =============================================================
+// 2. CONFIGURAÇÕES GERAIS (EMAIL, UPLOAD, MERCADO PAGO)
+// =============================================================
+
+// Pasta de Uploads
+app.use('/uploads', express.static('uploads'));
+if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
+if (!fs.existsSync('uploads/videos')) fs.mkdirSync('uploads/videos', { recursive: true });
+
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        // Cria a pasta uploads se não existir
-        if (!fs.existsSync('uploads')) {
-            fs.mkdirSync('uploads');
-        }
-        cb(null, 'uploads/');
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
+    destination: (req, file, cb) => cb(null, 'uploads/'),
+    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage: storage });
+
+const videoStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, 'uploads/videos/'),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const uploadVideo = multer({ storage: videoStorage });
+
+// --- CORREÇÃO DO EMAIL (PORTA SEGURA PARA RENDER) ---
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // Se for gmail, isso facilita muito
+    host: 'smtp.gmail.com', // Obrigatório para evitar erros de DNS
+    port: 465,              // Porta segura SSL
+    secure: true,           // Obrigatório para porta 465
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     }
 });
 
-// Função Auxiliar para Enviar Email com HTML Bonito
+// Função de Email HTML
 async function sendEmailHtml(to, subject, title, message) {
     if (!to || to.includes('undefined')) return;
-
     const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px;">
         <div style="background-color: #000; padding: 20px; text-align: center;">
             <h1 style="color: #d4af37; margin: 0;">GUINEEXPRESS</h1>
-            <p style="color: #fff; font-size: 10px; margin: 0;">LOGÍSTICA INTERNACIONAL</p>
         </div>
-        <div style="padding: 30px; background-color: #fff; color: #333;">
-            <h2 style="color: #0a1931; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">${title}</h2>
-            <p style="font-size: 16px; line-height: 1.6;">${message}</p>
-            <br>
-            <a href="http://seusite.com" style="background-color: #28a745; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Minha Conta</a>
+        <div style="padding: 30px; background-color: #fff;">
+            <h2 style="color: #0a1931;">${title}</h2>
+            <p>${message}</p>
+            <br><a href="https://guineexpress.com" style="background-color: #28a745; color: #fff; padding: 10px; text-decoration: none; border-radius: 5px;">Acessar Conta</a>
         </div>
-        <div style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 12px; color: #777;">
-            <p>Guineexpress Ltda - (85) 98239-207</p>
-            <p>Não responda a este e-mail automático.</p>
-        </div>
-    </div>
-    `;
-
+    </div>`;
     try {
         await transporter.sendMail({
-            from: '"Guineexpress Logística" <comercialguineexpress245@gmail.com>',
-            to: to,
-            subject: subject,
-            html: htmlContent
+            from: '"Guineexpress" <comercialguineexpress245@gmail.com>',
+            to: to, subject: subject, html: htmlContent
         });
         console.log(`📧 Email enviado para ${to}`);
     } catch (error) {
-        console.error("❌ Erro ao enviar email:", error);
+        console.error("❌ Erro ao enviar email:", error.message);
     }
 }
-// Função para gravar logs automaticamente
+
+// Log do Sistema
 function logSystemAction(req, action, details) {
-    // Tenta pegar o nome da sessão, senão usa 'Sistema'
-    // (Certifique-se de que no login você salvou req.session.userName = user.name)
-    const user = req.session.userName || 'Admin/Sistema';
+    const user = req.session.userName || 'Sistema';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-
-    db.run("INSERT INTO system_logs (user_name, action, details, ip_address) VALUES (?, ?, ?, ?)", 
-        [user, action, details, ip], 
-        (err) => {
-            if(err) console.error("Erro ao salvar log:", err);
-        }
-    );
+    db.run("INSERT INTO system_logs (user_name, action, details, ip_address) VALUES (?, ?, ?, ?)", [user, action, details, ip]);
 }
-const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }); // Lê do .env
+
+// Mercado Pago
+const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 const payment = new Payment(client);
-// Segurança e Performance
-app.use(helmet({ contentSecurityPolicy: false })); // Protege headers HTTP
-app.use(compression()); // Comprime respostas para ficar mais rápido
 
-// Garante pastas de upload
-if (!fs.existsSync('uploads/videos')){ fs.mkdirSync('uploads/videos', { recursive: true }); }
-
-// Configuração de armazenamento de vídeos
-const videoStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/videos/'),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
-const uploadVideo = multer({ storage: videoStorage });
-// -------------------------------------------------
-
-// Servir a pasta de vídeos estática
-app.use('/uploads/videos', express.static('uploads/videos'));
-
-// Verificação de segurança do banco
-if (!db || typeof db.get !== 'function') {
-    console.error("ERRO CRÍTICO: Banco de dados não carregou. Verifique o final do arquivo database.js"); 
-    process.exit(1);
-}
-
+// Middlewares
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
-app.use(session({
-    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), // Salva sessão em arquivo
-    secret: process.env.SESSION_SECRET || 'segredo_padrao',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 7, // Login dura 7 dias
-        secure: false // Mude para true quando tiver HTTPS
-    } 
-}));
-// Permite que o navegador acesse os vídeos gravados
 app.use('/uploads/videos', express.static('uploads/videos'));
 
-// --- LOGIN INTELIGENTE (CORRIGIDO) ---
+app.use(session({
+    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }),
+    secret: process.env.SESSION_SECRET || 'segredo_padrao',
+    resave: false, saveUninitialized: false,
+    cookie: { maxAge: 1000 * 60 * 60 * 24 * 7, secure: false } 
+}));
+
+// =============================================================
+// 3. ROTAS DE AUTENTICAÇÃO E USUÁRIOS
+// =============================================================
+
 app.post('/api/login', (req, res) => {
     const { login, password, role } = req.body;
+    db.get("SELECT * FROM users WHERE email = ? OR phone = ?", [login, login], (err, user) => {
+        if (err || !user) return res.status(400).json({ success: false, msg: 'Usuário não encontrado.' });
+        if (user.active !== 1) return res.status(400).json({ success: false, msg: 'Conta desativada.' });
+        if (!bcrypt.compareSync(password, user.password)) return res.status(400).json({ success: false, msg: 'Senha incorreta.' });
 
-    // 1. Busca o usuário APENAS pelo E-mail ou Telefone (sem filtrar cargo agora)
-    const sql = "SELECT * FROM users WHERE email = ? OR phone = ?";
-    
-    db.get(sql, [login, login], (err, user) => {
-        if (err) return res.status(500).json({ success: false, msg: 'Erro interno no banco.' });
-        // 2. Se não achou o usuário
-        if (!user) {
-            return res.status(400).json({ success: false, msg: 'Usuário não encontrado. Cadastre-se primeiro.' });
-        }
-
-        // 3. Verifica se a conta está ativa
-        if (user.active !== 1) {
-            return res.status(400).json({ success: false, msg: 'Sua conta está desativada. Fale com o suporte.' });
-        }
-
-        // 4. Verifica a Senha (Bcrypt)
-        if (!bcrypt.compareSync(password, user.password)) {
-            return res.status(400).json({ success: false, msg: 'Senha incorreta.' });
-        }
-
-        // 5. Verifica o Cargo (Proteção para não logar Admin na aba de Cliente)
-        // Se quiser permitir login direto sem verificar a aba, remova este bloco IF
         if (user.role !== role) {
-            // Traduz os cargos para ficar bonito na mensagem
-            const cargos = { 'admin': 'Admin', 'employee': 'Funcionário', 'client': 'Cliente' };
-            const cargoCerto = cargos[user.role] || user.role;
-            const cargoErrado = cargos[role] || role;
-
-            return res.status(400).json({ 
-                success: false, 
-                msg: `Login incorreto! Você tem conta de ${cargoCerto}, mas está tentando entrar como ${cargoErrado}.` 
-            });
+            return res.status(400).json({ success: false, msg: `Login incorreto! Conta de ${user.role} tentando entrar como ${role}.` });
         }
 
-        // 6. Sucesso! Cria a sessão
         req.session.userId = user.id;
         req.session.role = user.role;
         req.session.userName = user.name;
-        
-        console.log(`✅ Login Sucesso: ${user.name} (${user.role})`);
+        console.log(`✅ Login: ${user.name}`);
         res.json({ success: true, role: user.role, name: user.name });
     });
 });
+
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({success: true}); });
-// ROTA: Checar Sessão Ativa (Para Auto-Login)
+
 app.get('/api/check-session', (req, res) => {
     if (req.session.userId) {
-        res.json({ 
-            loggedIn: true, 
-            user: { 
-                id: req.session.userId,
-                name: req.session.userName,
-                role: req.session.role
-            }
-        });
+        res.json({ loggedIn: true, user: { id: req.session.userId, name: req.session.userName, role: req.session.role } });
     } else {
         res.json({ loggedIn: false });
     }
 });
+
 app.get('/api/user', (req, res) => {
     if (!req.session.userId) return res.status(401).json({});
     db.get("SELECT * FROM users WHERE id = ?", [req.session.userId], (err, row) => res.json(row));
 });
-// ROTA: Alterar Senha (CORRIGIDA)
+
 app.post('/api/users/change-password', (req, res) => {
-    // CORREÇÃO: Agora verificamos 'userId' em vez de 'user'
-    if (!req.session.userId) {
-        return res.status(401).json({ success: false, message: 'Não autorizado. Por favor, faça login novamente.' });
-    }
-
+    if (!req.session.userId) return res.status(401).json({ success: false });
     const { currentPass, newPass } = req.body;
-    const userId = req.session.userId; // Pega o ID correto da sessão
-
-    // 1. Busca a senha atual do banco
-    db.get("SELECT password FROM users WHERE id = ?", [userId], (err, user) => {
-        if (err || !user) return res.json({ success: false, message: "Erro ao buscar usuário." });
-
-        // 2. Verifica se a senha atual confere
-        if (!bcrypt.compareSync(currentPass, user.password)) {
-            return res.json({ success: false, message: "❌ A senha atual está incorreta." });
-        }
-
-        // 3. Criptografa a nova senha e salva
+    db.get("SELECT password FROM users WHERE id = ?", [req.session.userId], (err, user) => {
+        if (!bcrypt.compareSync(currentPass, user.password)) return res.json({ success: false, message: "Senha incorreta." });
         const newHash = bcrypt.hashSync(newPass, 10);
-        db.run("UPDATE users SET password = ? WHERE id = ?", [newHash, userId], (err) => {
-            if (err) return res.json({ success: false, message: "Erro ao atualizar." });
-            res.json({ success: true, message: "✅ Senha alterada com sucesso!" });
-        });
+        db.run("UPDATE users SET password = ? WHERE id = ?", [newHash, req.session.userId], () => res.json({ success: true }));
     });
 });
 
-// ROTA: Ver Logs de Segurança
 app.get('/api/admin/logs', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
-    
-    // Pega os últimos 100 registros (do mais novo pro mais velho)
-    db.all("SELECT * FROM system_logs ORDER BY id DESC LIMIT 100", (err, rows) => {
-        res.json(rows || []);
-    });
+    db.all("SELECT * FROM system_logs ORDER BY id DESC LIMIT 100", (err, rows) => res.json(rows || []));
 });
-// --- ROTA QUE ESTAVA FALTANDO ---
+
 app.get('/api/clients', (req, res) => {
-    // Busca todos os usuários que são 'client'
-    db.all("SELECT * FROM users WHERE role = 'client'", (err, rows) => {
-        if(err) {
-            console.error(err);
-            return res.json([]);
-        }
-        res.json(rows);
-    });
+    db.all("SELECT * FROM users WHERE role = 'client'", (err, rows) => res.json(rows || []));
 });
-// --- ROTA DE DADOS COMPLETOS PARA O RECIBO ---
-app.get('/api/full-receipt/:orderId', (req, res) => {
-    const orderId = req.params.orderId;
 
-    // 1. Busca dados da Encomenda + Cliente
-    const sqlOrder = `
-        SELECT orders.*, users.name as client_name, users.phone, users.document, users.country
-        FROM orders
-        JOIN users ON orders.client_id = users.id
-        WHERE orders.id = ?
-    `;
-
-    // 2. Busca TODAS as Caixas vinculadas a essa encomenda
-    const sqlBoxes = `SELECT * FROM boxes WHERE order_id = ?`;
-
-    db.get(sqlOrder, [orderId], (err, order) => {
-        if (err || !order) return res.json({ success: false, msg: "Encomenda não encontrada." });
-
-        db.all(sqlBoxes, [orderId], (err, boxes) => {
-            if (err) return res.json({ success: false, msg: "Erro nas caixas." });
-            
-            // Envia tudo junto para o frontend
-            res.json({ success: true, order: order, boxes: boxes });
-        });
-    });
-});
 app.post('/api/register', (req, res) => {
     const {name, email, phone, country, document, password} = req.body;
     const hash = bcrypt.hashSync(password, 10);
     db.run(`INSERT INTO users (role, name, email, phone, country, document, password) VALUES ('client', ?, ?, ?, ?, ?, ?)`, 
         [name, email, phone, country, document, hash], (err) => {
-            if (err) return res.json({success: false, msg: 'Erro: Dados já existem.'});
+            if (err) return res.json({success: false, msg: 'Dados já existem.'});
             res.json({success: true});
     });
 });
-// ==========================================
-// CONTROLE DE DESPESAS (LUCRO REAL)
-// ==========================================
 
-// 1. Adicionar Despesa
+// =============================================================
+// 4. ROTAS FINANCEIRAS, AGENDAMENTO E PEDIDOS
+// =============================================================
+
+// Despesas
 app.post('/api/expenses/add', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
     const { description, category, amount, date } = req.body;
-    
-    db.run("INSERT INTO expenses (description, category, amount, date) VALUES (?, ?, ?, ?)", 
-        [description, category, amount, date], 
-        (err) => res.json({ success: !err })
-    );
+    db.run("INSERT INTO expenses (description, category, amount, date) VALUES (?, ?, ?, ?)", [description, category, amount, date], (err) => res.json({ success: !err }));
 });
 
-// 2. Listar Despesas
 app.get('/api/expenses/list', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
-    
-    db.all("SELECT * FROM expenses ORDER BY date DESC", (err, rows) => {
-        res.json(rows || []);
-    });
+    db.all("SELECT * FROM expenses ORDER BY date DESC", (err, rows) => res.json(rows || []));
 });
 
 app.post('/api/expenses/delete', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
-    
-    const id = req.body.id;
-
-    // Primeiro buscamos o dado para saber o que está sendo apagado (para o log ficar rico)
-    db.get("SELECT description, amount FROM expenses WHERE id = ?", [id], (err, row) => {
-        if(row) {
-            db.run("DELETE FROM expenses WHERE id = ?", [id], (err) => {
-                if(!err) {
-                    // GRAVA O LOG AQUI
-                    logSystemAction(req, 'EXCLUSÃO FINANCEIRA', `Apagou despesa: ${row.description} (R$ ${row.amount})`);
-                }
-                res.json({ success: !err });
-            });
-        } else {
-            res.json({ success: false });
-        }
-    });
+    db.run("DELETE FROM expenses WHERE id = ?", [req.body.id], (err) => res.json({ success: !err }));
 });
 
-// 4. Relatório Financeiro (Lucro Líquido)
+// Relatório Financeiro
 app.get('/api/financial-report', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
-
-    const sqlRevenue = "SELECT SUM(amount) as total FROM boxes"; // Ganhos (Boxes)
-    const sqlExpenses = "SELECT SUM(amount) as total FROM expenses"; // Gastos
-
-    db.get(sqlRevenue, [], (err, rev) => {
-        const revenue = rev ? rev.total : 0;
-        
-        db.get(sqlExpenses, [], (err, exp) => {
-            const expenses = exp ? exp.total : 0;
-            const profit = revenue - expenses;
-
-            res.json({
-                revenue: revenue || 0,
-                expenses: expenses || 0,
-                profit: profit || 0
-            });
+    db.get("SELECT SUM(amount) as total FROM boxes", [], (err, rev) => {
+        db.get("SELECT SUM(amount) as total FROM expenses", [], (err, exp) => {
+            res.json({ revenue: rev?.total || 0, expenses: exp?.total || 0, profit: (rev?.total||0) - (exp?.total||0) });
         });
     });
 });
-// --- SISTEMA DE AGENDAMENTO (CORRIGIDO) ---
 
-// 1. Admin cria janela de disponibilidade
+// Agendamento
 app.post('/api/schedule/create-availability', (req, res) => {
     const { date, start_time, end_time, max_slots } = req.body;
-    db.run("INSERT INTO availability (date, start_time, end_time, max_slots) VALUES (?,?,?,?)",
-        [date, start_time, end_time, max_slots], (err) => res.json({ success: !err }));
+    db.run("INSERT INTO availability (date, start_time, end_time, max_slots) VALUES (?,?,?,?)", [date, start_time, end_time, max_slots], (err) => res.json({ success: !err }));
 });
-// Rota que faltava: Lista as janelas criadas (para o Admin ver e excluir)
+
 app.get('/api/schedule/availability', (req, res) => {
-    db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, rows) => {
-        if(err) return res.json([]);
-        res.json(rows);
-    });
+    db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, rows) => res.json(rows || []));
 });
-// 2. Admin exclui disponibilidade
+
 app.post('/api/schedule/delete-availability', (req, res) => {
-    db.serialize(() => {
-        db.run("DELETE FROM appointments WHERE availability_id = ?", [req.body.id]);
-        db.run("DELETE FROM availability WHERE id = ?", [req.body.id], (err) => res.json({ success: !err }));
-    });
+    db.run("DELETE FROM appointments WHERE availability_id = ?", [req.body.id]);
+    db.run("DELETE FROM availability WHERE id = ?", [req.body.id], (err) => res.json({ success: !err }));
 });
-app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
-// 3. Rota INTELIGENTE: Quebra os horários em 15 min (CORREÇÃO DO ERRO AQUI)
+
+// Slots 15 min
 app.get('/api/schedule/slots-15min', (req, res) => {
-    // Busca todas as janelas
     db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, ranges) => {
         if(err) return res.json([]);
-
-        // Busca todos os agendamentos
         db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
-            
-            // --- PROTEÇÃO CONTRA O ERRO ---
-            // Se der erro no SQL ou bookings for undefined, define como array vazio para não travar
-            if (err2 || !bookings) {
-                console.log("Aviso: Tabela appointments vazia ou com erro de coluna.", err2);
-                bookings = []; 
-            }
-
+            if (!bookings) bookings = [];
             let finalSlots = [];
-
             ranges.forEach(range => {
                 let current = new Date(`2000-01-01T${range.start_time}`);
                 let end = new Date(`2000-01-01T${range.end_time}`);
-
                 while (current < end) {
                     let timeStr = current.toTimeString().substring(0,5);
-                    
-                    // Agora é seguro usar .filter porque bookings é garantido ser um array
                     let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
-                    
-                    finalSlots.push({
-                        availability_id: range.id,
-                        date: range.date,
-                        time: timeStr,
-                        max_slots: range.max_slots,
-                        taken: taken,
-                        available: range.max_slots - taken
-                    });
-
+                    finalSlots.push({ availability_id: range.id, date: range.date, time: timeStr, max_slots: range.max_slots, taken: taken, available: range.max_slots - taken });
                     current.setMinutes(current.getMinutes() + 15);
                 }
             });
-
             res.json(finalSlots);
         });
     });
 });
 
-// 4. Reservar
 app.post('/api/schedule/book', (req, res) => {
     const { availability_id, date, time } = req.body;
-    const client_id = req.session.userId;
-
-    // A. Verifica agendamento no dia
-    db.get(`SELECT ap.id FROM appointments ap JOIN availability av ON ap.availability_id = av.id WHERE ap.client_id = ? AND av.date = ? AND ap.status != 'Cancelado'`, 
-    [client_id, date], (err, hasBooking) => {
-        if (hasBooking) return res.json({ success: false, msg: 'Você já tem um agendamento neste dia.' });
-
-        // B. Verifica lotação do horário
-        db.get(`SELECT count(*) as qtd FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, 
-        [availability_id, time], (err, row) => {
-            db.get("SELECT max_slots FROM availability WHERE id = ?", [availability_id], (err, avail) => {
-                if (!row || !avail) return res.json({success: false, msg: "Erro ao verificar vaga"});
-                
-                if (row.qtd >= avail.max_slots) return res.json({ success: false, msg: 'Horário esgotado.' });
-
-                // C. Agenda
-                db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Pendente')", 
-                    [availability_id, client_id, time], (err) => res.json({success: !err}));
-            });
+    db.get(`SELECT count(*) as qtd FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, [availability_id, time], (err, row) => {
+        db.get("SELECT max_slots FROM availability WHERE id = ?", [availability_id], (err, avail) => {
+            if (row.qtd >= avail.max_slots) return res.json({ success: false, msg: 'Esgotado.' });
+            db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Pendente')", [availability_id, req.session.userId, time], (err) => res.json({success: !err}));
         });
     });
 });
 
-// 5. Lista Agendamentos
 app.get('/api/schedule/appointments', (req, res) => {
     let sql = `SELECT ap.id, ap.status, ap.time_slot, av.date, u.name as client_name, u.phone as client_phone FROM appointments ap JOIN availability av ON ap.availability_id = av.id JOIN users u ON ap.client_id = u.id`;
     let params = [];
     if (req.session.role === 'client') { sql += " WHERE ap.client_id = ?"; params.push(req.session.userId); }
     sql += " ORDER BY av.date ASC, ap.time_slot ASC";
-    db.all(sql, params, (err, rows) => {
-        if(err) { console.log(err); return res.json([]); }
-        res.json(rows);
-    });
+    db.all(sql, params, (err, rows) => res.json(rows || []));
 });
 
-// 6. Ações (Status e Cancelar)
 app.post('/api/schedule/status', (req, res) => db.run("UPDATE appointments SET status = ? WHERE id = ?", [req.body.status, req.body.id], (err) => res.json({success: !err})));
 app.post('/api/schedule/cancel', (req, res) => db.run("UPDATE appointments SET status = 'Cancelado' WHERE id = ? AND client_id = ?", [req.body.id, req.session.userId], (err) => res.json({success: !err})));
 
-// --- OUTROS (Mantidos) ---
-// Rota de Pedidos (Atualizada para trazer Telefone e Email)
+// --- ENCOMENDAS (ORDERS) ---
 app.get('/api/orders', (req, res) => {
-    // AQUI ESTÁ A MUDANÇA: Adicionamos client_phone e client_email no SELECT
-    let sql = `SELECT 
-                orders.*, 
-                users.name as client_name, 
-                users.phone as client_phone, 
-                users.email as client_email 
-               FROM orders 
-               JOIN users ON orders.client_id = users.id`;
-    
+    let sql = `SELECT orders.*, users.name as client_name, users.phone as client_phone, users.email as client_email FROM orders JOIN users ON orders.client_id = users.id`;
     let params = [];
-    
-    // Se for cliente, filtra apenas os dele. Se for admin, vê tudo.
-    if(req.session.role === 'client') { 
-        sql += " WHERE client_id = ?"; 
-        params.push(req.session.userId); 
-    }
-    
-    // Ordenar pelo mais recente fica mais organizado
-    sql += " ORDER BY orders.id DESC"; 
-
-    db.all(sql, params, (err, rows) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({error: "Erro no banco de dados"});
-        }
-        res.json(rows);
-    });
+    if(req.session.role === 'client') { sql += " WHERE client_id = ?"; params.push(req.session.userId); }
+    sql += " ORDER BY orders.id DESC";
+    db.all(sql, params, (err, rows) => res.json(rows || []));
 });
 
-app.get('/api/orders/by-client/:id', (req, res) => db.all("SELECT * FROM orders WHERE client_id = ?", [req.params.id], (err, rows) => res.json(rows)));
-// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CÁLCULO DE PREÇO) ---
 app.post('/api/orders/create', (req, res) => {
     const { client_id, code, description, weight, status } = req.body;
-
-    // 1. Busca o valor do KG configurado no banco (tabela 'settings')
     db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-        // Se der erro ou não achar, assume 0
         const pricePerKg = row ? parseFloat(row.value) : 0;
-        
-        // 2. Calcula o Total: Peso x Preço
-        // Ex: 10kg * 5.50 = 55.00
         const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
-
-        console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
-
-        // 3. Insere no banco INCLUINDO o preço (coluna 'price')
-        const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) 
-                     VALUES (?, ?, ?, ?, ?, ?)`;
-                     
-        db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
-            if (err) {
-                if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "Código já existe." });
-                return res.json({ success: false, msg: err.message });
-            }
-            res.json({ success: true, id: this.lastID });
+        db.run(`INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`,
+            [client_id, code, description, weight, status, totalPrice], function(err) {
+                if (err) return res.json({ success: false, msg: err.message });
+                res.json({ success: true, id: this.lastID });
         });
     });
 });
-// ATUALIZAR STATUS (COM SUPORTE A FOTO/COMPROVANTE)
+
+// --- NO SEU ARQUIVO SERVER.JS ---
+// Substitua a rota app.post('/api/orders/update'...) por esta:
+
 app.post('/api/orders/update', (req, res) => {
-    // Agora pegamos também delivery_proof e location do corpo da requisição
     const { id, status, location, delivery_proof } = req.body;
+    
+    // Busca dados para email
+    db.get(`SELECT orders.code, users.email, users.name FROM orders JOIN users ON orders.client_id = users.id WHERE orders.id = ?`, [id], (err, row) => {
+        if (!row) return res.json({ success: false });
 
-    // 1. Busca dados para o e-mail
-    db.get(`SELECT orders.code, orders.description, users.email, users.name 
-            FROM orders JOIN users ON orders.client_id = users.id 
-            WHERE orders.id = ?`, [id], (err, row) => {
-        
-        if (err || !row) {
-            return res.json({ success: false, msg: "Encomenda não encontrada" });
-        }
-
-        // 2. Prepara a Query de Atualização
-        // Definimos a query padrão (só status)
         let sql = "UPDATE orders SET status = ? WHERE id = ?";
         let params = [status, id];
 
-        // SE vier a foto (delivery_proof), mudamos a query para salvar a imagem e local
         if (delivery_proof) {
-            sql = "UPDATE orders SET status = ?, proof_image = ?, delivery_location = ? WHERE id = ?";
-            params = [status, delivery_proof, location || 'Local não informado', id];
+            // CORREÇÃO AQUI: Salvando na coluna 'delivery_proof' que o front-end lê
+            sql = "UPDATE orders SET status = ?, delivery_proof = ?, delivery_location = ? WHERE id = ?";
+            params = [status, delivery_proof, location || 'App', id];
         }
 
-        // 3. Executa a atualização no Banco
-        db.run(sql, params, function(errUpdate) {
-            if (errUpdate) {
-                console.error("Erro ao atualizar:", errUpdate);
-                return res.json({ success: false, msg: "Erro ao atualizar banco de dados." });
-            }
+        db.run(sql, params, (errUpdate) => {
+            if (errUpdate) return res.json({ success: false, msg: errUpdate.message });
 
-            // 4. Envia E-mail de Notificação
+            // Envia Email
             if (row.email) {
-                const subject = `Atualização: Encomenda ${row.code} - ${status}`;
-                let msg = `Olá, <strong>${row.name}</strong>.<br><br>
-                           O status da encomenda <strong>${row.code}</strong> mudou para: <br>
-                           <h3 style="color:#0a1931; background:#eee; padding:10px;">${status}</h3>`;
-
-                // Se tiver foto, avisa no e-mail
-                if (delivery_proof) {
-                    msg += `<br><p>📦 <strong>Entrega confirmada com foto/assinatura digital.</strong><br>
-                            Você pode visualizar o comprovante acessando seu painel.</p>`;
-                } else {
-                    msg += `<br>Acompanhe mais detalhes pelo painel.`;
-                }
+                const subject = `Atualização: ${row.code} - ${status}`;
+                let msg = `O status mudou para: <b>${status}</b>`;
+                if(delivery_proof) msg += "<br>📦 <b>Entrega confirmada com FOTO!</b> Acesse seu painel para ver.";
                 
-                // Envia o e-mail (se a função existir)
-                if (typeof sendEmailHtml === 'function') {
+                // Função segura de envio
+                if(typeof sendEmailHtml === 'function') {
                     sendEmailHtml(row.email, subject, "Status Atualizado", msg);
                 }
             }
-
-            res.json({ success: true, changes: this.changes });
+            res.json({ success: true });
         });
     });
 });
+
 app.get('/api/boxes', (req, res) => {
-    let sql = `SELECT boxes.*, users.name as client_name, orders.code as order_code, orders.status as order_status, orders.weight as order_weight FROM boxes JOIN users ON boxes.client_id = users.id LEFT JOIN orders ON boxes.order_id = orders.id`;
+    let sql = `SELECT boxes.*, users.name as client_name, orders.code as order_code FROM boxes JOIN users ON boxes.client_id = users.id LEFT JOIN orders ON boxes.order_id = orders.id`;
     let params = [];
     if(req.session.role === 'client') { sql += " WHERE boxes.client_id = ?"; params.push(req.session.userId); }
     db.all(sql, params, (err, rows) => res.json(rows));
 });
+
 app.post('/api/boxes/create', (req, res) => {
     const {client_id, order_id, box_code, products, amount} = req.body;
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
 });
+
 app.post('/api/boxes/delete', (req, res) => db.run("DELETE FROM boxes WHERE id = ?", [req.body.id], (err) => res.json({success: !err})));
-// --- ROTA: Atualizar Perfil (Com Foto) ---
+
 app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
-    // Se não estiver logado, bloqueia
     if (!req.session.userId) return res.status(401).json({ success: false });
-
     const { name, phone, email } = req.body;
-    const userId = req.session.userId;
-
-    // Cenário 1: Usuário enviou uma foto nova
     if (req.file) {
-        const sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?";
-        const params = [name, phone, email, req.file.filename, userId];
-        
-        db.run(sql, params, function(err) {
-            if (err) {
-                console.error(err);
-                return res.json({ success: false, message: "Erro ao salvar no banco." });
-            }
-            // Atualiza a sessão
-            if(req.session.user) req.session.user.profile_pic = req.file.filename;
-            
-            // --- AQUI ESTA A CORREÇÃO ---
-            // Devolve o link para o site mostrar a foto na hora
-            res.json({ 
-                success: true, 
-                newProfilePicUrl: '/uploads/' + req.file.filename 
-            });
-            // ----------------------------
-        });
-    } 
-    // Cenário 2: Usuário SÓ mudou o texto (sem foto nova)
-    else {
-        const sql = "UPDATE users SET name=?, phone=?, email=? WHERE id=?";
-        const params = [name, phone, email, userId];
-
-        db.run(sql, params, function(err) {
-            if (err) return res.json({ success: false });
-            res.json({ success: true });
-        });
-    }
-});
-app.post('/api/clients/toggle', (req, res) => db.run("UPDATE users SET active = ? WHERE id = ?", [req.body.active, req.body.id], () => res.json({ success: true })));
-// --- ROTA DE PREÇO (CONFIGURAÇÃO) ---
-app.get('/api/config/price', (req, res) => {
-    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-        res.json({ price: row ? row.value : 0 });
-    });
-});
-
-app.post('/api/config/price', (req, res) => {
-    if(req.session.role !== 'admin') return res.status(403).json({});
-    
-    // Use INSERT OR REPLACE para garantir que funcione na primeira vez
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('price_per_kg', ?)", [req.body.price], (err) => {
-        if(err) console.error("Erro ao salvar preço:", err);
-        res.json({ success: !err });
-    });
-});
-// --- ROTAS DE VÍDEO ---
-
-// ATUALIZE A ROTA DE UPLOAD
-app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
-    if(!req.file) return res.json({success: false, msg: "Erro no envio do arquivo"});
-    
-    // Pegamos a descrição enviada pelo script.js
-    const { client_id, description } = req.body;
-    
-    db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", 
-    [client_id, req.file.filename, description], (err) => {
-        if(err) return res.json({success: false, err});
-        res.json({success: true});
-    });
-});
-
-// 2. Listar Vídeos
-app.get('/api/videos/list', (req, res) => {
-    // Se for admin, vê tudo (ou filtra por cliente se quiser). Se for cliente, vê só os dele.
-    if(req.session.role === 'client') {
-        db.all("SELECT * FROM videos WHERE client_id = ? ORDER BY id DESC", [req.session.userId], (err, rows) => {
-            res.json(rows);
+        db.run("UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?", [name, phone, email, req.file.filename, req.session.userId], (err) => {
+            res.json({ success: true, newProfilePicUrl: '/uploads/' + req.file.filename });
         });
     } else {
-        // Admin vê vídeos com nome do cliente
-        db.all(`SELECT videos.*, users.name as client_name 
-                FROM videos LEFT JOIN users ON videos.client_id = users.id 
-                ORDER BY videos.id DESC`, (err, rows) => {
-            res.json(rows);
-        });
+        db.run("UPDATE users SET name=?, phone=?, email=? WHERE id=?", [name, phone, email, req.session.userId], (err) => res.json({ success: true }));
     }
 });
-// 3. Excluir Vídeo
+
+app.post('/api/clients/toggle', (req, res) => db.run("UPDATE users SET active = ? WHERE id = ?", [req.body.active, req.body.id], () => res.json({ success: true })));
+
+app.get('/api/config/price', (req, res) => db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => res.json({ price: row ? row.value : 0 })));
+app.post('/api/config/price', (req, res) => db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('price_per_kg', ?)", [req.body.price], (err) => res.json({ success: !err })));
+
+app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
+    if(!req.file) return res.json({success: false});
+    const { client_id, description } = req.body;
+    db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", [client_id, req.file.filename, description], (err) => res.json({success: !err}));
+});
+
+app.get('/api/videos/list', (req, res) => {
+    if(req.session.role === 'client') {
+        db.all("SELECT * FROM videos WHERE client_id = ? ORDER BY id DESC", [req.session.userId], (err, rows) => res.json(rows));
+    } else {
+        db.all(`SELECT videos.*, users.name as client_name FROM videos LEFT JOIN users ON videos.client_id = users.id ORDER BY videos.id DESC`, (err, rows) => res.json(rows));
+    }
+});
+
 app.post('/api/videos/delete', (req, res) => {
-    if(req.session.role === 'client') return res.status(403).json({}); // Cliente não deleta
-    const { id, filename } = req.body;
-    
-    db.run("DELETE FROM videos WHERE id = ?", [id], (err) => {
-        if(!err) {
-            // Tenta apagar o arquivo físico
-            try { fs.unlinkSync(`uploads/videos/${filename}`); } catch(e){}
-        }
+    if(req.session.role === 'client') return res.status(403).json({});
+    db.run("DELETE FROM videos WHERE id = ?", [req.body.id], (err) => {
+        try { fs.unlinkSync(`uploads/videos/${req.body.filename}`); } catch(e){}
         res.json({success: !err});
     });
 });
