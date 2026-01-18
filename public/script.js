@@ -1154,14 +1154,34 @@ function checkVideoPermission() {
 
 
 function discardVideo() {
+    // 1. Limpa variáveis de gravação
     currentBlob = null;
     recordedChunks = [];
-    document.getElementById('video-preview').pause();
-    document.getElementById('video-preview').src = "";
-    document.getElementById('camera-feed').style.display = 'block';
-    document.getElementById('video-preview').style.display = 'none';
-    document.getElementById('camera-controls-ui').style.display = 'block';
-    document.getElementById('preview-controls-ui').style.display = 'none';
+
+    // 2. Limpa o preview de vídeo
+    const preview = document.getElementById('video-preview');
+    if (preview) {
+        preview.pause();
+        preview.src = "";
+        preview.style.display = 'none';
+    }
+
+    // 3. Volta a mostrar a câmera
+    const cameraFeed = document.getElementById('camera-feed');
+    if (cameraFeed) cameraFeed.style.display = 'block';
+
+    // 4. Alterna as interfaces de forma segura (verifica se existe antes de mexer)
+    const recordUi = document.getElementById('record-ui');
+    const uploadUi = document.getElementById('upload-ui');
+    
+    if (recordUi) recordUi.classList.remove('hidden');
+    if (uploadUi) uploadUi.classList.add('hidden');
+
+    // Suporte para IDs antigos (caso esteja usando versão mista)
+    const camControls = document.getElementById('camera-controls-ui');
+    const prevControls = document.getElementById('preview-controls-ui');
+    if (camControls) camControls.style.display = 'block';
+    if (prevControls) prevControls.style.display = 'none';
 }
 
 async function confirmUpload() {
@@ -2897,7 +2917,7 @@ async function handleOrderSubmit(e) {
     }
 }
 
-// --- FUNÇÃO 1: ATUALIZAR ENCOMENDA (Edição Admin) ---
+// --- FUNÇÃO: ATUALIZAR ENCOMENDA (Edição Geral) ---
 async function updateOrder(id) {
     const data = {
         client_id: document.getElementById('order-client-select').value,
@@ -2908,7 +2928,7 @@ async function updateOrder(id) {
     };
 
     try {
-        const res = await fetch(`/api/orders/${id}`, { // Note que aqui usa PUT para editar dados gerais
+        const res = await fetch(`/api/orders/${id}`, { 
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -2917,14 +2937,16 @@ async function updateOrder(id) {
         const json = await res.json();
         if(json.success) {
             alert("✅ Atualizado com sucesso!");
+            // Fecha o modal se a função existir
             if(typeof closeModal === 'function') closeModal('modal-order');
-            loadOrders(); 
+            // Recarrega a tabela se a função existir
+            if(typeof loadOrders === 'function') loadOrders(); 
         } else {
             alert("Erro: " + (json.message || "Falha ao atualizar"));
         }
     } catch (e) {
         console.error(e);
-        alert("Erro de conexão.");
+        alert("Erro de conexão ao atualizar.");
     }
 }
 
@@ -3034,8 +3056,13 @@ const DeliveryProof = {
     capturedImage: null,
     pendingShipmentId: null,
 
-    // Abre a câmera quando o funcionário seleciona "Entregue"
+    // Abre a câmera
     start: function(shipmentId) {
+        // SEGURANÇA: Câmera só funciona em HTTPS ou localhost
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return alert("Erro: O navegador bloqueou a câmera. Use HTTPS.");
+        }
+
         this.pendingShipmentId = shipmentId;
         const modal = document.getElementById('delivery-photo-modal');
         const video = document.getElementById('delivery-video');
@@ -3043,20 +3070,26 @@ const DeliveryProof = {
         const btnSnap = document.getElementById('btn-snap-photo');
         const btnConfirm = document.getElementById('btn-confirm-delivery');
 
-        // Resetar visual
-        preview.style.display = 'none';
-        video.style.display = 'block';
-        btnSnap.classList.remove('hidden');
-        btnConfirm.classList.add('hidden');
-        modal.classList.remove('hidden');
+        // Reseta visual
+        if(preview) preview.style.display = 'none';
+        if(video) video.style.display = 'block';
+        if(btnSnap) btnSnap.classList.remove('hidden');
+        if(btnConfirm) btnConfirm.classList.add('hidden');
+        if(modal) modal.classList.remove('hidden');
 
-        // Ligar câmera
+        // Tenta câmera traseira (environment)
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(stream => {
                 this.stream = stream;
-                video.srcObject = stream;
+                if(video) {
+                    video.srcObject = stream;
+                    video.play(); // Garante o play no iPhone
+                }
             })
-            .catch(err => alert("Erro ao abrir câmera: " + err));
+            .catch(err => {
+                alert("Não foi possível acessar a câmera: " + err);
+                this.close();
+            });
     },
 
     // Tira a foto
@@ -3065,45 +3098,52 @@ const DeliveryProof = {
         const canvas = document.getElementById('delivery-canvas');
         const preview = document.getElementById('delivery-preview');
         
+        if(!canvas || !video) return;
+
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        
-        // Desenha o vídeo no canvas
         canvas.getContext('2d').drawImage(video, 0, 0);
         
-        // Converte para imagem Base64
-        this.capturedImage = canvas.toDataURL('image/jpeg', 0.7); // 0.7 = qualidade média (leve)
+        // Qualidade 0.7 para ficar leve no banco
+        this.capturedImage = canvas.toDataURL('image/jpeg', 0.7); 
         
-        // Mostra preview
-        preview.src = this.capturedImage;
-        preview.style.display = 'block';
+        if(preview) {
+            preview.src = this.capturedImage;
+            preview.style.display = 'block';
+        }
         
-        // Troca botões
+        video.style.display = 'none';
         document.getElementById('btn-snap-photo').classList.add('hidden');
         document.getElementById('btn-confirm-delivery').classList.remove('hidden');
     },
 
-    // Confirma e envia para o servidor
+    // Confirma e envia
     confirm: function() {
         if (!this.capturedImage || !this.pendingShipmentId) return;
-
-        updateShipmentStatusWithProof(this.pendingShipmentId, 'Entregue', 'Entregue ao Cliente', this.capturedImage);
+        
+        // Chama a função auxiliar para enviar ao backend
+        // (Certifique-se que updateShipmentStatusWithProof existe no seu script)
+        updateShipmentStatusWithProof(this.pendingShipmentId, 'Entregue', 'Local: App', this.capturedImage);
         this.close();
     },
 
     close: function() {
         const modal = document.getElementById('delivery-photo-modal');
-        modal.classList.add('hidden');
+        if(modal) modal.classList.add('hidden');
         
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
         }
     },
 
-    // Para o cliente ver a foto
     view: function(imgData) {
-        document.getElementById('proof-image-full').src = imgData;
-        document.getElementById('view-proof-modal').classList.remove('hidden');
+        const img = document.getElementById('proof-image-full');
+        const modal = document.getElementById('view-proof-modal');
+        if(img && modal) {
+            img.src = imgData;
+            modal.classList.remove('hidden');
+        }
     }
 };
 
