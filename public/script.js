@@ -1,4 +1,3 @@
-// VARIÁVEIS GLOBAIS
 let currentRole = 'client';
 let currentUser = null;
 let globalPricePerKg = 0; 
@@ -6,69 +5,82 @@ let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
-
-// CONFIGURAÇÃO DE MÁSCARAS
-const countryMasks = {
-    'GW': '+245 00 000 00 00', 
-    'BR': '(00) 00000-0000',    
-    'PT': '+351 000 000 000',   
-    'SN': '+221 00 000 00 00',  
-    'MA': '+212 0 00 00 00 00', 
-    'US': '+1 (000) 000-0000',  
-    'FR': '+33 0 00 00 00 00',  
-    'ES': '+34 000 000 000',    
-    'UK': '+44 0000 000000',    
-    'BE': '+32 000 00 00 00',   
-    'CV': '+238 000 00 00'      
-};
-
-const countryDocMasks = {
-    'GW': '000000000',          
-    'BR': '000.000.000-00',     
-    'PT': '000000000',          
-    'US': '000-00-0000',        
-    'SN': '0 000 0000 00000',   
-    'CV': '000000000',          
-    'default': '****************' 
-};
-
-let phoneMaskInstance = null;
-let docMaskInstance = null;
-
-// INICIALIZAÇÃO
-document.addEventListener('DOMContentLoaded', () => {
-    checkAutoLogin();
-});
-
+// --- 1. CONFIGURAÇÃO DE MÁSCARAS (TELEFONE E DOCUMENTO) ---
+// ==========================================
+// AUTO-LOGIN (Ao atualizar a página)
+// ==========================================
 async function checkAutoLogin() {
     try {
         const res = await fetch('/api/check-session');
         const data = await res.json();
 
         if (data.loggedIn) {
+            // Salva dados globais
             currentUser = data.user;
             currentRole = data.user.role;
+
+            // Esconde Login e Mostra Dashboard
             document.getElementById('login-screen').classList.add('hidden');
             
             if (currentRole === 'admin') {
-                window.location.href = 'dashboard-admin.html';
-            } else if (currentRole === 'employee') {
-                window.location.href = 'dashboard-employee.html'; // Redirecionamento correto
+                window.location.href = 'dashboard-admin.html'; // Ou exibe a div do admin
             } else {
+                // Se estivermos no index.html e for cliente, manda pro dashboard
+                // Se já estivermos no dashboard-client.html, apenas carrega a Home
                 if(window.location.pathname.includes('index') || window.location.pathname === '/') {
                      window.location.href = 'dashboard-client.html';
                 } else {
-                     if(typeof initDashboard === 'function') initDashboard();
+                     showSection('home-view'); // Garante que vá para a Home
                 }
             }
         }
     } catch (error) {
-        console.log("Sessão expirada.");
+        console.log("Sessão expirada ou inválida.");
     }
 }
 
+// Executa ao abrir a página
+document.addEventListener('DOMContentLoaded', () => {
+    checkAutoLogin();
+});
+// Máscaras de Telefone
+const countryMasks = {
+    'GW': '+245 00 000 00 00', // Guiné-Bissau
+    'BR': '(00) 00000-0000',    // Brasil
+    'PT': '+351 000 000 000',   // Portugal
+    'SN': '+221 00 000 00 00',  // Senegal
+    'MA': '+212 0 00 00 00 00', // Marrocos
+    'US': '+1 (000) 000-0000',  // EUA
+    'FR': '+33 0 00 00 00 00',  // França
+    'ES': '+34 000 000 000',    // Espanha
+    'UK': '+44 0000 000000',    // Reino Unido
+    'BE': '+32 000 00 00 00',   // Bélgica
+    'CV': '+238 000 00 00'      // Cabo Verde
+};
+
+// Máscaras de Documento (Novas)
+// '0' = apenas números, 'a' = letras, '*' = letras e números
+const countryDocMasks = {
+    'GW': '000000000',          // Guiné (Exemplo numérico)
+    'BR': '000.000.000-00',     // Brasil (CPF)
+    'PT': '000000000',          // Portugal (NIF)
+    'US': '000-00-0000',        // EUA (SSN)
+    'SN': '0 000 0000 00000',   // Senegal (Exemplo CNI)
+    'CV': '000000000',          // Cabo Verde
+    // Para outros países, deixamos uma máscara genérica de 12 a 15 caracteres
+    'default': '****************' 
+};
+
+// Variáveis de controle para limpar a máscara anterior ao trocar
+let phoneMaskInstance = null;
+let docMaskInstance = null;
+
 function updateMasks() {
-    if (typeof IMask === 'undefined') return;
+    // Verifica se a biblioteca IMask carregou
+    if (typeof IMask === 'undefined') {
+        console.warn("Biblioteca IMask não carregada.");
+        return;
+    }
 
     const countrySelect = document.getElementById('reg-country');
     const phoneInput = document.getElementById('reg-phone');
@@ -77,31 +89,41 @@ function updateMasks() {
     if (!countrySelect || !phoneInput || !docInput) return;
 
     const country = countrySelect.value;
+
+    // --- A. ATUALIZA MÁSCARA DE TELEFONE ---
     const phonePattern = countryMasks[country] || '0000000000000'; 
     
     if (phoneMaskInstance) phoneMaskInstance.destroy(); 
+    
     try {
         phoneMaskInstance = IMask(phoneInput, { mask: phonePattern });
         phoneInput.placeholder = phonePattern.replace(/[0-9]/g, 'X'); 
-    } catch (e) {}
+    } catch (e) { console.warn("Erro IMask Phone:", e); }
 
+    // --- B. ATUALIZA MÁSCARA DE DOCUMENTO ---
     const docPattern = countryDocMasks[country] || countryDocMasks['default'];
+
     if (docMaskInstance) docMaskInstance.destroy(); 
+
     try {
         docMaskInstance = IMask(docInput, { 
             mask: docPattern,
             prepare: function (str) { return str.toUpperCase(); } 
         });
+        
         docInput.placeholder = docPattern.replace(/[0-9a*]/g, 'X'); 
-    } catch (e) {}
-}
+        if(country === 'BR') docInput.placeholder = "CPF (000.000.000-00)";
+        if(country === 'PT') docInput.placeholder = "NIF (000000000)";
 
-// LOGIN E REGISTRO
+    } catch (e) { console.warn("Erro IMask Doc:", e); }
+}
+// --- LOGIN & CADASTRO (CORRIGIDO) ---
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const login = document.getElementById('login-user').value;
     const pass = document.getElementById('login-pass').value;
     
+    // Envia a role atual (que vem dos botões "Sou Cliente", "Funcionário", etc)
     const res = await fetch('/api/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login, password: pass, role: currentRole })
@@ -111,9 +133,16 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     
     if(data.success) {
         localStorage.setItem('userRole', data.role);
-        if (data.role === 'client') window.location.href = 'dashboard-client.html';
-        else if (data.role === 'employee') window.location.href = 'dashboard-employee.html';
-        else window.location.href = 'dashboard-admin.html';
+        
+        // --- AQUI ESTÁ A CORREÇÃO DO REDIRECIONAMENTO ---
+        if (data.role === 'client') {
+            window.location.href = 'dashboard-client.html';
+        } else if (data.role === 'employee') {
+            window.location.href = 'dashboard-employee.html'; // <--- O NOVO ARQUIVO
+        } else {
+            window.location.href = 'dashboard-admin.html';
+        }
+        // ------------------------------------------------
     } else {
         alert(data.msg);
     }
@@ -132,78 +161,112 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
     const data = await res.json();
     if(data.success) { alert('Sucesso! Faça login.'); showLogin(); } else alert(data.msg);
 });
-
-// NAVEGAÇÃO
 function showSection(id) {
+    // 1. Esconde todas as seções
     document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+    
+    // 2. Mostra a seção desejada
     const section = document.getElementById(id);
     if(section) {
         section.classList.remove('hidden');
         localStorage.setItem('activeTab', id);
     }
 
-    if(id === 'orders-view' && typeof loadOrders === 'function') loadOrders();
-    if(id === 'schedule-view' && typeof loadSchedules === 'function') loadSchedules();
-    if(id === 'box-view' && typeof loadBoxes === 'function') loadBoxes(); 
-    if(id === 'price-section' && typeof loadPrice === 'function') loadPrice(); 
-    if(id === 'billing-view' && typeof loadInvoices === 'function') loadInvoices();
-    if(id === 'history-view' && typeof loadHistory === 'function') loadHistory(); 
-    if(id === 'labels-view' && typeof loadLabels === 'function') loadLabels();
-    if(id === 'expenses-view' && typeof loadExpenses === 'function') loadExpenses();
-    if(id === 'logs-view' && typeof loadSystemLogs === 'function') loadSystemLogs();
-    if(id === 'shipments-view' && typeof loadShipments === 'function') loadShipments();
-    if(id === 'receipts-view' && typeof loadReceipts === 'function') loadReceipts();
-    if(id === 'clients-view' && typeof loadClients === 'function') loadClients(); // <--- Faltava essa
+    // 3. Carrega os dados específicos de cada aba
+    if(id === 'orders-view') loadOrders();
+    if(id === 'schedule-view') loadSchedules();
+    if(id === 'box-view') loadBoxes(); 
+    if(id === 'price-section') loadPrice(); 
+    if(id === 'billing-view') loadClientInvoices();
+    if(id === 'history-view') loadHistory(); 
+    if(id === 'labels-view') loadLabels();
+    if(id === 'expenses-view') loadExpenses();
+    if(id === 'logs-view') loadSystemLogs();
+    if(id === 'shipments-view') loadShipments();
+    if(id === 'receipts-view') loadReceipts();
 
+    // --- CORREÇÃO AQUI: Carrega dados para gravar vídeo ---
     if(id === 'videos-section') {
+        // Se for admin/funcionário, carrega lista de encomendas para selecionar
         if(currentUser.role !== 'client') {
-            if(typeof loadOrdersForVideo === 'function') loadOrdersForVideo(); 
-            if(typeof loadAdminVideos === 'function') loadAdminVideos(); 
+            loadOrdersForVideo(); 
+            loadAdminVideos(); // Lista os vídeos já feitos
         } else {
-            if(typeof loadClientVideos === 'function') loadClientVideos(); 
+            loadClientVideos(); // Cliente só vê a galeria
         }
     }
 }
-
 async function initDashboard() {
     try {
         const res = await fetch('/api/user');
-        if(res.status !== 200) return window.location.href = 'index.html';
+        
+        if(res.status !== 200) {
+            console.warn("Sessão inválida.");
+            return window.location.href = 'index.html';
+        }
 
         currentUser = await res.json();
+        
+        // Exibe cargo no topo
         const roleDisplay = document.getElementById('user-role-display');
         if(roleDisplay) roleDisplay.innerText = `| ${currentUser.role.toUpperCase()}`;
 
-        // Carrega preço antes de tudo
+        // Preenche perfil se for cliente
+        if(currentUser.role === 'client' && document.getElementById('profile-name')) {
+            document.getElementById('profile-name').value = currentUser.name || '';
+            document.getElementById('profile-email').value = currentUser.email || '';
+            document.getElementById('profile-phone').value = currentUser.phone || '';
+
+            const imgDisplay = document.getElementById('profile-img-display');
+            if(currentUser.profile_pic && imgDisplay) {
+                imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
+            }
+        }
+
+        // --- AQUI ESTAVA O ERRO DO PREÇO ZERADO ---
+        // O "await" obriga o código a parar aqui até o preço ser carregado do servidor
         await loadPrice(); 
         
-        // Carrega dados iniciais
-        if(typeof loadOrders === 'function') loadOrders();
-        if(currentUser.role !== 'client' && typeof loadClients === 'function') loadClients();
+        // Só depois de ter o preço, carregamos as listas
+        if(currentUser.role !== 'client') loadClients();
+        loadOrders();
+        loadSchedules();
 
-        // Recupera aba
+        // Recupera aba anterior
         const lastTab = localStorage.getItem('activeTab');
-        if (lastTab && document.getElementById(lastTab)) showSection(lastTab);
-        else showSection('orders-view'); 
+        if (lastTab && document.getElementById(lastTab)) {
+            showSection(lastTab);
+        } else {
+            if(currentUser.role === 'client') showSection('orders-view'); 
+            else showSection('orders-view'); 
+        }
 
     } catch (error) {
-        console.error("Erro dashboard:", error);
+        console.error("Erro ao iniciar dashboard:", error);
     }
 }
 
-// PREÇO
+// --- CONFIGURAÇÃO DE PREÇO (AGORA ASSÍNCRONA) ---
 async function loadPrice() {
     try {
         const res = await fetch('/api/config/price');
         const data = await res.json();
+        
+        // Atualiza a variável global
         globalPricePerKg = parseFloat(data.price) || 0;
         
+        // Atualiza input se existir
         const input = document.getElementById('price-input');
         if(input) input.value = globalPricePerKg;
         
-        console.log("Preço Kg:", globalPricePerKg);
+        // Se a aba de Box estiver aberta, recarrega para atualizar valores
+        const boxSection = document.getElementById('box-view');
+        if(boxSection && !boxSection.classList.contains('hidden')) {
+            loadBoxes();
+        }
+        console.log("Preço carregado:", globalPricePerKg);
     } catch (e) {
-        console.error("Erro preço:", e);
+        console.error("Erro ao carregar preço:", e);
     }
 }
 
@@ -212,67 +275,22 @@ function savePrice() {
     if (isNaN(price)) return alert("Digite um valor válido");
 
     fetch('/api/config/price', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ price: price })
     })
     .then(res => res.json())
     .then(data => {
-        if(data.success) { alert("Preço atualizado!"); loadPrice(); } 
-        else alert("Erro ao salvar.");
+        if(data.success) {
+            alert("Preço atualizado com sucesso!");
+            loadPrice(); 
+        } else {
+            alert("Erro ao salvar.");
+        }
     });
 }
 
-// CAIXAS (BOXES) - CORREÇÃO CRÍTICA DO 'amountEl'
-async function createBox(e) {
-    if(e) e.preventDefault();
-
-    const clientEl = document.getElementById('box-client-select');
-    const orderEl = document.getElementById('box-order-select');
-    const codeEl = document.getElementById('box-code');
-    const prodEl = document.getElementById('box-products');
-    const amountEl = document.getElementById('box-amount'); // Pode não existir no funcionário
-
-    if(!clientEl || !codeEl) return alert("Erro de interface.");
-
-    const clientVal = clientEl.value;
-    const codeVal = codeEl.value;
-    // Se o campo valor não existir (funcionário), envia 0
-    const amountVal = amountEl ? (amountEl.value || 0) : 0; 
-
-    if(!clientVal || !codeVal) return alert("Cliente e Número do Box obrigatórios.");
-
-    const d = {
-        client_id: clientVal,
-        order_id: orderEl ? orderEl.value : null, 
-        box_code: codeVal,
-        products: prodEl ? prodEl.value : "",
-        amount: amountVal
-    };
-
-    try {
-        const res = await fetch('/api/boxes/create', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(d)
-        });
-        
-        const json = await res.json();
-
-        if(json.success) {
-            closeModal('modal-box'); 
-            const form = document.getElementById('new-box-form');
-            if(form) form.reset();
-            loadBoxes();
-            alert("✅ Box criado!");
-        } else {
-            const msg = json.msg || "Erro desconhecido";
-            if (msg.includes("UNIQUE")) alert("Erro: Código do Box já existe.");
-            else alert("Erro: " + msg);
-        }
-    } catch (err) {
-        alert("Erro de conexão.");
-    }
-}
-
+// --- SISTEMA DE ENCOMENDAS E CAIXAS ---
 async function loadBoxes() {
     const res = await fetch('/api/boxes');
     const list = await res.json();
@@ -284,9 +302,8 @@ async function loadBoxes() {
             const act = (currentUser.role !== 'client') ? 
                 `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer;">Excluir</button>` : '-';
             
-            // Cálculo do Valor Estimado (Peso * Preço Global)
             const weight = parseFloat(b.order_weight) || 0;
-            const estimatedValue = (weight * globalPricePerKg).toFixed(2);
+            const totalValue = (weight * globalPricePerKg).toFixed(2);
 
             tbody.innerHTML += `
             <tr>
@@ -294,14 +311,138 @@ async function loadBoxes() {
                 <td>${b.client_name || '-'}</td>
                 <td>${b.order_code || '-'}</td>
                 <td>${weight} Kg</td>
-                <td style="font-weight:bold; color:green;">${estimatedValue}</td> 
-                <td>${b.products || '-'}</td>
+                <td style="font-weight:bold; color:green;">${totalValue}</td> <td>${b.products || '-'}</td>
                 <td>${act}</td>
             </tr>`; 
         });
+        // CORREÇÃO 1: Adicionado para funcionar no mobile
+        makeTablesResponsive();
     }
 }
+// ==========================================
+// FUNÇÃO QUE FALTAVA: CRIAR ENCOMENDA
+// ==========================================
+async function createOrder() {
+    // 1. Pega os dados do formulário
+    const clientId = document.getElementById('order-client-select').value;
+    const code = document.getElementById('order-code').value;
+    const desc = document.getElementById('order-desc').value;
+    const weight = document.getElementById('order-weight').value;
+    const status = document.getElementById('order-status').value;
 
+    // 2. Validação simples
+    if (!clientId || !code || !weight) {
+        return alert("Preencha Cliente, Código e Peso!");
+    }
+
+    const data = {
+        client_id: clientId,
+        code: code,
+        description: desc,
+        weight: weight,
+        status: status
+    };
+
+    try {
+        // 3. Envia para o servidor
+        const res = await fetch('/api/orders/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const json = await res.json();
+
+        if (json.success) {
+            alert("✅ Encomenda criada com sucesso!");
+            
+            // 4. Limpa e fecha
+            document.getElementById('new-order-form').reset();
+            closeModal('modal-order');
+            
+            // 5. Atualiza a lista na tela
+            loadOrders();
+        } else {
+            alert("Erro ao criar: " + (json.msg || "Verifique se o código já existe."));
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão com o servidor.");
+    }
+}
+async function createBox(e) {
+    if(e) e.preventDefault();
+
+    // 1. Captura os ELEMENTOS primeiro (para verificar se existem)
+    const clientEl = document.getElementById('box-client-select');
+    const orderEl = document.getElementById('box-order-select');
+    const codeEl = document.getElementById('box-code');
+    const prodEl = document.getElementById('box-products');
+    const amountEl = document.getElementById('box-amount'); // <--- Esse pode ser null no painel de funcionário
+
+    // Se por acaso o HTML não carregou direito, evita erro
+    if(!clientEl || !codeEl) {
+        return alert("Erro de interface: Campos obrigatórios não encontrados.");
+    }
+
+    // 2. Pega os valores com segurança
+    const clientVal = clientEl.value;
+    const codeVal = codeEl.value;
+    const orderVal = orderEl ? orderEl.value : ""; // Se não existir, vazio
+    const prodVal = prodEl ? prodEl.value : "";   // Se não existir, vazio
+    
+    // --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
+    // Se o campo de valor (amountEl) existir, pega o valor. Se não existir (funcionário), usa 0.
+    const amountVal = amountEl ? amountEl.value : 0; 
+    // --------------------------------------
+
+    if(!clientVal || !codeVal) {
+        return alert("Erro: O Cliente e o Número do Box são obrigatórios.");
+    }
+
+    const d = {
+        client_id: clientVal,
+        order_id: orderVal === "" ? null : orderVal, 
+        box_code: codeVal,
+        products: prodVal,
+        amount: amountVal === "" ? 0 : amountVal 
+    };
+
+    try {
+        const res = await fetch('/api/boxes/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(d)
+        });
+        
+        const json = await res.json();
+
+        if(json.success) {
+            closeModal('modal-box'); 
+            
+            // Reseta o formulário
+            const form = document.getElementById('new-box-form');
+            if(form) form.reset();
+            
+            loadBoxes();
+            alert("✅ Box criado com sucesso!");
+        } else {
+            console.error("Erro servidor:", json);
+            const msg = json.err ? json.err.message : (json.msg || "Erro desconhecido");
+            
+            if (msg.includes("FOREIGN KEY")) {
+                alert("Erro: O Cliente selecionado não confere.");
+            } else if (msg.includes("UNIQUE")) {
+                alert("Erro: Já existe um Box com este código.");
+            } else {
+                alert("❌ Erro ao salvar: " + msg);
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erro de conexão com o sistema.");
+    }
+}
 async function deleteBox(id) {
     if(confirm('Apagar esta caixa?')) {
         await fetch('/api/boxes/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
@@ -309,52 +450,273 @@ async function deleteBox(id) {
     }
 }
 
-// CLIENTES (Carregamento Corrigido)
+// --- SISTEMA DE AGENDAMENTO ---
+async function createAvailability(e) {
+    e.preventDefault();
+    const data = {
+        date: document.getElementById('sched-date').value,
+        start_time: document.getElementById('sched-start').value,
+        end_time: document.getElementById('sched-end').value,
+        max_slots: document.getElementById('sched-slots').value
+    };
+    const res = await fetch('/api/schedule/create-availability', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)});
+    const json = await res.json();
+    if(json.success) { alert('Horário liberado!'); loadSchedules(); } else alert('Erro.');
+}
+
+async function loadSchedules() {
+    const resSlots = await fetch('/api/schedule/slots-15min');
+    const slots15min = await resSlots.json();
+    const resAppoint = await fetch('/api/schedule/appointments');
+    const appointments = await resAppoint.json();
+
+    if(currentUser.role !== 'client') {
+        renderAdminSchedule(appointments);
+        renderAdminAvailabilities();
+        return;
+    }
+
+    const container = document.getElementById('available-slots-container');
+    if(container) {
+        container.innerHTML = '';
+        const bookedDates = appointments.filter(app => app.status !== 'Cancelado').map(app => app.date);
+        const groups = {};
+        slots15min.forEach(slot => { if(!groups[slot.date]) groups[slot.date] = []; groups[slot.date].push(slot); });
+
+        if(Object.keys(groups).length === 0) container.innerHTML = '<p style="text-align:center; color:#666;">Sem horários disponíveis.</p>';
+
+        for (const [date, slots] of Object.entries(groups)) {
+            const alreadyBookedThisDay = bookedDates.includes(date);
+            const dateObj = new Date(date + 'T00:00:00');
+            const dateStr = dateObj.toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric', month: 'long'});
+            
+            let html = `<div class="schedule-group" style="margin-bottom: 25px;">
+                <h4 style="border-bottom: 2px solid #0a1931; color: #0a1931; padding-bottom: 5px; margin-bottom: 10px; text-transform: capitalize;">
+                    📅 ${dateStr} ${alreadyBookedThisDay ? '<span style="font-size:12px; color:red;">(Já agendado)</span>' : ''}
+                </h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">`;
+
+            slots.forEach(slot => {
+                const isFull = slot.available <= 0;
+                const isBlocked = isFull || alreadyBookedThisDay;
+                let style = `border: 1px solid ${isBlocked?'#ccc':'#28a745'}; background: ${isBlocked?'#eee':'#fff'}; color: ${isBlocked?'#999':'#28a745'}; padding: 8px 15px; border-radius: 5px; cursor: ${isBlocked?'not-allowed':'pointer'}; font-weight:bold; min-width: 80px; text-align:center;`;
+                
+                html += `<div onclick="${isBlocked ? '' : `bookSlot(${slot.availability_id}, '${slot.date}', '${slot.time}')`}" style="${style}">
+                    ${slot.time} ${isFull ? '(Cheio)' : ''}
+                </div>`;
+            });
+            html += `</div></div>`;
+            container.innerHTML += html;
+        }
+    }
+
+    const tbody = document.getElementById('client-schedule-list');
+    if(tbody) {
+        tbody.innerHTML = '';
+        appointments.forEach(app => {
+            const canCancel = app.status !== 'Cancelado' && app.status !== 'Recusado';
+            const btn = canCancel ? `<button onclick="cancelBooking(${app.id})" style="color:red; border:1px solid red; background:white; padding:2px 5px; cursor:pointer;">Cancelar</button>` : '-';
+            tbody.innerHTML += `<tr><td>${formatDate(app.date)}</td><td>${app.time_slot}</td><td>${app.status}</td><td>${btn}</td></tr>`;
+        });
+        // Mobile schedule fix could go here if table used
+    }
+}
+
+async function bookSlot(availId, date, time) {
+    if(!confirm(`Confirmar agendamento dia ${formatDate(date)} às ${time}?`)) return;
+    const res = await fetch('/api/schedule/book', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ availability_id: availId, date: date, time: time }) });
+    const json = await res.json();
+    if(json.success) { alert('Sucesso!'); loadSchedules(); } else alert(json.msg);
+}
+
+// Funções Administrativas de Agenda
+async function renderAdminAvailabilities() {
+    const res = await fetch('/api/schedule/availability');
+    const list = await res.json();
+    const tbody = document.getElementById('admin-availability-list');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    list.forEach(item => {
+        tbody.innerHTML += `<tr><td>${formatDate(item.date)}</td><td>${item.start_time}</td><td>${item.end_time}</td><td>${item.max_slots}</td><td><button onclick="deleteAvailability(${item.id})" style="color:white; background:red; border:none; padding:5px; cursor:pointer;">Excluir</button></td></tr>`;
+    });
+}
+
+async function deleteAvailability(id) {
+    if(!confirm('Isso excluirá todos os agendamentos deste dia. Continuar?')) return;
+    await fetch('/api/schedule/delete-availability', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id}) });
+    renderAdminAvailabilities();
+}
+
+function renderAdminSchedule(appointments) {
+    const tbody = document.getElementById('admin-schedule-list');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    appointments.forEach(app => {
+        let actions = '-';
+        if(app.status === 'Pendente') {
+            actions = `<button onclick="updateScheduleStatus(${app.id}, 'Aprovado')" style="color:green; cursor:pointer;">✔</button> <button onclick="updateScheduleStatus(${app.id}, 'Recusado')" style="color:red; cursor:pointer;">✖</button>`;
+        }
+        tbody.innerHTML += `<tr><td>${formatDate(app.date)}</td><td>${app.time_slot}</td><td>${app.client_name}<br><small>${app.client_phone}</small></td><td>${app.status}</td><td>${actions}</td></tr>`;
+    });
+}
+
+async function updateScheduleStatus(id, newStatus) {
+    if(!confirm(`Alterar para ${newStatus}?`)) return;
+    await fetch('/api/schedule/status', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: id, status: newStatus }) });
+    loadSchedules();
+}
+
+async function cancelBooking(id) {
+    if(!confirm('Deseja cancelar?')) return;
+    await fetch('/api/schedule/cancel', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: id }) });
+    loadSchedules();
+}
+
+// --- FUNÇÕES AUXILIARES ---
+function formatDate(dateStr) { if(!dateStr) return ''; const [y, m, d] = dateStr.split('-'); return `${d}/${m}/${y}`; }
+// Função atualizada para o novo design Dark/Gold
+function setRole(role) {
+    currentRole = role;
+    
+    // 1. Seleciona todos os botões dentro da div correta (#role-selector)
+    const buttons = document.querySelectorAll('#role-selector button');
+    
+    // 2. Reseta TODOS os botões para Cinza (Inativo)
+    buttons.forEach(b => {
+        b.style.background = '#eee';
+        b.style.color = '#333';
+        // Remove a classe btn-primary se ela estiver atrapalhando a cor
+        b.classList.remove('btn-primary'); 
+        b.classList.add('btn'); // Garante a formatação básica
+    });
+    
+    // 3. Pinta APENAS o botão clicado de Azul Escuro (Ativo)
+    const activeBtn = document.getElementById(`btn-${role}`);
+    if(activeBtn) {
+        activeBtn.style.background = '#0a1931'; // Cor Azul do seu tema
+        activeBtn.style.color = '#fff';         // Texto Branco
+    }
+
+    // 4. Controla visibilidade dos links (Esqueci a senha / Cadastro)
+    // Tenta pegar a div que agrupa os links, ou os links individuais
+    const linksContainer = document.getElementById('client-links');
+    
+    if (linksContainer) {
+        // Se você tem a div agrupando (como no código anterior)
+        if (role !== 'client') {
+            linksContainer.classList.add('hidden');
+        } else {
+            linksContainer.classList.remove('hidden');
+        }
+    } else {
+        // Caso não tenha a div, esconde item por item
+        const r = document.getElementById('register-link');
+        const f = document.getElementById('forgot-pass');
+        
+        if (role !== 'client') {
+            if(r) r.style.display = 'none'; 
+            if(f) f.style.display = 'none';
+        } else {
+            if(r) r.style.display = 'block'; 
+            if(f) f.style.display = 'block';
+        }
+    }
+}
+// No arquivo script.js
+
+function showRegister() {
+    // Esconde Login, Mostra Cadastro
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.remove('hidden');
+    
+    // --- SEGURANÇA VISUAL ---
+    // Esconde os botões de Funcionário e Admin
+    document.getElementById('btn-employee').style.display = 'none';
+    document.getElementById('btn-admin').style.display = 'none';
+
+    // Força a seleção ser "Cliente" automaticamente
+    setRole('client');
+
+    updateMasks();
+}
+
+function showLogin() {
+    // Esconde Cadastro, Mostra Login
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+
+    // Mostra os botões novamente (para o staff poder logar)
+    document.getElementById('btn-employee').style.display = 'inline-block';
+    document.getElementById('btn-admin').style.display = 'inline-block';
+}
+// A LINHA DO ERRO ESTAVA AQUI (updateMasks duplicada) - FOI REMOVIDA
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function logout() { fetch('/api/logout'); window.location.href = 'index.html'; }
+
 async function loadClients() { 
     try {
         const res = await fetch('/api/clients'); 
         const list = await res.json(); 
         
-        // Preenche Selects
+        // Preenche os Selects (ex: na hora de criar encomenda)
         const selects = [
             document.getElementById('order-client-select'),
-            document.getElementById('box-client-select'),
-            document.getElementById('video-client-select'), // Adicionei este
-            document.getElementById('bill-client-select')   // E este
+            document.getElementById('box-client-select')
         ];
 
         selects.forEach(sel => {
             if(sel) {
                 sel.innerHTML = '<option value="">Selecione o Cliente...</option>'; 
                 list.forEach(c => {
-                    if(c.name) sel.innerHTML += `<option value="${c.id}">${c.name}</option>`; 
+                    if(c.name) {
+                        sel.innerHTML += `<option value="${c.id}">${c.name} | ${c.email || 'Sem email'}</option>`; 
+                    }
                 });
             }
         });
 
-        // Preenche Tabela
+        // Preenche a Tabela da Aba "Clientes"
         const tbody = document.getElementById('clients-list'); 
         if(tbody) {
             tbody.innerHTML = ''; 
+            
             list.forEach(c => { 
                 if(!c.name) return; 
 
-                const btnColor = c.active ? '#dc3545' : '#28a745';
-                const btnText = c.active ? 'Desativar' : 'Ativar';
-                const actionBtn = (currentUser.role === 'admin') 
-                    ? `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="background:${btnColor}; color:white; border:none; padding:5px; cursor:pointer;">${btnText}</button>` 
-                    : '-';
+                // Botão Ativar/Desativar
+                let actionBtn = '';
+                if (currentUser && currentUser.role === 'admin') {
+                    const btnColor = c.active ? '#dc3545' : '#28a745';
+                    const btnText = c.active ? 'Desativar' : 'Ativar';
+                    actionBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">${btnText}</button>`;
+                } else {
+                    actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
+                }
 
+                // Status Badge
                 const statusBadge = c.active 
-                    ? '<span style="color:green; font-weight:bold;">Ativo</span>' 
-                    : '<span style="color:red; font-weight:bold;">Inativo</span>';
+                    ? '<span style="background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Ativo</span>' 
+                    : '<span style="background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Inativo</span>';
 
-                let imgUrl = (c.profile_pic && c.profile_pic !== 'default.png') ? '/uploads/' + c.profile_pic : `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}`;
+                // --- CORREÇÃO AQUI (profile_pic em vez de photo) ---
+                let imgUrl = '';
+                if (c.profile_pic && c.profile_pic !== 'default.png') {
+                    // Adiciona o caminho da pasta uploads
+                    imgUrl = '/uploads/' + c.profile_pic;
+                } else {
+                    // Avatar genérico com iniciais
+                    imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
+                }
+
+                const photoHtml = `<img src="${imgUrl}" 
+                    onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" 
+                    style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
+                // ----------------------------------------------------
 
                 tbody.innerHTML += `
-                    <tr style="text-align: center;">
-                        <td><img src="${imgUrl}" style="width:32px; height:32px; border-radius:50%;"></td>  
-                        <td style="text-align:left;">${c.name}</td> 
+                    <tr style="border-bottom: 1px solid #eee; text-align: center;">
+                        <td style="padding:10px;">${photoHtml}</td>  
+                        <td style="text-align:left; font-weight:bold;">${c.name}</td> 
                         <td>${c.email || '-'}</td> 
                         <td>${c.phone || '-'}</td> 
                         <td>${c.country || 'BR'}</td> 
@@ -362,61 +724,19 @@ async function loadClients() {
                         <td>${actionBtn}</td> 
                     </tr>`; 
             }); 
+            
+            if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
         }
     } catch (error) {
-        console.error("Erro clientes:", error);
+        console.error("Erro ao carregar clientes:", error);
     }
 }
+async function toggleClient(id, active) { await fetch('/api/clients/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,active})}); loadClients(); }
 
-async function toggleClient(id, active) { 
-    await fetch('/api/clients/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,active})}); 
-    loadClients(); 
-}
-
-// UTILITÁRIOS
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-function logout() { fetch('/api/logout'); window.location.href = 'index.html'; }
-function setRole(role) {
-    currentRole = role;
-    document.querySelectorAll('#role-selector button').forEach(b => {
-        b.style.background = '#eee';
-        b.style.color = '#333';
-    });
-    const activeBtn = document.getElementById(`btn-${role}`);
-    if(activeBtn) {
-        activeBtn.style.background = '#0a1931';
-        activeBtn.style.color = '#fff';
-    }
-}
-function showRegister() {
-    document.getElementById('login-form').classList.add('hidden');
-    document.getElementById('register-form').classList.remove('hidden');
-    setRole('client');
-    updateMasks();
-}
-function showLogin() {
-    document.getElementById('register-form').classList.add('hidden');
-    document.getElementById('login-form').classList.remove('hidden');
-}
-
-// Funções de Box Auxiliares (Inline para garantir funcionamento)
-async function loadClientOrdersInBox(cid) { 
-    const sel = document.getElementById('box-order-select'); 
-    if(!sel) return;
-    if(!cid) { sel.disabled=true; return; } 
-    
-    const res = await fetch(`/api/orders/by-client/${cid}`); 
-    const list = await res.json(); 
-    sel.innerHTML='<option value="">Selecione...</option>'; 
-    list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); 
-    sel.disabled=false; 
-}
-
-function autoFillBoxData(sel) { 
-    const desc = sel.options[sel.selectedIndex].getAttribute('data-desc');
-    const prodEl = document.getElementById('box-products');
-    if(prodEl && desc) prodEl.value = desc; 
-}
+async function openBoxModal() { document.getElementById('box-modal').classList.remove('hidden'); loadClientsBox(); }
+async function loadClientsBox() { const res = await fetch('/api/clients'); const list = await res.json(); const sel = document.getElementById('box-client-select'); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`); }
+async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
+function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
 // Função Principal de Carregar Encomendas (ATUALIZADA COM FOTO)
 async function loadOrders() {
     if (!currentUser) return; 
@@ -630,23 +950,17 @@ function checkVideoPermission() {
     }
 }
 
+// 2. Abre o Modo Tela Cheia
 async function openFullscreenCamera() {
     const overlay = document.getElementById('fullscreen-camera-overlay');
-    if(!overlay) return alert("Erro: Elemento de câmera não encontrado na página.");
-
-    overlay.classList.remove('hidden'); 
-    overlay.style.display = 'flex'; 
+    overlay.classList.remove('hidden'); // Mostra a div preta
+    overlay.style.display = 'flex'; // Garante o display flex
     
     // Reseta UI
-    const recUi = document.getElementById('record-ui');
-    const upUi = document.getElementById('upload-ui');
-    if(recUi) recUi.classList.remove('hidden');
-    if(upUi) upUi.classList.add('hidden');
-
-    const camFeed = document.getElementById('camera-feed');
-    const vidPrev = document.getElementById('video-preview');
-    if(camFeed) camFeed.style.display = 'block';
-    if(vidPrev) vidPrev.style.display = 'none';
+    document.getElementById('record-ui').classList.remove('hidden');
+    document.getElementById('upload-ui').classList.add('hidden');
+    document.getElementById('camera-feed').style.display = 'block';
+    document.getElementById('video-preview').style.display = 'none';
     
     await startCamera(currentFacingMode);
 }
@@ -654,10 +968,8 @@ async function openFullscreenCamera() {
 // 3. Fecha o Modo Tela Cheia
 function closeFullscreenCamera() {
     const overlay = document.getElementById('fullscreen-camera-overlay');
-    if(overlay) {
-        overlay.classList.add('hidden');
-        overlay.style.display = 'none';
-    }
+    overlay.classList.add('hidden');
+    overlay.style.display = 'none';
     
     // Para a câmera para economizar bateria
     if(currentStream) {
@@ -668,8 +980,8 @@ function closeFullscreenCamera() {
 // 4. Inicia o Stream da Câmera
 async function startCamera(facingMode) {
     const video = document.getElementById('camera-feed');
-    if(!video) return;
     
+    // Para stream anterior se existir
     if(currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
     }
@@ -678,7 +990,7 @@ async function startCamera(facingMode) {
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { 
                 facingMode: facingMode,
-                width: { ideal: 1280 }, 
+                width: { ideal: 1280 }, // Tenta HD
                 height: { ideal: 720 }
             }, 
             audio: true 
@@ -686,7 +998,7 @@ async function startCamera(facingMode) {
         currentStream = stream;
         video.srcObject = stream;
     } catch (err) {
-        alert("Erro ao acessar câmera: " + err.message);
+        alert("Erro ao acessar câmera: " + err);
         closeFullscreenCamera();
     }
 }
@@ -700,6 +1012,7 @@ function switchCamera() {
 function startRecording() {
     recordedChunks = [];
     
+    // Tenta codecs melhores para celular
     let options = { mimeType: 'video/webm;codecs=vp8' };
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
         options = { mimeType: 'video/webm' }; // Fallback
@@ -722,68 +1035,72 @@ function startRecording() {
         const previewEl = document.getElementById('video-preview');
         previewEl.src = videoURL;
         
+        // Troca visualização: Câmera -> Preview Gravado
         document.getElementById('camera-feed').style.display = 'none';
         previewEl.style.display = 'block';
         
+        // Troca botões: Gravar -> Enviar
         document.getElementById('record-ui').classList.add('hidden');
         document.getElementById('upload-ui').classList.remove('hidden');
         
-        previewEl.play(); 
+        previewEl.play(); // Toca o vídeo automaticamente pra conferir
     };
 
     mediaRecorder.start();
 
+    // UI de gravando
     document.getElementById('btn-start-rec').classList.add('hidden');
     document.getElementById('btn-stop-rec').classList.remove('hidden');
     document.getElementById('recording-timer').classList.remove('hidden');
 }
 
 function stopRecording() {
-    if(mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-        document.getElementById('btn-start-rec').classList.remove('hidden');
-        document.getElementById('btn-stop-rec').classList.add('hidden');
-        document.getElementById('recording-timer').classList.add('hidden');
-    }
+    mediaRecorder.stop();
+    document.getElementById('btn-start-rec').classList.remove('hidden');
+    document.getElementById('btn-stop-rec').classList.add('hidden');
+    document.getElementById('recording-timer').classList.add('hidden');
 }
 
 // 6. Refazer vídeo (Botão Descartar)
 function retakeVideo() {
     currentBlob = null;
     document.getElementById('camera-feed').style.display = 'block';
-    
-    const prev = document.getElementById('video-preview');
-    prev.style.display = 'none';
-    prev.src = "";
+    document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('video-preview').src = "";
     
     document.getElementById('record-ui').classList.remove('hidden');
     document.getElementById('upload-ui').classList.add('hidden');
 }
+// --- FUNÇÃO PARA PREENCHER O MENU DE SELEÇÃO DE ENCOMENDA ---
 async function loadOrdersForVideo() {
     const select = document.getElementById('video-client-select');
+    
+    // Se o elemento não existir na tela (ex: painel de cliente), sai
     if (!select) return;
 
-    // Reseta botão
-    const btn = document.getElementById('btn-open-fullscreen');
-    if(btn) {
-        btn.disabled = true;
-        btn.innerHTML = 'Selecione uma encomenda acima';
-        btn.style.background = '#2c3e50';
+    // Reseta o botão da câmera
+    const btnCamera = document.getElementById('btn-open-fullscreen');
+    if(btnCamera) {
+        btnCamera.disabled = true;
+        btnCamera.style.background = '#2c3e50';
+        btnCamera.innerHTML = '<i class="fas fa-camera"></i> Selecione uma encomenda';
     }
 
     try {
+        // Busca todas as encomendas do sistema
         const res = await fetch('/api/orders');
         const orders = await res.json();
 
         select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
 
-        // Filtra apenas encomendas ativas (não entregues)
+        // Filtra para não mostrar encomendas finalizadas (Entregue)
+        // Se quiser mostrar todas, remova o .filter
         const activeOrders = orders.filter(o => o.status !== 'Entregue');
 
         activeOrders.forEach(o => {
             const clientName = o.client_name || 'Sem Nome';
-            // Value = ID do Cliente (pra salvar no banco quem é o dono)
-            // Data-desc = Descrição visual
+            // O value é o ID do CLIENTE (para vincular o vídeo ao dono)
+            // Guardamos o Código da Encomenda no dataset para usar na descrição
             select.innerHTML += `
                 <option value="${o.client_id}" data-code="${o.code}" data-desc="${o.description}">
                     ${o.code} - ${clientName} (${o.description})
@@ -791,10 +1108,11 @@ async function loadOrdersForVideo() {
             `;
         });
 
-        // Evento de mudança
+        // Adiciona evento para atualizar o texto da descrição ao mudar a seleção
         select.onchange = function() {
-            checkVideoPermission(); // Libera botão
+            checkVideoPermission(); // Libera o botão
             
+            // Atualiza o resumo visual na tela
             const option = select.options[select.selectedIndex];
             const infoDesc = document.getElementById('info-desc');
             
@@ -808,11 +1126,12 @@ async function loadOrdersForVideo() {
         };
 
     } catch (error) {
-        console.error("Erro ao carregar lista de vídeos:", error);
+        console.error("Erro ao carregar encomendas para vídeo:", error);
+        select.innerHTML = '<option value="">Erro ao carregar lista</option>';
     }
 }
 
-// 1. Habilita o botão apenas se selecionar cliente
+// --- FUNÇÃO PARA LIBERAR O BOTÃO DA CÂMERA ---
 function checkVideoPermission() {
     const sel = document.getElementById('video-client-select');
     const btn = document.getElementById('btn-open-fullscreen');
@@ -833,25 +1152,16 @@ function checkVideoPermission() {
     }
 }
 
+
 function discardVideo() {
     currentBlob = null;
     recordedChunks = [];
-    
-    const preview = document.getElementById('video-preview');
-    if (preview) {
-        preview.pause();
-        preview.src = "";
-        preview.style.display = 'none';
-    }
-
-    const cameraFeed = document.getElementById('camera-feed');
-    if (cameraFeed) cameraFeed.style.display = 'block';
-
-    const recordUi = document.getElementById('record-ui');
-    const uploadUi = document.getElementById('upload-ui');
-    
-    if (recordUi) recordUi.classList.remove('hidden');
-    if (uploadUi) uploadUi.classList.add('hidden');
+    document.getElementById('video-preview').pause();
+    document.getElementById('video-preview').src = "";
+    document.getElementById('camera-feed').style.display = 'block';
+    document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('camera-controls-ui').style.display = 'block';
+    document.getElementById('preview-controls-ui').style.display = 'none';
 }
 
 async function confirmUpload() {
@@ -862,17 +1172,19 @@ async function confirmUpload() {
     
     if (!clientId) return alert("⚠️ Erro: Selecione um Cliente/Encomenda na lista antes de enviar!");
 
+    // Dados descritivos
     const descEl = document.getElementById('info-desc');
     const descText = descEl ? descEl.innerText : 'Vídeo de Encomenda';
     
+    // Preparação do envio
     const formData = new FormData();
     formData.append('client_id', clientId);
     formData.append('description', descText);
     formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
 
-    // Feedback no botão
-    // Tenta achar o botão dentro da div upload-ui (mais seguro)
-    let btn = document.querySelector('#upload-ui button.btn-primary');
+    // Feedback visual no botão
+    let btn = document.querySelector('#preview-controls-ui .btn-primary');
+    // Fallback se não achar o botão específico
     if(!btn) btn = document.querySelector('button[onclick="confirmUpload()"]');
     
     const oldText = btn ? btn.innerText : 'Enviar';
@@ -883,30 +1195,35 @@ async function confirmUpload() {
 
     try {
         const res = await fetch('/api/videos/upload', { method: 'POST', body: formData });
+        
+        // Verifica se a resposta é JSON válido
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new Error("Erro de servidor (Resposta não é JSON)");
+        }
+
         const data = await res.json();
         
         if(data.success) {
             alert("✅ Vídeo enviado com sucesso!");
             
-            // Fecha a câmera
-            closeFullscreenCamera();
-
-            // Recarrega a lista
+            // Recarrega a lista apropriada
             if(currentUser.role !== 'client') {
                  if(typeof loadAdminVideos === 'function') loadAdminVideos(); 
             } else {
                  if(typeof loadClientVideos === 'function') loadClientVideos();
             }
             
-            // Limpa tudo
+            // Reseta a interface de gravação
             discardVideo(); 
         } else {
-            throw new Error(data.msg || "Erro desconhecido");
+            throw new Error(data.msg || "Erro desconhecido no upload");
         }
     } catch(e) { 
         console.error(e);
         alert("❌ Falha no envio: " + e.message); 
     } finally {
+        // Restaura o botão sempre, mesmo se der erro
         if(btn) {
             btn.innerText = oldText; 
             btn.disabled = false;
@@ -963,7 +1280,7 @@ async function loadAdminVideos() {
             <tr>
                 <td>${v.id}</td>
                 <td>${v.client_name || 'Desconhecido'}</td>
-                <td>${new Date(v.created_at).toLocaleDateString()}</td>
+                <td>${formatDate(v.created_at)}</td>
                 <td>
                     <a href="/uploads/videos/${v.filename}" target="_blank" style="color:blue">Ver</a> | 
                     <button onclick="deleteVideo(${v.id}, '${v.filename}')" style="color:red; border:none; background:none; cursor:pointer;">Excluir</button>
@@ -972,6 +1289,7 @@ async function loadAdminVideos() {
         `;
     });
 }
+
 async function loadClientVideos() {
     const grid = document.getElementById('client-video-grid');
     if(!grid) return; 
@@ -981,52 +1299,54 @@ async function loadClientVideos() {
         const list = await res.json();
         
         if(list.length === 0) {
-            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%; margin-top:20px;">Nenhum vídeo disponível.</p>';
+            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%; margin-top:20px;">Nenhum vídeo disponível no momento.</p>';
             return;
         }
 
+        // Monta todo o HTML numa variável primeiro (Mais rápido)
         let htmlBuffer = '';
+
         list.forEach(v => {
             const dateStr = new Date(v.created_at).toLocaleDateString('pt-BR');
+            // Escapa aspas para evitar quebra de HTML
             const descSafe = (v.description || 'Sem descrição').replace(/"/g, '&quot;');
             
             htmlBuffer += `
                 <div class="video-card" style="border:1px solid #ddd; padding:15px; border-radius:8px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                    <div style="margin-bottom:10px; font-weight:bold; color:#0a1931; font-size:14px;" title="${descSafe}">
+                    <div style="margin-bottom:10px; font-weight:bold; color:#0a1931; font-size:14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${descSafe}">
                         📦 ${descSafe}
                     </div>
                     <video controls preload="metadata" style="width:100%; border-radius:5px; background:black; aspect-ratio: 16/9;">
                         <source src="/uploads/videos/${v.filename}" type="video/webm">
+                        Seu navegador não suporta vídeos.
                     </video>
                     <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:#666;">📅 ${dateStr}</span>
-                        <a href="/uploads/videos/${v.filename}" download class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">
+                        <a href="/uploads/videos/${v.filename}" download="video-${v.id}.webm" class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">
                             <i class="fas fa-download"></i> Baixar
                         </a>
                     </div>
                 </div>
             `;
         });
+
         grid.innerHTML = htmlBuffer;
+
     } catch (error) {
-        console.error("Erro vídeos:", error);
+        console.error("Erro ao carregar vídeos:", error);
+        grid.innerHTML = '<p style="color:red; text-align:center;">Erro de conexão ao buscar vídeos.</p>';
     }
 }
 
 async function deleteVideo(id, filename) {
-    if(!confirm("Tem certeza que deseja excluir este vídeo?")) return;
-    
-    const res = await fetch('/api/videos/delete', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id, filename })
+    if(!confirm("Excluir este vídeo permanentemente?")) return;
+    await fetch('/api/videos/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id, filename})
     });
+    loadAdminVideos();
     
-    const data = await res.json();
-    if(data.success) {
-        loadAdminVideos();
-    } else {
-        alert("Erro ao excluir.");
-    }
 }
 
 // --- FUNÇÃO DE PESQUISA GLOBAL ---
@@ -1066,21 +1386,24 @@ function makeTablesResponsive() {
         });
     });
 }
+// --- SISTEMA DE NOTIFICAÇÕES (WhatsApp & Email) ---
 function sendNotification(type, contact, name, code, status) {
-    if(!contact || contact === 'undefined' || contact === 'null') {
-        return alert("Erro: Contato (Telefone/Email) não cadastrado.");
+    if(!contact || contact === 'undefined') {
+        return alert("Erro: Contato (Telefone/Email) não encontrado para este pedido. Verifique o cadastro do cliente.");
     }
 
+    // Mensagem Padrão Profissional
     const message = `Olá *${name}*! 👋\n\nPassando para informar sobre sua encomenda *${code}* na Guineexpress.\n\n📦 *Novo Status:* ${status.toUpperCase()}\n\nAcesse nosso painel para mais detalhes.\nObrigado!`;
 
     if (type === 'whatsapp') {
         // Limpa o numero deixando apenas digitos
         let cleanPhone = contact.replace(/\D/g, '');
         
-        // Verifica se tem código do país (se menor que 12 digitos, assume Brasil 55)
-        // Isso é opcional, pode remover se seus numeros ja forem salvos com DDI
-        if(cleanPhone.length <= 11 && !cleanPhone.startsWith('55')) { 
-             // cleanPhone = '55' + cleanPhone; 
+        // Verifica se tem código do país, se não tiver e for Guiné, adiciona (Exemplo) ou Brasil
+        // Ajuste conforme sua necessidade. Se seus numeros ja tem DDI, remova esse if.
+        if(cleanPhone.length <= 11) { 
+             // Assumindo Brasil (55) se for curto, ou adicione o da Guiné (245)
+             // cleanPhone = '245' + cleanPhone; 
         }
 
         const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
@@ -1088,23 +1411,22 @@ function sendNotification(type, contact, name, code, status) {
     
     } else if (type === 'email') {
         const subject = `📦 Atualização de Encomenda: ${code}`;
-        const url = `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+        const body = message;
+        const url = `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         window.open(url, '_blank');
     }
 }
 
-// Atualiza status com confirmação visual
+// Atualiza o status e PERGUNTA se quer notificar
 async function updateOrderStatus(id, status, name, code, phone) { 
-    if(!confirm(`Deseja alterar o status para: ${status}?`)) return;
-
     await fetch('/api/orders/update', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({id,status})
     });
     
-    // Pergunta se quer notificar
-    if(phone && confirm(`Status salvo! 💾\n\nDeseja enviar notificação no WhatsApp do cliente agora?`)) {
+    // Feedback visual e sugestão de notificação
+    if(confirm(`Status alterado para ${status}! \n\nDeseja enviar uma notificação no WhatsApp do cliente agora?`)) {
         sendNotification('whatsapp', phone, name, code, status);
     }
     
@@ -2483,45 +2805,45 @@ async function deleteOrder(id) {
             alert("✅ Encomenda excluída!");
             loadOrders(); // Recarrega a tabela
         } else {
-            alert("Erro ao excluir: " + (data.message || 'Falha no servidor'));
+            alert("Erro ao excluir: " + data.message);
         }
     } catch (error) {
         console.error(error);
         alert("Erro de conexão.");
     }
 }
+
+// ==========================================
+// FUNÇÕES DE EDIÇÃO E EXCLUSÃO
+// ==========================================
+
+// 1. Prepara o Modal para NOVA encomenda (Limpa tudo)
 function prepareNewOrder() {
     document.getElementById('new-order-form').reset();
     document.getElementById('editing-order-id').value = ''; 
     document.getElementById('modal-order-title').innerText = '📦 Nova Encomenda';
     
-    // Carrega clientes ANTES de abrir
-    loadClientsToSelect(); 
+    loadClientsToSelect(); // Carrega a lista de clientes
     openModal('modal-order');
 }
 
-// 2. Prepara Modal para EDITAR (Carrega dados e preenche)
+// 2. Prepara o Modal para EDITAR encomenda (Preenche dados)
 async function editOrder(id) {
     try {
-        // Passo 1: Garante que a lista de clientes esteja carregada no select
-        await loadClientsToSelect(); 
+        await loadClientsToSelect(); // Garante que a lista de clientes esteja carregada
 
-        // Passo 2: Busca os dados da encomenda
         const res = await fetch(`/api/orders/${id}`);
         const order = await res.json();
 
         if (!order) return alert('Encomenda não encontrada!');
 
-        // Passo 3: Preenche o formulário
+        // Preenche o formulário com os dados do banco
         document.getElementById('editing-order-id').value = order.id;
         document.getElementById('order-code').value = order.code;
         document.getElementById('order-desc').value = order.description;
         document.getElementById('order-weight').value = order.weight;
         document.getElementById('order-status').value = order.status;
-        
-        // Seleciona o cliente correto na lista
-        const clientSelect = document.getElementById('order-client-select');
-        if(clientSelect) clientSelect.value = order.client_id;
+        document.getElementById('order-client-select').value = order.client_id;
 
         // Muda título e abre
         document.getElementById('modal-order-title').innerText = '✏️ Editar Encomenda';
@@ -2529,7 +2851,7 @@ async function editOrder(id) {
 
     } catch (error) {
         console.error(error);
-        alert('Erro ao carregar dados para edição.');
+        alert('Erro ao carregar dados.');
     }
 }
 
@@ -2575,7 +2897,7 @@ async function handleOrderSubmit(e) {
     }
 }
 
-// --- FUNÇÃO: ATUALIZAR ENCOMENDA (Edição Geral) ---
+// --- FUNÇÃO AUXILIAR: ATUALIZAR ENCOMENDA (PUT) ---
 async function updateOrder(id) {
     const data = {
         client_id: document.getElementById('order-client-select').value,
@@ -2586,7 +2908,7 @@ async function updateOrder(id) {
     };
 
     try {
-        const res = await fetch(`/api/orders/${id}`, { 
+        const res = await fetch(`/api/orders/${id}`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -2595,24 +2917,22 @@ async function updateOrder(id) {
         const json = await res.json();
         if(json.success) {
             alert("✅ Atualizado com sucesso!");
-            // Fecha o modal se a função existir
-            if(typeof closeModal === 'function') closeModal('modal-order');
-            // Recarrega a tabela se a função existir
-            if(typeof loadOrders === 'function') loadOrders(); 
+            closeModal('modal-order');
+            loadOrders();
         } else {
-            alert("Erro: " + (json.message || "Falha ao atualizar"));
+            alert("Erro: " + json.message);
         }
     } catch (e) {
-        console.error(e);
-        alert("Erro de conexão ao atualizar.");
+        alert("Erro de conexão.");
     }
 }
 
+// --- FUNÇÃO AUXILIAR: CARREGAR CLIENTES NO SELECT DE EDIÇÃO ---
 async function loadClientsToSelect() {
     const sel = document.getElementById('order-client-select');
     if(!sel) return;
     
-    // Se já tiver opções (além do placeholder), não recarrega
+    // Se já tiver opções carregadas (mais de 1), não recarrega para economizar dados
     if(sel.options.length > 1) return;
 
     try {
@@ -2624,7 +2944,7 @@ async function loadClientsToSelect() {
             sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
         });
     } catch (e) {
-        console.error("Erro ao carregar clientes no select:", e);
+        console.error("Erro ao carregar lista de clientes para edição:", e);
     }
 }
 
@@ -2713,13 +3033,8 @@ const DeliveryProof = {
     capturedImage: null,
     pendingShipmentId: null,
 
-    // Abre a câmera
+    // Abre a câmera quando o funcionário seleciona "Entregue"
     start: function(shipmentId) {
-        // SEGURANÇA: Câmera só funciona em HTTPS ou localhost
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            return alert("Erro: O navegador bloqueou a câmera. Use HTTPS.");
-        }
-
         this.pendingShipmentId = shipmentId;
         const modal = document.getElementById('delivery-photo-modal');
         const video = document.getElementById('delivery-video');
@@ -2727,26 +3042,20 @@ const DeliveryProof = {
         const btnSnap = document.getElementById('btn-snap-photo');
         const btnConfirm = document.getElementById('btn-confirm-delivery');
 
-        // Reseta visual
-        if(preview) preview.style.display = 'none';
-        if(video) video.style.display = 'block';
-        if(btnSnap) btnSnap.classList.remove('hidden');
-        if(btnConfirm) btnConfirm.classList.add('hidden');
-        if(modal) modal.classList.remove('hidden');
+        // Resetar visual
+        preview.style.display = 'none';
+        video.style.display = 'block';
+        btnSnap.classList.remove('hidden');
+        btnConfirm.classList.add('hidden');
+        modal.classList.remove('hidden');
 
-        // Tenta câmera traseira (environment)
+        // Ligar câmera
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(stream => {
                 this.stream = stream;
-                if(video) {
-                    video.srcObject = stream;
-                    video.play(); // Garante o play no iPhone
-                }
+                video.srcObject = stream;
             })
-            .catch(err => {
-                alert("Não foi possível acessar a câmera: " + err);
-                this.close();
-            });
+            .catch(err => alert("Erro ao abrir câmera: " + err));
     },
 
     // Tira a foto
@@ -2755,75 +3064,64 @@ const DeliveryProof = {
         const canvas = document.getElementById('delivery-canvas');
         const preview = document.getElementById('delivery-preview');
         
-        if(!canvas || !video) return;
-
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
+        
+        // Desenha o vídeo no canvas
         canvas.getContext('2d').drawImage(video, 0, 0);
         
-        // Qualidade 0.7 para ficar leve no banco
-        this.capturedImage = canvas.toDataURL('image/jpeg', 0.7); 
+        // Converte para imagem Base64
+        this.capturedImage = canvas.toDataURL('image/jpeg', 0.7); // 0.7 = qualidade média (leve)
         
-        if(preview) {
-            preview.src = this.capturedImage;
-            preview.style.display = 'block';
-        }
+        // Mostra preview
+        preview.src = this.capturedImage;
+        preview.style.display = 'block';
         
-        video.style.display = 'none';
+        // Troca botões
         document.getElementById('btn-snap-photo').classList.add('hidden');
         document.getElementById('btn-confirm-delivery').classList.remove('hidden');
     },
 
-    // Confirma e envia
+    // Confirma e envia para o servidor
     confirm: function() {
         if (!this.capturedImage || !this.pendingShipmentId) return;
-        
-        // Chama a função auxiliar para enviar ao backend
-        // (Certifique-se que updateShipmentStatusWithProof existe no seu script)
-        updateShipmentStatusWithProof(this.pendingShipmentId, 'Entregue', 'Local: App', this.capturedImage);
+
+        updateShipmentStatusWithProof(this.pendingShipmentId, 'Entregue', 'Entregue ao Cliente', this.capturedImage);
         this.close();
     },
 
     close: function() {
         const modal = document.getElementById('delivery-photo-modal');
-        if(modal) modal.classList.add('hidden');
+        modal.classList.add('hidden');
         
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
-            this.stream = null;
         }
     },
 
+    // Para o cliente ver a foto
     view: function(imgData) {
-        const img = document.getElementById('proof-image-full');
-        const modal = document.getElementById('view-proof-modal');
-        if(img && modal) {
-            img.src = imgData;
-            modal.classList.remove('hidden');
-        }
+        document.getElementById('proof-image-full').src = imgData;
+        document.getElementById('view-proof-modal').classList.remove('hidden');
     }
 };
-
-// --- FUNÇÃO AUXILIAR NECESSÁRIA PARA A CÂMERA FUNCIONAR ---
-async function updateShipmentStatusWithProof(id, status, location, proof) {
-    try {
-        const res = await fetch('/api/orders/update', { // Usa a rota POST que definimos no server.js
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id, status, location, delivery_proof: proof })
-        });
-        const json = await res.json();
+function updateShipmentStatusWithProof(id, status, location, proofBase64) {
+    // CORREÇÃO: Mudar a URL para /api/orders/update
+    fetch('/api/orders/update', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, location, delivery_proof: proofBase64 })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert("Entrega confirmada com foto! 📸");
+        // Se sua função de carregar a tabela se chama loadOrders() ou loadShipments(), chame ela aqui:
+        if(typeof loadOrders === 'function') loadOrders(); 
+        else if(typeof loadShipments === 'function') loadShipments();
         
-        if(json.success) {
-            alert("✅ Entrega confirmada com foto!");
-            loadOrders();
-        } else {
-            alert("Erro ao salvar comprovante: " + json.msg);
-        }
-    } catch(err) {
-        console.error(err);
-        alert("Erro de conexão ao enviar foto.");
-    }
+        if(typeof loadKpis === 'function') loadKpis();
+    })
+    .catch(err => console.error("Erro:", err));
 }
 // Função auxiliar para decidir se abre Câmera ou atualiza direto
 function checkDeliveryStatus(selectElement, id, name, code, phone) {
