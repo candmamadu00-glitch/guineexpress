@@ -5,7 +5,6 @@ let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
-// --- 1. CONFIGURAÇÃO DE MÁSCARAS (TELEFONE E DOCUMENTO) ---
 // ==========================================
 // AUTO-LOGIN (Ao atualizar a página)
 // ==========================================
@@ -43,80 +42,76 @@ async function checkAutoLogin() {
 document.addEventListener('DOMContentLoaded', () => {
     checkAutoLogin();
 });
-// Máscaras de Telefone
-const countryMasks = {
-    'GW': '+245 00 000 00 00', // Guiné-Bissau
-    'BR': '(00) 00000-0000',    // Brasil
-    'PT': '+351 000 000 000',   // Portugal
-    'SN': '+221 00 000 00 00',  // Senegal
-    'MA': '+212 0 00 00 00 00', // Marrocos
-    'US': '+1 (000) 000-0000',  // EUA
-    'FR': '+33 0 00 00 00 00',  // França
-    'ES': '+34 000 000 000',    // Espanha
-    'UK': '+44 0000 000000',    // Reino Unido
-    'BE': '+32 000 00 00 00',   // Bélgica
-    'CV': '+238 000 00 00'      // Cabo Verde
+// ==========================================
+// CONFIGURAÇÃO AVANÇADA DE MÁSCARAS
+// ==========================================
+
+// Definição completa: Prefixo (para salvar no banco) e Máscara Visual
+const countryData = {
+    'GW': { code: '245', phoneMask: '+{245} 00 000 00 00', docMask: '000000000' }, // Guiné
+    'BR': { code: '55',  phoneMask: '+{55} (00) 00000-0000', docMask: '000.000.000-00' }, // Brasil (CPF)
+    'PT': { code: '351', phoneMask: '+{351} 000 000 000', docMask: '000000000' }, // Portugal (NIF)
+    'SN': { code: '221', phoneMask: '+{221} 00 000 00 00', docMask: '0 000 0000 00000' }, // Senegal
+    'MA': { code: '212', phoneMask: '+{212} 0 00 00 00 00', docMask: '00000000' }, // Marrocos
+    'US': { code: '1',   phoneMask: '+{1} (000) 000-0000', docMask: '000-00-0000' }, // EUA
+    'FR': { code: '33',  phoneMask: '+{33} 0 00 00 00 00', docMask: '000000000000' }, // França
+    'ES': { code: '34',  phoneMask: '+{34} 000 000 000', docMask: '00000000X' }, // Espanha (NIE/DNI)
+    'UK': { code: '44',  phoneMask: '+{44} 0000 000000', docMask: '000000000' }, // UK
+    'BE': { code: '32',  phoneMask: '+{32} 000 00 00 00', docMask: '00.00.00-000.00' }, // Bélgica
+    'CV': { code: '238', phoneMask: '+{238} 000 00 00', docMask: '000000000' }, // Cabo Verde
+    'default': { code: '', phoneMask: '00000000000000', docMask: '********************' }
 };
 
-// Máscaras de Documento (Novas)
-// '0' = apenas números, 'a' = letras, '*' = letras e números
-const countryDocMasks = {
-    'GW': '000000000',          // Guiné (Exemplo numérico)
-    'BR': '000.000.000-00',     // Brasil (CPF)
-    'PT': '000000000',          // Portugal (NIF)
-    'US': '000-00-0000',        // EUA (SSN)
-    'SN': '0 000 0000 00000',   // Senegal (Exemplo CNI)
-    'CV': '000000000',          // Cabo Verde
-    // Para outros países, deixamos uma máscara genérica de 12 a 15 caracteres
-    'default': '****************' 
-};
-
-// Variáveis de controle para limpar a máscara anterior ao trocar
 let phoneMaskInstance = null;
 let docMaskInstance = null;
 
 function updateMasks() {
-    // Verifica se a biblioteca IMask carregou
-    if (typeof IMask === 'undefined') {
-        console.warn("Biblioteca IMask não carregada.");
-        return;
-    }
+    if (typeof IMask === 'undefined') return console.warn("IMask não carregado.");
 
     const countrySelect = document.getElementById('reg-country');
     const phoneInput = document.getElementById('reg-phone');
     const docInput = document.getElementById('reg-doc');
-    
+
     if (!countrySelect || !phoneInput || !docInput) return;
 
     const country = countrySelect.value;
+    const data = countryData[country] || countryData['default'];
 
-    // --- A. ATUALIZA MÁSCARA DE TELEFONE ---
-    const phonePattern = countryMasks[country] || '0000000000000'; 
-    
-    if (phoneMaskInstance) phoneMaskInstance.destroy(); 
+    // --- 1. MÁSCARA DE TELEFONE (Com Prefixo Automático) ---
+    if (phoneMaskInstance) phoneMaskInstance.destroy();
     
     try {
-        phoneMaskInstance = IMask(phoneInput, { mask: phonePattern });
-        phoneInput.placeholder = phonePattern.replace(/[0-9]/g, 'X'); 
-    } catch (e) { console.warn("Erro IMask Phone:", e); }
+        phoneMaskInstance = IMask(phoneInput, {
+            mask: data.phoneMask,
+            lazy: false,  // Faz a máscara aparecer imediatamente (ex: +245 __ ___)
+            placeholderChar: '_' // Caractere para onde o usuário deve digitar
+        });
+    } catch (e) { console.error(e); }
 
-    // --- B. ATUALIZA MÁSCARA DE DOCUMENTO ---
-    const docPattern = countryDocMasks[country] || countryDocMasks['default'];
-
-    if (docMaskInstance) docMaskInstance.destroy(); 
+    // --- 2. MÁSCARA DE DOCUMENTO (Validação de Formato) ---
+    if (docMaskInstance) docMaskInstance.destroy();
 
     try {
-        docMaskInstance = IMask(docInput, { 
-            mask: docPattern,
-            prepare: function (str) { return str.toUpperCase(); } 
+        docMaskInstance = IMask(docInput, {
+            mask: data.docMask,
+            prepare: (str) => str.toUpperCase() // Força letras maiúsculas
         });
         
-        docInput.placeholder = docPattern.replace(/[0-9a*]/g, 'X'); 
-        if(country === 'BR') docInput.placeholder = "CPF (000.000.000-00)";
-        if(country === 'PT') docInput.placeholder = "NIF (000000000)";
-
-    } catch (e) { console.warn("Erro IMask Doc:", e); }
+        // Ajusta placeholder visualmente
+        if (country === 'BR') docInput.placeholder = "CPF (000.000.000-00)";
+        else if (country === 'PT') docInput.placeholder = "NIF";
+        else docInput.placeholder = "Número do Documento";
+        
+    } catch (e) { console.error(e); }
 }
+
+// Inicializa as máscaras assim que carregar
+document.addEventListener('DOMContentLoaded', () => {
+    // Se existir o select na tela, aplica a máscara inicial
+    if(document.getElementById('reg-country')) {
+        updateMasks();
+    }
+});
 // --- LOGIN & CADASTRO (CORRIGIDO) ---
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -148,18 +143,79 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     }
 });
 
+// --- CADASTRO COM VALIDAÇÃO RIGOROSA ---
 document.getElementById('register-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if(document.getElementById('reg-pass').value !== document.getElementById('reg-pass2').value) return alert('Senhas não conferem');
+
+    const pass = document.getElementById('reg-pass').value;
+    const pass2 = document.getElementById('reg-pass2').value;
+    const name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const country = document.getElementById('reg-country').value;
+
+    // 1. Validação de Senha
+    if (pass !== pass2) return alert('❌ As senhas não coincidem!');
+    if (pass.length < 6) return alert('❌ A senha deve ter no mínimo 6 caracteres.');
+
+    // 2. Validação de Telefone (Usando a máscara)
+    if (!phoneMaskInstance || !phoneMaskInstance.masked.isComplete) {
+        return alert('❌ Digite o número de celular completo (com DDD).');
+    }
+
+    // 3. Validação de Documento (Usando a máscara)
+    // Para alguns países a validação de tamanho é crítica
+    if (!docMaskInstance || !docMaskInstance.masked.isComplete) {
+        return alert('❌ O número do documento está incompleto ou inválido para o país selecionado.');
+    }
+
+    // PREPARAÇÃO DOS DADOS PARA O BANCO
+    // Pega o valor "unmasked" (sem traços e parenteses) mas garante o código do país
+    // O IMask unmaskedValue já remove a formatação, mas mantém os números.
+    // Ex: +245 99... vira 24599... (Perfeito para o WhatsApp API)
+    const cleanPhone = phoneMaskInstance.unmaskedValue; 
     
+    // Documento limpo (apenas letras e números)
+    const cleanDoc = docMaskInstance.value.toUpperCase(); 
+
     const formData = {
-        name: document.getElementById('reg-name').value, email: document.getElementById('reg-email').value,
-        phone: document.getElementById('reg-phone').value, country: document.getElementById('reg-country').value,
-        document: document.getElementById('reg-doc').value, password: document.getElementById('reg-pass').value
+        name: name,
+        email: email,
+        phone: cleanPhone, // Envia ex: 245966600000
+        country: country,
+        document: cleanDoc,
+        password: pass
     };
-    const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData)});
-    const data = await res.json();
-    if(data.success) { alert('Sucesso! Faça login.'); showLogin(); } else alert(data.msg);
+
+    const btn = e.target.querySelector('button');
+    const oldText = btn.innerText;
+    btn.innerText = "Cadastrando...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/register', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await res.json();
+        
+        if(data.success) { 
+            alert('✅ Cadastro realizado com sucesso!\nFaça login para continuar.'); 
+            showLogin(); 
+            // Limpa formulário
+            document.getElementById('register-form').reset();
+            updateMasks(); // Reseta as máscaras
+        } else { 
+            alert('Erro: ' + data.msg); 
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão ao cadastrar.");
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
 });
 function showSection(id) {
     // 1. Esconde todas as seções
