@@ -33,14 +33,19 @@ const storage = multer.diskStorage({
     }
 });
 const upload = multer({ storage: storage });
+// --- CONFIGURAÇÃO DE EMAIL CORRIGIDA (GMAIL) ---
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // Se for gmail, isso facilita muito
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // false para porta 587 (usa STARTTLS)
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false // Ajuda a evitar erros de certificado no Render
     }
 });
-
 // Função Auxiliar para Enviar Email com HTML Bonito
 async function sendEmailHtml(to, subject, title, message) {
     if (!to || to.includes('undefined')) return;
