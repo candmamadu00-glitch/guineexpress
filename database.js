@@ -4,24 +4,21 @@ const bcrypt = require('bcryptjs');
 
 // Cria/Conecta ao banco V4
 const db = new sqlite3.Database('./guineexpress_v4.db');
+// --- CORREÇÃO AUTOMÁTICA DO BANCO DE DADOS (PATCH) ---
 db.serialize(() => {
-    // Tenta criar as colunas. Se já existirem, o erro é ignorado automaticamente.
-    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", (err) => {});
-    db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", (err) => {});     
-    db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", (err) => {});
-    
-    console.log("✅ Verificação de colunas de foto concluída.");
-});
-db.serialize(() => {
-    // 1. Cria coluna de FOTO se não existir
-    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", (err) => {
-        if (!err) console.log("✅ Coluna 'delivery_proof' adicionada com sucesso!");
-    });
+    // 1. Colunas para o Sistema de Entrega (Foto e Localização)
+    // O callback vazio () => {} serve para ignorar o erro caso a coluna já exista
+    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
+    db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      // Essa estava faltando e causou o erro
+    db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
 
-    // 2. Cria coluna de ID DO PIX se não existir
-    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", (err) => {
-        if (!err) console.log("✅ Coluna 'mp_payment_id' adicionada com sucesso!");
-    });
+    // 2. Coluna para o Financeiro (Mercado Pago)
+    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
+    
+    // 3. Coluna para envio em Caixas (Logística)
+    db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
+    
+    console.log("✅ Colunas verificadas: proof_image, delivery_proof, mp_payment_id.");
 });
 db.serialize(() => {
     // 1. Tabela de Usuários (CORRIGIDA - usa profile_pic)
