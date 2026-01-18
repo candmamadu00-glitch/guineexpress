@@ -965,16 +965,49 @@ async function openFullscreenCamera() {
     await startCamera(currentFacingMode);
 }
 
-// 3. Fecha o Modo Tela Cheia
 function closeFullscreenCamera() {
+    // Esconde a sobreposição
     const overlay = document.getElementById('fullscreen-camera-overlay');
-    overlay.classList.add('hidden');
-    overlay.style.display = 'none';
-    
-    // Para a câmera para economizar bateria
-    if(currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
+    if (overlay) overlay.classList.add('hidden');
+
+    // Para o vídeo (stream) para economizar bateria/processamento
+    const video = document.getElementById('camera-feed');
+    if (video && video.srcObject) {
+        const tracks = video.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+        video.srcObject = null;
     }
+
+    // Reseta variaveis globais
+    recordedBlob = null;
+    mediaRecorder = null;
+    chunks = [];
+
+    // Reseta visual dos botões (UI) com segurança
+    const recordUI = document.getElementById('record-ui');
+    const uploadUI = document.getElementById('upload-ui');
+    const preview = document.getElementById('video-preview');
+    const cameraFeed = document.getElementById('camera-feed');
+    const timer = document.getElementById('recording-timer');
+
+    if(recordUI) recordUI.classList.remove('hidden');
+    if(uploadUI) uploadUI.classList.add('hidden');
+    if(preview) {
+        preview.style.display = 'none';
+        preview.src = '';
+    }
+    if(cameraFeed) cameraFeed.style.display = 'block';
+    if(timer) {
+        timer.classList.add('hidden');
+        timer.innerText = "00:00";
+    }
+
+    // Reseta botões de gravar
+    const btnStart = document.getElementById('btn-start-rec');
+    const btnStop = document.getElementById('btn-stop-rec');
+    
+    if(btnStart) btnStart.classList.remove('hidden');
+    if(btnStop) btnStop.classList.add('hidden');
 }
 
 // 4. Inicia o Stream da Câmera
