@@ -3647,64 +3647,91 @@ async function exportOrdersToExcel() {
     }
 }
 // ==========================================
-// CENTRAL DE NOTIFICAÇÕES (CLIENTE)
+// CENTRAL DE NOTIFICAÇÕES (CLIENTE) - CORRIGIDA
 // ==========================================
 
 // 1. Mostrar/Esconder o menu
 function toggleNotifications() {
     const dropdown = document.getElementById('notif-dropdown');
-    if(dropdown) dropdown.classList.toggle('hidden');
+    if (dropdown) {
+        dropdown.classList.toggle('hidden');
+    } else {
+        console.error("❌ Erro: Elemento 'notif-dropdown' não encontrado no HTML.");
+    }
 }
 
 // 2. Gerar Notificações baseadas nas Encomendas
 function updateClientNotifications(orders) {
+    console.log("🔔 Verificando notificações para", orders.length, "encomendas...");
+
     const list = document.getElementById('notif-list');
     const badge = document.getElementById('notif-badge');
     
-    // Só roda se os elementos existirem (evita erro no admin)
-    if (!list || !badge) return;
+    // Se não achar o sino no HTML, avisa no console (F12)
+    if (!list || !badge) {
+        console.warn("⚠️ AVISO: Os elementos do sino (notif-list ou notif-badge) não existem nesta página.");
+        return;
+    }
 
     let notifHTML = '';
     let count = 0;
 
-    // Ordena: as que mudaram mais recentemente primeiro (simulação baseada em ID)
+    // Ordena: as mais novas primeiro
     const sortedOrders = [...orders].sort((a, b) => b.id - a.id);
 
     sortedOrders.forEach(o => {
-        // Lógica de avisos baseada no status
+        // Normaliza o status para evitar erros de maiúscula/minúscula
+        // Ex: transforma "Entregue" em "entregue" para comparar
+        const status = o.status ? o.status.toLowerCase().trim() : '';
+        const code = o.code || '???';
+
         let icon = '📦';
         let style = 'notif-info';
-        let text = `Status atual: <b>${o.status}</b>`;
+        let text = `Status: <b>${o.status}</b>`;
         let show = false;
 
-        if (o.status === 'Entregue') {
+        // --- REGRAS DE NOTIFICAÇÃO ---
+        
+        // 1. Entregue
+        if (status === 'entregue') {
             icon = '✅';
             style = 'notif-success';
-            text = `Oba! A encomenda <b>${o.code}</b> foi entregue! 🎉`;
+            text = `Oba! A encomenda <b>${code}</b> foi entregue! 🎉`;
             show = true;
         } 
-        else if (o.status === 'Chegou ao Destino' || o.status.includes('Disponível')) {
+        // 2. Chegou / Disponível
+        else if (status.includes('chegou') || status.includes('dispon') || status.includes('retirada')) {
             icon = '🏢';
             style = 'notif-success';
-            text = `Sua caixa <b>${o.code}</b> já pode ser retirada!`;
+            text = `Sua caixa <b>${code}</b> já pode ser retirada!`;
             show = true;
-            count++; // Conta como "Não lida" (Prioridade)
+            count++; // Importante: conta para a bolinha vermelha
         }
-        else if (o.status === 'Em Trânsito' || o.status.includes('Voo')) {
+        // 3. Em Trânsito / Voo
+        else if (status.includes('trânsito') || status.includes('transito') || status.includes('voo')) {
             icon = '✈️';
             style = 'notif-info';
-            text = `A encomenda <b>${o.code}</b> está a voar para o destino.`;
+            text = `A encomenda <b>${code}</b> está a caminho.`;
             show = true;
         }
-        else if (o.status === 'Pendente Pagamento') {
+        // 4. Pagamento Pendente
+        else if (status.includes('pendente') && status.includes('pagamento')) {
             icon = '💲';
             style = 'notif-warn';
-            text = `Pagamento pendente para a caixa <b>${o.code}</b>.`;
+            text = `Pagamento pendente para a caixa <b>${code}</b>.`;
             show = true;
-            count++; // Conta como importante
+            count++; // Importante
+        }
+        // 5. Avaria (Novo)
+        else if (status.includes('avaria') || status.includes('dano')) {
+            icon = '⚠️';
+            style = 'notif-warn'; // Ou criar uma classe notif-danger
+            text = `Atenção: Houve um problema com a caixa <b>${code}</b>.`;
+            show = true;
+            count++;
         }
 
-        // Se for um status relevante, adiciona à lista
+        // Se passar nas regras, adiciona ao HTML
         if (show) {
             notifHTML += `
                 <div class="notif-item">
@@ -3715,14 +3742,15 @@ function updateClientNotifications(orders) {
         }
     });
 
-    // Atualiza a lista
+    // Atualiza a lista na tela
     if (notifHTML !== '') {
         list.innerHTML = notifHTML;
     } else {
-        list.innerHTML = '<div style="padding:15px; text-align:center; color:#999;">Tudo tranquilo por aqui. 🍃</div>';
+        list.innerHTML = '<div style="padding:15px; text-align:center; color:#999; font-size:12px;">Nenhuma notificação recente. 🍃</div>';
     }
 
-    // Atualiza a bolinha vermelha (Badge)
+    // Atualiza a Bolinha Vermelha
+    console.log("🔴 Total de notificações não lidas:", count);
     if (count > 0) {
         badge.innerText = count;
         badge.classList.remove('hidden');

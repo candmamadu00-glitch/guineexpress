@@ -46,9 +46,12 @@ const transporter = nodemailer.createTransport({
         rejectUnauthorized: false // Ajuda a evitar erros de certificado no Render
     }
 });
-// Função Auxiliar para Enviar Email com HTML Bonito
+// Função Auxiliar para Enviar Email (CORRIGIDA)
 async function sendEmailHtml(to, subject, title, message) {
     if (!to || to.includes('undefined')) return;
+
+    // Pega o email correto do arquivo .env para não dar erro de permissão
+    const senderEmail = process.env.EMAIL_USER; 
 
     const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
@@ -60,10 +63,10 @@ async function sendEmailHtml(to, subject, title, message) {
             <h2 style="color: #0a1931; border-bottom: 2px solid #d4af37; padding-bottom: 10px;">${title}</h2>
             <p style="font-size: 16px; line-height: 1.6;">${message}</p>
             <br>
-            <a href="http://seusite.com" style="background-color: #28a745; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Minha Conta</a>
+            <a href="${process.env.BASE_URL || 'http://seusite.com'}" style="background-color: #28a745; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Minha Conta</a>
         </div>
         <div style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 12px; color: #777;">
-            <p>Guineexpress Ltda - (85) 98239-207</p>
+            <p>Guineexpress Ltda</p>
             <p>Não responda a este e-mail automático.</p>
         </div>
     </div>
@@ -71,7 +74,7 @@ async function sendEmailHtml(to, subject, title, message) {
 
     try {
         await transporter.sendMail({
-            from: '"Guineexpress Logística" <comercialguineexpress245@gmail.com>',
+            from: `"Guineexpress Logística" <${senderEmail}>`, // AQUI ESTAVA O ERRO (Agora usa o email do login)
             to: to,
             subject: subject,
             html: htmlContent
@@ -419,54 +422,32 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
 });
     });
 });
-// ==========================================
-// NOTIFICAÇÃO EM MASSA (BROADCAST) - CORRIGIDO
-// ==========================================
 app.post('/api/admin/broadcast', (req, res) => {
-    
-    // CORREÇÃO AQUI: Verifica o role direto na sessão (como no resto do seu código)
+    // Verifica se é Admin (Segurança)
     const isAdmin = (req.session.role === 'admin') || (req.session.user && req.session.user.role === 'admin');
-
-    if (!isAdmin) {
-        return res.status(403).json({ success: false, msg: 'Sem permissão. Verifique se está logado como Admin.' });
-    }
+    if (!isAdmin) return res.status(403).json({ success: false, msg: 'Sem permissão.' });
 
     const { subject, message } = req.body;
 
-    if (!subject || !message) {
-        return res.json({ success: false, msg: 'Preencha assunto e mensagem.' });
-    }
+    if (!subject || !message) return res.json({ success: false, msg: 'Preencha tudo.' });
 
-    // 2. Busca todos os e-mails de clientes
+    // Busca clientes
     db.all("SELECT email, name FROM users WHERE role = 'client'", [], async (err, clients) => {
-        if (err) return res.json({ success: false, msg: 'Erro ao buscar clientes.' });
+        if (err) return res.json({ success: false, msg: 'Erro no banco.' });
+        if (clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente.' });
 
-        if (clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente encontrado.' });
-
-        // 3. Dispara os e-mails
-        let count = 0;
+        // Envia usando a função corrigida
         clients.forEach(client => {
-            const mailOptions = {
-                from: process.env.EMAIL_USER,
-                to: client.email,
-                subject: `📢 Comunicado Guineexpress: ${subject}`,
-                text: `Olá, ${client.name}!\n\n${message}\n\nAtt,\nEquipa Guineexpress`
-            };
-
-            // Se o transporter não estiver configurado (ex: localhost sem email), não quebra o loop
-            if (typeof transporter !== 'undefined') {
-                transporter.sendMail(mailOptions, (error, info) => {
-                    if (!error) count++;
-                });
-            }
+            // Chama a função auxiliar que já tem o HTML bonito e o remetente certo
+            sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
         });
 
-        // 4. Salva no Log
+        // Salva Log
         if (typeof logAction === 'function') {
-             logAction(req, 'Comunicado Geral', `Enviou mensagem: "${subject}" para ${clients.length} clientes.`);
+             logAction(req, 'Comunicado Geral', `Enviou: "${subject}" para ${clients.length} clientes.`);
         }
 
-        res.json({ success: true, msg: `Processo de envio iniciado para ${clients.length} clientes!` });
+        res.json({ success: true, msg: `Enviando para ${clients.length} clientes!` });
     });
 });
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
