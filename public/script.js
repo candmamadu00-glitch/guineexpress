@@ -994,7 +994,7 @@ async function loadOrders() {
                         <td>${o.description||'-'}</td>
                         <td>${o.weight} Kg</td>
                         <td>R$ ${parseFloat(price).toFixed(2)}</td> 
-                        <td style="min-width: 250px;">${statusDisplay}</td>
+                        <td style="min-width: 350px; padding: 10px 15px;">${statusDisplay}</td>
                         <td>${actions}</td>
                     </tr>`; 
             });

@@ -1074,3 +1074,30 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 .hidden {
     display: none !important;
 }
+/* --- CORREÇÃO DA LINHA DO TEMPO (CLIENTE) --- */
+
+/* Garante que o texto fique separado do ícone */
+.timeline-item p, 
+.timeline-label {
+    margin-top: 8px !important;  /* Empurra o texto para baixo do ícone */
+    line-height: 1.4 !important; /* Dá espaço entre as linhas de texto */
+    font-size: 11px !important;  /* Tamanho ideal para não quebrar */
+    display: block;
+    width: 100%;
+}
+
+/* Se estiver usando flexbox, impede que um item suba no outro */
+.timeline-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start; /* Alinha tudo pelo topo */
+    width: 100%;
+    padding: 5px 0;
+}
+
+.timeline-step {
+    flex: 1; /* Distribui espaço igual */
+    text-align: center;
+    position: relative;
+    padding: 0 5px;
+}
