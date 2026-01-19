@@ -1074,30 +1074,85 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 .hidden {
     display: none !important;
 }
-/* --- CORREÇÃO DA LINHA DO TEMPO (CLIENTE) --- */
-
-/* Garante que o texto fique separado do ícone */
-.timeline-item p, 
-.timeline-label {
-    margin-top: 8px !important;  /* Empurra o texto para baixo do ícone */
-    line-height: 1.4 !important; /* Dá espaço entre as linhas de texto */
-    font-size: 11px !important;  /* Tamanho ideal para não quebrar */
-    display: block;
-    width: 100%;
+/* --- TIMELINE DE STATUS (ENCOMENDAS) --- */
+.timeline-wrapper {
+    position: relative;
+    padding: 10px 0;
+    min-width: 280px; /* Garante que não esmague em telas pequenas */
 }
 
-/* Se estiver usando flexbox, impede que um item suba no outro */
-.timeline-container {
+/* A linha cinza de fundo (o trilho) */
+.timeline-track {
+    position: absolute;
+    top: 25px; /* Alinha com o meio das bolinhas */
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background-color: #e9ecef;
+    z-index: 1;
+}
+
+/* A linha verde (o progresso) */
+.timeline-fill {
+    position: absolute;
+    top: 25px;
+    left: 0;
+    height: 3px;
+    background-color: #28a745;
+    z-index: 2;
+    transition: width 0.5s ease;
+}
+
+/* O container dos passos (ícones e textos) */
+.timeline-steps-container {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start; /* Alinha tudo pelo topo */
-    width: 100%;
-    padding: 5px 0;
+    position: relative;
+    z-index: 3; /* Fica acima da linha */
 }
 
+/* Cada passo individual */
 .timeline-step {
-    flex: 1; /* Distribui espaço igual */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 60px; /* Largura fixa para o texto não vazar para o lado */
     text-align: center;
-    position: relative;
-    padding: 0 5px;
+}
+
+/* A bolinha (ícone) */
+.timeline-dot {
+    width: 30px;
+    height: 30px;
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: #ccc;
+    transition: all 0.3s;
+}
+
+/* O texto abaixo da bolinha */
+.timeline-label {
+    font-size: 10px;
+    color: #999;
+    line-height: 1.2;
+}
+
+/* --- ESTADOS ATIVOS (QUANDO CHEGA NA ETAPA) --- */
+.timeline-step.active .timeline-dot {
+    border-color: #28a745;
+    background-color: #28a745;
+    color: white;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+    transform: scale(1.1); /* Um leve aumento para destacar */
+}
+
+.timeline-step.active .timeline-label {
+    color: #28a745;
+    font-weight: bold;
 }

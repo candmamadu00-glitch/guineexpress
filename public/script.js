@@ -793,53 +793,58 @@ async function openBoxModal() { document.getElementById('box-modal').classList.r
 async function loadClientsBox() { const res = await fetch('/api/clients'); const list = await res.json(); const sel = document.getElementById('box-client-select'); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`); }
 async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
 function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
-// Função Principal de Carregar Encomendas (ATUALIZADA COM FOTO)
 // ==============================================================
-// 1. FUNÇÃO DA TIMELINE VISUAL (Adicione antes do loadOrders)
+// 1. FUNÇÃO DA TIMELINE VISUAL (CORRIGIDA E ALINHADA)
 // ==============================================================
 function getTimelineHTML(status) {
-    // Define os passos
-    const steps = ['Recebido', 'Em Trânsito', 'Chegou', 'Entregue'];
+    // 1. Define os passos e ícones
+    const steps = [
+        { label: 'Recebido', icon: '📥' },
+        { label: 'Em Trânsito', icon: '✈️' },
+        { label: 'Chegou', icon: '🏢' },
+        { label: 'Entregue', icon: '✅' }
+    ];
     
-    // Descobre em qual passo estamos
+    // 2. Descobre em qual passo estamos (Lógica Inteligente)
     let currentIdx = 0;
-    if (status.match(/Recebido|Triagem|Processando/i)) currentIdx = 0;
-    else if (status.match(/Trânsito|Voo|Enviado/i)) currentIdx = 1;
-    else if (status.match(/Chegou|Armazém|Disponível/i)) currentIdx = 2;
-    else if (status.match(/Entregue|Retirado|Finalizado/i)) currentIdx = 3;
+    const s = status ? status.toLowerCase() : '';
 
-    // Calcula % da barra verde
+    if (s.includes('recebido') || s.includes('triagem') || s.includes('processando')) currentIdx = 0;
+    else if (s.includes('trânsito') || s.includes('voo') || s.includes('enviado')) currentIdx = 1;
+    else if (s.includes('chegou') || s.includes('armazém') || s.includes('disponível') || s.includes('retirada')) currentIdx = 2;
+    else if (s.includes('entregue') || s.includes('finalizado') || s.includes('avaria')) currentIdx = 3;
+
+    // 3. Calcula % da barra verde (Progresso)
+    // Se for o último passo, enche 100%. Se for o primeiro, 0%.
     const percent = (currentIdx / (steps.length - 1)) * 100;
 
-    // Gera o HTML
-    let html = `
-        <div class="timeline-container" style="min-width: 250px; margin: 10px 0;">
-            <div class="timeline-progress" style="width: ${percent}%"></div>
-            <div style="display:flex; justify-content:space-between; position:relative; z-index:2;">`;
-
-    const icons = ['📥', '✈️', '🏢', '✅'];
+    // 4. Gera o HTML usando as classes CSS do style.css
+    let stepsHTML = '';
 
     steps.forEach((step, idx) => {
-        const activeClass = idx <= currentIdx ? 'active' : '';
-        // Só mostra o ícone se estiver ativo para ficar mais limpo
-        const iconDisplay = idx <= currentIdx ? icons[idx] : `<div style="width:8px; height:8px; background:#ddd; border-radius:50%;"></div>`;
+        const isActive = idx <= currentIdx;
+        const activeClass = isActive ? 'active' : '';
         
-        // Estilo da bolinha
-        let dotStyle = `width: 30px; height: 30px; background: white; border: 2px solid #ddd; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px;`;
-        
-        if(activeClass) {
-            dotStyle = `width: 30px; height: 30px; background: #28a745; border: 2px solid #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 0 5px rgba(40,167,69,0.4);`;
-        }
+        // Se estiver ativo mostra o ícone, se não, mostra vazio ou um ponto simples
+        const iconContent = isActive ? step.icon : ''; 
 
-        html += `
-            <div class="timeline-step" style="display:flex; flex-direction:column; align-items:center;">
-                <div style="${dotStyle}">${activeClass ? icons[idx] : ''}</div>
-                <span style="font-size: 10px; color: #666; margin-top: 5px; font-weight: ${activeClass ? 'bold' : 'normal'}">${step}</span>
-            </div>`;
+        stepsHTML += `
+            <div class="timeline-step ${activeClass}">
+                <div class="timeline-dot">${iconContent}</div>
+                <span class="timeline-label">${step.label}</span>
+            </div>
+        `;
     });
 
-    html += `</div></div>`;
-    return html;
+    return `
+        <div class="timeline-wrapper">
+            <div class="timeline-track"></div>
+            <div class="timeline-fill" style="width: ${percent}%"></div>
+            <div class="timeline-steps-container">
+                ${stepsHTML}
+            </div>
+        </div>
+    `;
 }
 
 // ==============================================================
@@ -994,7 +999,7 @@ async function loadOrders() {
                         <td>${o.description||'-'}</td>
                         <td>${o.weight} Kg</td>
                         <td>R$ ${parseFloat(price).toFixed(2)}</td> 
-                        <td style="min-width: 350px; padding: 10px 15px;">${statusDisplay}</td>
+                        <td style="min-width: 250px;">${statusDisplay}</td>
                         <td>${actions}</td>
                     </tr>`; 
             });
