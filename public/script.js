@@ -3748,13 +3748,19 @@ function updateClientNotifications(orders) {
     } else {
         list.innerHTML = '<div style="padding:15px; text-align:center; color:#999; font-size:12px;">Nenhuma notificação recente. 🍃</div>';
     }
-
-    // Atualiza a Bolinha Vermelha
+    // --- PARTE ATUALIZADA DO CONTADOR ---
     console.log("🔴 Total de notificações não lidas:", count);
+    
     if (count > 0) {
-        badge.innerText = count;
-        badge.classList.remove('hidden');
+        badge.innerText = count;         // Coloca o número
+        badge.classList.remove('hidden');// Mostra a bolinha
+        
+        // Adiciona um efeito de pulsar se tiver coisas importantes
+        if(count > 0) {
+            badge.classList.add('pulse-animation');
+        }
     } else {
-        badge.classList.add('hidden');
+        badge.classList.add('hidden');   // Esconde se for zero
+        badge.classList.remove('pulse-animation');
     }
 }

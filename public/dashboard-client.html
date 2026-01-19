@@ -107,22 +107,23 @@
             GUINEEXPRESS <span style="font-size:12px; font-weight:normal;">| Cliente</span>
         </div>
         <div class="notification-container" style="position: relative; cursor: pointer; margin-left: auto; margin-right: 20px;">
-        <div onclick="toggleNotifications()">
-            <i class="fas fa-bell" style="font-size: 20px; color: white;"></i>
-            <span id="notif-badge" class="hidden" 
-                  style="position: absolute; top: -5px; right: -5px; background: red; color: white; font-size: 10px; padding: 2px 5px; border-radius: 50%; border: 1px solid white;">0</span>
-        </div>
+    
+    <div onclick="toggleNotifications()" style="position: relative; display: inline-block;">
+        <i class="fas fa-bell" style="font-size: 22px; color: white;"></i>
+        
+        <span id="notif-badge" class="notification-badge hidden">0</span>
+    </div>
 
-        <div id="notif-dropdown" class="hidden" 
-             style="position: absolute; top: 35px; right: 0; width: 300px; background: white; color: #333; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 1000; overflow: hidden;">
-            <div style="background: #f8f9fa; padding: 10px; font-weight: bold; border-bottom: 1px solid #eee;">
-                Notificações Recentes
-            </div>
-            <div id="notif-list" style="max-height: 300px; overflow-y: auto;">
-                <div style="padding: 15px; text-align: center; color: #777; font-size: 12px;">Nenhuma notificação nova.</div>
-            </div>
+    <div id="notif-dropdown" class="hidden" 
+         style="position: absolute; top: 35px; right: 0; width: 300px; background: white; color: #333; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 1000; overflow: hidden;">
+        <div style="background: #f8f9fa; padding: 10px; font-weight: bold; border-bottom: 1px solid #eee;">
+            Notificações Recentes
+        </div>
+        <div id="notif-list" style="max-height: 300px; overflow-y: auto;">
+            <div style="padding: 15px; text-align: center; color: #777; font-size: 12px;">Nenhuma notificação nova.</div>
         </div>
     </div>
+</div>
         <div class="nav-links">
             <button onclick="showSection('home-view')"><i class="fas fa-home"></i> Início</button>
             <button onclick="showSection('orders-view')"><i class="fas fa-box"></i> Encomendas</button>
