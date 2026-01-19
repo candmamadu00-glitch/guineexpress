@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link rel="stylesheet" href="cici.css">
@@ -126,13 +127,21 @@
         </section>
 
         <section id="orders-view">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3>Gestão de Encomendas</h3>
-                    <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
-                        + Nova Encomenda
-                    </button>
-                </div>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3>Gestão de Encomendas</h3>
+            
+            <div style="display:flex; gap: 10px;">
+                
+                <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white;">
+                    <i class="fas fa-file-excel"></i> Baixar Excel
+                </button>
+
+                <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
+                    + Nova Encomenda
+                </button>
+            </div>
+        </div>
 
                 <div style="margin: 15px 0; position: relative;">
                     <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>

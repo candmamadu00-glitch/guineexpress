@@ -1001,6 +1001,10 @@ async function loadOrders() {
             
             if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
         }
+        // SE FOR CLIENTE, ATUALIZA O SININHO
+        if (currentUser.role === 'client') {
+            updateClientNotifications(list);
+        }
     } catch (error) {
         console.error("Erro ao carregar encomendas:", error);
     }
@@ -3575,5 +3579,154 @@ async function sendBroadcast() {
     } finally {
         btn.innerText = oldText;
         btn.disabled = false;
+    }
+}
+// ==========================================
+// EXPORTAÇÃO PARA EXCEL (ADMIN)
+// ==========================================
+async function exportOrdersToExcel() {
+    // Verifica permissão (Só Admin)
+    if (currentUser.role !== 'admin') return alert('Apenas administradores.');
+
+    const btn = document.querySelector('button[onclick="exportOrdersToExcel()"]');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+
+    try {
+        // 1. Busca os dados mais recentes do servidor
+        const res = await fetch('/api/orders');
+        const orders = await res.json();
+
+        if (orders.length === 0) {
+            alert("Nenhuma encomenda para exportar.");
+            btn.innerHTML = oldText;
+            return;
+        }
+
+        // 2. Formata os dados para ficarem bonitos no Excel
+        const dataFormatted = orders.map(o => ({
+            "Código": o.code,
+            "Cliente": o.client_name || o.name,
+            "Telefone": o.client_phone || o.phone,
+            "Descrição": o.description,
+            "Peso (kg)": o.weight,
+            "Preço (R$)": parseFloat(o.price || 0).toFixed(2),
+            "Status": o.status,
+            "Data Criação": o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '-',
+            "Local Atual": o.delivery_location || '-'
+        }));
+
+        // 3. Cria a Planilha
+        const worksheet = XLSX.utils.json_to_sheet(dataFormatted);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Encomendas");
+
+        // 4. Ajusta largura das colunas (Opcional, mas fica pro)
+        const wscols = [
+            {wch: 15}, // Código
+            {wch: 25}, // Cliente
+            {wch: 15}, // Telefone
+            {wch: 30}, // Descrição
+            {wch: 10}, // Peso
+            {wch: 10}, // Preço
+            {wch: 15}, // Status
+            {wch: 15}, // Data
+            {wch: 20}  // Local
+        ];
+        worksheet['!cols'] = wscols;
+
+        // 5. Baixa o Arquivo
+        const today = new Date().toISOString().slice(0,10);
+        XLSX.writeFile(workbook, `Relatorio_Guineexpress_${today}.xlsx`);
+
+    } catch (error) {
+        console.error("Erro ao exportar:", error);
+        alert("Erro ao gerar Excel.");
+    } finally {
+        btn.innerHTML = oldText;
+    }
+}
+// ==========================================
+// CENTRAL DE NOTIFICAÇÕES (CLIENTE)
+// ==========================================
+
+// 1. Mostrar/Esconder o menu
+function toggleNotifications() {
+    const dropdown = document.getElementById('notif-dropdown');
+    if(dropdown) dropdown.classList.toggle('hidden');
+}
+
+// 2. Gerar Notificações baseadas nas Encomendas
+function updateClientNotifications(orders) {
+    const list = document.getElementById('notif-list');
+    const badge = document.getElementById('notif-badge');
+    
+    // Só roda se os elementos existirem (evita erro no admin)
+    if (!list || !badge) return;
+
+    let notifHTML = '';
+    let count = 0;
+
+    // Ordena: as que mudaram mais recentemente primeiro (simulação baseada em ID)
+    const sortedOrders = [...orders].sort((a, b) => b.id - a.id);
+
+    sortedOrders.forEach(o => {
+        // Lógica de avisos baseada no status
+        let icon = '📦';
+        let style = 'notif-info';
+        let text = `Status atual: <b>${o.status}</b>`;
+        let show = false;
+
+        if (o.status === 'Entregue') {
+            icon = '✅';
+            style = 'notif-success';
+            text = `Oba! A encomenda <b>${o.code}</b> foi entregue! 🎉`;
+            show = true;
+        } 
+        else if (o.status === 'Chegou ao Destino' || o.status.includes('Disponível')) {
+            icon = '🏢';
+            style = 'notif-success';
+            text = `Sua caixa <b>${o.code}</b> já pode ser retirada!`;
+            show = true;
+            count++; // Conta como "Não lida" (Prioridade)
+        }
+        else if (o.status === 'Em Trânsito' || o.status.includes('Voo')) {
+            icon = '✈️';
+            style = 'notif-info';
+            text = `A encomenda <b>${o.code}</b> está a voar para o destino.`;
+            show = true;
+        }
+        else if (o.status === 'Pendente Pagamento') {
+            icon = '💲';
+            style = 'notif-warn';
+            text = `Pagamento pendente para a caixa <b>${o.code}</b>.`;
+            show = true;
+            count++; // Conta como importante
+        }
+
+        // Se for um status relevante, adiciona à lista
+        if (show) {
+            notifHTML += `
+                <div class="notif-item">
+                    <div class="notif-icon ${style}">${icon}</div>
+                    <div>${text}</div>
+                </div>
+            `;
+        }
+    });
+
+    // Atualiza a lista
+    if (notifHTML !== '') {
+        list.innerHTML = notifHTML;
+    } else {
+        list.innerHTML = '<div style="padding:15px; text-align:center; color:#999;">Tudo tranquilo por aqui. 🍃</div>';
+    }
+
+    // Atualiza a bolinha vermelha (Badge)
+    if (count > 0) {
+        badge.innerText = count;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
     }
 }

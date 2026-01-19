@@ -1013,3 +1013,29 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     color: #666;
     font-weight: bold;
 }
+/* --- ESTILO DAS NOTIFICAÇÕES --- */
+.notif-item {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: default;
+}
+.notif-item:hover {
+    background-color: #f9f9f9;
+}
+.notif-icon {
+    width: 30px; 
+    height: 30px; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    flex-shrink: 0;
+}
+/* Cores dos ícones */
+.notif-success { background: #d4edda; color: #155724; } /* Verde */
+.notif-info { background: #d1ecf1; color: #0c5460; }    /* Azul */
+.notif-warn { background: #fff3cd; color: #856404; }    /* Amarelo */
