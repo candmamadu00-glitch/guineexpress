@@ -1,6 +1,6 @@
 /* ===========================================================
-   CICÍ PRO MAX - INTELIGÊNCIA ARTIFICIAL DE LOGÍSTICA
-   Versão: 4.0 (Super Smart)
+   CICÍ PRO MAX - INTELIGÊNCIA ARTIFICIAL CONTEXTUAL
+   Versão: 5.0 (Painéis Separados)
    =========================================================== */
 
 const CiciAI = {
@@ -8,122 +8,111 @@ const CiciAI = {
     userRole: 'visitor', // visitor, client, employee, admin
     userName: '',
     
-    // Avatar Profissional (Mulher Simpática)
+    // Avatar
     avatarUrl: 'https://img.freepik.com/fotos-gratis/jovem-mulher-confiante-com-oculos_1098-20868.jpg?w=200',
 
     // ===============================================
     // CÉREBRO: PADRÕES E AÇÕES (Intents)
     // ===============================================
-    // Aqui definimos o que ela entende e o que ela FAZ
     intents: [
+        // --- 1. GERAL (Funciona para todos) ---
         {
-            // SAUDAÇÃO
-            patterns: [/oi/i, /olá/i, /ola/i, /bom dia/i, /boa tarde/i, /boa noite/i, /eai/i],
-            response: (role, name) => `Olá, ${name || 'visitante'}! Sou a Cicí, sua assistente virtual. 🤖\nComo posso agilizar seu dia hoje?`,
+            roles: ['visitor', 'client', 'employee', 'admin'],
+            patterns: [/oi/i, /olá/i, /ola/i, /bom dia/i, /boa tarde/i, /boa noite/i],
+            response: (role, name) => `Olá, ${name || 'visitante'}! 👋 Sou a Cicí. Estou configurada para o painel de **${role.toUpperCase()}**. Como ajudo?`,
             action: null
         },
         {
-            // AJUDA / MENU
-            patterns: [/ajuda/i, /help/i, /socorro/i, /menu/i, /opções/i, /o que você faz/i],
-            response: () => "Estou aqui para facilitar! Posso te ajudar a rastrear, pagar, agendar ou tirar dúvidas. Tente dizer: 'Quero ver minhas encomendas' ou 'Como pagar?'.",
+            roles: ['visitor', 'client', 'employee', 'admin'],
+            patterns: [/obrigado/i, /valeu/i, /show/i, /tchau/i],
+            response: () => "Por nada! A Guineexpress agradece. ✈️💛",
             action: null
         },
+
+        // --- 2. PAINEL VISITANTE (Home / Index) ---
         {
-            // CADASTRO (Visitante)
             roles: ['visitor'],
-            patterns: [/cadastro/i, /cadastrar/i, /criar conta/i, /registrar/i, /novo/i, /nova conta/i],
-            response: () => "Ótima escolha! 🎉 Vou abrir o formulário de cadastro para você agora mesmo. É só preencher!",
-            action: () => { 
-                if(typeof showRegister === 'function') showRegister(); 
-                else alert("Navegue até a tela de login para cadastrar.");
-            }
+            patterns: [/cadastro/i, /cadastrar/i, /criar conta/i, /registrar/i],
+            response: () => "Seja bem-vindo à família! 🎉 Vou abrir o formulário para você.",
+            action: () => { if(typeof showRegister === 'function') showRegister(); }
         },
         {
-            // LOGIN (Visitante)
             roles: ['visitor'],
-            patterns: [/entrar/i, /logar/i, /login/i, /acessar/i, /minha conta/i],
-            response: () => "Claro! Vou te levar para a tela de login. Digite seu email e senha.",
+            patterns: [/entrar/i, /login/i, /logar/i, /acessar/i],
+            response: () => "Claro! Digite seu e-mail e senha na tela de login.",
             action: () => { if(typeof showLogin === 'function') showLogin(); }
         },
         {
-            // RASTREIO (Cliente/Admin)
-            roles: ['client', 'admin', 'employee'],
-            patterns: [/rastrear/i, /onde está/i, /minha encomenda/i, /chegou/i, /status/i, /pedidos/i],
-            response: () => "Abrindo sua lista de encomendas! 📦 Se estiver 'Verde', já foi entregue.",
-            action: () => { 
-                if(typeof showSection === 'function') showSection('orders-view'); 
-            }
-        },
-        {
-            // FINANCEIRO / PAGAMENTO (Cliente)
-            roles: ['client'],
-            patterns: [/pagar/i, /fatura/i, /boleto/i, /pix/i, /cobrança/i, /dinheiro/i, /quanto custa/i],
-            response: () => "Entendido! Indo para a área financeira. 💲 Lá você pode gerar o Pix ou pagar com cartão.",
-            action: () => { 
-                if(typeof showSection === 'function') showSection('billing-view'); 
-            }
-        },
-        {
-            // BOX (Cliente)
-            roles: ['client'],
-            patterns: [/box/i, /caixa/i, /juntar/i, /acumular/i],
-            response: () => "O Box é ótimo para economizar no frete! 📦 Aqui estão seus itens acumulados.",
-            action: () => { 
-                if(typeof showSection === 'function') showSection('box-view'); 
-            }
-        },
-        {
-            // AGENDAMENTO (Cliente)
-            roles: ['client'],
-            patterns: [/agendar/i, /horário/i, /visita/i, /ir ai/i, /ir aí/i, /retirar/i],
-            response: () => "Vamos marcar! 📅 Selecione um dia e horário disponível na tela que vou abrir.",
-            action: () => { 
-                if(typeof showSection === 'function') showSection('schedule-view'); 
-            }
-        },
-        {
-            // ADMINISTRAÇÃO (Admin)
-            roles: ['admin'],
-            patterns: [/lucro/i, /ganhos/i, /faturamento/i, /relatório/i, /dinheiro/i],
-            response: () => "Modo Patrão Ativado! 💰 📊 Aqui está o resumo financeiro da empresa.",
-            action: () => { 
-                if(typeof showSection === 'function') showSection('billing-view'); // ou expenses-view se tiver
-                // Tenta carregar stats se existir
-                if(typeof loadDashboardStats === 'function') loadDashboardStats();
-            }
-        },
-        {
-            // FUNCIONÁRIOS (Admin/Employee)
-            roles: ['admin'],
-            patterns: [/funcionário/i, /equipe/i, /staff/i, /bloquear/i],
-            response: () => "Gerenciamento de equipe. 🛠️ Aqui você pode adicionar ou remover acessos.",
-            action: () => { 
-                // Se tiver uma aba de usuarios, abre ela. Senão, vai para logs
-                if(typeof showSection === 'function') showSection('logs-view'); 
-            }
-        },
-        {
-            // ETIQUETAS (Admin/Employee)
-            roles: ['admin', 'employee'],
-            patterns: [/etiqueta/i, /imprimir/i, /adesivo/i, /colar/i],
-            response: () => "Abrindo o gerador de etiquetas térmicas. 🏷️ Selecione as caixas e clique em Imprimir.",
-            action: () => { 
-                if(typeof showSection === 'function') showSection('labels-view'); 
-            }
-        },
-        {
-            // VÍDEOS (Geral)
-            patterns: [/vídeo/i, /video/i, /gravar/i, /ver caixa/i, /pesagem/i],
-            response: () => "Câmera, Ação! 🎥 Na aba de vídeos você pode gravar ou assistir as pesagens.",
-            action: () => { 
-                if(typeof showSection === 'function') showSection('videos-section'); 
-            }
-        },
-        {
-            // AGRADECIMENTO
-            patterns: [/obrigado/i, /valeu/i, /show/i, /top/i, /amei/i],
-            response: () => "Fico feliz em ajudar! A Guineexpress agradece. 💛✈️",
+            roles: ['visitor'],
+            patterns: [/preço/i, /valor/i, /quanto custa/i, /cotação/i],
+            response: () => "Nossos preços são por tamanho de caixa (Box) ou peso. Crie uma conta para ver a tabela completa! 📦",
             action: null
+        },
+
+        // --- 3. PAINEL CLIENTE (Dashboard Client) ---
+        {
+            roles: ['client'],
+            patterns: [/rastrear/i, /onde está/i, /minhas encomendas/i, /pedidos/i, /chegou/i],
+            response: () => "Abrindo sua lista de encomendas! 📦 Se estiver 'Verde', já pode retirar.",
+            action: () => { showSection('orders-view'); }
+        },
+        {
+            roles: ['client'],
+            patterns: [/pagar/i, /fatura/i, /boleto/i, /pix/i, /financeiro/i],
+            response: () => "Área financeira. 💲 Aqui você pode ver faturas abertas e chaves Pix.",
+            action: () => { showSection('billing-view'); }
+        },
+        {
+            roles: ['client'],
+            patterns: [/agendar/i, /marcar/i, /retirar/i, /horário/i, /ir buscar/i],
+            response: () => "Vamos agendar sua retirada ou entrega! 📅 Escolha um horário livre.",
+            action: () => { showSection('schedule-view'); }
+        },
+        {
+            roles: ['client'],
+            patterns: [/box/i, /caixa/i, /nova caixa/i],
+            response: () => "Gerenciamento de Box Virtual. 📦 Você pode ver o que já chegou no armazém.",
+            action: () => { showSection('box-view'); }
+        },
+        {
+            roles: ['client'],
+            patterns: [/vídeo/i, /video/i, /ver/i, /assistir/i],
+            response: () => "Confira os vídeos das suas encomendas sendo pesadas. 🎥",
+            action: () => { showSection('videos-section'); }
+        },
+
+        // --- 4. PAINEL ADMIN (Dashboard Admin) ---
+        {
+            roles: ['admin'],
+            patterns: [/faturamento/i, /lucro/i, /dinheiro/i, /caixa/i],
+            response: () => "Modo Patrão! 💰 Abrindo relatório financeiro completo.",
+            action: () => { showSection('billing-view'); } // ou a view específica de admin
+        },
+        {
+            roles: ['admin'],
+            patterns: [/funcionário/i, /equipe/i, /staff/i, /usuários/i],
+            response: () => "Gerenciamento de equipe e acessos do sistema. 🛡️",
+            action: () => { showSection('logs-view'); } 
+        },
+        {
+            roles: ['admin'],
+            patterns: [/etiqueta/i, /imprimir/i, /adesivo/i],
+            response: () => "Gerador de Etiquetas Térmicas. 🏷️",
+            action: () => { showSection('labels-view'); } 
+        },
+
+        // --- 5. PAINEL FUNCIONÁRIO (Dashboard Employee) ---
+        {
+            roles: ['employee'],
+            patterns: [/receber/i, /entrada/i, /nova encomenda/i, /chegada/i],
+            response: () => "Abrindo tela de Recebimento e Triagem. 📥",
+            action: () => { showSection('receipts-view'); } 
+        },
+        {
+            roles: ['employee'],
+            patterns: [/vídeo/i, /gravar/i, /camera/i, /pesagem/i],
+            response: () => "Luz, Câmera, Ação! 🎥 Vamos gravar o recebimento.",
+            action: () => { showSection('videos-section'); } 
         }
     ],
 
@@ -131,37 +120,55 @@ const CiciAI = {
     // LÓGICA DO SISTEMA
     // ===============================================
     init: function() {
-        this.detectUser();
+        this.detectContext(); // Nova função de detecção rigorosa
         this.renderWidget();
         
-        // Boas vindas inteligente após 2 segundos
+        // Ativação silenciosa (só o badge)
         setTimeout(() => {
             const badge = document.getElementById('cici-badge');
-            if(badge) {
-                badge.classList.remove('hidden');
-                // Toca um som suave (opcional)
-                // const audio = new Audio('notification.mp3'); audio.play().catch(e=>{});
-            }
-        }, 2000);
+            if(badge) badge.classList.remove('hidden');
+        }, 1500);
     },
 
-    detectUser: function() {
-        // Tenta pegar do localStorage ou da variável global do script.js
-        if (typeof currentUser !== 'undefined' && currentUser) {
-            this.userRole = currentUser.role;
-            this.userName = currentUser.name.split(' ')[0]; // Só o primeiro nome
-        } else {
-            // Fallback pela URL
-            const path = window.location.pathname;
-            if (path.includes('admin')) this.userRole = 'admin';
-            else if (path.includes('employee')) this.userRole = 'employee';
-            else if (path.includes('client')) this.userRole = 'client';
-            else this.userRole = 'visitor';
+    // DETECÇÃO BASEADA NO ARQUIVO HTML (Contexto Real)
+    detectContext: function() {
+        const path = window.location.pathname;
+
+        if (path.includes('dashboard-admin')) {
+            this.userRole = 'admin';
+            this.userName = 'Administrador';
+        } 
+        else if (path.includes('dashboard-employee')) {
+            this.userRole = 'employee';
+            this.userName = 'Colaborador';
+        } 
+        else if (path.includes('dashboard-client')) {
+            this.userRole = 'client';
+            // Tenta pegar o nome real se o script.js já carregou
+            if (typeof currentUser !== 'undefined' && currentUser.name) {
+                this.userName = currentUser.name.split(' ')[0];
+            } else {
+                this.userName = 'Cliente';
+            }
+        } 
+        else {
+            // Index, Login ou qualquer outra página pública
+            this.userRole = 'visitor';
+            this.userName = 'Visitante';
         }
+
+        console.log(`🧠 Cici carregada. Contexto: ${this.userRole}`);
     },
 
     renderWidget: function() {
         if(document.getElementById('cici-widget')) return;
+
+        // Texto de boas-vindas personalizado por painel
+        let welcomeText = "Olá! Como posso ajudar?";
+        if(this.userRole === 'visitor') welcomeText = "Bem-vindo à Guineexpress! ✈️ Quer fazer Login ou Cadastro?";
+        if(this.userRole === 'client') welcomeText = `Olá, ${this.userName}! 📦 Quer ver suas encomendas ou agendar retirada?`;
+        if(this.userRole === 'admin') welcomeText = "Painel Administrativo Ativo. 🛡️ Aguardando comando.";
+        if(this.userRole === 'employee') welcomeText = "Vamos trabalhar? 🛠️ Recebimento ou Gravação?";
 
         const html = `
             <div id="cici-widget">
@@ -171,8 +178,8 @@ const CiciAI = {
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <div style="width:35px; height:35px; background:url('${this.avatarUrl}'); background-size:cover; border-radius:50%; border:2px solid #d4af37;"></div>
                                 <div>
-                                    <h4 style="margin:0; font-size:15px;">Cicí Inteligente</h4>
-                                    <small style="color:#28a745;">● Online agora</small>
+                                    <h4 style="margin:0; font-size:15px;">Cicí Assistente</h4>
+                                    <small style="color:#28a745;">● Online (${this.userRole})</small>
                                 </div>
                             </div>
                         </div>
@@ -181,14 +188,13 @@ const CiciAI = {
                     
                     <div class="cici-body" id="cici-messages">
                         <div class="msg cici">
-                            Olá! Sou a <b>Cicí</b>, a IA da Guineexpress. ✈️<br>
-                            Posso te ajudar a navegar, cadastrar ou rastrear. O que você precisa?
+                            ${welcomeText}
                         </div>
                         ${this.getQuickOptionsHTML()}
                     </div>
 
                     <div class="cici-input-area">
-                        <input type="text" id="cici-input" placeholder="Ex: Rastrear, Pagar, Cadastro..." onkeypress="CiciAI.handleInput(event)">
+                        <input type="text" id="cici-input" placeholder="Digite sua dúvida..." onkeypress="CiciAI.handleInput(event)">
                         <button onclick="CiciAI.handleSend()" style="background:none;border:none;cursor:pointer;font-size:20px;">🚀</button>
                     </div>
                 </div>
@@ -201,17 +207,23 @@ const CiciAI = {
         document.body.insertAdjacentHTML('beforeend', html);
     },
 
-    // Gera botões rápidos baseados no cargo
+    // Gera botões ESTRITAMENTE baseados no painel
     getQuickOptionsHTML: function() {
         let opts = [];
-        if (this.userRole === 'visitor') {
-            opts = ['Criar Conta', 'Fazer Login', 'Preços'];
-        } else if (this.userRole === 'client') {
-            opts = ['Rastrear', 'Pagar Fatura', 'Novo Box', 'Sair'];
-        } else if (this.userRole === 'admin') {
-            opts = ['Financeiro', 'Funcionários', 'Embarques', 'Etiquetas'];
-        } else { // Employee
-            opts = ['Receber Encomenda', 'Vídeos', 'Etiquetas'];
+        
+        switch(this.userRole) {
+            case 'visitor':
+                opts = ['Fazer Login', 'Criar Conta', 'Preços'];
+                break;
+            case 'client':
+                opts = ['Rastrear Encomendas', 'Agendar Retirada', 'Financeiro', 'Vídeos'];
+                break;
+            case 'employee':
+                opts = ['Receber Encomenda', 'Gravar Vídeo', 'Etiquetas'];
+                break;
+            case 'admin':
+                opts = ['Faturamento', 'Equipe', 'Etiquetas', 'Logs'];
+                break;
         }
 
         let html = `<div class="cici-options" style="margin-top:10px;">`;
@@ -230,32 +242,26 @@ const CiciAI = {
         if (this.isOpen) {
             win.classList.add('open');
             badge.classList.add('hidden');
-            // Foca no input
             setTimeout(() => document.getElementById('cici-input').focus(), 300);
         } else {
             win.classList.remove('open');
         }
     },
 
-    // CÉREBRO: Processa o texto e encontra a melhor resposta
     processText: function(text) {
-        // Mostra a mensagem do usuário
         this.addMessage(text, 'user');
-
-        // Simula "Digitando..."
         this.showTyping();
 
         setTimeout(() => {
             this.hideTyping();
             
-            // 1. Procura nas INTENÇÕES (Intents)
+            // 1. Procura match nas Intents
             let match = null;
             
             for (let intent of this.intents) {
-                // Se a intenção tem restrição de role, verifica se o usuário tem permissão
-                if (intent.roles && !intent.roles.includes(this.userRole)) continue;
+                // FILTRO CRÍTICO: Só aceita a intent se ela pertencer à role atual
+                if (!intent.roles.includes(this.userRole)) continue;
 
-                // Verifica os padrões (Regex)
                 for (let pattern of intent.patterns) {
                     if (pattern.test(text)) {
                         match = intent;
@@ -267,45 +273,33 @@ const CiciAI = {
 
             // 2. Responde
             if (match) {
-                // Resposta encontrada
                 const reply = typeof match.response === 'function' ? match.response(this.userRole, this.userName) : match.response;
                 this.addMessage(reply, 'cici');
-                
-                // Executa ação (Navegação, abrir modal, etc)
-                if (match.action) {
-                    console.log("Cicí executando ação...");
-                    match.action();
-                }
+                if (match.action) match.action();
             } else {
-                // Resposta Padrão (Fallback)
-                this.addMessage("Hmm, não entendi exatamente. 😕 Tente usar os botões abaixo ou fale palavras-chave como 'Rastrear', 'Pagar' ou 'Cadastro'.", 'cici');
-                // Mostra botões de novo para ajudar
+                // Fallback inteligente
+                this.addMessage("Desculpe, não entendi ou não tenho acesso a isso no seu painel atual. 😕 Tente clicar nas opções:", 'cici');
                 const msgs = document.getElementById('cici-messages');
                 msgs.innerHTML += this.getQuickOptionsHTML();
                 msgs.scrollTop = msgs.scrollHeight;
             }
 
-        }, 800); // Delay artificial para parecer humano
+        }, 600);
     },
 
     addMessage: function(text, sender) {
         const msgs = document.getElementById('cici-messages');
         const div = document.createElement('div');
         div.className = `msg ${sender}`;
-        div.innerHTML = text; // Permite HTML na resposta
+        div.innerHTML = text;
         msgs.appendChild(div);
         msgs.scrollTop = msgs.scrollHeight;
     },
 
     showTyping: function() {
         const msgs = document.getElementById('cici-messages');
-        const id = 'typing-dots';
-        if(document.getElementById(id)) return;
-        
-        msgs.innerHTML += `
-            <div id="${id}" class="typing-indicator">
-                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-            </div>`;
+        if(document.getElementById('typing-dots')) return;
+        msgs.innerHTML += `<div id="typing-dots" class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
         msgs.scrollTop = msgs.scrollHeight;
     },
 
@@ -322,16 +316,13 @@ const CiciAI = {
         const input = document.getElementById('cici-input');
         const txt = input.value.trim();
         if(!txt) return;
-        
         input.value = '';
         this.processText(txt);
     }
 };
 
-// Inicializa quando a página carregar
+// Inicializa
 document.addEventListener('DOMContentLoaded', () => {
-    // Pequeno delay para garantir que o 'currentUser' do script.js já foi carregado
-    setTimeout(() => {
-        CiciAI.init();
-    }, 500);
+    // Delay para garantir que variaveis globais existam
+    setTimeout(() => { CiciAI.init(); }, 800);
 });
