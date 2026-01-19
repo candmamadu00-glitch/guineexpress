@@ -278,12 +278,51 @@ app.get('/api/full-receipt/:orderId', (req, res) => {
         });
     });
 });
+// --- ROTA DE CADASTRO (COM VALIDAÇÃO DE SEGURANÇA) ---
 app.post('/api/register', (req, res) => {
     const {name, email, phone, country, document, password} = req.body;
+
+    // 1. Validação de Campos Vazios
+    if (!name || !email || !password || !phone || !document) {
+        return res.json({success: false, msg: 'Preencha todos os campos obrigatórios.'});
+    }
+
+    // 2. Validação de Senha (Mínimo 6 caracteres)
+    if (password.length < 6) {
+        return res.json({success: false, msg: 'A senha deve ter no mínimo 6 caracteres.'});
+    }
+
+    // 3. Validação e Limpeza do Documento (CPF/CNPJ)
+    // Remove tudo que não for número (pontos, traços)
+    const cleanDoc = document.replace(/\D/g, '');
+    
+    // Verifica se tem 11 dígitos (CPF) ou 14 (CNPJ)
+    if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
+        return res.json({success: false, msg: 'Documento inválido. Digite um CPF (11) ou CNPJ (14) válido.'});
+    }
+
+    // 4. Validação de Telefone (Mínimo 10 dígitos com DDD)
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+        return res.json({success: false, msg: 'Telefone inválido. Inclua o DDD.'});
+    }
+
+    // 5. Validação de Email (Formato básico)
+    if (!email.includes('@') || !email.includes('.')) {
+        return res.json({success: false, msg: 'E-mail inválido.'});
+    }
+
+    // 6. Se passou por tudo, criptografa e salva
     const hash = bcrypt.hashSync(password, 10);
+    
+    // Salvamos 'cleanDoc' e 'cleanPhone' para manter o banco limpo (opcional, mas recomendado)
     db.run(`INSERT INTO users (role, name, email, phone, country, document, password) VALUES ('client', ?, ?, ?, ?, ?, ?)`, 
         [name, email, phone, country, document, hash], (err) => {
-            if (err) return res.json({success: false, msg: 'Erro: Dados já existem.'});
+            if (err) {
+                // Se der erro, geralmente é porque o email ou CPF já existe (UNIQUE no banco)
+                console.error(err);
+                return res.json({success: false, msg: 'Erro: E-mail ou Documento já cadastrados.'});
+            }
             res.json({success: true});
     });
 });
@@ -374,6 +413,60 @@ app.post('/api/schedule/delete-availability', (req, res) => {
     db.serialize(() => {
         db.run("DELETE FROM appointments WHERE availability_id = ?", [req.body.id]);
         db.run("DELETE FROM availability WHERE id = ?", [req.body.id], (err) => res.json({ success: !err }));
+     // Garante que a coluna de data existe para os gráficos
+db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP", (err) => {
+    // Ignora erro se a coluna já existir
+});
+    });
+});
+// ==========================================
+// NOTIFICAÇÃO EM MASSA (BROADCAST) - CORRIGIDO
+// ==========================================
+app.post('/api/admin/broadcast', (req, res) => {
+    
+    // CORREÇÃO AQUI: Verifica o role direto na sessão (como no resto do seu código)
+    const isAdmin = (req.session.role === 'admin') || (req.session.user && req.session.user.role === 'admin');
+
+    if (!isAdmin) {
+        return res.status(403).json({ success: false, msg: 'Sem permissão. Verifique se está logado como Admin.' });
+    }
+
+    const { subject, message } = req.body;
+
+    if (!subject || !message) {
+        return res.json({ success: false, msg: 'Preencha assunto e mensagem.' });
+    }
+
+    // 2. Busca todos os e-mails de clientes
+    db.all("SELECT email, name FROM users WHERE role = 'client'", [], async (err, clients) => {
+        if (err) return res.json({ success: false, msg: 'Erro ao buscar clientes.' });
+
+        if (clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente encontrado.' });
+
+        // 3. Dispara os e-mails
+        let count = 0;
+        clients.forEach(client => {
+            const mailOptions = {
+                from: process.env.EMAIL_USER,
+                to: client.email,
+                subject: `📢 Comunicado Guineexpress: ${subject}`,
+                text: `Olá, ${client.name}!\n\n${message}\n\nAtt,\nEquipa Guineexpress`
+            };
+
+            // Se o transporter não estiver configurado (ex: localhost sem email), não quebra o loop
+            if (typeof transporter !== 'undefined') {
+                transporter.sendMail(mailOptions, (error, info) => {
+                    if (!error) count++;
+                });
+            }
+        });
+
+        // 4. Salva no Log
+        if (typeof logAction === 'function') {
+             logAction(req, 'Comunicado Geral', `Enviou mensagem: "${subject}" para ${clients.length} clientes.`);
+        }
+
+        res.json({ success: true, msg: `Processo de envio iniciado para ${clients.length} clientes!` });
     });
 });
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
@@ -1099,48 +1192,49 @@ app.get('/api/print-receipt/:boxId', (req, res) => {
 // ==========================================
 // ROTA DASHBOARD BI (ESTATÍSTICAS)
 // ==========================================
+// --- ROTA: DADOS DO DASHBOARD (GRÁFICOS REAIS) ---
 app.get('/api/dashboard-stats', (req, res) => {
     
-    // 1. Total Faturado (Soma das Boxes)
-    const sqlRevenue = "SELECT SUM(amount) as total FROM boxes";
-    
-    // 2. Peso Total (Soma das Encomendas)
-    const sqlWeight = "SELECT SUM(weight) as total FROM orders";
-    
-    // 3. Contagem (Clientes, Encomendas)
-    const sqlCountOrders = "SELECT COUNT(*) as total FROM orders";
-    const sqlCountClients = "SELECT COUNT(*) as total FROM users WHERE role = 'client'";
+    // 1. Totais Gerais (Cards do Topo)
+    const sqlTotals = `
+        SELECT 
+            (SELECT SUM(price) FROM orders) as revenue,
+            (SELECT SUM(weight) FROM orders) as weight,
+            (SELECT COUNT(*) FROM orders) as totalOrders,
+            (SELECT COUNT(*) FROM users WHERE role = 'client') as totalClients
+    `;
 
-    // 4. Agrupamento por Status (Para o Gráfico de Pizza)
+    // 2. Distribuição de Status (Gráfico de Rosca)
     const sqlStatus = "SELECT status, COUNT(*) as count FROM orders GROUP BY status";
 
-    // Executa as queries em cadeia (SQLite simples)
-    db.get(sqlRevenue, [], (err, revRow) => {
-        const revenue = revRow ? revRow.total : 0;
+    // 3. Faturamento Mensal - Últimos 6 Meses (Gráfico de Barras)
+    // Nota: strftime é função do SQLite para formatar datas
+    const sqlMonthly = `
+        SELECT strftime('%m/%Y', created_at) as month, SUM(price) as total 
+        FROM orders 
+        WHERE created_at >= date('now', '-6 months') 
+        GROUP BY month 
+        ORDER BY created_at ASC
+    `;
 
-        db.get(sqlWeight, [], (err, weiRow) => {
-            const weight = weiRow ? weiRow.total : 0;
+    db.get(sqlTotals, [], (err, totals) => {
+        if (err) return res.json({ success: false });
 
-            db.get(sqlCountOrders, [], (err, ordRow) => {
-                const totalOrders = ordRow ? ordRow.total : 0;
-
-                db.get(sqlCountClients, [], (err, cliRow) => {
-                    const totalClients = cliRow ? cliRow.total : 0;
-
-                    db.all(sqlStatus, [], (err, statusRows) => {
-                        
-                        // Envia tudo junto para o frontend
-                        res.json({
-                            success: true,
-                            data: {
-                                revenue: revenue || 0,
-                                weight: weight || 0,
-                                totalOrders: totalOrders || 0,
-                                totalClients: totalClients || 0,
-                                statusDistribution: statusRows || []
-                            }
-                        });
-                    });
+        db.all(sqlStatus, [], (err, statusRows) => {
+            
+            db.all(sqlMonthly, [], (err, monthlyRows) => {
+                
+                // Prepara os meses (caso não tenha vendas em algum mês, o gráfico mostra o que tem)
+                res.json({
+                    success: true,
+                    data: {
+                        revenue: totals.revenue || 0,
+                        weight: totals.weight || 0,
+                        totalOrders: totals.totalOrders || 0,
+                        totalClients: totals.totalClients || 0,
+                        statusDistribution: statusRows || [],
+                        revenueHistory: monthlyRows || [] // Envia o histórico real
+                    }
                 });
             });
         });

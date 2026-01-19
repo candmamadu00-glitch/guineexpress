@@ -794,43 +794,106 @@ async function loadClientsBox() { const res = await fetch('/api/clients'); const
 async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
 function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
 // Função Principal de Carregar Encomendas (ATUALIZADA COM FOTO)
+// ==============================================================
+// 1. FUNÇÃO DA TIMELINE VISUAL (Adicione antes do loadOrders)
+// ==============================================================
+function getTimelineHTML(status) {
+    // Define os passos
+    const steps = ['Recebido', 'Em Trânsito', 'Chegou', 'Entregue'];
+    
+    // Descobre em qual passo estamos
+    let currentIdx = 0;
+    if (status.match(/Recebido|Triagem|Processando/i)) currentIdx = 0;
+    else if (status.match(/Trânsito|Voo|Enviado/i)) currentIdx = 1;
+    else if (status.match(/Chegou|Armazém|Disponível/i)) currentIdx = 2;
+    else if (status.match(/Entregue|Retirado|Finalizado/i)) currentIdx = 3;
+
+    // Calcula % da barra verde
+    const percent = (currentIdx / (steps.length - 1)) * 100;
+
+    // Gera o HTML
+    let html = `
+        <div class="timeline-container" style="min-width: 250px; margin: 10px 0;">
+            <div class="timeline-progress" style="width: ${percent}%"></div>
+            <div style="display:flex; justify-content:space-between; position:relative; z-index:2;">`;
+
+    const icons = ['📥', '✈️', '🏢', '✅'];
+
+    steps.forEach((step, idx) => {
+        const activeClass = idx <= currentIdx ? 'active' : '';
+        // Só mostra o ícone se estiver ativo para ficar mais limpo
+        const iconDisplay = idx <= currentIdx ? icons[idx] : `<div style="width:8px; height:8px; background:#ddd; border-radius:50%;"></div>`;
+        
+        // Estilo da bolinha
+        let dotStyle = `width: 30px; height: 30px; background: white; border: 2px solid #ddd; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px;`;
+        
+        if(activeClass) {
+            dotStyle = `width: 30px; height: 30px; background: #28a745; border: 2px solid #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 0 5px rgba(40,167,69,0.4);`;
+        }
+
+        html += `
+            <div class="timeline-step" style="display:flex; flex-direction:column; align-items:center;">
+                <div style="${dotStyle}">${activeClass ? icons[idx] : ''}</div>
+                <span style="font-size: 10px; color: #666; margin-top: 5px; font-weight: ${activeClass ? 'bold' : 'normal'}">${step}</span>
+            </div>`;
+    });
+
+    html += `</div></div>`;
+    return html;
+}
+
+// ==============================================================
+// 2. FUNÇÃO LOAD ORDERS ATUALIZADA (COM BOTÃO DE AVARIA)
+// ==============================================================
 async function loadOrders() {
     if (!currentUser) return; 
 
     try {
         const res = await fetch('/api/orders');
         const list = await res.json();
-        const tbody = document.getElementById('orders-list') || document.querySelector('.data-table tbody');
+        
+        // Tenta pegar o tbody correto dependendo da tela
+        const tbody = document.getElementById('orders-list') || 
+                      document.getElementById('client-orders-list') || 
+                      document.querySelector('.data-table tbody');
         
         if(tbody) {
-            tbody.innerHTML='';
+            tbody.innerHTML = '';
             
+            if(list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada.</td></tr>';
+                return;
+            }
+
             list.forEach(o => {
-                // --- CORREÇÃO DE TELEFONE E EMAIL ---
                 const phone = o.client_phone || o.phone || o.whatsapp || ''; 
                 const email = o.client_email || o.email || o.mail || ''; 
-                
                 const name = o.client_name || o.name || 'Cliente';
                 const price = o.price || 0; 
 
-                // 1. MENU DE STATUS
-                // MUDANÇA AQUI: Adicionei lógica para detectar se tem foto (checkDeliveryStatus)
-                let statusMenu = `<span class="status-badge status-${o.status}">${o.status}</span>`;
-                
-                if (currentUser.role !== 'client') {
-                    // Nota: Mudei o 'onchange' para chamar 'checkDeliveryStatus'
-                    statusMenu = `
+                // --- 1. STATUS (VISUAL OU DROPDOWN) ---
+                let statusDisplay;
+
+                if (currentUser.role === 'client') {
+                    // CLIENTE: Vê a Timeline Visual Bonita
+                    statusDisplay = getTimelineHTML(o.status);
+                } else {
+                    // ADMIN/FUNC: Vê o Dropdown para editar rápido
+                    statusDisplay = `
                     <select onchange="checkDeliveryStatus(this, ${o.id}, '${name}', '${o.code}', '${phone}')" 
-                            style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px;">
+                            style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px; width:100%;">
                         <option value="Processando" ${o.status=='Processando'?'selected':''}>Processando</option>
+                        <option value="Recebido" ${o.status=='Recebido'?'selected':''}>Recebido na Origem</option>
+                        <option value="Em Trânsito" ${o.status=='Em Trânsito'?'selected':''}>Em Trânsito ✈️</option>
+                        <option value="Chegou ao Destino" ${o.status=='Chegou ao Destino'?'selected':''}>Chegou ao Destino 🏢</option>
                         <option value="Pendente Pagamento" ${o.status=='Pendente Pagamento'?'selected':''}>Pendente Pagamento</option>
                         <option value="Pago" ${o.status=='Pago'?'selected':''}>Pago</option>
-                        <option value="Enviado" ${o.status=='Enviado'?'selected':''}>Enviado</option>
-                        <option value="Entregue" ${o.status=='Entregue'?'selected':''}>Entregue</option>
+                        <option value="Entregue" ${o.status=='Entregue'?'selected':''}>Entregue ✅</option>
+                        <option value="Avaria" ${o.status=='Avaria'?'selected':''}>Avaria ⚠️</option>
                     </select>`;
                 }
 
-                // 2. BOTÕES DE AÇÃO
+                // --- 2. BOTÕES DE AÇÃO ---
                 let actions = '-';
                 
                 if (currentUser.role !== 'client') {
@@ -838,10 +901,9 @@ async function loadOrders() {
                     const whatsappColor = phone ? '#25D366' : '#ccc';
                     const emailColor = email ? '#007bff' : '#ccc';
 
-                    // Inicio da DIV de botões
                     actions = `<div style="display:flex; gap:5px; justify-content:center;">`;
 
-                    // Botão WhatsApp
+                    // WhatsApp
                     actions += `
                         <button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" 
                                 title="Enviar WhatsApp"
@@ -849,7 +911,7 @@ async function loadOrders() {
                             <i class="fab fa-whatsapp"></i>
                         </button>`;
                     
-                    // Botão Email
+                    // Email
                     actions += `
                         <button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" 
                                 title="Enviar Email"
@@ -857,44 +919,53 @@ async function loadOrders() {
                             <i class="far fa-envelope"></i>
                         </button>`;
 
-                    // Botão Editar
+                    // Editar
                     actions += `
                         <button onclick="editOrder(${o.id})" 
-                                title="Editar Encomenda"
+                                title="Editar"
                                 style="background:#ffc107; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="fas fa-edit"></i>
                         </button>`;
 
-                    // Botão Excluir
+                    // Excluir
                     actions += `
                         <button onclick="deleteOrder(${o.id})" 
-                                title="Excluir Encomenda"
+                                title="Excluir"
                                 style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="fas fa-trash"></i>
                         </button>`;
 
-                    // [NOVO] Botão Ver Foto (Só aparece se tiver foto no banco)
+                    // --- [NOVO] BOTÃO DE AVARIA ---
+                    actions += `
+                        <button onclick="DeliveryProof.start(${o.id}, 'damage')" 
+                                title="Relatar Avaria/Dano"
+                                style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </button>`;
+                    // -----------------------------
+
+                    // Ver Foto (Se existir)
                     if (o.delivery_proof) {
                         actions += `
                         <button onclick='DeliveryProof.view("${o.delivery_proof}")' 
-                                title="Ver Comprovante (Foto)"
-                                style="background:#6f42c1; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                                title="Ver Comprovante/Foto"
+                                style="background:#6f42c1; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="fas fa-camera"></i>
                         </button>`;
                     }
-                    // Botão de Imprimir Etiqueta
-actions += `
-    <button onclick="printLabel('${o.code}', '${name}', '${o.weight}', '${o.description}')" 
-            title="Imprimir Etiqueta"
-            style="background:#6c757d; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer;">
-        <i class="fas fa-print"></i>
-    </button>`;
-               
-                    // Fecha a DIV
+                    
+                    // Imprimir Etiqueta
+                    actions += `
+                    <button onclick="printLabel('${o.code}', '${name}', '${o.weight}', '${o.description}')" 
+                            title="Imprimir Etiqueta"
+                            style="background:#6c757d; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer;">
+                        <i class="fas fa-print"></i>
+                    </button>`;
+                
                     actions += `</div>`;
 
                 } else {
-                    // --- CLIENTE (Mantive igual, mas adicionei ver foto) ---
+                    // --- CLIENTE ---
                     if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
                         actions = `
                         <button onclick="openPaymentModal(${o.id}, '${o.description}', ${price})" 
@@ -906,16 +977,16 @@ actions += `
                     else if (o.status === 'Pago') {
                         actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
                     } 
-                    // [NOVO] Cliente também pode ver a foto se foi entregue
-                    else if (o.status === 'Entregue' && o.delivery_proof) {
-                        actions = `<button onclick='DeliveryProof.view("${o.delivery_proof}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:2px 8px; border-radius:4px; cursor:pointer;">Ver Foto 📸</button>`;
+                    // Cliente vê foto se entregue OU se tiver avaria
+                    else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.delivery_proof) {
+                        actions = `<button onclick='DeliveryProof.view("${o.delivery_proof}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer;">Ver Foto 📸</button>`;
                     }
                     else {
-                        actions = `<button onclick="alert('Detalhes: ${o.description} | R$ ${price}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer;">Detalhes</button>`;
+                        actions = `<button onclick="alert('Detalhes: ${o.description} | Valor: R$ ${price}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer; border-radius:4px;">Detalhes</button>`;
                     }
                 }
                 
-                // Renderização da linha
+                // --- RENDERIZAÇÃO DA LINHA ---
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td style="padding:12px;"><strong>${o.code}</strong></td>
@@ -923,7 +994,7 @@ actions += `
                         <td>${o.description||'-'}</td>
                         <td>${o.weight} Kg</td>
                         <td>R$ ${parseFloat(price).toFixed(2)}</td> 
-                        <td>${statusMenu}</td>
+                        <td style="min-width: 250px;">${statusDisplay}</td>
                         <td>${actions}</td>
                     </tr>`; 
             });
@@ -2516,14 +2587,14 @@ async function printReceipt(boxId) {
     }
 }
 // ==========================================
-// LÓGICA DO DASHBOARD (GRÁFICOS)
+// LÓGICA DO DASHBOARD (GRÁFICOS REAIS)
 // ==========================================
 let chartRevenue = null;
 let chartStatus = null;
 
 async function loadDashboardStats() {
-    // Só roda se a seção de dashboard existir na página (evita erro na área do cliente)
-    if (!document.getElementById('dashboard-home')) return;
+    // Verifica se o elemento existe (evita erro se não for admin)
+    if (!document.getElementById('revenueChart')) return;
 
     try {
         const res = await fetch('/api/dashboard-stats');
@@ -2534,71 +2605,82 @@ async function loadDashboardStats() {
         const d = response.data;
 
         // 1. Atualiza os Cards (KPIs)
-        // Formata para Reais
-        document.getElementById('kpi-revenue').innerText = parseFloat(d.revenue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        if(document.getElementById('kpi-revenue')) 
+            document.getElementById('kpi-revenue').innerText = parseFloat(d.revenue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         
-        // Formata Peso e Números
-        document.getElementById('kpi-weight').innerText = parseFloat(d.weight).toFixed(2) + ' kg';
-        document.getElementById('kpi-orders').innerText = d.totalOrders;
-        document.getElementById('kpi-clients').innerText = d.totalClients;
+        if(document.getElementById('kpi-weight')) 
+            document.getElementById('kpi-weight').innerText = parseFloat(d.weight).toFixed(2) + ' kg';
+        
+        if(document.getElementById('kpi-orders')) 
+            document.getElementById('kpi-orders').innerText = d.totalOrders;
+        
+        if(document.getElementById('kpi-clients')) 
+            document.getElementById('kpi-clients').innerText = d.totalClients;
 
-        // 2. Prepara dados para o Gráfico de Rosca (Status)
-        // Mapeia os status do banco para cores e labels
-        const statusMap = { 'Pendente': 0, 'Recebido': 0, 'Enviado': 0, 'Entregue': 0 };
-        
-        d.statusDistribution.forEach(item => {
-            if (statusMap[item.status] !== undefined) {
-                statusMap[item.status] = item.count;
-            } else {
-                // Caso tenha algum status diferente, agrupa em 'Pendente' ou cria outro
-                statusMap['Pendente'] += item.count;
-            }
+        // 2. Gráfico de Status (Rosca)
+        const statusLabels = d.statusDistribution.map(i => i.status);
+        const statusData = d.statusDistribution.map(i => i.count);
+        // Cores fixas para status conhecidos, cinza para outros
+        const statusColors = statusLabels.map(s => {
+            if(s.includes('Pendente')) return '#ffc107'; // Amarelo
+            if(s.includes('Entregue')) return '#28a745'; // Verde
+            if(s.includes('Enviado') || s.includes('Trânsito')) return '#007bff'; // Azul
+            if(s.includes('Recebido')) return '#17a2b8'; // Turquesa
+            return '#6c757d'; // Cinza
         });
 
-        // 3. Renderiza Gráfico de Status (Doughnut)
         const ctxStatus = document.getElementById('statusChart').getContext('2d');
-        
-        if (chartStatus) chartStatus.destroy(); // Limpa anterior para não sobrepor
+        if (chartStatus) chartStatus.destroy();
 
         chartStatus = new Chart(ctxStatus, {
             type: 'doughnut',
             data: {
-                labels: ['Pendente', 'Recebido', 'Enviado', 'Entregue'],
+                labels: statusLabels,
                 datasets: [{
-                    data: [statusMap['Pendente'], statusMap['Recebido'], statusMap['Enviado'], statusMap['Entregue']],
-                    backgroundColor: ['#ffc107', '#17a2b8', '#007bff', '#28a745'],
+                    data: statusData,
+                    backgroundColor: statusColors,
                     borderWidth: 0
                 }]
             },
             options: {
                 responsive: true,
-                plugins: {
-                    legend: { position: 'bottom' }
-                }
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } }
             }
         });
 
-        // 4. Renderiza Gráfico Financeiro (Simulação de Meses para Exemplo)
-        // (Para fazer real precisaria agrupar por data no SQL, mas faremos visual primeiro)
+        // 3. Gráfico Financeiro (Barras Reais)
         const ctxRevenue = document.getElementById('revenueChart').getContext('2d');
-        
         if (chartRevenue) chartRevenue.destroy();
+
+        // Extrai dados da API
+        const months = d.revenueHistory.map(item => item.month); // Ex: ['01/2024', '02/2024']
+        const values = d.revenueHistory.map(item => item.total);
+
+        // Se não tiver dados, cria um mock vazio para não ficar feio
+        const finalLabels = months.length ? months : ['Sem Dados'];
+        const finalData = months.length ? values : [0];
 
         chartRevenue = new Chart(ctxRevenue, {
             type: 'bar',
             data: {
-                labels: ['Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan'],
+                labels: finalLabels,
                 datasets: [{
                     label: 'Faturamento (R$)',
-                    data: [0, 0, 0, 0, d.revenue * 0.4, d.revenue * 0.6], // Simulando distribuição histórica baseada no total
+                    data: finalData,
                     backgroundColor: '#0a1931',
-                    borderRadius: 4
+                    borderRadius: 4,
+                    barThickness: 40
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 scales: {
-                    y: { beginAtZero: true }
+                    y: { 
+                        beginAtZero: true,
+                        ticks: { callback: (val) => 'R$ ' + val } // Formata eixo Y
+                    }
                 }
             }
         });
@@ -3139,21 +3221,41 @@ async function toggleEmployee(id, newStatus) {
     }
 }
 /* =========================================
-   SISTEMA DE COMPROVANTE DE ENTREGA (FOTO)
+   SISTEMA DE CÂMERA (ENTREGA & AVARIA)
    ========================================= */
 const DeliveryProof = {
     stream: null,
     capturedImage: null,
-    pendingOrderId: null, // Corrigido para OrderId
+    pendingOrderId: null,
+    currentMode: 'delivery', // 'delivery' ou 'damage'
 
-    // Abre a câmera
-    start: function(orderId) {
+    // Abre a câmera (Aceita o ID e o MODO)
+    start: function(orderId, mode = 'delivery') {
         this.pendingOrderId = orderId;
+        this.currentMode = mode;
+        
         const modal = document.getElementById('delivery-photo-modal');
         const video = document.getElementById('delivery-video');
         const preview = document.getElementById('delivery-preview');
         const btnSnap = document.getElementById('btn-snap-photo');
         const btnConfirm = document.getElementById('btn-confirm-delivery');
+        const title = document.querySelector('#delivery-photo-modal h3');
+        const desc = document.querySelector('#delivery-photo-modal p');
+
+        // 1. Muda os textos dependendo do modo
+        if (this.currentMode === 'damage') {
+            title.innerText = "⚠️ Relatar Avaria/Dano";
+            desc.innerText = "Tire uma foto clara do dano na encomenda.";
+            btnConfirm.innerText = "🚨 Confirmar Avaria";
+            btnConfirm.classList.remove('btn-success');
+            btnConfirm.classList.add('btn-danger'); // Botão vermelho
+        } else {
+            title.innerText = "📸 Comprovante de Entrega";
+            desc.innerText = "Tire uma foto do pacote com o cliente.";
+            btnConfirm.innerText = "✅ Confirmar Entrega";
+            btnConfirm.classList.remove('btn-danger');
+            btnConfirm.classList.add('btn-success'); // Botão verde
+        }
 
         // Reseta visual
         if(preview) preview.style.display = 'none';
@@ -3161,11 +3263,10 @@ const DeliveryProof = {
         if(btnSnap) btnSnap.classList.remove('hidden');
         if(btnConfirm) btnConfirm.classList.add('hidden');
         
-        // Usa a função de abrir modal genérica ou remove a classe hidden manualmente
-        if(typeof openModal === 'function') openModal('delivery-photo-modal');
-        else if(modal) modal.classList.remove('hidden');
+        // Abre o modal
+        if(modal) modal.classList.remove('hidden');
 
-        // Tenta câmera traseira (environment)
+        // Tenta câmera traseira
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(stream => {
                 this.stream = stream;
@@ -3176,12 +3277,12 @@ const DeliveryProof = {
             })
             .catch(err => {
                 console.error(err);
-                alert("Erro ao abrir câmera. Verifique se está usando HTTPS.");
+                alert("Erro ao abrir câmera. Verifique permissões ou HTTPS.");
                 this.close();
             });
     },
 
-    // Tira a foto
+    // Tira a foto (Igual ao anterior)
     snap: function() {
         const video = document.getElementById('delivery-video');
         const canvas = document.getElementById('delivery-canvas');
@@ -3206,35 +3307,39 @@ const DeliveryProof = {
         document.getElementById('btn-confirm-delivery').classList.remove('hidden');
     },
 
-    // Confirma e envia
+    // Confirma e envia (Lógica diferente para Avaria)
     confirm: function() {
         if (!this.capturedImage || !this.pendingOrderId) return;
         
-        // Chama a função de update com foto
-        updateOrderWithProof(this.pendingOrderId, 'Entregue', 'Local: App', this.capturedImage);
+        let newStatus = 'Entregue';
+        let locationLog = 'App (Entrega)';
+
+        if (this.currentMode === 'damage') {
+            newStatus = 'Avaria'; // Cria status "Avaria"
+            locationLog = 'Armazém (Registro de Dano)';
+        }
+
+        // Chama a função de update
+        updateOrderWithProof(this.pendingOrderId, newStatus, locationLog, this.capturedImage);
         this.close();
     },
 
     close: function() {
         const modal = document.getElementById('delivery-photo-modal');
-        if(typeof closeModal === 'function') closeModal('delivery-photo-modal');
-        else if(modal) modal.classList.add('hidden');
+        if(modal) modal.classList.add('hidden');
         
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
             this.stream = null;
         }
     },
-    
-    // Ver foto depois
+
     view: function(imgData) {
         const imgFull = document.getElementById('proof-image-full');
         const modal = document.getElementById('view-proof-modal');
         if(imgFull && modal) {
             imgFull.src = imgData;
-            // Abre o modal de visualização
-            if(typeof openModal === 'function') openModal('view-proof-modal');
-            else modal.classList.remove('hidden');
+            modal.classList.remove('hidden');
         }
     }
 };
@@ -3390,4 +3495,85 @@ function printLabel(code, name, weight, desc) {
         </body>
         </html>
     `);
+}
+// --- FUNÇÃO PARA GERAR A TIMELINE VISUAL ---
+function getTimelineHTML(status) {
+    // Ordem dos status
+    const steps = ['Recebido', 'Em Trânsito', 'Chegou BR', 'Entregue'];
+    
+    // Normaliza o status atual (caso venha diferente)
+    let currentStepIndex = 0;
+    if (status.includes('Recebido') || status.includes('Triagem')) currentStepIndex = 0;
+    if (status.includes('Trânsito') || status.includes('Voo')) currentStepIndex = 1;
+    if (status.includes('Chegou') || status.includes('Armazém') || status.includes('Disponível')) currentStepIndex = 2;
+    if (status.includes('Entregue') || status.includes('Retirado')) currentStepIndex = 3;
+
+    // Calcula porcentagem da barra verde
+    const progressPercent = (currentStepIndex / (steps.length - 1)) * 100;
+
+    let html = `
+        <div class="timeline-container">
+            <div class="timeline-progress" style="width: ${progressPercent}%"></div>
+    `;
+
+    // Ícones para cada etapa
+    const icons = ['📥', '✈️', '🏢', '✅'];
+
+    steps.forEach((step, index) => {
+        const isActive = index <= currentStepIndex ? 'active' : '';
+        html += `
+            <div class="timeline-step ${isActive}">
+                ${isActive ? icons[index] : ''} <span class="timeline-label">${step}</span>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    return html;
+}
+// ==========================================
+// FUNÇÕES DE COMUNICADO EM MASSA (ADMIN)
+// ==========================================
+
+function openBroadcastModal() {
+    document.getElementById('broadcast-modal').classList.remove('hidden');
+}
+
+async function sendBroadcast() {
+    const subject = document.getElementById('broadcast-subject').value;
+    const message = document.getElementById('broadcast-message').value;
+
+    if (!subject || !message) return alert("❌ Preencha o assunto e a mensagem.");
+
+    if (!confirm("⚠️ Tem a certeza? Isso enviará e-mails para TODOS os clientes.")) return;
+
+    const btn = document.querySelector('#broadcast-modal .btn-primary');
+    const oldText = btn.innerText;
+    btn.innerText = "Enviando...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/admin/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, message })
+        });
+        
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ " + data.msg);
+            closeModal('broadcast-modal');
+            document.getElementById('broadcast-subject').value = '';
+            document.getElementById('broadcast-message').value = '';
+        } else {
+            alert("Erro: " + data.msg);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão.");
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
 }

@@ -24,6 +24,7 @@
             <button onclick="startScanner()" class="btn" style="background: #ffc107; color: #000; margin-right: 10px;"><i class="fas fa-qrcode"></i> Escanear</button>
             <button onclick="showSection('history-view')" class="nav-btn"><i class="fas fa-history"></i> Histórico</button>
             <button onclick="showSection('box-view')">📦 Box</button>
+            <button onclick="openBroadcastModal()" class="btn" style="background-color: #6f42c1; color: white; margin-right: 10px;">📢 Novo Comunicado</button>
             <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn"><i class="fas fa-tags"></i> Etiquetas</button>
             <button onclick="showSection('billing-view')">💲 Status Pagto</button> 
             <button onclick="showSection('schedule-view')">📅 Agendamentos</button>
@@ -333,6 +334,28 @@
         <img id="proof-image-full" src="" style="max-width: 100%; border-radius: 10px; border: 4px solid white;">
         <br>
         <button class="btn btn-secondary" style="margin-top: 10px;">Fechar</button>
+    </div>
+</div>
+<div id="broadcast-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>📢 Enviar para Todos os Clientes</h3>
+            <button class="btn-close" onclick="closeModal('broadcast-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                Isso enviará um e-mail para <b>todos</b> os clientes cadastrados. Use com sabedoria!
+            </p>
+            <div class="form-group">
+                <label>Assunto</label>
+                <input type="text" id="broadcast-subject" class="form-control" placeholder="Ex: Atraso no voo TP-202">
+            </div>
+            <div class="form-group">
+                <label>Mensagem</label>
+                <textarea id="broadcast-message" class="form-control" rows="5" placeholder="Escreva o comunicado aqui..."></textarea>
+            </div>
+            <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
+        </div>
     </div>
 </div>
     <script src="script.js"></script>
