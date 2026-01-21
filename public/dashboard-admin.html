@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -23,11 +25,12 @@
         </div>
         <div class="nav-links">
             <button onclick="showSection('dashboard-home')" class="nav-btn"><i class="fas fa-chart-line"></i> Visão Geral</button>
+            <button onclick="exportSmartPDF()" class="btn" style="background-color: #dc3545; color: white;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
             <button onclick="showSection('expenses-view')">💸 Despesas</button>
             <button onclick="showSection('logs-view')" style="color: #ffc107;"><i class="fas fa-shield-alt"></i> Auditoria</button>
             <button onclick="showSection('employees-view'); loadEmployees();"><i class="fas fa-users-cog"></i> Funcionários</button>
             <button onclick="showSection('shipments-view')"><i class="fas fa-shipping-fast"></i> Embarques</button>
-            <button onclick="showSection('orders-view')"><i class="fas fa-box"></i>📦 Encomendas</button>
+            <button onclick="showSection('orders-view')"><i class="fas fa-box"></i> Encomendas</button>
             <button onclick="openBroadcastModal()" class="btn" style="background-color: #6f42c1; color: white; margin-right: 10px;">📢 Novo Comunicado</button>
             <button onclick="startScanner()" class="btn" style="background: #ffc107; color: #000; margin-right: 10px;"><i class="fas fa-qrcode"></i> Escanear</button>
             <button onclick="showSection('history-view')" class="nav-btn"><i class="fas fa-history"></i> Histórico</button>
@@ -732,6 +735,81 @@
         });
         
     </script>
+    <script>
+    window.exportSmartPDF = function() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // 1. Detecta qual aba está visível e define qual tabela usar
+        let activeTableId = '';
+        let title = '';
+        let columns = [];
+
+        // Verifica se a aba de Encomendas está visível
+        const ordersView = document.getElementById('orders-view');
+        const financeView = document.getElementById('finance-view');
+
+        if (ordersView && !ordersView.classList.contains('hidden')) {
+            activeTableId = 'orders-list';
+            title = 'Relatório Geral de Encomendas';
+            // Cabeçalhos para Encomendas
+            columns = [['Código', 'Cliente', 'Desc.', 'Peso', 'Status', 'Data']];
+        } 
+        else if (financeView && !financeView.classList.contains('hidden')) {
+            activeTableId = 'finance-list';
+            title = 'Relatório Financeiro Individual';
+            // Cabeçalhos para Financeiro
+            columns = [['Cliente / Encomenda', 'Peso (kg)', 'Valor (XOF)', 'Status']];
+        } else {
+            alert("⚠️ Navegue para a aba 'Encomendas' ou 'Financeiro' antes de gerar o PDF.");
+            return;
+        }
+
+        // 2. Busca os dados da tabela ativa
+        let tableBody = document.getElementById(activeTableId);
+        
+        if (!tableBody || tableBody.rows.length === 0) {
+            alert(`⚠️ A tabela de ${title.split(' ')[1]} está vazia na tela!\n\n👉 DICA: Se for Financeiro, selecione um cliente primeiro.`);
+            return;
+        }
+
+        // 3. Monta o PDF
+        doc.setFillColor(10, 25, 49); // Azul Guineexpress
+        doc.rect(0, 0, 210, 20, 'F');
+        
+        doc.setFontSize(16);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`Guineexpress - ${title}`, 14, 13);
+
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text("Gerado em: " + new Date().toLocaleString('pt-BR'), 14, 30);
+
+        // Extrai dados das linhas (Ignorando botões)
+        let rows = [];
+        for (let row of tableBody.rows) {
+            let rowData = [];
+            for (let i = 0; i < row.cells.length; i++) {
+                let cellText = row.cells[i].innerText.trim();
+                // Pula coluna de Ações (botões) se for a última
+                if (activeTableId === 'orders-list' && i === row.cells.length - 1) continue;
+                rowData.push(cellText);
+            }
+            rows.push(rowData);
+        }
+
+        doc.autoTable({
+            head: columns,
+            body: rows,
+            startY: 35,
+            theme: 'striped',
+            headStyles: { fillColor: [10, 25, 49] },
+            styles: { fontSize: 9 }
+        });
+
+        doc.save(`Guineexpress_Relatorio_${Date.now()}.pdf`);
+    }
+</script>
     <script src="cici.js"></script>
 </body>
 </html>
