@@ -2419,7 +2419,7 @@ function printSelectedLabels() {
                 
                 <div class="lbl-box">
                     <div class="lbl-title">OBSERVAÇÕES</div>
-                    <div style="font-size: 10px;">Entrega prevista: 14/01/2026 (Est.)</div>
+                    <div style="font-size: 10px;">Entrega prevista: </div>
                 </div>
             </div>
 
@@ -2589,7 +2589,7 @@ async function printReceipt(boxId) {
                 </div>
                 <div class="rec-box">
                     <h3>DADOS DO ENVIO</h3>
-                    <div class="rec-line"><strong>Destino:</strong> ${d.country || 'Guiné-Bissau (GW)'}</div>
+                    <div class="rec-line"><strong>Destino:</strong> ${d.country || 'Guiné-Bissau(GW)'}</div>
                     <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code || '-'}</div>
                     <div class="rec-line"><strong>Peso Registrado:</strong> ${d.weight} kg</div>
                     <div class="rec-line"><strong>Status:</strong> ${d.order_status || 'Processando'}</div>
@@ -2621,8 +2621,8 @@ async function printReceipt(boxId) {
             </table>
 
             <div class="rec-footer-text">
-                Declaro que os itens acima listados foram conferidos e pesados na minha presença. <br>
-                A Guineexpress não se responsabiliza por itens não declarados ou frágeis sem embalagem adequada.
+                Declaro que os itens acima listados foram conferidos na minha presença. <br>
+                A Guineexpress não se responsabiliza por itens não conferidos no local da retirada.
             </div>
 
             <div class="rec-signatures">
@@ -2839,47 +2839,51 @@ async function deleteExpense(id) {
     });
     loadExpenses();
 }
-// ==========================================
-// LÓGICA DE AUDITORIA
-// ==========================================
+// --- FUNÇÃO CORRIGIDA: Ler Logs de Auditoria ---
 async function loadSystemLogs() {
     const list = document.getElementById('logs-list');
     if(!list) return;
 
-    list.innerHTML = '<tr><td colspan="5" align="center">Carregando logs...</td></tr>';
+    list.innerHTML = '<tr><td colspan="4" class="text-center">Carregando auditoria...</td></tr>';
 
     try {
         const res = await fetch('/api/admin/logs');
         const logs = await res.json();
-        
-        list.innerHTML = '';
-        if(logs.length === 0) {
-            list.innerHTML = '<tr><td colspan="5" align="center">Nenhum registro de segurança.</td></tr>';
+
+        if (!logs || logs.length === 0) {
+            list.innerHTML = '<tr><td colspan="4" class="text-center">Nenhum registro encontrado.</td></tr>';
             return;
         }
 
-        logs.forEach(log => {
+        list.innerHTML = logs.map(log => {
+            // Formata a data
             const date = new Date(log.created_at).toLocaleString('pt-BR');
             
-            // Corzinha para ações perigosas
-            let colorStyle = '';
-            if(log.action.includes('DELETE') || log.action.includes('EXCLUSÃO')) colorStyle = 'color:red; font-weight:bold;';
-            if(log.action.includes('LOGIN')) colorStyle = 'color:green;';
+            // Define cor baseada na ação
+            let color = '#333';
+            let bg = '#eee';
+            
+            if(log.action === 'EXCLUSÃO') { color = '#721c24'; bg = '#f8d7da'; } // Vermelho
+            if(log.action === 'CRIACAO')  { color = '#155724'; bg = '#d4edda'; } // Verde
+            if(log.action === 'LOGIN')    { color = '#004085'; bg = '#cce5ff'; } // Azul
 
-            list.innerHTML += `
-                <tr style="font-size: 12px;">
-                    <td>${date}</td>
-                    <td><strong>${log.user_name}</strong></td>
-                    <td style="${colorStyle}">${log.action}</td>
-                    <td>${log.details}</td>
-                    <td style="color:#999;">${log.ip_address || '-'}</td>
+            return `
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px; font-size: 12px; color: #666;">${date}</td>
+                    <td style="padding: 10px; font-weight: bold;">${log.user_name || 'Sistema'}</td>
+                    <td style="padding: 10px;">
+                        <span style="background: ${bg}; color: ${color}; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                            ${log.action}
+                        </span>
+                    </td>
+                    <td style="padding: 10px; font-size: 13px;">${log.details}</td>
                 </tr>
             `;
-        });
+        }).join('');
 
-    } catch (err) {
-        console.error(err);
-        list.innerHTML = '<tr><td colspan="5">Erro ao carregar logs.</td></tr>';
+    } catch (error) {
+        console.error(error);
+        list.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Erro ao carregar logs.</td></tr>';
     }
 }
 // ==========================================
@@ -2903,7 +2907,7 @@ async function loadShipments() {
             <tr>
                 <td><strong>${s.code}</strong></td>
                 <td>${s.type}</td>
-                <td>${new Date(s.departure_date).toLocaleDateString('pt-BR')}</td>
+                <td>${new Date(s.departure_date).toLocaleDateString('pt-GB')}</td>
                 <td>${s.box_count} caixas</td>
                 <td>
                     <button onclick="printManifest(${s.id})" class="btn" style="padding: 5px 10px; font-size: 11px; background: #0a1931;">
@@ -3552,7 +3556,7 @@ function printLabel(code, name, weight, desc) {
 // --- FUNÇÃO PARA GERAR A TIMELINE VISUAL ---
 function getTimelineHTML(status) {
     // Ordem dos status
-    const steps = ['Recebido', 'Em Trânsito', 'Chegou BR', 'Entregue'];
+    const steps = ['Recebido', 'Em Trânsito', 'Chegou GB', 'Entregue'];
     
     // Normaliza o status atual (caso venha diferente)
     let currentStepIndex = 0;

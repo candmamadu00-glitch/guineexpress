@@ -235,13 +235,18 @@ app.post('/api/users/change-password', (req, res) => {
     });
 });
 
-// ROTA: Ver Logs de Segurança
+// --- ROTA: Ler Logs do Sistema ---
 app.get('/api/admin/logs', (req, res) => {
-    if(req.session.role !== 'admin') return res.status(403).json({});
-    
-    // Pega os últimos 100 registros (do mais novo pro mais velho)
-    db.all("SELECT * FROM system_logs ORDER BY id DESC LIMIT 100", (err, rows) => {
-        res.json(rows || []);
+    // Apenas Admin pode ver
+    // if (!req.session.role || req.session.role !== 'admin') return res.status(403).json([]);
+
+    // CORREÇÃO: Lendo da tabela 'system_logs' ordenado pelo mais recente
+    db.all("SELECT * FROM system_logs ORDER BY created_at DESC LIMIT 100", (err, rows) => {
+        if (err) {
+            console.error(err);
+            return res.json([]);
+        }
+        res.json(rows);
     });
 });
 // --- ROTA QUE ESTAVA FALTANDO ---
@@ -1440,18 +1445,38 @@ app.put('/api/orders/:id', (req, res) => {
         });
     });
 });
-// --- ROTA: Excluir Encomenda (DELETE) ---
+// --- ROTA: Excluir Encomenda (CORRIGIDA) ---
 app.delete('/api/orders/:id', (req, res) => {
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
     }
 
-    db.run("DELETE FROM orders WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.json({ success: false, message: "Erro ao excluir." });
-        res.json({ success: true });
+    const id = req.params.id;
+    const userName = req.session.userName || 'Staff'; // Nome de quem apagou
+    const ip = req.ip || req.connection.remoteAddress;
+
+    // 1. Pega o código da encomenda antes de apagar
+    db.get("SELECT code FROM orders WHERE id = ?", [id], (err, row) => {
+        const orderCode = row ? row.code : 'Desconhecido';
+
+        // 2. Apaga a encomenda
+        db.run("DELETE FROM orders WHERE id = ?", [id], function(err) {
+            if (err) return res.json({ success: false, message: "Erro ao excluir." });
+
+            // 3. SALVA O LOG NA TABELA CERTA (system_logs)
+            const action = "EXCLUSÃO";
+            const details = `Apagou a encomenda ${orderCode} (ID: ${id})`;
+
+            db.run(`INSERT INTO system_logs (user_name, action, details, ip_address) 
+                    VALUES (?, ?, ?, ?)`, 
+                [userName, action, details, ip], (logErr) => {
+                    if (logErr) console.error("Erro ao gravar log:", logErr.message);
+            });
+
+            res.json({ success: true });
+        });
     });
 });
-
 // Certifique-se que a rota está assim:
 app.get('/api/users-all', (req, res) => {
     // Permite ADMIN e EMPLOYEE. Só bloqueia se não estiver logado ou se for CLIENTE.

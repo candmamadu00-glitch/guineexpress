@@ -71,15 +71,15 @@ db.serialize(() => {
         date DATE DEFAULT CURRENT_DATE
     )`);
 
-    // Tabela de Logs (Auditoria)
-    db.run(`CREATE TABLE IF NOT EXISTS system_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_name TEXT,
-        action TEXT,      
-        details TEXT,    
-        ip_address TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+    // Garante que a tabela de logs existe
+db.run(`CREATE TABLE IF NOT EXISTS system_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_name TEXT,
+    action TEXT,      
+    details TEXT,    
+    ip_address TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
 
     // Tabela de Embarques (Shipments)
     db.run(`CREATE TABLE IF NOT EXISTS shipments (
