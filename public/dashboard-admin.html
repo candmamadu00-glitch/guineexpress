@@ -730,73 +730,7 @@
                 if(typeof loadDashboardStats === 'function') loadDashboardStats();
             }
         });
-
-        // --- LÓGICA DE FUNCIONÁRIOS (INLINE PARA GARANTIR) ---
-        async function loadEmployees() {
-            try {
-                const res = await fetch('/api/admin/employees');
-                const data = await res.json();
-                const list = document.getElementById('employees-list');
-                if(!list) return;
-                
-                list.innerHTML = '';
-
-                if (!data.success || data.employees.length === 0) {
-                    list.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum funcionário encontrado.</td></tr>';
-                    return;
-                }
-
-                data.employees.forEach(emp => {
-                    const isActive = emp.active === 1;
-                    const statusLabel = isActive 
-                        ? '<span style="color: green; font-weight: bold;">Ativo</span>' 
-                        : '<span style="color: red; font-weight: bold;">Inativo</span>';
-                    
-                    const btnColor = isActive ? '#dc3545' : '#28a745'; 
-                    const btnText = isActive ? 'Desativar' : 'Ativar';
-                    const newStatus = isActive ? 0 : 1;
-
-                    const row = `
-                        <tr>
-                            <td>${emp.name}</td>
-                            <td>${emp.email}</td>
-                            <td>${statusLabel}</td>
-                            <td>
-                                <button onclick="toggleEmployee(${emp.id}, ${newStatus})" 
-                                        class="btn" 
-                                        style="padding: 5px 10px; font-size: 12px; background-color: ${btnColor}; color: white;">
-                                    ${btnText}
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                    list.innerHTML += row;
-                });
-            } catch (error) {
-                console.error("Erro ao carregar funcionários:", error);
-            }
-        }
-
-        async function toggleEmployee(id, newStatus) {
-            if(!confirm(newStatus === 0 ? "Tem certeza que deseja BLOQUEAR este funcionário?" : "Deseja reativar este funcionário?")) return;
-
-            try {
-                const res = await fetch('/api/admin/toggle-employee', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id, active: newStatus })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    loadEmployees();
-                } else {
-                    alert("Erro ao alterar status.");
-                }
-            } catch (error) {
-                console.error(error);
-                alert("Erro de conexão.");
-            }
-        }
+        
     </script>
     <script src="cici.js"></script>
 </body>

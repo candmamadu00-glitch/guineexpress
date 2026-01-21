@@ -217,38 +217,51 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
         btn.disabled = false;
     }
 });
-function showSection(id) {
-    // 1. Esconde todas as seções
-    document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
-    
+function showSection(sectionId) {
+    console.log("Navegando para:", sectionId);
+
+    // 1. Esconde TODAS as seções
+    const allSections = document.querySelectorAll('section');
+    allSections.forEach(sec => {
+        sec.classList.add('hidden');
+        sec.style.display = 'none'; 
+    });
+
     // 2. Mostra a seção desejada
-    const section = document.getElementById(id);
-    if(section) {
-        section.classList.remove('hidden');
-        localStorage.setItem('activeTab', id);
+    const target = document.getElementById(sectionId);
+    if (target) {
+        target.classList.remove('hidden');
+        target.style.display = 'block'; 
+        localStorage.setItem('activeTab', sectionId);
     }
 
-    // 3. Carrega os dados específicos de cada aba
-    if(id === 'orders-view') loadOrders();
-    if(id === 'schedule-view') loadSchedules();
-    if(id === 'box-view') loadBoxes(); 
-    if(id === 'price-section') loadPrice(); 
-    if(id === 'billing-view') loadClientInvoices();
-    if(id === 'history-view') loadHistory(); 
-    if(id === 'labels-view') loadLabels();
-    if(id === 'expenses-view') loadExpenses();
-    if(id === 'logs-view') loadSystemLogs();
-    if(id === 'shipments-view') loadShipments();
-    if(id === 'receipts-view') loadReceipts();
+    // 3. CARREGAMENTO DE DADOS (Aqui estava o erro: faltavam funções)
+    switch(sectionId) {
+        // --- AS QUE JÁ EXISTIAM ---
+        case 'orders-view':     if(typeof loadOrders === 'function') loadOrders(); break;
+        case 'schedule-view':   if(typeof loadSchedules === 'function') loadSchedules(); break;
+        case 'box-view':        if(typeof loadBoxes === 'function') loadBoxes(); break;
+        case 'price-section':   if(typeof loadPrice === 'function') loadPrice(); break;
+        case 'billing-view':    if(typeof loadClientInvoices === 'function') loadClientInvoices(); break; // Admin ou Cliente
+        case 'history-view':    if(typeof loadHistory === 'function') loadHistory(); break;
+        case 'labels-view':     if(typeof loadLabels === 'function') loadLabels(); break;
+        case 'expenses-view':   if(typeof loadExpenses === 'function') loadExpenses(); break;
+        case 'logs-view':       if(typeof loadSystemLogs === 'function') loadSystemLogs(); break;
+        case 'shipments-view':  if(typeof loadShipments === 'function') loadShipments(); break;
+        case 'receipts-view':   if(typeof loadReceipts === 'function') loadReceipts(); break;
 
-    // --- CORREÇÃO AQUI: Carrega dados para gravar vídeo ---
-    if(id === 'videos-section') {
-        // Se for admin/funcionário, carrega lista de encomendas para selecionar
-        if(currentUser.role !== 'client') {
-            loadOrdersForVideo(); 
-            loadAdminVideos(); // Lista os vídeos já feitos
+        // --- AS QUE ESTAVAM FALTANDO (AQUI ESTÁ A CORREÇÃO) ---
+        case 'employees-view':  if(typeof loadEmployees === 'function') loadEmployees(); break; 
+        case 'clients-view':    if(typeof loadClients === 'function') loadClients(); break;
+    }
+
+    // Lógica especial de vídeo
+    if(sectionId === 'videos-section') {
+        if(currentUser && currentUser.role !== 'client') {
+            if(typeof loadOrdersForVideo === 'function') loadOrdersForVideo();
+            if(typeof loadAdminVideos === 'function') loadAdminVideos();
         } else {
-            loadClientVideos(); // Cliente só vê a galeria
+            if(typeof loadClientVideos === 'function') loadClientVideos();
         }
     }
 }
