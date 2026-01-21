@@ -424,8 +424,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     letter-spacing: 0.5px;
 }
 
-/* Área dos Gráficos (Rosca e Barras) */
-.charts-wrapper {
+.charts-grid {
     display: grid;
     grid-template-columns: 1fr 2fr; /* Gráfico de barras maior que o de rosca */
     gap: 20px;
@@ -442,7 +441,11 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 }
 
 @media (max-width: 900px) {
-    .charts-wrapper { grid-template-columns: 1fr; height: auto; }
+    /* CORREÇÃO AQUI TAMBÉM: Mudei para .charts-grid */
+    .charts-grid { 
+        grid-template-columns: 1fr; 
+        height: auto; 
+    }
     .chart-container { height: auto; min-height: 300px; }
 }
 
@@ -1155,4 +1158,30 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 .timeline-step.active .timeline-label {
     color: #28a745;
     font-weight: bold;
+}
+/* --- CORREÇÃO FORÇADA DOS GRÁFICOS --- */
+
+.charts-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important; /* Força dividir em 2 colunas */
+    gap: 20px !important;
+    margin-bottom: 30px;
+    width: 100%;
+}
+
+.chart-container {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    height: 350px !important; /* Altura fixa para não descer infinitamente */
+    min-height: 350px;
+}
+
+/* Apenas em celulares REAIS (menos de 768px) eles ficam um embaixo do outro */
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr !important; /* Volta para 1 coluna no celular */
+        height: auto !important;
+    }
 }

@@ -724,18 +724,30 @@ app.post('/api/config/price', (req, res) => {
         res.json({ success: !err });
     });
 });
-// --- ROTAS DE VÍDEO ---
-
-// ATUALIZE A ROTA DE UPLOAD
+// --- CORREÇÃO DA ROTA DE UPLOAD DE VÍDEO ---
 app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
-    if(!req.file) return res.json({success: false, msg: "Erro no envio do arquivo"});
+    // 1. Verifica se o arquivo chegou
+    if(!req.file) {
+        console.error("❌ Upload falhou: Nenhum arquivo recebido.");
+        return res.status(400).json({success: false, msg: "Nenhum vídeo enviado."});
+    }
     
-    // Pegamos a descrição enviada pelo script.js
+    // 2. Verifica dados do corpo
     const { client_id, description } = req.body;
-    
+    if(!client_id) {
+        console.error("❌ Upload falhou: ID do cliente faltando.");
+        return res.status(400).json({success: false, msg: "Cliente não identificado."});
+    }
+
+    // 3. Salva no Banco
     db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", 
     [client_id, req.file.filename, description], (err) => {
-        if(err) return res.json({success: false, err});
+        if(err) {
+            console.error("❌ Erro no Banco ao salvar vídeo:", err.message);
+            return res.status(500).json({success: false, msg: "Erro ao salvar no banco.", err: err.message});
+        }
+        
+        console.log(`✅ Vídeo salvo com sucesso! Arquivo: ${req.file.filename}`);
         res.json({success: true});
     });
 });

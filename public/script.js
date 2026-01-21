@@ -1346,85 +1346,6 @@ function checkVideoPermission() {
     }
 }
 
-
-function discardVideo() {
-    currentBlob = null;
-    recordedChunks = [];
-    document.getElementById('video-preview').pause();
-    document.getElementById('video-preview').src = "";
-    document.getElementById('camera-feed').style.display = 'block';
-    document.getElementById('video-preview').style.display = 'none';
-    document.getElementById('camera-controls-ui').style.display = 'block';
-    document.getElementById('preview-controls-ui').style.display = 'none';
-}
-
-async function confirmUpload() {
-    if(!currentBlob) return alert("Erro: Nenhum vídeo gravado.");
-
-    const clientSelect = document.getElementById('video-client-select');
-    const clientId = clientSelect ? clientSelect.value : null;
-    
-    if (!clientId) return alert("⚠️ Erro: Selecione um Cliente/Encomenda na lista antes de enviar!");
-
-    // Dados descritivos
-    const descEl = document.getElementById('info-desc');
-    const descText = descEl ? descEl.innerText : 'Vídeo de Encomenda';
-    
-    // Preparação do envio
-    const formData = new FormData();
-    formData.append('client_id', clientId);
-    formData.append('description', descText);
-    formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
-
-    // Feedback visual no botão
-    let btn = document.querySelector('#preview-controls-ui .btn-primary');
-    // Fallback se não achar o botão específico
-    if(!btn) btn = document.querySelector('button[onclick="confirmUpload()"]');
-    
-    const oldText = btn ? btn.innerText : 'Enviar';
-    if(btn) {
-        btn.innerText = "Enviando... ⏳"; 
-        btn.disabled = true;
-    }
-
-    try {
-        const res = await fetch('/api/videos/upload', { method: 'POST', body: formData });
-        
-        // Verifica se a resposta é JSON válido
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-            throw new Error("Erro de servidor (Resposta não é JSON)");
-        }
-
-        const data = await res.json();
-        
-        if(data.success) {
-            alert("✅ Vídeo enviado com sucesso!");
-            
-            // Recarrega a lista apropriada
-            if(currentUser.role !== 'client') {
-                 if(typeof loadAdminVideos === 'function') loadAdminVideos(); 
-            } else {
-                 if(typeof loadClientVideos === 'function') loadClientVideos();
-            }
-            
-            // Reseta a interface de gravação
-            discardVideo(); 
-        } else {
-            throw new Error(data.msg || "Erro desconhecido no upload");
-        }
-    } catch(e) { 
-        console.error(e);
-        alert("❌ Falha no envio: " + e.message); 
-    } finally {
-        // Restaura o botão sempre, mesmo se der erro
-        if(btn) {
-            btn.innerText = oldText; 
-            btn.disabled = false;
-        }
-    }
-}
-
 async function loadClientsForVideoSelect() {
     const res = await fetch('/api/clients');
     const clients = await res.json();
@@ -1434,6 +1355,116 @@ async function loadClientsForVideoSelect() {
     clients.forEach(c => {
         sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
     });
+}
+// ==========================================
+// CORREÇÃO DO UPLOAD E TIMER
+// ==========================================
+
+async function confirmUpload() {
+    // 1. Validações Iniciais
+    if(!currentBlob) return alert("Erro: Nenhum vídeo gravado.");
+
+    const clientSelect = document.getElementById('video-client-select');
+    const clientId = clientSelect ? clientSelect.value : null;
+    
+    if (!clientId) return alert("⚠️ Erro: Selecione um Cliente/Encomenda na lista antes de enviar!");
+
+    // 2. Prepara Dados
+    const descEl = document.getElementById('info-desc');
+    const descText = descEl ? descEl.innerText : 'Vídeo de Encomenda';
+    
+    const formData = new FormData();
+    formData.append('client_id', clientId);
+    formData.append('description', descText);
+    // Adiciona o nome do arquivo para garantir que o servidor entenda a extensão
+    formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
+
+    // 3. Feedback Visual (Bloqueia botão)
+    let btn = document.getElementById('btn-confirm-upload'); // Tente usar ID fixo se possível
+    if(!btn) btn = document.querySelector('#preview-controls-ui .btn-primary');
+    
+    const oldText = btn ? btn.innerText : 'Enviar';
+    if(btn) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; 
+        btn.disabled = true;
+    }
+
+    try {
+        // 4. Envio para o Servidor
+        const res = await fetch('/api/videos/upload', { 
+            method: 'POST', 
+            body: formData 
+        });
+        
+        // Verifica se a resposta é JSON antes de tentar ler
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            const text = await res.text(); // Pega o erro em texto (ex: HTML de erro 500)
+            console.error("Resposta não-JSON do servidor:", text);
+            throw new Error("O servidor retornou um erro inesperado. Verifique o terminal.");
+        }
+
+        const data = await res.json();
+        
+        if(data.success) {
+            alert("✅ Vídeo enviado com sucesso!");
+            
+            // Atualiza a lista na tela (verifica qual função chamar)
+            if(currentUser.role !== 'client') {
+                 if(typeof loadAdminVideos === 'function') loadAdminVideos(); 
+            } else {
+                 if(typeof loadClientVideos === 'function') loadClientVideos();
+            }
+            
+            // 5. IMPORTANTE: Limpa tudo (Timer, vídeo, memória)
+            discardVideo(); 
+            closeFullscreenCamera(); // Fecha a tela cheia para evitar bugs
+            
+        } else {
+            throw new Error(data.msg || "Erro desconhecido no upload");
+        }
+    } catch(e) { 
+        console.error(e);
+        alert("❌ Falha no envio: " + e.message); 
+    } finally {
+        // Restaura o botão
+        if(btn) {
+            btn.innerText = oldText; 
+            btn.disabled = false;
+        }
+    }
+}
+
+// Garante que o timer pare ao descartar ou finalizar
+function discardVideo() {
+    currentBlob = null;
+    recordedChunks = [];
+    
+    // Para o vídeo se estiver tocando
+    const preview = document.getElementById('video-preview');
+    if(preview) {
+        preview.pause();
+        preview.src = "";
+        preview.style.display = 'none';
+    }
+
+    // Volta para a câmera
+    const camFeed = document.getElementById('camera-feed');
+    if(camFeed) camFeed.style.display = 'block';
+
+    // Troca os controles
+    document.getElementById('record-ui').classList.remove('hidden');
+    document.getElementById('upload-ui').classList.add('hidden');
+
+    // ZERA O TIMER VISUALMENTE
+    const timerEl = document.getElementById('recording-timer');
+    if(timerEl) {
+        timerEl.innerText = "00:00";
+        timerEl.classList.add('hidden');
+    }
+    
+    // PARA O LOOP DO RELÓGIO (CRÍTICO)
+    if(typeof recInterval !== 'undefined') clearInterval(recInterval);
 }
 
 async function loadClientInfoForVideo(clientId) {
