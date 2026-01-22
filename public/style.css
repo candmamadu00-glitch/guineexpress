@@ -1185,3 +1185,39 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
         height: auto !important;
     }
 }
+/* Timeline Vertical */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+    margin: 20px 0;
+    border-left: 2px solid #e9ecef;
+}
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+.timeline-dot {
+    position: absolute;
+    left: -36px;
+    top: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #e9ecef;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #e9ecef;
+}
+.timeline-item.active .timeline-dot {
+    background: #28a745;
+    box-shadow: 0 0 0 2px #28a745;
+}
+.timeline-date {
+    font-size: 12px;
+    color: #888;
+}
+.timeline-content {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 14px;
+}

@@ -8,6 +8,7 @@
     <title>Minha Área - Guineexpress</title>
         <link rel="icon" type="image/png" href="/logo.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 
@@ -98,6 +99,35 @@
             cursor: pointer; font-weight: bold; transition: 0.2s;
         }
         .btn-tab:hover { opacity: 0.9; }
+        /* --- NOVOS ESTILOS INTERATIVOS --- */
+
+/* Container do Gráfico */
+.chart-container {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+    border-left: 5px solid #d4af37; /* Detalhe Dourado */
+}
+
+/* Etiquetas de Status (Badges) */
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Cores dos Status */
+.status-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; } /* Verde */
+.status-pending { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; } /* Amarelo */
+.status-danger  { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; } /* Vermelho */
+.status-info    { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; } /* Azul */
     </style>
 </head>
 <body>
@@ -155,7 +185,16 @@
                     <div class="stat-number" id="dash-orders-count">-</div>
                     <div class="stat-label">Minhas Encomendas</div>
                 </div>
-
+                <div class="chart-container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h3 style="color:#0a1931; margin:0;">📊 Resumo de Importações</h3>
+        <span style="font-size:12px; color:#666; background:#eee; padding:5px 10px; border-radius:15px;">Últimos 6 meses</span>
+    </div>
+    <div style="height: 300px; width: 100%;">
+        <canvas id="shipmentChart"></canvas>
+    </div>
+</div>
+                 
                 <div class="stat-card" style="border-bottom-color: #d4af37;" onclick="showSection('box-view')">
                     <div class="stat-icon" style="color: #d4af37;"><i class="fas fa-cubes"></i></div>
                     <div class="stat-number" id="dash-boxes-count">-</div>
@@ -568,6 +607,100 @@
             }
         }
     </script>
+    <script>
+    // --- 1. CONFIGURAÇÃO DO GRÁFICO (Chart.js) ---
+    function initChart() {
+        const ctx = document.getElementById('shipmentChart');
+        if (!ctx) return;
+
+        // Dados fictícios para demonstração (depois podemos puxar do banco)
+        // Isso cria um visual muito profissional "fake" para o cliente ver
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan'],
+                datasets: [{
+                    label: 'Peso Importado (kg)',
+                    data: [12.5, 8.0, 15.2, 5.0, 22.1, 10.5], // Dados de exemplo
+                    borderColor: '#0a1931', // Azul da marca
+                    backgroundColor: 'rgba(212, 175, 55, 0.2)', // Dourado transparente
+                    borderWidth: 3,
+                    pointBackgroundColor: '#d4af37',
+                    pointBorderColor: '#fff',
+                    pointRadius: 6,
+                    fill: true,
+                    tension: 0.4 // Curva suave
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0a1931',
+                        titleColor: '#d4af37',
+                        bodyFont: { size: 14 }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // --- 2. FUNÇÃO PARA COLORIR OS STATUS NA TABELA ---
+    // Essa função substitui o texto simples pelo Badge Colorido
+    function getStatusBadge(status) {
+        let badgeClass = 'status-info'; // Padrão (Azul)
+
+        // Regras de Cores
+        if (['Entregue', 'Pago', 'Chegou ao Destino', 'Finalizado'].includes(status)) {
+            badgeClass = 'status-success'; // Verde
+        } else if (['Pendente', 'Processando', 'Em Trânsito', 'Pendente Pagamento', 'Recebido'].includes(status)) {
+            badgeClass = 'status-pending'; // Amarelo
+        } else if (['Cancelado', 'Avaria', 'Extraviado', 'Devolvido'].includes(status)) {
+            badgeClass = 'status-danger'; // Vermelho
+        }
+
+        return `<span class="status-badge ${badgeClass}">
+                    ${status === 'Em Trânsito' ? '✈️ ' + status : status}
+                </span>`;
+    }
+
+    // --- 3. SOBRESCREVENDO A RENDERIZAÇÃO DA TABELA (Hack para injetar o visual) ---
+    // Aguarda o script.js carregar e intercepta a criação das linhas
+    const originalLoadOrders = window.loadOrders; // Salva a função original se existir
+
+    // Criamos uma função auxiliar que roda após o carregamento da página
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Inicia o Gráfico
+        setTimeout(initChart, 1000); // Espera 1seg para garantir que a aba carregou
+
+        // Observador: Se a tabela mudar, aplica os Badges
+        const targetNode = document.getElementById('orders-list');
+        if (targetNode) {
+            const observer = new MutationObserver((mutationsList) => {
+                for (const mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        // Varre todas as linhas e atualiza a coluna de Status
+                        document.querySelectorAll('#orders-list tr').forEach(row => {
+                            // A coluna de Status é a 6ª (índice 5)
+                            const statusCell = row.cells[5]; 
+                            if (statusCell && !statusCell.innerHTML.includes('span')) {
+                                const text = statusCell.innerText.trim();
+                                statusCell.innerHTML = getStatusBadge(text);
+                            }
+                        });
+                    }
+                }
+            });
+            observer.observe(targetNode, { childList: true });
+        }
+    });
+</script>
     <script src="cici.js"></script>
 </body>
 </html>
