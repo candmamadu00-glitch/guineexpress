@@ -608,28 +608,67 @@
         }
     </script>
     <script>
-    // --- 1. CONFIGURAÇÃO DO GRÁFICO (Chart.js) ---
-    function initChart() {
+    // --- 1. GRÁFICO COM DADOS REAIS (Conectado ao Banco) ---
+    async function initRealChart() {
         const ctx = document.getElementById('shipmentChart');
         if (!ctx) return;
 
-        // Dados fictícios para demonstração (depois podemos puxar do banco)
-        // Isso cria um visual muito profissional "fake" para o cliente ver
+        // A. Busca os dados reais do servidor
+        let orders = [];
+        try {
+            const res = await fetch('/api/orders'); // Sua rota real
+            orders = await res.json();
+        } catch (e) {
+            console.error("Erro ao buscar dados para o gráfico:", e);
+        }
+
+        // B. Calcula os últimos 6 meses dinamicamente
+        const labels = [];
+        const dataValues = [];
+        const today = new Date();
+
+        for (let i = 5; i >= 0; i--) {
+            // Cria uma data para o mês que estamos calculando (Ex: Hoje - 5 meses)
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            
+            // Nome do Mês (Jan, Fev...)
+            const monthName = d.toLocaleString('pt-BR', { month: 'short' });
+            // Deixa a primeira letra maiúscula (jan -> Jan)
+            labels.push(monthName.charAt(0).toUpperCase() + monthName.slice(1));
+
+            // C. Soma o PESO das encomendas desse mês específico
+            const totalWeight = orders.reduce((sum, order) => {
+                // Tenta pegar a data de criação ou data da encomenda
+                const orderDate = new Date(order.created_at || order.date || Date.now());
+                
+                // Se a encomenda for deste mês e ano, soma o peso
+                if (orderDate.getMonth() === d.getMonth() && orderDate.getFullYear() === d.getFullYear()) {
+                    // Garante que o peso é número (substitui vírgula por ponto se necessário)
+                    let w = order.weight ? parseFloat(order.weight.toString().replace(',', '.')) : 0;
+                    return sum + w;
+                }
+                return sum;
+            }, 0);
+
+            dataValues.push(totalWeight);
+        }
+
+        // D. Desenha o Gráfico
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan'],
+                labels: labels, // Meses reais (Ex: Set, Out, Nov...)
                 datasets: [{
                     label: 'Peso Importado (kg)',
-                    data: [12.5, 8.0, 15.2, 5.0, 22.1, 10.5], // Dados de exemplo
-                    borderColor: '#0a1931', // Azul da marca
-                    backgroundColor: 'rgba(212, 175, 55, 0.2)', // Dourado transparente
+                    data: dataValues, // Soma real dos pesos
+                    borderColor: '#0a1931',
+                    backgroundColor: 'rgba(212, 175, 55, 0.2)', // Fundo Dourado
                     borderWidth: 3,
                     pointBackgroundColor: '#d4af37',
                     pointBorderColor: '#fff',
                     pointRadius: 6,
                     fill: true,
-                    tension: 0.4 // Curva suave
+                    tension: 0.4
                 }]
             },
             options: {
@@ -638,31 +677,38 @@
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw.toFixed(1) + ' kg';
+                            }
+                        },
                         backgroundColor: '#0a1931',
                         titleColor: '#d4af37',
                         bodyFont: { size: 14 }
                     }
                 },
                 scales: {
-                    y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#f0f0f0' },
+                        ticks: { callback: function(value) { return value + ' kg'; } } 
+                    },
                     x: { grid: { display: false } }
                 }
             }
         });
     }
 
-    // --- 2. FUNÇÃO PARA COLORIR OS STATUS NA TABELA ---
-    // Essa função substitui o texto simples pelo Badge Colorido
+    // --- 2. FUNÇÃO DE BADGES (Visual da Tabela) ---
     function getStatusBadge(status) {
-        let badgeClass = 'status-info'; // Padrão (Azul)
+        let badgeClass = 'status-info';
 
-        // Regras de Cores
         if (['Entregue', 'Pago', 'Chegou ao Destino', 'Finalizado'].includes(status)) {
-            badgeClass = 'status-success'; // Verde
+            badgeClass = 'status-success';
         } else if (['Pendente', 'Processando', 'Em Trânsito', 'Pendente Pagamento', 'Recebido'].includes(status)) {
-            badgeClass = 'status-pending'; // Amarelo
+            badgeClass = 'status-pending';
         } else if (['Cancelado', 'Avaria', 'Extraviado', 'Devolvido'].includes(status)) {
-            badgeClass = 'status-danger'; // Vermelho
+            badgeClass = 'status-danger';
         }
 
         return `<span class="status-badge ${badgeClass}">
@@ -670,24 +716,18 @@
                 </span>`;
     }
 
-    // --- 3. SOBRESCREVENDO A RENDERIZAÇÃO DA TABELA (Hack para injetar o visual) ---
-    // Aguarda o script.js carregar e intercepta a criação das linhas
-    const originalLoadOrders = window.loadOrders; // Salva a função original se existir
-
-    // Criamos uma função auxiliar que roda após o carregamento da página
+    // --- 3. INICIALIZAÇÃO ---
     document.addEventListener('DOMContentLoaded', async () => {
-        // Inicia o Gráfico
-        setTimeout(initChart, 1000); // Espera 1seg para garantir que a aba carregou
+        // Inicia o Gráfico com Dados Reais
+        setTimeout(initRealChart, 1000); 
 
-        // Observador: Se a tabela mudar, aplica os Badges
+        // Observador para Colorir a Tabela
         const targetNode = document.getElementById('orders-list');
         if (targetNode) {
             const observer = new MutationObserver((mutationsList) => {
                 for (const mutation of mutationsList) {
                     if (mutation.type === 'childList') {
-                        // Varre todas as linhas e atualiza a coluna de Status
                         document.querySelectorAll('#orders-list tr').forEach(row => {
-                            // A coluna de Status é a 6ª (índice 5)
                             const statusCell = row.cells[5]; 
                             if (statusCell && !statusCell.innerHTML.includes('span')) {
                                 const text = statusCell.innerText.trim();
