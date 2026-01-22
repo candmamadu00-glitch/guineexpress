@@ -1221,3 +1221,56 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     border-radius: 6px;
     font-size: 14px;
 }
+/* --- LOGIN: Entrada Suave do Cartão --- */
+@keyframes slideUpFade {
+    0% {
+        opacity: 0;
+        transform: translateY(40px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.login-card {
+    /* Adiciona isso à classe existente .login-card */
+    animation: slideUpFade 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2); /* Sombra mais profunda */
+}
+
+/* --- LOGIN: Input que "Acende" --- */
+.form-control:focus {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(212, 175, 55, 0.2); /* Sombra Dourada Suave */
+    border-color: var(--accent);
+}
+/* --- FUNCIONÁRIO: Laser do Scanner --- */
+/* Adicione a classe .scanner-overlay ao redor da div do vídeo no HTML se quiser, 
+   ou aplique diretamente no container do QR Code */
+
+.qr-scanner-container {
+    position: relative;
+    overflow: hidden; /* Importante para o laser não sair */
+}
+
+.scanner-laser {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: #00ff00; /* Verde Laser */
+    box-shadow: 0 0 15px #00ff00, 0 0 30px #00ff00; /* Brilho Neon */
+    animation: scanning 2s linear infinite;
+    z-index: 10;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+@keyframes scanning {
+    0% { top: 0%; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+}

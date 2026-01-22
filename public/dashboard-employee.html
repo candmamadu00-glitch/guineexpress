@@ -297,12 +297,15 @@
             </div>
         </section>
 
-    </div> <div id="print-area" class="hidden-print-area"></div>
-<div id="scanner-modal" class="modal-overlay hidden">
+   <div id="scanner-modal" class="modal-overlay hidden">
     <div class="modal-content" style="max-width: 500px; text-align: center;">
         <h3>📱 Leitor de Encomendas</h3>
         <p>Aponte a câmera para o QR Code da etiqueta</p>
-        <div id="reader" style="width: 100%; border-radius: 8px; overflow: hidden;"></div>
+        
+        <div id="reader" class="qr-scanner-container" style="width: 100%; border-radius: 8px; overflow: hidden; position: relative;">
+            <div class="scanner-laser"></div>
+        </div>
+
         <div class="modal-actions" style="justify-content: center; margin-top: 15px;">
             <button class="btn btn-secondary" onclick="stopScanner()">Fechar Leitor</button>
         </div>
