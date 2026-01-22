@@ -128,6 +128,59 @@
 .status-pending { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; } /* Amarelo */
 .status-danger  { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; } /* Vermelho */
 .status-info    { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; } /* Azul */
+/* --- ANIMAÇÕES PREMIUM (Copie e cole no final do seu CSS) --- */
+
+/* 1. Animação de Entrada (Fade In + Subida) */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 2. Aplica a animação aos elementos principais */
+.welcome-banner {
+    animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.stats-grid .stat-card {
+    opacity: 0; /* Começa invisível para o efeito dominó */
+    animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* Delay para cada card (Efeito Dominó) */
+.stats-grid .stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stats-grid .stat-card:nth-child(2) { animation-delay: 0.2s; }
+.stats-grid .stat-card:nth-child(3) { animation-delay: 0.3s; }
+.stats-grid .stat-card:nth-child(4) { animation-delay: 0.4s; }
+
+.chart-container {
+    opacity: 0;
+    animation: fadeInUp 0.8s ease-out forwards;
+    animation-delay: 0.5s;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* 3. Hover (Passar o mouse) Profissional */
+.stat-card {
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px) scale(1.02); /* Sobe e cresce levemente */
+    box-shadow: 0 15px 30px rgba(0,0,0,0.15); /* Sombra mais forte */
+    border-left: 5px solid #d4af37; /* Detalhe dourado aparece */
+}
+
+/* 4. Tabela Viva */
+#orders-list tr {
+    animation: fadeInUp 0.4s ease-out forwards;
+    opacity: 0; /* Garante que comece invisível */
+}
     </style>
 </head>
 <body>
@@ -608,61 +661,50 @@
         }
     </script>
     <script>
-    // --- 1. GRÁFICO COM DADOS REAIS (Conectado ao Banco) ---
+    // --- 1. GRÁFICO COM DADOS REAIS & ANIMAÇÃO SUAVE ---
     async function initRealChart() {
         const ctx = document.getElementById('shipmentChart');
         if (!ctx) return;
 
-        // A. Busca os dados reais do servidor
         let orders = [];
         try {
-            const res = await fetch('/api/orders'); // Sua rota real
+            const res = await fetch('/api/orders');
             orders = await res.json();
         } catch (e) {
-            console.error("Erro ao buscar dados para o gráfico:", e);
+            console.error("Erro ao buscar dados:", e);
         }
 
-        // B. Calcula os últimos 6 meses dinamicamente
         const labels = [];
         const dataValues = [];
         const today = new Date();
 
+        // Calcula últimos 6 meses
         for (let i = 5; i >= 0; i--) {
-            // Cria uma data para o mês que estamos calculando (Ex: Hoje - 5 meses)
             const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            
-            // Nome do Mês (Jan, Fev...)
             const monthName = d.toLocaleString('pt-BR', { month: 'short' });
-            // Deixa a primeira letra maiúscula (jan -> Jan)
             labels.push(monthName.charAt(0).toUpperCase() + monthName.slice(1));
 
-            // C. Soma o PESO das encomendas desse mês específico
             const totalWeight = orders.reduce((sum, order) => {
-                // Tenta pegar a data de criação ou data da encomenda
                 const orderDate = new Date(order.created_at || order.date || Date.now());
-                
-                // Se a encomenda for deste mês e ano, soma o peso
                 if (orderDate.getMonth() === d.getMonth() && orderDate.getFullYear() === d.getFullYear()) {
-                    // Garante que o peso é número (substitui vírgula por ponto se necessário)
                     let w = order.weight ? parseFloat(order.weight.toString().replace(',', '.')) : 0;
                     return sum + w;
                 }
                 return sum;
             }, 0);
-
             dataValues.push(totalWeight);
         }
 
-        // D. Desenha o Gráfico
+        // Desenha o gráfico com animação lenta (2 segundos)
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: labels, // Meses reais (Ex: Set, Out, Nov...)
+                labels: labels,
                 datasets: [{
                     label: 'Peso Importado (kg)',
-                    data: dataValues, // Soma real dos pesos
+                    data: dataValues,
                     borderColor: '#0a1931',
-                    backgroundColor: 'rgba(212, 175, 55, 0.2)', // Fundo Dourado
+                    backgroundColor: 'rgba(212, 175, 55, 0.2)',
                     borderWidth: 3,
                     pointBackgroundColor: '#d4af37',
                     pointBorderColor: '#fff',
@@ -674,68 +716,55 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return context.raw.toFixed(1) + ' kg';
-                            }
-                        },
-                        backgroundColor: '#0a1931',
-                        titleColor: '#d4af37',
-                        bodyFont: { size: 14 }
-                    }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
-                    y: { 
-                        beginAtZero: true, 
-                        grid: { color: '#f0f0f0' },
-                        ticks: { callback: function(value) { return value + ' kg'; } } 
-                    },
+                    y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
                     x: { grid: { display: false } }
+                },
+                // AQUI ESTÁ O TRUQUE DA ANIMAÇÃO DO GRÁFICO
+                animation: {
+                    duration: 2000, 
+                    easing: 'easeOutQuart'
                 }
             }
         });
     }
 
-    // --- 2. FUNÇÃO DE BADGES (Visual da Tabela) ---
+    // --- 2. BADGES DE STATUS ---
     function getStatusBadge(status) {
         let badgeClass = 'status-info';
+        if (['Entregue', 'Pago', 'Chegou ao Destino', 'Finalizado'].includes(status)) badgeClass = 'status-success';
+        else if (['Pendente', 'Processando', 'Em Trânsito', 'Recebido'].includes(status)) badgeClass = 'status-pending';
+        else if (['Cancelado', 'Avaria', 'Extraviado'].includes(status)) badgeClass = 'status-danger';
 
-        if (['Entregue', 'Pago', 'Chegou ao Destino', 'Finalizado'].includes(status)) {
-            badgeClass = 'status-success';
-        } else if (['Pendente', 'Processando', 'Em Trânsito', 'Pendente Pagamento', 'Recebido'].includes(status)) {
-            badgeClass = 'status-pending';
-        } else if (['Cancelado', 'Avaria', 'Extraviado', 'Devolvido'].includes(status)) {
-            badgeClass = 'status-danger';
-        }
-
-        return `<span class="status-badge ${badgeClass}">
-                    ${status === 'Em Trânsito' ? '✈️ ' + status : status}
-                </span>`;
+        return `<span class="status-badge ${badgeClass}">${status === 'Em Trânsito' ? '✈️ ' + status : status}</span>`;
     }
 
-    // --- 3. INICIALIZAÇÃO ---
+    // --- 3. INICIALIZAÇÃO E ANIMAÇÃO DA TABELA (ESCADINHA) ---
     document.addEventListener('DOMContentLoaded', async () => {
-        // Inicia o Gráfico com Dados Reais
-        setTimeout(initRealChart, 1000); 
+        setTimeout(initRealChart, 800); 
 
-        // Observador para Colorir a Tabela
         const targetNode = document.getElementById('orders-list');
         if (targetNode) {
             const observer = new MutationObserver((mutationsList) => {
-                for (const mutation of mutationsList) {
+                mutationsList.forEach(mutation => {
                     if (mutation.type === 'childList') {
-                        document.querySelectorAll('#orders-list tr').forEach(row => {
+                        const rows = document.querySelectorAll('#orders-list tr');
+                        rows.forEach((row, index) => {
+                            // Coloca o Badge colorido
                             const statusCell = row.cells[5]; 
                             if (statusCell && !statusCell.innerHTML.includes('span')) {
-                                const text = statusCell.innerText.trim();
-                                statusCell.innerHTML = getStatusBadge(text);
+                                statusCell.innerHTML = getStatusBadge(statusCell.innerText.trim());
+                            }
+                            
+                            // AQUI A ANIMAÇÃO DA TABELA (Uma linha depois da outra)
+                            if (!row.style.animation) {
+                                row.style.opacity = '0';
+                                row.style.animation = `fadeInUp 0.5s ease-out forwards ${index * 0.1}s`; 
                             }
                         });
                     }
-                }
+                });
             });
             observer.observe(targetNode, { childList: true });
         }
