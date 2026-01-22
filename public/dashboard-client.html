@@ -226,6 +226,60 @@
     transform-style: preserve-3d;
     transform: perspective(1000px);
 }
+/* --- 1. BANNER OCEAN FLOW (Fundo em Movimento) --- */
+.welcome-banner {
+    /* Substitui o fundo fixo por um gradiente animado */
+    background: linear-gradient(-45deg, #0a1931, #1a3c6e, #2c3e50, #132b50);
+    background-size: 400% 400%;
+    animation: oceanFlow 15s ease infinite;
+    position: relative;
+    overflow: hidden;
+}
+
+@keyframes oceanFlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Adiciona um brilho sutil passando por cima do banner */
+.welcome-banner::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 50%; height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+    transform: skewX(-25deg);
+    animation: shine 6s infinite;
+}
+
+@keyframes shine {
+    0% { left: -100%; }
+    20% { left: 200%; } /* Passa rápido */
+    100% { left: 200%; } /* Fica esperando */
+}
+
+/* --- 2. BOTÕES COM RIPPLE (Efeito de Onda) --- */
+button {
+    position: relative;
+    overflow: hidden; /* Garante que a onda não saia do botão */
+}
+
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+    background-color: rgba(255, 255, 255, 0.4); /* Cor da onda */
+    pointer-events: none; /* Não interfere no clique */
+}
+
+@keyframes ripple {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
     </style>
 </head>
 <body>
@@ -847,6 +901,36 @@
                 });
             });
             observer.observe(targetNode, { childList: true });
+        }
+    });
+</script>
+<script>
+    // --- EFEITO RIPPLE (ONDA) NOS BOTÕES ---
+    document.addEventListener('click', function (e) {
+        // Verifica se o elemento clicado (ou pai) é um botão
+        const target = e.target.closest('button');
+
+        if (target) {
+            // Cria o elemento da onda
+            const ripple = document.createElement('span');
+            ripple.classList.add('ripple');
+
+            // Calcula a posição do clique dentro do botão
+            const rect = target.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+
+            // Define tamanho e posição
+            ripple.style.width = ripple.style.height = `${size}px`;
+            ripple.style.left = `${x}px`;
+            ripple.style.top = `${y}px`;
+
+            // Adiciona ao botão e remove depois que acabar a animação
+            target.appendChild(ripple);
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
         }
     });
 </script>
