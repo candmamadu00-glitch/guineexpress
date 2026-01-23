@@ -13,7 +13,9 @@
     <link rel="stylesheet" href="style.css">
 
     <style>
-    
+    html {
+    overflow-y: scroll; /* A barra de rolagem fica sempre visível, evitando pulos laterais */
+}
         /* --- 1. ESTILOS GERAIS E LAYOUT --- */
         /* Usa as variáveis do style.css para manter a identidade visual */
         
@@ -229,11 +231,14 @@
         }
         .btn-tab:hover { opacity: 0.9; }
 
-        /* Tabela Animada */
-        #orders-list tr {
-            animation: fadeInUp 0.4s ease-out forwards;
-            opacity: 0;
-        }
+        /* Garante que os cards e linhas comecem invisíveis */
+.stat-card, 
+.chart-container, 
+#orders-list tr {
+    opacity: 0; /* O segredo está aqui */
+    /* A animação fadeInUp vai mudar isso para 1 suavemente */
+}
+        
     </style>
 </head>
 <body>
@@ -296,6 +301,7 @@
         <h3 style="color:#0a1931; margin:0;">📊 Resumo de Importações</h3>
         <span style="font-size:12px; color:#666; background:#eee; padding:5px 10px; border-radius:15px;">Últimos 6 meses</span>
     </div>
+
     <div style="height: 300px; width: 100%;">
         <canvas id="shipmentChart"></canvas>
     </div>
@@ -601,6 +607,54 @@
         <button class="btn btn-secondary" style="margin-top: 10px;">Fechar</button>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script>
+    // --- INTERAÇÃO UAU: EXPLOSÃO DE CONFETES PREMIUM ---
+    
+    // Seleciona todos os cards de estatística
+    const cards = document.querySelectorAll('.stat-card');
+
+    cards.forEach(card => {
+        card.addEventListener('click', function(e) {
+            
+            // Pega a posição exata de onde foi o clique
+            const rect = card.getBoundingClientRect();
+            // Calcula o centro do card para sair os confetes dali
+            const x = (rect.left + rect.width / 2) / window.innerWidth;
+            const y = (rect.top + rect.height / 2) / window.innerHeight;
+
+            // Dispara a celebração!
+            confetti({
+                particleCount: 100,     // Quantidade de confetes
+                spread: 70,             // O quão espalhado é
+                origin: { x: x, y: y }, // Sai exatamente do card clicado
+                colors: ['#d4af37', '#0a1931', '#ffffff'], // Dourado, Azul e Branco
+                disableForReducedMotion: true,
+                zIndex: 9999, // Fica por cima de tudo
+            });
+
+            // Se for o card de "Entregues", faz uma chuva maior (O Grande Prêmio)
+            if(card.querySelector('.fa-check-circle')) {
+                setTimeout(() => {
+                    confetti({
+                        particleCount: 50,
+                        angle: 60,
+                        spread: 55,
+                        origin: { x: 0 },
+                        colors: ['#d4af37']
+                    });
+                    confetti({
+                        particleCount: 50,
+                        angle: 120,
+                        spread: 55,
+                        origin: { x: 1 },
+                        colors: ['#d4af37']
+                    });
+                }, 200);
+            }
+        });
+    });
+</script>
     <script src="script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => { 
@@ -888,6 +942,7 @@
         }
     });
 </script>
+
     <script src="cici.js"></script>
 </body>
 </html>
