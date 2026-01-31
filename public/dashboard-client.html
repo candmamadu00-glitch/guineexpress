@@ -768,7 +768,6 @@
         }
     </script>
     <script>
-    // --- 1. GRÁFICO COM DADOS REAIS & ANIMAÇÃO SUAVE ---
     async function initRealChart() {
         const ctx = document.getElementById('shipmentChart');
         if (!ctx) return;
@@ -824,23 +823,21 @@
                     y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
                     x: { grid: { display: false } }
                 },
-                animation: { duration: 2000, easing: 'easeOutQuart' }
+                animation: { duration: 1000 }
             }
         });
     }
 
-    // --- 2. BADGES COM RADAR GPS ---
     function getStatusBadge(status) {
         let badgeClass = 'status-info';
         let icon = '';
-        let radar = ''; // Radar desligado por padrão
+        let radar = '';
 
         if (['Entregue', 'Pago', 'Chegou ao Destino', 'Finalizado'].includes(status)) {
             badgeClass = 'status-success';
         } 
         else if (['Pendente', 'Processando', 'Em Trânsito', 'Recebido'].includes(status)) {
             badgeClass = 'status-pending';
-            // Se estiver em trânsito, liga o RADAR
             if (status === 'Em Trânsito') {
                 icon = '✈️ ';
                 radar = `<div class="radar-wrapper"><div class="radar-ring"></div><div class="radar-dot"></div></div>`;
@@ -855,7 +852,6 @@
                 </span>`;
     }
 
-    // --- 3. ANIMAÇÃO 3D TILT NOS CARDS (Interatividade do Mouse) ---
     function init3DTilt() {
         const cards = document.querySelectorAll('.stat-card');
         cards.forEach(card => {
@@ -863,47 +859,37 @@
                 const rect = card.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-                
-                // Calcula rotação baseada na posição do mouse
-                const xRotation = -((y - rect.height/2) / 10); // Roda no eixo X
-                const yRotation = ((x - rect.width/2) / 10);  // Roda no eixo Y
-                
+                const xRotation = -((y - rect.height/2) / 10);
+                const yRotation = ((x - rect.width/2) / 10);
                 card.style.transform = `perspective(1000px) scale(1.02) rotateX(${xRotation}deg) rotateY(${yRotation}deg)`;
             });
-
-            // Reseta quando o mouse sai
             card.addEventListener('mouseleave', () => {
                 card.style.transform = 'perspective(1000px) scale(1) rotateX(0) rotateY(0)';
                 card.style.transition = 'transform 0.5s ease';
             });
-
-            // Remove a transição lenta ao entrar (para ficar ágil)
-            card.addEventListener('mouseenter', () => {
-                card.style.transition = 'none';
-            });
+            card.addEventListener('mouseenter', () => { card.style.transition = 'none'; });
         });
     }
 
-    // --- 4. INICIALIZAÇÃO GERAL ---
+    // --- 4. INICIALIZAÇÃO (SEM TREMEDEIRA) ---
     document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(initRealChart, 800);
-        setTimeout(init3DTilt, 500); // Ativa o 3D nos cards
+        setTimeout(init3DTilt, 500);
 
+        // MUTATION OBSERVER LIMPO: Só atualiza as cores, NÃO anima mais as linhas
         const targetNode = document.getElementById('orders-list');
         if (targetNode) {
             const observer = new MutationObserver((mutationsList) => {
                 mutationsList.forEach(mutation => {
                     if (mutation.type === 'childList') {
                         const rows = document.querySelectorAll('#orders-list tr');
-                        rows.forEach((row, index) => {
+                        rows.forEach((row) => {
                             const statusCell = row.cells[5]; 
+                            // Aplica a cor do badge se ainda for texto puro
                             if (statusCell && !statusCell.innerHTML.includes('span')) {
                                 statusCell.innerHTML = getStatusBadge(statusCell.innerText.trim());
                             }
-                            if (!row.style.animation) {
-                                row.style.opacity = '0';
-                                row.style.animation = `fadeInUp 0.5s ease-out forwards ${index * 0.1}s`; 
-                            }
+                            // AQUI EU REMOVI A ANIMAÇÃO QUE TREMIA A TELA!
                         });
                     }
                 });
