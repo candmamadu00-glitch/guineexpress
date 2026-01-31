@@ -2,9 +2,9 @@ require('dotenv').config();
 const { createClient } = require('@libsql/client');
 const bcrypt = require('bcryptjs');
 
-// --- CONEXÃO COM O TURSO (BANCO NA NUVEM) ---
-const url = process.env.TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN;
+// O .trim() remove espaços vazios antes e depois, evitando o erro
+const url = process.env.TURSO_DATABASE_URL ? process.env.TURSO_DATABASE_URL.trim() : null;
+const authToken = process.env.TURSO_AUTH_TOKEN ? process.env.TURSO_AUTH_TOKEN.trim() : null;
 
 console.log("📡 Conectando ao Banco de Dados (Turso)...");
 
