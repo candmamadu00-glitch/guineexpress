@@ -43,19 +43,68 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAutoLogin();
 });
 // ==========================================
-// CONFIGURAÇÃO AVANÇADA DE MÁSCARAS
+// 1. FUNÇÕES DE VALIDAÇÃO MATEMÁTICA (CPF/NIF)
 // ==========================================
 
-// Definição completa: Prefixo (para salvar no banco) e Máscara Visual
+function isValidCPF(cpf) {
+    cpf = cpf.replace(/[^\d]+/g, '');
+    if (cpf == '') return false;
+    // Elimina CPFs invalidos conhecidos
+    if (cpf.length != 11 || 
+        cpf == "00000000000" || 
+        cpf == "11111111111" || 
+        cpf == "22222222222" || 
+        cpf == "33333333333" || 
+        cpf == "44444444444" || 
+        cpf == "55555555555" || 
+        cpf == "66666666666" || 
+        cpf == "77777777777" || 
+        cpf == "88888888888" || 
+        cpf == "99999999999")
+            return false;
+    
+    // Valida 1o digito
+    let add = 0;
+    for (let i = 0; i < 9; i ++) add += parseInt(cpf.charAt(i)) * (10 - i);
+    let rev = 11 - (add % 11);
+    if (rev == 10 || rev == 11) rev = 0;
+    if (rev != parseInt(cpf.charAt(9))) return false;
+    
+    // Valida 2o digito
+    add = 0;
+    for (let i = 0; i < 10; i ++) add += parseInt(cpf.charAt(i)) * (11 - i);
+    rev = 11 - (add % 11);
+    if (rev == 10 || rev == 11) rev = 0;
+    if (rev != parseInt(cpf.charAt(10))) return false;
+    
+    return true;
+}
+
+function isValidPT_NIF(nif) {
+    // Validação básica de NIF Portugal
+    if (!['1', '2', '3', '5', '6', '8', '9'].includes(nif.substr(0, 1)) && 
+        !['45', '70', '71', '72', '74', '75', '77', '79'].includes(nif.substr(0, 2))) {
+        return false;
+    }
+    const total = nif[0] * 9 + nif[1] * 8 + nif[2] * 7 + nif[3] * 6 + nif[4] * 5 + nif[5] * 4 + nif[6] * 3 + nif[7] * 2;
+    const modulo11 = total % 11;
+    const comparador = modulo11 < 2 ? 0 : 11 - modulo11;
+    return nif[8] == comparador;
+}
+
+// ==========================================
+// 2. CONFIGURAÇÃO AVANÇADA DE MÁSCARAS
+// ==========================================
+
 const countryData = {
-    'GW': { code: '245', phoneMask: '+{245} 00 000 00 00', docMask: '000000000' }, // Guiné
+    'GW': { code: '245', phoneMask: '+{245} 00 000 00 00', docMask: '000000000' }, // Guiné (Biométrico)
     'BR': { code: '55',  phoneMask: '+{55} (00) 00000-0000', docMask: '000.000.000-00' }, // Brasil (CPF)
     'PT': { code: '351', phoneMask: '+{351} 000 000 000', docMask: '000000000' }, // Portugal (NIF)
     'SN': { code: '221', phoneMask: '+{221} 00 000 00 00', docMask: '0 000 0000 00000' }, // Senegal
     'MA': { code: '212', phoneMask: '+{212} 0 00 00 00 00', docMask: '00000000' }, // Marrocos
     'US': { code: '1',   phoneMask: '+{1} (000) 000-0000', docMask: '000-00-0000' }, // EUA
     'FR': { code: '33',  phoneMask: '+{33} 0 00 00 00 00', docMask: '000000000000' }, // França
-    'ES': { code: '34',  phoneMask: '+{34} 000 000 000', docMask: '00000000X' }, // Espanha (NIE/DNI)
+    'ES': { code: '34',  phoneMask: '+{34} 000 000 000', docMask: '00000000a' }, // Espanha (NIE/DNI aceita letra no fim)
     'UK': { code: '44',  phoneMask: '+{44} 0000 000000', docMask: '000000000' }, // UK
     'BE': { code: '32',  phoneMask: '+{32} 000 00 00 00', docMask: '00.00.00-000.00' }, // Bélgica
     'CV': { code: '238', phoneMask: '+{238} 000 00 00', docMask: '000000000' }, // Cabo Verde
@@ -66,7 +115,7 @@ let phoneMaskInstance = null;
 let docMaskInstance = null;
 
 function updateMasks() {
-    if (typeof IMask === 'undefined') return console.warn("IMask não carregado.");
+    if (typeof IMask === 'undefined') return;
 
     const countrySelect = document.getElementById('reg-country');
     const phoneInput = document.getElementById('reg-phone');
@@ -77,40 +126,37 @@ function updateMasks() {
     const country = countrySelect.value;
     const data = countryData[country] || countryData['default'];
 
-    // --- 1. MÁSCARA DE TELEFONE (Com Prefixo Automático) ---
+    // --- 1. MÁSCARA DE TELEFONE ---
     if (phoneMaskInstance) phoneMaskInstance.destroy();
-    
     try {
         phoneMaskInstance = IMask(phoneInput, {
             mask: data.phoneMask,
-            lazy: false,  // Faz a máscara aparecer imediatamente (ex: +245 __ ___)
-            placeholderChar: '_' // Caractere para onde o usuário deve digitar
+            lazy: false,
+            placeholderChar: '_' 
         });
     } catch (e) { console.error(e); }
 
-    // --- 2. MÁSCARA DE DOCUMENTO (Validação de Formato) ---
+    // --- 2. MÁSCARA DE DOCUMENTO ---
     if (docMaskInstance) docMaskInstance.destroy();
-
     try {
         docMaskInstance = IMask(docInput, {
             mask: data.docMask,
-            prepare: (str) => str.toUpperCase() // Força letras maiúsculas
+            prepare: (str) => str.toUpperCase() // Força maiúsculas
         });
         
-        // Ajusta placeholder visualmente
-        if (country === 'BR') docInput.placeholder = "CPF (000.000.000-00)";
-        else if (country === 'PT') docInput.placeholder = "NIF";
+        // Placeholders dinâmicos
+        if (country === 'BR') docInput.placeholder = "CPF (Ex: 123.456.789-00)";
+        else if (country === 'PT') docInput.placeholder = "NIF (Ex: 123456789)";
+        else if (country === 'GW') docInput.placeholder = "Nº Documento (9 dígitos)";
         else docInput.placeholder = "Número do Documento";
         
     } catch (e) { console.error(e); }
 }
 
-// Inicializa as máscaras assim que carregar
+// Inicializa
 document.addEventListener('DOMContentLoaded', () => {
-    // Se existir o select na tela, aplica a máscara inicial
-    if(document.getElementById('reg-country')) {
-        updateMasks();
-    }
+    if(document.getElementById('reg-country')) updateMasks();
+    checkAutoLogin(); // Sua função de login existente
 });
 // --- LOGIN & CADASTRO (CORRIGIDO) ---
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
@@ -142,8 +188,10 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
         alert(data.msg);
     }
 });
+// ==========================================
+// 3. LÓGICA DE CADASTRO RIGOROSA
+// ==========================================
 
-// --- CADASTRO COM VALIDAÇÃO RIGOROSA ---
 document.getElementById('register-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -153,42 +201,51 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
     const email = document.getElementById('reg-email').value.trim();
     const country = document.getElementById('reg-country').value;
 
-    // 1. Validação de Senha
+    // --- A. Validação de Senha ---
     if (pass !== pass2) return alert('❌ As senhas não coincidem!');
     if (pass.length < 6) return alert('❌ A senha deve ter no mínimo 6 caracteres.');
 
-    // 2. Validação de Telefone (Usando a máscara)
+    // --- B. Validação de Telefone (RIGOROSA) ---
     if (!phoneMaskInstance || !phoneMaskInstance.masked.isComplete) {
-        return alert('❌ Digite o número de celular completo (com DDD).');
+        return alert('❌ Telefone incompleto! Digite o número com DDD/Código correto.');
     }
 
-    // 3. Validação de Documento (Usando a máscara)
-    // Para alguns países a validação de tamanho é crítica
+    // --- C. Validação de Documento (INTELIGENTE) ---
+    // 1. Verifica se preencheu a máscara toda (tamanho)
     if (!docMaskInstance || !docMaskInstance.masked.isComplete) {
-        return alert('❌ O número do documento está incompleto ou inválido para o país selecionado.');
+        return alert(`❌ O documento está incompleto para o país selecionado (${country}).`);
     }
 
-    // PREPARAÇÃO DOS DADOS PARA O BANCO
-    // Pega o valor "unmasked" (sem traços e parenteses) mas garante o código do país
-    // O IMask unmaskedValue já remove a formatação, mas mantém os números.
-    // Ex: +245 99... vira 24599... (Perfeito para o WhatsApp API)
-    const cleanPhone = phoneMaskInstance.unmaskedValue; 
+    // 2. Validações matemáticas específicas
+    const cleanDoc = docMaskInstance.unmaskedValue; // Pega só os números/letras
+
+    if (country === 'BR') {
+        if (!isValidCPF(cleanDoc)) {
+            return alert('❌ CPF Inválido! Verifique os números digitados.');
+        }
+    }
     
-    // Documento limpo (apenas letras e números)
-    const cleanDoc = docMaskInstance.value.toUpperCase(); 
+    if (country === 'PT') {
+        if (!isValidPT_NIF(cleanDoc)) {
+            return alert('❌ NIF de Portugal inválido!');
+        }
+    }
+
+    // --- D. Envio dos Dados ---
+    const cleanPhone = phoneMaskInstance.unmaskedValue; // Envia só os números (ex: 558599999999)
 
     const formData = {
         name: name,
         email: email,
-        phone: cleanPhone, // Envia ex: 245966600000
+        phone: cleanPhone, 
         country: country,
-        document: cleanDoc,
+        document: cleanDoc.toUpperCase(),
         password: pass
     };
 
     const btn = e.target.querySelector('button');
     const oldText = btn.innerText;
-    btn.innerText = "Cadastrando...";
+    btn.innerText = "Verificando...";
     btn.disabled = true;
 
     try {
@@ -202,10 +259,9 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
         
         if(data.success) { 
             alert('✅ Cadastro realizado com sucesso!\nFaça login para continuar.'); 
-            showLogin(); 
-            // Limpa formulário
+            showLogin(); // Sua função que volta pra tela de login
             document.getElementById('register-form').reset();
-            updateMasks(); // Reseta as máscaras
+            updateMasks(); 
         } else { 
             alert('Erro: ' + data.msg); 
         }
