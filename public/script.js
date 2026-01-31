@@ -2589,7 +2589,7 @@ async function printReceipt(boxId) {
                 </div>
                 <div class="rec-box">
                     <h3>DADOS DO ENVIO</h3>
-                    <div class="rec-line"><strong>Destino:</strong> ${d.country || 'Guiné-Bissau(GW)'}</div>
+                    <div class="rec-line"><strong>Destino:</strong> Guiné-Bissau</div>
                     <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code || '-'}</div>
                     <div class="rec-line"><strong>Peso Registrado:</strong> ${d.weight} kg</div>
                     <div class="rec-line"><strong>Status:</strong> ${d.order_status || 'Processando'}</div>
