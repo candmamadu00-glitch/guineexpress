@@ -671,7 +671,7 @@ app.post('/api/boxes/create', (req, res) => {
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
 });
 app.post('/api/boxes/delete', (req, res) => db.run("DELETE FROM boxes WHERE id = ?", [req.body.id], (err) => res.json({success: !err})));
-// --- ROTA: Atualizar Perfil (Com Foto) ---
+// --- ROTA: Atualizar Perfil (BLINDADA - Salva Foto no Banco) ---
 app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
     // Se não estiver logado, bloqueia
     if (!req.session.userId) return res.status(401).json({ success: false });
@@ -681,24 +681,30 @@ app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
 
     // Cenário 1: Usuário enviou uma foto nova
     if (req.file) {
+        // MÁGICA: Converte a imagem (Buffer) em Texto (Base64)
+        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+
         const sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?";
-        const params = [name, phone, email, req.file.filename, userId];
+        // Agora salvamos o CÓDIGO DA IMAGEM (base64Image) direto no banco
+        const params = [name, phone, email, base64Image, userId];
         
         db.run(sql, params, function(err) {
             if (err) {
-                console.error(err);
+                console.error("Erro ao salvar imagem:", err);
                 return res.json({ success: false, message: "Erro ao salvar no banco." });
             }
-            // Atualiza a sessão
-            if(req.session.user) req.session.user.profile_pic = req.file.filename;
             
-            // --- AQUI ESTA A CORREÇÃO ---
-            // Devolve o link para o site mostrar a foto na hora
+            // Atualiza a sessão
+            if(req.session.user) {
+                req.session.user.name = name;
+                req.session.user.profile_pic = base64Image;
+            }
+            
+            // Devolve a imagem codificada para o site mostrar na hora
             res.json({ 
                 success: true, 
-                newProfilePicUrl: '/uploads/' + req.file.filename 
+                newProfilePicUrl: base64Image 
             });
-            // ----------------------------
         });
     } 
     // Cenário 2: Usuário SÓ mudou o texto (sem foto nova)
@@ -708,6 +714,10 @@ app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
 
         db.run(sql, params, function(err) {
             if (err) return res.json({ success: false });
+            
+            // Atualiza nome na sessão se mudou
+            if(req.session.user) req.session.user.name = name;
+            
             res.json({ success: true });
         });
     }
