@@ -42,6 +42,7 @@
             <button onclick="showSection('price-section')">💰 Preço</button>
             <button onclick="showSection('videos-section')">🎥 Vídeos</button>
             <button onclick="showSection('clients-view')"><i class="fas fa-users"></i> Clientes</button>
+            <button onclick="showSection('logs-view'); loadAccessLogs()" class="btn-menu"><i class="fas fa-user-shield"></i> Histórico de Acessos</button>
             <button onclick="logout()" style="color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Sair</button>
         </div>
     </nav>
@@ -217,7 +218,31 @@
                 </table>
             </div>
         </section>
+     <section id="logs-view" class="hidden">
+    <h2>🛡️ Monitoramento de Segurança</h2>
+    <p>Veja quem acessou o sistema, tentativas de invasão e dispositivos usados.</p>
 
+    <div class="table-container" style="margin-top: 20px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+        <button onclick="loadAccessLogs()" class="btn" style="background: #6c757d; color: white; margin-bottom: 15px;">
+            <i class="fas fa-sync-alt"></i> Atualizar Lista
+        </button>
+
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f4f4f4; text-align: left;">
+                    <th style="padding: 10px;">Data/Hora</th>
+                    <th style="padding: 10px;">Quem (Input)</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px;">Dispositivo</th>
+                    <th style="padding: 10px;">IP</th>
+                    <th style="padding: 10px;">Detalhe</th>
+                </tr>
+            </thead>
+            <tbody id="logs-table-body">
+                </tbody>
+        </table>
+    </div>
+</section>
         <section id="box-view" class="hidden">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">

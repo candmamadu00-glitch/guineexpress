@@ -140,51 +140,88 @@ app.use(session({
 // Permite que o navegador acesse os vídeos gravados
 app.use('/uploads/videos', express.static('uploads/videos'));
 
-// --- LOGIN INTELIGENTE (CORRIGIDO) ---
+// ==================================================================
+// FUNÇÃO AUXILIAR: Detectar Dispositivo e Salvar Log
+// ==================================================================
+function logAccess(req, userInput, status, reason) {
+    const userAgent = req.headers['user-agent'] || '';
+    // Verifica se é mobile (Android, iPhone, etc)
+    const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
+    const device = isMobile ? 'Celular 📱' : 'Computador 💻';
+    
+    // Pega o IP (considerando proxies como o Render)
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'IP Oculto';
+
+    const sql = "INSERT INTO access_logs (user_input, status, reason, device, ip_address) VALUES (?, ?, ?, ?, ?)";
+    db.run(sql, [userInput, status, reason, device, ip], (err) => {
+        if(err) console.error("Erro ao salvar log:", err);
+    });
+}
+
+// ==================================================================
+// ROTA: LOGIN INTELIGENTE (COM RASTREAMENTO)
+// ==================================================================
 app.post('/api/login', (req, res) => {
     const { login, password, role } = req.body;
 
-    // 1. Busca o usuário APENAS pelo E-mail ou Telefone (sem filtrar cargo agora)
+    // 1. Busca o usuário
     const sql = "SELECT * FROM users WHERE email = ? OR phone = ?";
     
     db.get(sql, [login, login], (err, user) => {
-        if (err) return res.status(500).json({ success: false, msg: 'Erro interno no banco.' });
+        if (err) {
+            logAccess(req, login, 'Erro', 'Erro interno no Banco');
+            return res.status(500).json({ success: false, msg: 'Erro interno.' });
+        }
+
         // 2. Se não achou o usuário
         if (!user) {
-            return res.status(400).json({ success: false, msg: 'Usuário não encontrado. Cadastre-se primeiro.' });
+            logAccess(req, login, 'Falha', 'Usuário não encontrado');
+            return res.status(400).json({ success: false, msg: 'Usuário não encontrado.' });
         }
 
         // 3. Verifica se a conta está ativa
         if (user.active !== 1) {
-            return res.status(400).json({ success: false, msg: 'Sua conta está desativada. Fale com o suporte.' });
+            logAccess(req, login, 'Falha', 'Conta Desativada');
+            return res.status(400).json({ success: false, msg: 'Conta desativada. Fale com o suporte.' });
         }
 
-        // 4. Verifica a Senha (Bcrypt)
+        // 4. Verifica a Senha
         if (!bcrypt.compareSync(password, user.password)) {
+            // AQUI ESTÁ O PULO DO GATO: Salvamos que alguém tentou invadir
+            logAccess(req, login, 'Falha', 'Senha Incorreta 🔒');
             return res.status(400).json({ success: false, msg: 'Senha incorreta.' });
         }
 
-        // 5. Verifica o Cargo (Proteção para não logar Admin na aba de Cliente)
-        // Se quiser permitir login direto sem verificar a aba, remova este bloco IF
+        // 5. Verifica o Cargo
         if (user.role !== role) {
-            // Traduz os cargos para ficar bonito na mensagem
-            const cargos = { 'admin': 'Admin', 'employee': 'Funcionário', 'client': 'Cliente' };
-            const cargoCerto = cargos[user.role] || user.role;
-            const cargoErrado = cargos[role] || role;
-
+            logAccess(req, login, 'Falha', `Cargo Errado (Tentou ${role} sendo ${user.role})`);
             return res.status(400).json({ 
                 success: false, 
-                msg: `Login incorreto! Você tem conta de ${cargoCerto}, mas está tentando entrar como ${cargoErrado}.` 
+                msg: `Login incorreto! Você é ${user.role}, mas tentou entrar como ${role}.` 
             });
         }
 
-        // 6. Sucesso! Cria a sessão
+        // 6. Sucesso Absoluto
         req.session.userId = user.id;
         req.session.role = user.role;
-        req.session.userName = user.name;
+        req.session.user = user; // Salva o objeto user inteiro na sessão para facilitar
         
-        console.log(`✅ Login Sucesso: ${user.name} (${user.role})`);
+        // Registra o sucesso
+        logAccess(req, login, 'Sucesso', `Login Realizado (${user.role}) ✅`);
+        
+        console.log(`✅ Login Sucesso: ${user.name}`);
         res.json({ success: true, role: user.role, name: user.name });
+    });
+});
+
+// --- ROTA EXTRA: Para o Admin ver os Logs ---
+app.get('/api/admin/logs', (req, res) => {
+    if (!req.session.role || req.session.role !== 'admin') {
+        return res.status(403).json([]);
+    }
+    // Pega os últimos 100 acessos, do mais recente para o mais antigo
+    db.all("SELECT * FROM access_logs ORDER BY id DESC LIMIT 100", (err, rows) => {
+        res.json(rows || []);
     });
 });
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({success: true}); });
@@ -1524,7 +1561,19 @@ app.post('/api/admin/toggle-employee', (req, res) => {
         res.json({ success: !err });
     });
 });
-
+// --- ROTA: Pegar dados do Usuário Logado (Para o Painel) ---
+app.get('/api/user/me', (req, res) => {
+    if (req.session.user) {
+        // Devolve o nome e a foto que estão na sessão
+        res.json({ 
+            success: true, 
+            name: req.session.user.name,
+            profile_pic: req.session.user.profile_pic 
+        });
+    } else {
+        res.json({ success: false });
+    }
+});
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR
 // =====================================================

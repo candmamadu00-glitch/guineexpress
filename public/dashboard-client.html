@@ -284,7 +284,7 @@
         <section id="home-view">
             <div class="welcome-banner">
                 <div>
-                    <h2 id="welcome-msg">Olá, Bem-vindo!</h2>
+                   <h2>Olá, <span id="user-name-display">Bem-vindo</span>! 👋</h2>
                     <p>Acompanhe suas importações e pagamentos em tempo real.</p>
                 </div>
                 <div style="font-size: 40px; opacity: 0.2;"><i class="fas fa-globe-africa"></i></div>
@@ -897,6 +897,35 @@
             observer.observe(targetNode, { childList: true });
         }
     });
+</script>
+<script>
+    // --- SCRIPT: CARREGAR NOME DO USUÁRIO ---
+    fetch('/api/user/me')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.name) {
+                // Pega o primeiro nome da pessoa (ex: "João Silva" vira "João")
+                const firstName = data.name.split(' ')[0];
+                
+                // Atualiza o texto na tela
+                const nameElement = document.getElementById('user-name-display');
+                if (nameElement) {
+                    nameElement.innerText = firstName;
+                }
+                
+                // (Opcional) Se quiser atualizar a foto de perfil do canto também:
+                const profileImg = document.getElementById('profile-img-preview'); // Verifique o ID da sua img
+                if (profileImg && data.profile_pic) {
+                    // Verifica se é base64 ou link normal
+                    if(data.profile_pic.startsWith('data:')) {
+                        profileImg.src = data.profile_pic;
+                    } else {
+                        profileImg.src = '/uploads/' + data.profile_pic;
+                    }
+                }
+            }
+        })
+        .catch(err => console.error("Erro ao carregar nome:", err));
 </script>
 <script>
     // --- EFEITO RIPPLE (ONDA) NOS BOTÕES ---

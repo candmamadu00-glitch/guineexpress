@@ -30,7 +30,16 @@ db.serialize(() => {
         profile_pic TEXT DEFAULT '/uploads/default.png', 
         active INTEGER DEFAULT 1
     )`);
-   
+    // --- TABELA DE HISTÓRICO DE LOGINS ---
+    db.run(`CREATE TABLE IF NOT EXISTS access_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_input TEXT,    -- O email ou telefone que a pessoa digitou
+        status TEXT,        -- 'Sucesso' ou 'Falha'
+        reason TEXT,        -- Motivo (ex: Senha Incorreta)
+        device TEXT,        -- 'Celular' ou 'Computador'
+        ip_address TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
     // Tabela de Encomendas
     db.run(`CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

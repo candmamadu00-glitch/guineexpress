@@ -18,18 +18,25 @@ async function checkAutoLogin() {
             currentUser = data.user;
             currentRole = data.user.role;
 
+            // --- NOVO: ATUALIZA O NOME NA TELA ---
+            const nameDisplay = document.getElementById('user-name-display');
+            if (nameDisplay && currentUser.name) {
+                // Pega só o primeiro nome (Ex: "João Silva" vira "João")
+                const firstName = currentUser.name.split(' ')[0];
+                nameDisplay.innerText = firstName;
+            }
+            // -------------------------------------
+
             // Esconde Login e Mostra Dashboard
             document.getElementById('login-screen').classList.add('hidden');
             
             if (currentRole === 'admin') {
-                window.location.href = 'dashboard-admin.html'; // Ou exibe a div do admin
+                window.location.href = 'dashboard-admin.html'; 
             } else {
-                // Se estivermos no index.html e for cliente, manda pro dashboard
-                // Se já estivermos no dashboard-client.html, apenas carrega a Home
                 if(window.location.pathname.includes('index') || window.location.pathname === '/') {
                      window.location.href = 'dashboard-client.html';
                 } else {
-                     showSection('home-view'); // Garante que vá para a Home
+                     showSection('home-view'); 
                 }
             }
         }
@@ -37,7 +44,6 @@ async function checkAutoLogin() {
         console.log("Sessão expirada ou inválida.");
     }
 }
-
 // Executa ao abrir a página
 document.addEventListener('DOMContentLoaded', () => {
     checkAutoLogin();
@@ -3871,5 +3877,40 @@ function updateClientNotifications(orders) {
     } else {
         badge.classList.add('hidden');   // Esconde se for zero
         badge.classList.remove('pulse-animation');
+    }
+}
+// --- FUNÇÃO: CARREGAR LOGS DE ACESSO ---
+async function loadAccessLogs() {
+    try {
+        const response = await fetch('/api/admin/logs');
+        const logs = await response.json();
+        
+        const tbody = document.getElementById('logs-table-body');
+        tbody.innerHTML = ''; // Limpa a tabela
+
+        logs.forEach(log => {
+            const tr = document.createElement('tr');
+            
+            // Define cor baseada no status (Sucesso = Verde, Falha = Vermelho)
+            const statusColor = log.status === 'Sucesso' ? '#28a745' : '#dc3545';
+            const statusBadge = `<span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${log.status}</span>`;
+
+            // Formata a data
+            const date = new Date(log.created_at).toLocaleString('pt-BR');
+
+            tr.innerHTML = `
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${date}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">${log.user_input}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${statusBadge}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${log.device}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-family: monospace;">${log.ip_address}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; color: #666;">${log.reason || '-'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+    } catch (error) {
+        console.error("Erro ao carregar logs:", error);
+        alert("Erro ao carregar histórico.");
     }
 }
