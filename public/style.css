@@ -1293,3 +1293,92 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     color: var(--dark) !important;
     opacity: 1 !important;
 }
+/* =========================================
+   13. ESTILO DO HISTÓRICO DE LOGINS (Responsivo)
+   ========================================= */
+
+/* Estilo Base da Tabela (Desktop) */
+#logs-view table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden; /* Arredonda os cantos */
+}
+
+#logs-view thead {
+    background-color: var(--primary, #0a1931);
+    color: white;
+}
+
+#logs-view th, 
+#logs-view td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+
+#logs-view tr:hover {
+    background-color: #f8f9fa; /* Efeito ao passar o mouse */
+}
+
+/* --- MÁGICA PARA CELULAR (Modo Cartão) --- */
+@media (max-width: 768px) {
+    /* Esconde o cabeçalho da tabela no celular */
+    #logs-view thead {
+        display: none;
+    }
+
+    /* Transforma a tabela em blocos */
+    #logs-view table, 
+    #logs-view tbody, 
+    #logs-view tr, 
+    #logs-view td {
+        display: block;
+        width: 100%;
+    }
+
+    /* Estilo do "Cartão" (Cada linha vira um cartão) */
+    #logs-view tr {
+        margin-bottom: 15px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        padding: 10px;
+    }
+
+    /* Estilo das células dentro do cartão */
+    #logs-view td {
+        text-align: right; /* Conteúdo alinhado à direita */
+        padding-left: 50%; /* Espaço para o rótulo */
+        position: relative;
+        border-bottom: 1px solid #eee;
+    }
+
+    #logs-view td:last-child {
+        border-bottom: 0;
+    }
+
+    /* CRIA OS TÍTULOS (LABELS) AUTOMATICAMENTE NO CELULAR */
+    /* Isso simula o cabeçalho que escondemos */
+    #logs-view td::before {
+        content: attr(data-label); /* Tenta pegar atributo */
+        position: absolute;
+        left: 10px;
+        width: 45%;
+        text-align: left;
+        font-weight: bold;
+        color: #555;
+    }
+
+    /* Rótulos Manuais (caso o JS não tenha data-label) */
+    #logs-view td:nth-of-type(1)::before { content: "📅 Data:"; }
+    #logs-view td:nth-of-type(2)::before { content: "👤 Usuário:"; }
+    #logs-view td:nth-of-type(3)::before { content: "📊 Status:"; }
+    #logs-view td:nth-of-type(4)::before { content: "📱 Disp.:"; }
+    #logs-view td:nth-of-type(5)::before { content: "🌐 IP:"; }
+    #logs-view td:nth-of-type(6)::before { content: "ℹ️ Detalhe:"; }
+}
