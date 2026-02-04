@@ -1274,3 +1274,22 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     90% { opacity: 1; }
     100% { top: 100%; opacity: 0; }
 }
+/* =========================================
+   12. CORREÇÃO DE VISIBILIDADE (TABELA)
+   ========================================= */
+
+/* Força as linhas da tabela a aparecerem, ignorando a regra do HTML */
+#orders-list tr, 
+.data-table tbody tr {
+    opacity: 1 !important;          /* Garante que não está transparente */
+    visibility: visible !important; /* Garante que está visível */
+    animation: none !important;     /* Mata qualquer animação travada */
+    transform: none !important;     /* Reseta posições deslocadas */
+}
+
+/* Garante que o texto dentro da tabela tenha cor visível */
+#orders-list td, 
+.data-table td {
+    color: var(--dark) !important;
+    opacity: 1 !important;
+}
