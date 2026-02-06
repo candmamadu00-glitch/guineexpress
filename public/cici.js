@@ -33,7 +33,7 @@ const CiciAI = {
                 "Por nada! A Guineexpress agradece. ✈️💛", 
                 "Disponha! Qualquer coisa, é só chamar.", 
                 "Imagina! Estamos aqui para facilitar sua logística."
-            ], // Array para respostas aleatórias
+            ],
             action: null
         },
         {
@@ -56,15 +56,6 @@ const CiciAI = {
             response: () => "Claro! Digite seu e-mail e senha. Se esqueceu a senha, me avise.",
             action: () => { if(typeof showLogin === 'function') showLogin(); }
         },
-        {
-            roles: ['visitor'],
-            patterns: [/senha/i, /esqueci/i, /recuperar/i],
-            response: () => "Sem problemas. 🔒 Vou abrir a tela de recuperação de senha para você.",
-            action: () => { 
-                const modal = document.getElementById('modal-recover');
-                if(modal) modal.classList.remove('hidden'); 
-            }
-        },
 
         // --- 3. CLIENTE (Onde a mágica acontece) ---
         {
@@ -74,52 +65,57 @@ const CiciAI = {
                 // ELA LÊ A TELA: Conta quantos itens tem na tabela
                 const count = CiciAI.countTableRows('orders-list'); // ID da tabela de encomendas
                 if (count > 0) {
-                    return `Encontrei **${count} encomendas** na sua lista! 📦 Vou te mostrar. Se estiver 'Verde', já pode vir buscar!`;
+                    return `Encontrei **${count} encomendas** na sua lista! 📦 Se estiver marcado em verde, já pode vir buscar.`;
                 } else {
-                    return "Abri sua lista, mas não vejo encomendas recentes agora. 🧐 Quer adicionar uma nova?";
+                    return "Abri sua lista, mas não vejo encomendas recentes agora. 🧐 Deseja adicionar uma nova?";
                 }
             },
-            action: () => { showSection('orders-view'); }
+            action: () => { if(typeof showSection === 'function') showSection('orders-view'); }
         },
         {
             roles: ['client'],
-            patterns: [/pagar/i, /fatura/i, /pix/i, /dinheiro/i, /devo/i],
-            response: () => "Área Financeira. 💲 Verifique suas faturas abertas abaixo. Aceitamos Pix e Cartão.",
-            action: () => { showSection('billing-view'); }
+            patterns: [/pagar/i, /fatura/i, /pix/i, /dinheiro/i, /devo/i, /quanto custa/i],
+            response: (ctx) => {
+                // ELA LÊ SE TEM PENDÊNCIA
+                const hasPending = document.body.innerText.includes('Pendente');
+                if(hasPending) {
+                    return "Atenção! 💲 Identifiquei faturas **Pendentes**. Recomendo regularizar para liberar suas encomendas.";
+                }
+                return "Área Financeira aberta. 💲 Verifique suas faturas abaixo. Aceitamos Pix e Cartão.";
+            },
+            action: () => { if(typeof showSection === 'function') showSection('billing-view'); }
         },
         {
             roles: ['client'],
             patterns: [/agendar/i, /retirar/i, /buscar/i, /horário/i],
             response: () => "Perfeito! 📅 Escolha um horário disponível na agenda para não pegar fila.",
-            action: () => { showSection('schedule-view'); }
+            action: () => { if(typeof showSection === 'function') showSection('schedule-view'); }
         },
 
         // --- 4. ADMIN (Gestão) ---
         {
             roles: ['admin'],
-            patterns: [/resumo/i, /geral/i, /como estamos/i],
-            response: () => {
-                return "Análise rápida: Verifique os Logs de acesso e o Faturamento do dia. Tudo parece operante, Chefe! 🫡";
-            },
-            action: () => { showSection('logs-view'); } 
+            patterns: [/resumo/i, /geral/i, /como estamos/i, /dashboard/i],
+            response: () => "Análise rápida: Verifique os Logs de acesso e o Faturamento do dia. Tudo parece operante, Chefe! 🫡",
+            action: () => { if(typeof showSection === 'function') showSection('logs-view'); } 
         },
         {
             roles: ['admin'],
             patterns: [/etiqueta/i, /imprimir/i, /tag/i],
             response: () => "Gerador de Etiquetas pronto. 🏷️ Lembre-se de verificar o papel da impressora.",
-            action: () => { showSection('labels-view'); } 
+            action: () => { if(typeof showSection === 'function') showSection('labels-view'); } 
         },
 
         // --- 5. FUNCIONÁRIO (Operacional) ---
         {
             roles: ['employee'],
-            patterns: [/receber/i, /nova/i, /triagem/i],
+            patterns: [/receber/i, /nova/i, /triagem/i, /chegou caixa/i],
             response: () => "Modo de Recebimento Ativado. 📥 Prepare o scanner e a balança.",
-            action: () => { showSection('receipts-view'); } 
+            action: () => { if(typeof showSection === 'function') showSection('receipts-view'); } 
         },
         {
             roles: ['employee'],
-            patterns: [/cliente/i, /buscar cliente/i],
+            patterns: [/cliente/i, /buscar cliente/i, /entregar/i],
             response: () => "Vou abrir o scanner de QR Code para identificar o cliente. 📸",
             action: () => { if(typeof startScanner === 'function') startScanner(); } 
         }
@@ -132,14 +128,14 @@ const CiciAI = {
         this.detectContext();
         this.renderWidget();
         
-        // Efeito sonoro de entrada (opcional, removido para não ser chato)
+        // Pequeno atraso para garantir que o CSS carregou
         setTimeout(() => {
             const badge = document.getElementById('cici-badge');
             if(badge) {
                 badge.classList.remove('hidden');
-                badge.classList.add('pulse-animation'); // Adicione isso no CSS para pulsar
+                badge.classList.add('pulse-animation');
             }
-        }, 1000);
+        }, 1500);
     },
 
     // Detecção Contextual Melhorada
@@ -152,7 +148,7 @@ const CiciAI = {
             this.userRole = 'client'; 
             this.roleLabel = 'Cliente VIP';
             // Tenta pegar o nome da variável global do script.js
-            if (typeof currentUser !== 'undefined' && currentUser.name) {
+            if (typeof currentUser !== 'undefined' && currentUser && currentUser.name) {
                 this.userName = currentUser.name.split(' ')[0];
             }
         } 
@@ -161,13 +157,13 @@ const CiciAI = {
         console.log(`🧠 Cici v6.0 Online. Contexto: ${this.userRole}`);
     },
 
-    // FUNÇÃO DE "VISÃO": Conta linhas de tabelas para dar respostas reais
+    // FUNÇÃO DE "VISÃO": Conta linhas de tabelas
     countTableRows: function(tableId) {
         const table = document.getElementById(tableId);
         if(!table) return 0;
-        // Conta trs dentro do tbody, se existir, ou da table direta
-        const rows = table.querySelectorAll('tbody tr').length || table.querySelectorAll('tr').length - 1; 
-        return Math.max(0, rows);
+        const tbody = table.querySelector('tbody');
+        if(tbody) return tbody.querySelectorAll('tr').length;
+        return Math.max(0, table.querySelectorAll('tr').length - 1);
     },
 
     renderWidget: function() {
@@ -176,7 +172,7 @@ const CiciAI = {
         // Saudação inicial inteligente
         const msgs = {
             'visitor': "Olá! ✈️ Quer enviar encomendas para Guiné-Bissau?",
-            'client': `Olá, ${this.userName}! 📦 Vim te ajudar com suas encomendas.`,
+            'client': `Olá, ${this.userName || 'Cliente'}! 📦 Vim te ajudar com suas encomendas.`,
             'admin': "Painel Admin. 🛡️ O sistema está rodando 100%.",
             'employee': "Pronto para o trabalho? 🛠️ O que vamos fazer?"
         };
@@ -209,7 +205,7 @@ const CiciAI = {
 
                     <div class="cici-input-area">
                         <input type="text" id="cici-input" placeholder="Digite sua dúvida..." onkeypress="CiciAI.handleInput(event)" autocomplete="off">
-                        <button onclick="CiciAI.handleSend()" class="cici-send-btn"><i class="fas fa-paper-plane"></i> ➤</button>
+                        <button onclick="CiciAI.handleSend()" class="cici-send-btn"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
                 
@@ -224,8 +220,8 @@ const CiciAI = {
     getQuickOptionsHTML: function() {
         let opts = [];
         if(this.userRole === 'visitor') opts = ['Fazer Login', 'Criar Conta', 'Preços'];
-        if(this.userRole === 'client') opts = ['Rastrear', 'Financeiro', 'Agendar Retirada'];
-        if(this.userRole === 'employee') opts = ['Receber Encomenda', 'Buscar Cliente', 'Gravar Vídeo'];
+        if(this.userRole === 'client') opts = ['Minhas Encomendas', 'Financeiro', 'Agendar Retirada'];
+        if(this.userRole === 'employee') opts = ['Receber Encomenda', 'Buscar Cliente'];
         if(this.userRole === 'admin') opts = ['Faturamento', 'Ver Equipe', 'Logs do Sistema'];
 
         let html = `<div class="cici-options" style="margin-top:10px;">`;
@@ -243,8 +239,11 @@ const CiciAI = {
         
         if (this.isOpen) {
             win.classList.add('open');
-            badge.classList.add('hidden');
-            setTimeout(() => document.getElementById('cici-input').focus(), 300);
+            if(badge) badge.classList.add('hidden');
+            setTimeout(() => {
+                const input = document.getElementById('cici-input');
+                if(input) input.focus();
+            }, 300);
         } else {
             win.classList.remove('open');
         }
@@ -255,7 +254,7 @@ const CiciAI = {
         this.addMessage(text, 'user');
         this.showTyping();
 
-        // Inteligência para normalizar texto (remove acentos e lowercase)
+        // Normalização
         const cleanText = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
         setTimeout(() => {
@@ -263,7 +262,6 @@ const CiciAI = {
             
             let match = null;
             
-            // Busca Match
             for (let intent of this.intents) {
                 if (!intent.roles.includes('all') && !intent.roles.includes(this.userRole)) continue;
 
@@ -276,13 +274,11 @@ const CiciAI = {
                 if (match) break;
             }
 
-            // Resposta
             if (match) {
-                // Prepara contexto para passar para a função de resposta
+                // Prepara contexto
                 const ctx = { role: this.userRole, name: this.userName, roleLabel: this.roleLabel };
                 
                 let reply = "";
-                // Se a resposta for uma função, executa. Se for array, pega aleatório. Se for string, usa ela.
                 if (typeof match.response === 'function') {
                     reply = match.response(ctx);
                 } else if (Array.isArray(match.response)) {
@@ -295,24 +291,23 @@ const CiciAI = {
                 if (match.action) match.action();
 
             } else {
-                // Fallback Inteligente (Não entendeu)
+                // Fallback Inteligente
                 const fallbackMsg = this.userRole === 'client' 
-                    ? "Não entendi bem, mas posso te mostrar suas **Encomendas** ou **Faturas**. O que prefere?"
-                    : "Desculpe, ainda estou aprendendo. 🧠 Tente clicar nos botões abaixo:";
+                    ? "Não entendi bem, mas posso te levar para suas **Encomendas** ou **Faturas**. O que prefere?"
+                    : "Ainda estou aprendendo. 🧠 Tente clicar nos botões abaixo:";
                 
                 this.addMessage(fallbackMsg, 'cici');
                 const msgs = document.getElementById('cici-messages');
                 msgs.innerHTML += this.getQuickOptionsHTML();
                 msgs.scrollTop = msgs.scrollHeight;
             }
-        }, 700); // Tempo de "pensar" levemente maior para realismo
+        }, 700);
     },
 
     addMessage: function(text, sender) {
         const msgs = document.getElementById('cici-messages');
         const div = document.createElement('div');
         div.className = `msg ${sender}`;
-        // Detecta Links e transforma em clicáveis
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const formattedText = text.replace(urlRegex, '<a href="$1" target="_blank" style="color:white;text-decoration:underline;">$1</a>');
         
@@ -340,12 +335,13 @@ const CiciAI = {
     handleSend: function() {
         const input = document.getElementById('cici-input');
         const txt = input.value.trim();
+        if(!txt) return;
         input.value = '';
         this.processText(txt);
     }
 };
 
-// Inicializa com segurança
+// Inicializa quando o script.js (currentUser) já tiver rodado
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => { CiciAI.init(); }, 800);
+    setTimeout(() => { CiciAI.init(); }, 1000);
 });
