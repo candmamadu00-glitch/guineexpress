@@ -200,7 +200,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     justify-content: center;
     align-items: center;
     /* Adicionei a imagem aqui, com o gradiente por cima para ficar legível */
-    background: linear-gradient(135deg, rgba(10, 25, 49, 0.9) 0%, rgba(0, 0, 0, 0.9) 100%), url('bg-login-logistics.jpg');
+background: linear-gradient(135deg, #0a1931, #185adb);
     background-size: cover;
     background-position: center;
     padding: 20px;
