@@ -899,33 +899,32 @@
     });
 </script>
 <script>
-    // --- SCRIPT: CARREGAR NOME DO USUÁRIO ---
-    fetch('/api/user/me')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.name) {
-                // Pega o primeiro nome da pessoa (ex: "João Silva" vira "João")
+fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu mandei ela nos passos anteriores)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 1. Atualiza o Nome (Pega só o primeiro nome)
+            if (data.name) {
                 const firstName = data.name.split(' ')[0];
-                
-                // Atualiza o texto na tela
                 const nameElement = document.getElementById('user-name-display');
-                if (nameElement) {
-                    nameElement.innerText = firstName;
-                }
-                
-                // (Opcional) Se quiser atualizar a foto de perfil do canto também:
-                const profileImg = document.getElementById('profile-img-preview'); // Verifique o ID da sua img
-                if (profileImg && data.profile_pic) {
-                    // Verifica se é base64 ou link normal
-                    if(data.profile_pic.startsWith('data:')) {
-                        profileImg.src = data.profile_pic;
-                    } else {
-                        profileImg.src = '/uploads/' + data.profile_pic;
-                    }
+                if (nameElement) nameElement.innerText = firstName;
+            }
+            
+            // 2. Atualiza a Foto
+            const profileImg = document.getElementById('profile-img-preview'); // O ID da sua imagem no topo
+            if (profileImg && data.profile_pic) {
+                // Se for "default.png" ou um arquivo enviado pelo multer
+                if (!data.profile_pic.startsWith('http') && !data.profile_pic.startsWith('data:')) {
+                    // Adiciona o caminho da pasta
+                    profileImg.src = '/uploads/' + data.profile_pic;
+                } else {
+                    // Caso seja um link externo (Google auth) ou base64 antigo
+                    profileImg.src = data.profile_pic;
                 }
             }
-        })
-        .catch(err => console.error("Erro ao carregar nome:", err));
+        }
+    })
+    .catch(err => console.error("Erro ao carregar perfil:", err));
 </script>
 <script>
     // --- EFEITO RIPPLE (ONDA) NOS BOTÕES ---

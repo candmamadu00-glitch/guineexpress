@@ -27,7 +27,7 @@ db.serialize(() => {
         country TEXT, 
         document TEXT, 
         password TEXT,
-        profile_pic TEXT DEFAULT '/uploads/default.png', 
+        profile_pic TEXT DEFAULT 'default.png', 
         active INTEGER DEFAULT 1
     )`);
     // --- TABELA DE HISTÓRICO DE LOGINS ---

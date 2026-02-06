@@ -19,16 +19,17 @@ const SQLiteStore = require('connect-sqlite3')(session);
 // --- CORREÇÃO DO BANCO DE DADOS (Adicione no server.js logo após conectar o banco) ---
 const db = require('./database'); // Ou onde você define o db
 
-// --- 4. CONFIGURAÇÃO DE UPLOAD (MULTER) ---
+// --- 4. CONFIGURAÇÃO DE UPLOAD (MULTER - MODO DISCO) ---
+// Isso salva o arquivo fisicamente na pasta 'uploads'
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        // Cria a pasta uploads se não existir
         if (!fs.existsSync('uploads')) {
             fs.mkdirSync('uploads');
         }
         cb(null, 'uploads/');
     },
     filename: function (req, file, cb) {
+        // Gera um nome único: timestamp + extensão (ex: 123456789.jpg)
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
@@ -708,56 +709,65 @@ app.post('/api/boxes/create', (req, res) => {
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
 });
 app.post('/api/boxes/delete', (req, res) => db.run("DELETE FROM boxes WHERE id = ?", [req.body.id], (err) => res.json({success: !err})));
-// --- ROTA: Atualizar Perfil (BLINDADA - Salva Foto no Banco) ---
 app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
-    // Se não estiver logado, bloqueia
-    if (!req.session.userId) return res.status(401).json({ success: false });
-
-    const { name, phone, email } = req.body;
-    const userId = req.session.userId;
-
-    // Cenário 1: Usuário enviou uma foto nova
-    if (req.file) {
-        // MÁGICA: Converte a imagem (Buffer) em Texto (Base64)
-        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-
-        const sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?";
-        // Agora salvamos o CÓDIGO DA IMAGEM (base64Image) direto no banco
-        const params = [name, phone, email, base64Image, userId];
-        
-        db.run(sql, params, function(err) {
-            if (err) {
-                console.error("Erro ao salvar imagem:", err);
-                return res.json({ success: false, message: "Erro ao salvar no banco." });
-            }
-            
-            // Atualiza a sessão
-            if(req.session.user) {
-                req.session.user.name = name;
-                req.session.user.profile_pic = base64Image;
-            }
-            
-            // Devolve a imagem codificada para o site mostrar na hora
-            res.json({ 
-                success: true, 
-                newProfilePicUrl: base64Image 
-            });
-        });
-    } 
-    // Cenário 2: Usuário SÓ mudou o texto (sem foto nova)
-    else {
-        const sql = "UPDATE users SET name=?, phone=?, email=? WHERE id=?";
-        const params = [name, phone, email, userId];
-
-        db.run(sql, params, function(err) {
-            if (err) return res.json({ success: false });
-            
-            // Atualiza nome na sessão se mudou
-            if(req.session.user) req.session.user.name = name;
-            
-            res.json({ success: true });
-        });
+    // 1. Verifica se existe usuário na sessão
+    if (!req.session.user) {
+        return res.status(401).json({ success: false, message: "Sessão expirada. Faça login novamente." });
     }
+
+    const { name, phone, email, password } = req.body;
+    const userId = req.session.user.id; // Atenção: Verifique se sua sessão usa .user.id ou .userId
+
+    let sql, params;
+
+    // Cenário 1: Usuário enviou FOTO NOVA
+    if (req.file) {
+        // Salvamos apenas o NOME do arquivo no banco (ex: "17100022.jpg")
+        const filename = req.file.filename;
+
+        // Se tiver senha nova
+        if (password && password.trim() !== "") {
+            const hash = bcrypt.hashSync(password, 10);
+            sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=?, password=? WHERE id=?";
+            params = [name, phone, email, filename, hash, userId];
+        } else {
+            // Sem senha nova
+            sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?";
+            params = [name, phone, email, filename, userId];
+        }
+    } 
+    // Cenário 2: Usuário NÃO enviou foto (mantém a antiga)
+    else {
+        if (password && password.trim() !== "") {
+            const hash = bcrypt.hashSync(password, 10);
+            sql = "UPDATE users SET name=?, phone=?, email=?, password=? WHERE id=?";
+            params = [name, phone, email, hash, userId];
+        } else {
+            sql = "UPDATE users SET name=?, phone=?, email=? WHERE id=?";
+            params = [name, phone, email, userId];
+        }
+    }
+
+    db.run(sql, params, function(err) {
+        if (err) {
+            console.error("Erro ao atualizar:", err);
+            return res.json({ success: false, message: "Erro no banco de dados." });
+        }
+
+        // --- IMPORTANTE: Atualiza a Sessão Atual ---
+        // Assim a foto/nome atualiza na hora sem precisar relogar
+        req.session.user.name = name;
+        req.session.user.email = email;
+        if (req.file) {
+            req.session.user.profile_pic = req.file.filename;
+        }
+
+        res.json({ 
+            success: true, 
+            message: "Perfil atualizado com sucesso!",
+            newProfilePic: req.session.user.profile_pic
+        });
+    });
 });
 app.post('/api/clients/toggle', (req, res) => db.run("UPDATE users SET active = ? WHERE id = ?", [req.body.active, req.body.id], () => res.json({ success: true })));
 // --- ROTA DE PREÇO (CONFIGURAÇÃO) ---
