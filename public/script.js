@@ -931,7 +931,12 @@ async function loadOrders() {
     try {
         const res = await fetch('/api/orders');
         const list = await res.json();
-        
+        // --- 🔴 ADICIONE ESTE BLOCO AQUI (CORREÇÃO) 🔴 ---
+        // Isso força o contador do início a mostrar o número real de linhas da tabela
+        const dashCount = document.getElementById('dash-orders-count');
+        if (dashCount) {
+            dashCount.innerText = list.length; // Se a lista for vazia (0), mostra 0
+        }
         // Tenta pegar o tbody correto dependendo da tela
         const tbody = document.getElementById('orders-list') || 
                       document.getElementById('client-orders-list') || 
