@@ -198,13 +198,9 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
 // 3. LÓGICA DE CADASTRO RIGOROSA
 // ==========================================
 
-// ==========================================
-// 3. LÓGICA DE CADASTRO (ATUALIZADA: FOTO + VALIDAÇÕES)
-// ==========================================
 document.getElementById('register-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Pega os valores
     const pass = document.getElementById('reg-pass').value;
     const pass2 = document.getElementById('reg-pass2').value;
     const name = document.getElementById('reg-name').value.trim();
@@ -221,7 +217,7 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
     }
 
     // --- C. Validação de Documento (INTELIGENTE) ---
-    // 1. Verifica se preencheu a máscara toda
+    // 1. Verifica se preencheu a máscara toda (tamanho)
     if (!docMaskInstance || !docMaskInstance.masked.isComplete) {
         return alert(`❌ O documento está incompleto para o país selecionado (${country}).`);
     }
@@ -230,34 +226,28 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
     const cleanDoc = docMaskInstance.unmaskedValue; // Pega só os números/letras
 
     if (country === 'BR') {
-        if (typeof isValidCPF === 'function' && !isValidCPF(cleanDoc)) {
+        if (!isValidCPF(cleanDoc)) {
             return alert('❌ CPF Inválido! Verifique os números digitados.');
         }
     }
     
     if (country === 'PT') {
-        if (typeof isValidPT_NIF === 'function' && !isValidPT_NIF(cleanDoc)) {
+        if (!isValidPT_NIF(cleanDoc)) {
             return alert('❌ NIF de Portugal inválido!');
         }
     }
 
-    // --- D. Envio dos Dados (MUDANÇA AQUI: USANDO FORMDATA) ---
-    const cleanPhone = phoneMaskInstance.unmaskedValue;
+    // --- D. Envio dos Dados ---
+    const cleanPhone = phoneMaskInstance.unmaskedValue; // Envia só os números (ex: 558599999999)
 
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('email', email);
-    formData.append('phone', cleanPhone);
-    formData.append('country', country);
-    formData.append('document', cleanDoc.toUpperCase());
-    formData.append('password', pass);
-
-    // --- PEGAR A FOTO (NOVO) ---
-    // Certifique-se de ter um input com id="reg-photo" no seu HTML
-    const fileInput = document.getElementById('reg-photo');
-    if (fileInput && fileInput.files[0]) {
-        formData.append('profile_pic', fileInput.files[0]);
-    }
+    const formData = {
+        name: name,
+        email: email,
+        phone: cleanPhone, 
+        country: country,
+        document: cleanDoc.toUpperCase(),
+        password: pass
+    };
 
     const btn = e.target.querySelector('button');
     const oldText = btn.innerText;
@@ -265,24 +255,19 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
     btn.disabled = true;
 
     try {
-        // MUDANÇA NO FETCH:
-        // Não usamos 'Content-Type': 'application/json' nem JSON.stringify
-        // O navegador configura tudo sozinho quando vê o FormData
         const res = await fetch('/api/register', { 
             method: 'POST', 
-            body: formData 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(formData)
         });
         
         const data = await res.json();
         
         if(data.success) { 
             alert('✅ Cadastro realizado com sucesso!\nFaça login para continuar.'); 
-            
-            // Funções de limpeza e redirecionamento
-            if(typeof showLogin === 'function') showLogin();
+            showLogin(); // Sua função que volta pra tela de login
             document.getElementById('register-form').reset();
-            if(typeof updateMasks === 'function') updateMasks(); 
-            
+            updateMasks(); 
         } else { 
             alert('Erro: ' + data.msg); 
         }
