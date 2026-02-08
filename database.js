@@ -1,194 +1,250 @@
-require('dotenv').config(); // Lê as variáveis de ambiente
-const sqlite3 = require('sqlite3').verbose();
+require('dotenv').config();
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-// 1. Conecta ao banco de dados (Cria o arquivo se não existir)
-const db = new sqlite3.Database('./guineexpress_v4.db', (err) => {
-    if (err) {
-        console.error('❌ Erro ao conectar ao banco de dados:', err.message);
-    } else {
-        console.log('✅ Conectado ao banco de dados SQLite.');
-    }
+// ====================================================
+// 1. CONFIGURAÇÃO DA CONEXÃO (INTELIGENTE)
+// ====================================================
+// Detecta se está no Render (Produção) ou no PC (Local)
+const isProduction = process.env.RENDER || process.env.NODE_ENV === 'production';
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: isProduction ? { rejectUnauthorized: false } : false // Usa SSL só se necessário
 });
 
-// 2. Executa a criação e atualização das tabelas em sequência
-db.serialize(() => {
-    console.log("🔄 Verificando e atualizando estrutura do banco...");
+// ====================================================
+// 2. CAMADA DE COMPATIBILIDADE (SQLite -> Postgres)
+// ====================================================
+// Transforma os comandos do SQLite (?, db.run) para PostgreSQL ($1, pool.query)
 
-    // --- TABELAS PRINCIPAIS ---
+const adaptSql = (sql, params = []) => {
+    let i = 0;
+    const convertedSql = sql.replace(/\?/g, () => '$' + (++i));
+    return { text: convertedSql, values: params };
+};
 
-    // Tabela de Usuários
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        role TEXT, 
-        name TEXT, 
-        email TEXT UNIQUE, 
-        phone TEXT, 
-        country TEXT, 
-        document TEXT, 
-        password TEXT,
-        profile_pic TEXT DEFAULT 'default.png', 
-        active INTEGER DEFAULT 1
-    )`);
-    // --- TABELA DE HISTÓRICO DE LOGINS ---
-    db.run(`CREATE TABLE IF NOT EXISTS access_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_input TEXT,    -- O email ou telefone que a pessoa digitou
-        status TEXT,        -- 'Sucesso' ou 'Falha'
-        reason TEXT,        -- Motivo (ex: Senha Incorreta)
-        device TEXT,        -- 'Celular' ou 'Computador'
-        ip_address TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-    // Tabela de Encomendas
-    db.run(`CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT UNIQUE,
-        client_id INTEGER,
-        description TEXT,
-        weight REAL,
-        status TEXT,
-        price REAL DEFAULT 0,
-        delivery_proof TEXT,      
-        proof_image TEXT,         
-        delivery_location TEXT,   
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(client_id) REFERENCES users(id)
-    )`);
+const db = {
+    // Simula db.run (INSERT, UPDATE, DELETE)
+    run: (sql, params, callback) => {
+        if (typeof params === 'function') { callback = params; params = []; }
+        const { text, values } = adaptSql(sql, params);
+        
+        pool.query(text, values)
+            .then(res => {
+                // Simula o objeto "this" do SQLite
+                if (callback) callback.call({ lastID: 0, changes: res.rowCount }, null);
+            })
+            .catch(err => {
+                console.error("Erro no DB (RUN):", err.message);
+                if (callback) callback(err);
+            });
+    },
+    // Simula db.all (SELECT lista)
+    all: (sql, params, callback) => {
+        if (typeof params === 'function') { callback = params; params = []; }
+        const { text, values } = adaptSql(sql, params);
 
-    // Tabela de Box
-    db.run(`CREATE TABLE IF NOT EXISTS boxes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id INTEGER,
-        order_id INTEGER, 
-        box_code TEXT,
-        products TEXT,
-        amount REAL,
-        shipment_id INTEGER,      
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(client_id) REFERENCES users(id),
-        FOREIGN KEY(order_id) REFERENCES orders(id),
-        FOREIGN KEY(shipment_id) REFERENCES shipments(id)
-    )`);
+        pool.query(text, values)
+            .then(res => {
+                if (callback) callback(null, res.rows);
+            })
+            .catch(err => {
+                console.error("Erro no DB (ALL):", err.message);
+                if (callback) callback(err, []);
+            });
+    },
+    // Simula db.get (SELECT único)
+    get: (sql, params, callback) => {
+        if (typeof params === 'function') { callback = params; params = []; }
+        const { text, values } = adaptSql(sql, params);
 
-    // Tabela de Despesas
-    db.run(`CREATE TABLE IF NOT EXISTS expenses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        description TEXT,
-        category TEXT, 
-        amount REAL,
-        date DATE DEFAULT CURRENT_DATE
-    )`);
+        pool.query(text, values)
+            .then(res => {
+                if (callback) callback(null, res.rows[0]);
+            })
+            .catch(err => {
+                console.error("Erro no DB (GET):", err.message);
+                if (callback) callback(err, null);
+            });
+    },
+    // Simula db.serialize (Apenas executa)
+    serialize: (callback) => callback()
+};
 
-    // Garante que a tabela de logs existe
-db.run(`CREATE TABLE IF NOT EXISTS system_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_name TEXT,
-    action TEXT,      
-    details TEXT,    
-    ip_address TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)`);
+// ====================================================
+// 3. INICIALIZAÇÃO E TABELAS
+// ====================================================
+const initDb = async () => {
+    try {
+        console.log("🔄 Conectando ao PostgreSQL e verificando tabelas...");
+        const client = await pool.connect();
 
-    // Tabela de Embarques (Shipments)
-    db.run(`CREATE TABLE IF NOT EXISTS shipments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT UNIQUE,   
-        type TEXT,            
-        status TEXT,          
-        departure_date DATE,
-        arrival_forecast DATE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+        // Users
+        await client.query(`CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            role VARCHAR(50), 
+            name VARCHAR(255), 
+            email VARCHAR(255) UNIQUE, 
+            phone VARCHAR(50), 
+            country VARCHAR(100), 
+            document VARCHAR(50), 
+            password TEXT,
+            profile_pic TEXT DEFAULT 'default.png', 
+            active INTEGER DEFAULT 1
+        )`);
 
-    // Tabela de Faturas (Financeiro)
-    db.run(`CREATE TABLE IF NOT EXISTS invoices (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id INTEGER,
-        box_id INTEGER,
-        amount REAL,
-        description TEXT,
-        status TEXT DEFAULT 'pending', 
-        mp_payment_id TEXT, 
-        qr_code TEXT, 
-        qr_code_base64 TEXT, 
-        payment_link TEXT, 
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(client_id) REFERENCES users(id),
-        FOREIGN KEY(box_id) REFERENCES boxes(id)
-    )`);
+        // Access Logs
+        await client.query(`CREATE TABLE IF NOT EXISTS access_logs (
+            id SERIAL PRIMARY KEY,
+            user_input TEXT,
+            status VARCHAR(50),
+            reason TEXT,
+            device VARCHAR(50),
+            ip_address VARCHAR(50),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-    // Agendamento - Vagas
-    db.run(`CREATE TABLE IF NOT EXISTS availability (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT, 
-        start_time TEXT, 
-        end_time TEXT, 
-        max_slots INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+        // Orders
+        await client.query(`CREATE TABLE IF NOT EXISTS orders (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(100) UNIQUE,
+            client_id INTEGER REFERENCES users(id),
+            description TEXT,
+            weight REAL,
+            status VARCHAR(50),
+            price REAL DEFAULT 0,
+            delivery_proof TEXT,      
+            proof_image TEXT,         
+            delivery_location TEXT,   
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-    // Configurações Globais
-    db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT UNIQUE, value REAL)");
-    db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('price_per_kg', 0.00)");
+        // Shipments
+        await client.query(`CREATE TABLE IF NOT EXISTS shipments (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(100) UNIQUE,   
+            type VARCHAR(50),            
+            status VARCHAR(50),          
+            departure_date DATE,
+            arrival_forecast DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-    // Agendamento - Pedidos
-    db.run(`CREATE TABLE IF NOT EXISTS appointments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        availability_id INTEGER, 
-        client_id INTEGER, 
-        time_slot TEXT,  
-        status TEXT DEFAULT 'Pendente',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(availability_id) REFERENCES availability(id),
-        FOREIGN KEY(client_id) REFERENCES users(id)
-    )`);
+        // Boxes
+        await client.query(`CREATE TABLE IF NOT EXISTS boxes (
+            id SERIAL PRIMARY KEY,
+            client_id INTEGER REFERENCES users(id),
+            order_id INTEGER REFERENCES orders(id), 
+            box_code VARCHAR(100),
+            products TEXT,
+            amount REAL,
+            shipment_id INTEGER REFERENCES shipments(id),      
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-    // Tabela de Vídeos
-    db.run(`CREATE TABLE IF NOT EXISTS videos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id INTEGER,
-        filename TEXT,
-        description TEXT, 
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(client_id) REFERENCES users(id)
-    )`);
+        // Expenses
+        await client.query(`CREATE TABLE IF NOT EXISTS expenses (
+            id SERIAL PRIMARY KEY,
+            description TEXT,
+            category VARCHAR(100), 
+            amount REAL,
+            date DATE DEFAULT CURRENT_DATE
+        )`);
 
-    // --- PATCH DE CORREÇÃO (ALTER TABLE) ---
-    // Isso garante que se o banco já existia sem essas colunas, elas serão criadas agora.
-    // O callback vazio () => {} serve para ignorar erros caso a coluna já exista.
-    
-    db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
-    db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      
-    db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
-    db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
-    db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
+        // Invoices
+        await client.query(`CREATE TABLE IF NOT EXISTS invoices (
+            id SERIAL PRIMARY KEY,
+            client_id INTEGER REFERENCES users(id),
+            box_id INTEGER REFERENCES boxes(id),
+            amount REAL,
+            description TEXT,
+            status VARCHAR(50) DEFAULT 'pending', 
+            mp_payment_id VARCHAR(100), 
+            qr_code TEXT, 
+            qr_code_base64 TEXT, 
+            payment_link TEXT, 
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-    console.log("✅ Tabelas sincronizadas e colunas verificadas.");
+        // Availability & Appointments
+        await client.query(`CREATE TABLE IF NOT EXISTS availability (
+            id SERIAL PRIMARY KEY,
+            date VARCHAR(20), 
+            start_time VARCHAR(20), 
+            end_time VARCHAR(20), 
+            max_slots INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-    // =======================================================
-    // 3. SEGURANÇA: CRIAÇÃO DE USUÁRIOS (ADMIN/FUNCIONÁRIOS)
-    // =======================================================
-    const createUser = (role, name, email, password) => {
-        if (!password) return; // Não cria se não tiver senha no .env
+        await client.query(`CREATE TABLE IF NOT EXISTS appointments (
+            id SERIAL PRIMARY KEY,
+            availability_id INTEGER REFERENCES availability(id), 
+            client_id INTEGER REFERENCES users(id), 
+            time_slot VARCHAR(20),  
+            status VARCHAR(50) DEFAULT 'Pendente',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
 
-        db.get("SELECT email FROM users WHERE email = ?", [email], (err, row) => {
+        // Videos
+        await client.query(`CREATE TABLE IF NOT EXISTS videos (
+            id SERIAL PRIMARY KEY,
+            client_id INTEGER REFERENCES users(id),
+            filename TEXT,
+            description TEXT, 
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Settings
+        await client.query(`CREATE TABLE IF NOT EXISTS settings (key VARCHAR(100) UNIQUE, value REAL)`);
+        await client.query(`INSERT INTO settings (key, value) VALUES ('price_per_kg', 0.00) ON CONFLICT DO NOTHING`);
+
+        // Adicionar colunas se faltarem (Migration simples)
+        const addCol = async (table, col, type) => {
+            try {
+                await client.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+            } catch (e) { /* Coluna já existe */ }
+        };
+        await addCol('orders', 'delivery_proof', 'TEXT');
+        await addCol('orders', 'proof_image', 'TEXT');
+        await addCol('orders', 'delivery_location', 'TEXT');
+        await addCol('invoices', 'mp_payment_id', 'VARCHAR(100)');
+        await addCol('boxes', 'shipment_id', 'INTEGER');
+
+        console.log("✅ Tabelas PostgreSQL sincronizadas.");
+        client.release();
+
+        // Cria usuários padrão após as tabelas existirem
+        createInitialUsers();
+
+    } catch (err) {
+        console.error("❌ Erro fatal ao iniciar PostgreSQL:", err);
+    }
+};
+
+const createInitialUsers = () => {
+    const users = [
+        { r: 'admin', n: 'Lelo (Admin)', e: 'lelo@guineexpress.com', p: process.env.PASS_ADMIN },
+        { r: 'employee', n: 'Cala', e: 'cala@guineexpress.com', p: process.env.PASS_CALA },
+        { r: 'employee', n: 'Guto', e: 'guto@guineexpress.com', p: process.env.PASS_GUTO },
+        { r: 'employee', n: 'Pedro', e: 'pedro@guineexpress.com', p: process.env.PASS_PEDRO },
+        { r: 'employee', n: 'Neu', e: 'neu@guineexpress.com', p: process.env.PASS_NEU }
+    ];
+
+    users.forEach(u => {
+        if (!u.p) return;
+        // Verifica se usuário existe
+        db.get("SELECT email FROM users WHERE email = ?", [u.e], (err, row) => {
             if (!row) {
-                const hash = bcrypt.hashSync(password, 10);
+                const hash = bcrypt.hashSync(u.p, 10);
                 db.run(`INSERT INTO users (role, name, email, password, country) VALUES (?, ?, ?, ?, ?)`, 
-                    [role, name, email, hash, 'Guiné-Bissau']);
-                console.log(`[SEGURANÇA] Usuário inicial criado: ${name}`);
+                    [u.r, u.n, u.e, hash, 'Guiné-Bissau']);
+                console.log(`[SEGURANÇA] Usuário criado: ${u.n}`);
             }
         });
-    };
+    });
+};
 
-    // Lê do arquivo .env
-    createUser('admin', 'Lelo (Admin)', 'lelo@guineexpress.com', process.env.PASS_ADMIN);
-    createUser('employee', 'Cala', 'cala@guineexpress.com', process.env.PASS_CALA);
-    createUser('employee', 'Guto', 'guto@guineexpress.com', process.env.PASS_GUTO);
-    createUser('employee', 'Pedro', 'pedro@guineexpress.com', process.env.PASS_PEDRO);
-    createUser('employee', 'Neu', 'neu@guineexpress.com', process.env.PASS_NEU);
-});
+initDb();
 
-// Exporta a conexão para ser usada no server.js
 module.exports = db;

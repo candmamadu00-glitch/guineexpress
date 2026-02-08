@@ -1,18 +1,49 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
-    
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <link rel="stylesheet" href="cici.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Funcionário - Guineexpress</title>
     <link rel="icon" type="image/png" href="/logo.png">
-    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="cici.css"> 
+
+    <style>
+        /* CSS Extra para o Loader de Upload do Cloudinary */
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 20000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
+
+    <div id="global-loader" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <h3 id="loader-text">Enviando para a nuvem... Aguarde ☁️</h3>
+    </div>
 
     <nav class="dashboard-nav" style="background: #2c3e50;">
         <div style="font-weight:bold; font-size:18px;">
@@ -47,7 +78,6 @@
                     <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
                 </form>
             </div>
-
             <div class="card">
                 <h3>Agendamentos do Dia</h3>
                 <table class="data-table">
@@ -59,74 +89,73 @@
             </div>
         </section>
 
-         <section id="orders-view">
-    <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>Gestão de Encomendas</h3>
-            <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
-                + Nova Encomenda
-            </button>
-        </div>
+        <section id="orders-view">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3>Gestão de Encomendas</h3>
+                    <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
+                        + Nova Encomenda
+                    </button>
+                </div>
 
-        <div style="margin: 15px 0; position: relative;">
-            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-            <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
-                   placeholder="Buscar por código, cliente ou status..." 
-                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-        </div>
+                <div style="margin: 15px 0; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+                    <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
+                           placeholder="Buscar por código, cliente ou status..." 
+                           style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                </div>
 
-        <table class="data-table">
-            <thead>
-                <tr><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th><th>Ações</th></tr>
-            </thead>
-            <tbody id="orders-list"></tbody>
-        </table>
-    </div>
-
-    <div id="modal-order" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modal-order-title">📦 Nova Encomenda</h3>
-                <button class="btn-close" onclick="closeModal('modal-order')">&times;</button>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody id="orders-list"></tbody>
+                </table>
             </div>
             
-            <form id="new-order-form" onsubmit="handleOrderSubmit(event)">
-                <input type="hidden" id="editing-order-id">
-
-                <div class="form-group">
-                    <label>Cliente</label>
-                    <select id="order-client-select" class="form-control" required></select>
+            <div id="modal-order" class="modal-overlay" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modal-order-title">📦 Nova Encomenda</h3>
+                        <button class="btn-close" onclick="closeModal('modal-order')">&times;</button>
+                    </div>
+                    
+                    <form id="new-order-form" onsubmit="handleOrderSubmit(event)">
+                        <input type="hidden" id="editing-order-id">
+                        <div class="form-group">
+                            <label>Cliente</label>
+                            <select id="order-client-select" class="form-control" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Código</label>
+                            <input type="text" id="order-code" class="form-control" placeholder="Ex: ENC-1234" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Descrição</label>
+                            <input type="text" id="order-desc" class="form-control" placeholder="Ex: Roupas">
+                        </div>
+                        <div class="form-group">
+                            <label>Peso (Kg)</label>
+                            <input type="number" id="order-weight" class="form-control" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="order-status" class="form-control">
+                                <option value="Processando">Processando</option>
+                                <option value="Pendente Pagamento">Pendente Pagamento</option>
+                                <option value="Pago">Pago</option>
+                                <option value="Enviado">Enviado</option>
+                                <option value="Entregue">Entregue</option>
+                            </select>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn" onclick="closeModal('modal-order')" style="background:#ccc; width:auto;">Cancelar</button>
+                            <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="form-group">
-                    <label>Código</label>
-                    <input type="text" id="order-code" class="form-control" placeholder="Ex: ENC-1234" required>
-                </div>
-                <div class="form-group">
-                    <label>Descrição</label>
-                    <input type="text" id="order-desc" class="form-control" placeholder="Ex: Roupas">
-                </div>
-                <div class="form-group">
-                    <label>Peso (Kg)</label>
-                    <input type="number" id="order-weight" class="form-control" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label>Status</label>
-                    <select id="order-status" class="form-control">
-                        <option value="Processando">Processando</option>
-                        <option value="Pendente Pagamento">Pendente Pagamento</option>
-                        <option value="Pago">Pago</option>
-                        <option value="Enviado">Enviado</option>
-                        <option value="Entregue">Entregue</option>
-                    </select>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn" onclick="closeModal('modal-order')" style="background:#ccc; width:auto;">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</section>
+            </div>
+        </section>
 
         <section id="clients-view" class="hidden">
             <div class="card">
@@ -142,7 +171,7 @@
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h3>Gestão de Box</h3>
-              <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
+                    <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
                 </div>
                 <div style="margin: 15px 0; position: relative;">
                     <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
@@ -185,40 +214,38 @@
                 </table>
             </div>
         </section>
-<section id="labels-view" class="hidden">
-    <div class="header-flex">
-        <h2>🏷️ Gerador de Etiquetas</h2>
-        <div>
-            <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold;">
-                <i class="fas fa-print"></i> Imprimir Selecionadas
-            </button>
-        </div>
-    </div>
 
-    <div class="card" style="margin-bottom: 20px;">
-        <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control">
-    </div>
+        <section id="labels-view" class="hidden">
+            <div class="header-flex">
+                <h2>🏷️ Gerador de Etiquetas</h2>
+                <div>
+                    <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold;">
+                        <i class="fas fa-print"></i> Imprimir Selecionadas
+                    </button>
+                </div>
+            </div>
+            <div class="card" style="margin-bottom: 20px;">
+                <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control">
+            </div>
+            <div class="card">
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" onclick="toggleAllLabels(this)"></th>
+                                <th>Data</th>
+                                <th>Código</th>
+                                <th>Cliente</th>
+                                <th>Descrição</th>
+                                <th>Peso</th>
+                            </tr>
+                        </thead>
+                        <tbody id="labels-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
-    <div class="card">
-        <div style="overflow-x:auto;">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;"><input type="checkbox" onclick="toggleAllLabels(this)"></th>
-                        <th>Data</th>
-                        <th>Código</th>
-                        <th>Cliente</th>
-                        <th>Descrição</th>
-                        <th>Peso</th>
-                    </tr>
-                </thead>
-                <tbody id="labels-list">
-                    </tbody>
-            </table>
-        </div>
-    </div>
-
-</section>
         <section id="videos-section" class="hidden">
             <div class="card">
                 <h3>🎥 Nova Gravação</h3>
@@ -281,7 +308,6 @@
                 <h2>📜 Histórico de Envios</h2>
                 <input type="text" id="history-search" onkeyup="filterHistory()" placeholder="Filtrar por código ou nome..." class="form-control" style="max-width: 300px; display: none;"> 
             </div>
-
             <div class="card-table">
                 <table class="data-table">
                     <thead>
@@ -297,75 +323,87 @@
             </div>
         </section>
 
-   <div id="scanner-modal" class="modal-overlay hidden">
-    <div class="modal-content" style="max-width: 500px; text-align: center;">
-        <h3>📱 Leitor de Encomendas</h3>
-        <p>Aponte a câmera para o QR Code da etiqueta</p>
-        
-        <div id="reader" class="qr-scanner-container" style="width: 100%; border-radius: 8px; overflow: hidden; position: relative;">
-            <div class="scanner-laser"></div>
-        </div>
+        <div id="scanner-modal" class="modal-overlay hidden">
+            <div class="modal-content" style="max-width: 500px; text-align: center;">
+                <h3>📱 Leitor de Encomendas</h3>
+                <p>Aponte a câmera para o QR Code da etiqueta</p>
+                
+                <div id="reader" class="qr-scanner-container" style="width: 100%; border-radius: 8px; overflow: hidden; position: relative;">
+                    <div class="scanner-laser"></div>
+                </div>
 
-        <div class="modal-actions" style="justify-content: center; margin-top: 15px;">
-            <button class="btn btn-secondary" onclick="stopScanner()">Fechar Leitor</button>
-        </div>
-    </div>
-</div>
-
-<div id="delivery-photo-modal" class="modal-overlay hidden">
-    <div class="modal-content" style="text-align:center; max-width: 400px;">
-        <h3>📸 Comprovante de Entrega</h3>
-        <p>Tire uma foto do pacote com o cliente.</p>
-        
-        <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
-            <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
-            <canvas id="delivery-canvas" style="display:none;"></canvas>
-            <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
-        </div>
-
-        <div class="modal-actions" style="justify-content: center; gap: 10px;">
-            <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
-            <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
-            <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar Entrega</button>
-        </div>
-    </div>
-</div>
-
-<div id="view-proof-modal" class="modal-overlay hidden" onclick="this.classList.add('hidden')">
-    <div class="modal-content" style="background: transparent; box-shadow: none; text-align: center;">
-        <img id="proof-image-full" src="" style="max-width: 100%; border-radius: 10px; border: 4px solid white;">
-        <br>
-        <button class="btn btn-secondary" style="margin-top: 10px;">Fechar</button>
-    </div>
-</div>
-<div id="broadcast-modal" class="modal-overlay hidden">
-    <div class="modal-card">
-        <div class="modal-header">
-            <h3>📢 Enviar para Todos os Clientes</h3>
-            <button class="btn-close" onclick="closeModal('broadcast-modal')">&times;</button>
-        </div>
-        <div class="modal-body">
-            <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                Isso enviará um e-mail para <b>todos</b> os clientes cadastrados. Use com sabedoria!
-            </p>
-            <div class="form-group">
-                <label>Assunto</label>
-                <input type="text" id="broadcast-subject" class="form-control" placeholder="Ex: Atraso no voo TP-202">
+                <div class="modal-actions" style="justify-content: center; margin-top: 15px;">
+                    <button class="btn btn-secondary" onclick="stopScanner()">Fechar Leitor</button>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Mensagem</label>
-                <textarea id="broadcast-message" class="form-control" rows="5" placeholder="Escreva o comunicado aqui..."></textarea>
-            </div>
-            <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
         </div>
-    </div>
-</div>
+
+        <div id="delivery-photo-modal" class="modal-overlay hidden">
+            <div class="modal-content" style="text-align:center; max-width: 400px;">
+                <h3>📸 Comprovante de Entrega</h3>
+                <p>Tire uma foto do pacote com o cliente.</p>
+                
+                <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
+                    <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <canvas id="delivery-canvas" style="display:none;"></canvas>
+                    <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+                </div>
+
+                <div class="modal-actions" style="justify-content: center; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
+                    <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
+                    <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar Entrega</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-proof-modal" class="modal-overlay hidden" onclick="this.classList.add('hidden')">
+            <div class="modal-content" style="background: transparent; box-shadow: none; text-align: center;">
+                <img id="proof-image-full" src="" style="max-width: 100%; border-radius: 10px; border: 4px solid white;">
+                <br>
+                <button class="btn btn-secondary" style="margin-top: 10px;">Fechar</button>
+            </div>
+        </div>
+
+        <div id="broadcast-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>📢 Enviar para Todos os Clientes</h3>
+                    <button class="btn-close" onclick="closeModal('broadcast-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                        Isso enviará um e-mail para <b>todos</b> os clientes cadastrados. Use com sabedoria!
+                    </p>
+                    <div class="form-group">
+                        <label>Assunto</label>
+                        <input type="text" id="broadcast-subject" class="form-control" placeholder="Ex: Atraso no voo TP-202">
+                    </div>
+                    <div class="form-group">
+                        <label>Mensagem</label>
+                        <textarea id="broadcast-message" class="form-control" rows="5" placeholder="Escreva o comunicado aqui..."></textarea>
+                    </div>
+                    <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
+                </div>
+            </div>
+        </div>
+
+    </div> <script src="cici.js"></script> 
     <script src="script.js"></script>
+    
     <script>
         document.addEventListener('DOMContentLoaded', () => { 
-            initDashboard(); 
+            // Inicializa Dashboard de Funcionário
+            if(typeof initDashboard === 'function') {
+                initDashboard();
+            }
+            
+            // Verifica permissões de vídeo se estiver na aba correta
+            const videoSelect = document.getElementById('video-client-select');
+            if(videoSelect && typeof loadClientsForVideo === 'function'){
+                // Carregar clientes se necessário
+            }
         });
     </script>
-    <script src="cici.js"></script>
 </body>
 </html>
