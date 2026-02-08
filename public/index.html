@@ -8,20 +8,21 @@
     <link rel="icon" type="image/png" href="/logo.png">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/imask"></script>
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0a1931">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Guineexpress">
-<link rel="apple-touch-icon" href="logo.png">
+
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="apple-touch-icon" href="/logo.png">
 
 <script>
-    // Registra o App no navegador
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('App PWA registrado:', reg.scope))
-                .catch(err => console.log('Erro ao registrar PWA:', err));
+                .then(reg => console.log('App registrado'))
+                .catch(err => console.log('Erro PWA', err));
         });
     }
 </script>
