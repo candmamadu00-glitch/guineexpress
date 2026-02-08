@@ -2,7 +2,7 @@
 <html lang="pt">
 <head>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -15,6 +15,23 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a1931">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Guineexpress">
+<link rel="apple-touch-icon" href="logo.png">
+
+<script>
+    // Registra o App no navegador
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('App PWA registrado:', reg.scope))
+                .catch(err => console.log('Erro ao registrar PWA:', err));
+        });
+    }
+</script>
 </head>
 <body>
 
@@ -27,7 +44,7 @@
             <button onclick="showSection('dashboard-home')" class="nav-btn"><i class="fas fa-chart-line"></i> Visão Geral</button>
             <button onclick="exportSmartPDF()" class="btn" style="background-color: #dc3545; color: white;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
             <button onclick="showSection('expenses-view')">💸 Despesas</button>
-            <button onclick="showSection('audit-view')" style="color: #ffc107;"><i class="fas fa-shield-alt"></i> Auditoria</button>
+            <button onclick="showSection('logs-view')" style="color: #ffc107;"><i class="fas fa-shield-alt"></i> Auditoria</button>
             <button onclick="showSection('employees-view'); loadEmployees();"><i class="fas fa-users-cog"></i> Funcionários</button>
             <button onclick="showSection('shipments-view')"><i class="fas fa-shipping-fast"></i> Embarques</button>
             <button onclick="showSection('orders-view')"><i class="fas fa-box"></i> Encomendas</button>
@@ -42,7 +59,7 @@
             <button onclick="showSection('price-section')">💰 Preço</button>
             <button onclick="showSection('videos-section')">🎥 Vídeos</button>
             <button onclick="showSection('clients-view')"><i class="fas fa-users"></i> Clientes</button>
-            <button onclick="showSection('access-view'); loadAccessLogs()" class="btn-menu"><i class="fas fa-user-shield"></i> Histórico de Acessos</button>
+            <button onclick="showSection('logs-view'); loadAccessLogs()" class="btn-menu"><i class="fas fa-user-shield"></i> Histórico de Acessos</button>
             <button onclick="logout()" style="color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Sair</button>
         </div>
     </nav>
@@ -131,19 +148,21 @@
         </section>
 
         <section id="orders-view">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                    <h3>Gestão de Encomendas</h3>
-                    
-                    <div style="display:flex; gap: 10px;">
-                        <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white;">
-                            <i class="fas fa-file-excel"></i> Baixar Excel
-                        </button>
-                        <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
-                            + Nova Encomenda
-                        </button>
-                    </div>
-                </div>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3>Gestão de Encomendas</h3>
+            
+            <div style="display:flex; gap: 10px;">
+                
+                <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white;">
+                    <i class="fas fa-file-excel"></i> Baixar Excel
+                </button>
+
+                <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
+                    + Nova Encomenda
+                </button>
+            </div>
+        </div>
 
                 <div style="margin: 15px 0; position: relative;">
                     <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
@@ -196,25 +215,6 @@
                                 <option value="Entregue">Entregue</option>
                             </select>
                         </div>
-
-                        <div class="form-group" style="border-top:1px solid #eee; padding-top:10px; margin-top:10px;">
-                            <label style="font-weight:bold; color:#007bff;">📸 Foto da Encomenda</label>
-                            
-                            <div class="camera-wrapper" style="text-align:center; background:#f8f9fa; padding:10px; border-radius:5px;">
-                                <video id="camera-stream" autoplay playsinline style="width:100%; max-height:200px; background:#000; border-radius:5px; display:none;"></video>
-                                <canvas id="camera-canvas" style="display:none;"></canvas>
-                                <img id="photo-preview" style="width:100%; max-height:200px; display:none; border:2px solid #28a745; border-radius:5px; margin-top:5px;">
-                                <input type="hidden" id="photo-data"> </div>
-
-                            <div style="display:flex; gap:10px; justify-content:center; margin-top:10px;">
-                                <button type="button" class="btn" onclick="startCamera()" style="background:#17a2b8; color:white;">
-                                    <i class="fas fa-camera"></i> Abrir Câmera
-                                </button>
-                                <button type="button" class="btn" id="btn-snap" onclick="takePhoto()" style="background:#28a745; color:white; display:none;">
-                                    <i class="fas fa-circle"></i> Capturar
-                                </button>
-                            </div>
-                        </div>
                         <div class="modal-actions">
                             <button type="button" class="btn" onclick="closeModal('modal-order')" style="background:#ccc; width:auto;">Cancelar</button>
                             <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
@@ -235,32 +235,31 @@
                 </table>
             </div>
         </section>
+     <section id="logs-view" class="hidden">
+    <h2>🛡️ Monitoramento de Segurança</h2>
+    <p>Veja quem acessou o sistema, tentativas de invasão e dispositivos usados.</p>
 
-        <section id="access-view" class="hidden">
-            <h2>🛡️ Monitoramento de Segurança</h2>
-            <p>Veja quem acessou o sistema, tentativas de invasão e dispositivos usados.</p>
+    <div class="table-container" style="margin-top: 20px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+        <button onclick="loadAccessLogs()" class="btn" style="background: #6c757d; color: white; margin-bottom: 15px;">
+            <i class="fas fa-sync-alt"></i> Atualizar Lista
+        </button>
 
-            <div class="table-container" style="margin-top: 20px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
-                <button onclick="loadAccessLogs()" class="btn" style="background: #6c757d; color: white; margin-bottom: 15px;">
-                    <i class="fas fa-sync-alt"></i> Atualizar Lista
-                </button>
-
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background: #f4f4f4; text-align: left;">
-                            <th style="padding: 10px;">Data/Hora</th>
-                            <th style="padding: 10px;">Quem (Input)</th>
-                            <th style="padding: 10px;">Status</th>
-                            <th style="padding: 10px;">Dispositivo</th>
-                            <th style="padding: 10px;">IP</th>
-                            <th style="padding: 10px;">Detalhe</th>
-                        </tr>
-                    </thead>
-                    <tbody id="logs-table-body"></tbody>
-                </table>
-            </div>
-        </section>
-
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f4f4f4; text-align: left;">
+                    <th style="padding: 10px;">Data/Hora</th>
+                    <th style="padding: 10px;">Quem (Input)</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px;">Dispositivo</th>
+                    <th style="padding: 10px;">IP</th>
+                    <th style="padding: 10px;">Detalhe</th>
+                </tr>
+            </thead>
+            <tbody id="logs-table-body">
+                </tbody>
+        </table>
+    </div>
+</section>
         <section id="box-view" class="hidden">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -440,7 +439,7 @@
             </div>
         </section>
 
-        <section id="audit-view" class="hidden">
+        <section id="logs-view" class="hidden">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h3>🛡️ Auditoria e Segurança</h3>
@@ -780,85 +779,78 @@
     </script>
     <script>
     window.exportSmartPDF = function() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
 
-    // 1. Encontrar a section visível (que não tem a classe 'hidden')
-    const activeSection = document.querySelector('section:not(.hidden)');
-    
-    if (!activeSection) {
-        alert("⚠️ Nenhuma seção ativa encontrada para gerar o PDF.");
-        return;
-    }
+        // 1. Detecta qual aba está visível e define qual tabela usar
+        let activeTableId = '';
+        let title = '';
+        let columns = [];
 
-    // 2. Tenta encontrar um título (h2 ou h3) e a tabela dentro da seção ativa
-    const titleEl = activeSection.querySelector('h2, h3');
-    const tableEl = activeSection.querySelector('table');
-    const titleText = titleEl ? titleEl.innerText : 'Relatório Guineexpress';
+        // Verifica se a aba de Encomendas está visível
+        const ordersView = document.getElementById('orders-view');
+        const financeView = document.getElementById('finance-view');
 
-    if (!tableEl) {
-        alert(`⚠️ Não há dados (tabela) para exportar na tela "${titleText}".`);
-        return;
-    }
-
-    // 3. Captura cabeçalhos dinamicamente
-    let headers = [];
-    const thElements = tableEl.querySelectorAll('thead th');
-    let headerRow = [];
-    thElements.forEach(th => {
-        // Ignora coluna de "Ação" se houver
-        if (!th.innerText.includes("Ação")) {
-            headerRow.push(th.innerText);
+        if (ordersView && !ordersView.classList.contains('hidden')) {
+            activeTableId = 'orders-list';
+            title = 'Relatório Geral de Encomendas';
+            // Cabeçalhos para Encomendas
+            columns = [['Código', 'Cliente', 'Desc.', 'Peso', 'Status', 'Data']];
+        } 
+        else if (financeView && !financeView.classList.contains('hidden')) {
+            activeTableId = 'finance-list';
+            title = 'Relatório Financeiro Individual';
+            // Cabeçalhos para Financeiro
+            columns = [['Cliente / Encomenda', 'Peso (kg)', 'Valor (XOF)', 'Status']];
+        } else {
+            alert("⚠️ Navegue para a aba 'Encomendas' ou 'Financeiro' antes de gerar o PDF.");
+            return;
         }
-    });
-    headers.push(headerRow);
 
-    // 4. Captura linhas do corpo da tabela
-    let rows = [];
-    const trElements = tableEl.querySelectorAll('tbody tr');
-    
-    trElements.forEach(tr => {
-        let rowData = [];
-        const tdElements = tr.querySelectorAll('td');
+        // 2. Busca os dados da tabela ativa
+        let tableBody = document.getElementById(activeTableId);
         
-        tdElements.forEach((td, index) => {
-            // Verifica se a coluna correspondente não é "Ação" (baseado no index do header)
-            if (index < headerRow.length) {
-                rowData.push(td.innerText.trim());
+        if (!tableBody || tableBody.rows.length === 0) {
+            alert(`⚠️ A tabela de ${title.split(' ')[1]} está vazia na tela!\n\n👉 DICA: Se for Financeiro, selecione um cliente primeiro.`);
+            return;
+        }
+
+        // 3. Monta o PDF
+        doc.setFillColor(10, 25, 49); // Azul Guineexpress
+        doc.rect(0, 0, 210, 20, 'F');
+        
+        doc.setFontSize(16);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`Guineexpress - ${title}`, 14, 13);
+
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text("Gerado em: " + new Date().toLocaleString('pt-BR'), 14, 30);
+
+        // Extrai dados das linhas (Ignorando botões)
+        let rows = [];
+        for (let row of tableBody.rows) {
+            let rowData = [];
+            for (let i = 0; i < row.cells.length; i++) {
+                let cellText = row.cells[i].innerText.trim();
+                // Pula coluna de Ações (botões) se for a última
+                if (activeTableId === 'orders-list' && i === row.cells.length - 1) continue;
+                rowData.push(cellText);
             }
+            rows.push(rowData);
+        }
+
+        doc.autoTable({
+            head: columns,
+            body: rows,
+            startY: 35,
+            theme: 'striped',
+            headStyles: { fillColor: [10, 25, 49] },
+            styles: { fontSize: 9 }
         });
-        
-        if (rowData.length > 0) rows.push(rowData);
-    });
 
-    if (rows.length === 0) {
-        alert("⚠️ A tabela está vazia.");
-        return;
+        doc.save(`Guineexpress_Relatorio_${Date.now()}.pdf`);
     }
-
-    // 5. Gera o PDF
-    doc.setFillColor(10, 25, 49); // Azul Guineexpress
-    doc.rect(0, 0, 210, 20, 'F');
-    
-    doc.setFontSize(16);
-    doc.setTextColor(255, 255, 255);
-    doc.text(`Guineexpress - ${titleText}`, 14, 13);
-
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-    doc.text("Gerado em: " + new Date().toLocaleString('pt-BR'), 14, 30);
-
-    doc.autoTable({
-        head: headers,
-        body: rows,
-        startY: 35,
-        theme: 'striped',
-        headStyles: { fillColor: [10, 25, 49] },
-        styles: { fontSize: 9 }
-    });
-
-    doc.save(`Relatorio_${titleText.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
-}
 </script>
 
     <script src="cici.js"></script>

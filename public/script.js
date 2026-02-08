@@ -1,18 +1,10 @@
-// ==============================================================
-// ARQUIVO: public/js/script.js (PARTE 1)
-// ==============================================================
-
-// --- VARIÁVEIS GLOBAIS ---
 let currentRole = 'client';
 let currentUser = null;
 let globalPricePerKg = 0; 
-
-// Variáveis para funcionalidades de Vídeo (futuro)
 let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
-
 // ==========================================
 // AUTO-LOGIN (Ao atualizar a página)
 // ==========================================
@@ -22,52 +14,42 @@ async function checkAutoLogin() {
         const data = await res.json();
 
         if (data.loggedIn) {
-            // 1. Salva dados globais na memória
+            // Salva dados globais
             currentUser = data.user;
             currentRole = data.user.role;
 
-            // 2. Atualiza o nome na interface (Header)
+            // --- NOVO: ATUALIZA O NOME NA TELA ---
             const nameDisplay = document.getElementById('user-name-display');
             if (nameDisplay && currentUser.name) {
+                // Pega só o primeiro nome (Ex: "João Silva" vira "João")
                 const firstName = currentUser.name.split(' ')[0];
                 nameDisplay.innerText = firstName;
             }
+            // -------------------------------------
 
-            // 3. Esconde Login e Redireciona
-            const loginScreen = document.getElementById('login-screen');
-            if (loginScreen) loginScreen.classList.add('hidden');
+            // Esconde Login e Mostra Dashboard
+            document.getElementById('login-screen').classList.add('hidden');
             
-            // Lógica de Redirecionamento por Cargo
             if (currentRole === 'admin') {
-                if (!window.location.pathname.includes('dashboard-admin')) {
-                    window.location.href = 'dashboard-admin.html';
-                }
-            } else if (currentRole === 'employee') {
-                if (!window.location.pathname.includes('dashboard-employee')) {
-                    window.location.href = 'dashboard-employee.html';
-                }
+                window.location.href = 'dashboard-admin.html'; 
             } else {
-                // É Cliente
                 if(window.location.pathname.includes('index') || window.location.pathname === '/') {
                      window.location.href = 'dashboard-client.html';
                 } else {
-                     // Já está no dashboard, mostra a home
                      showSection('home-view'); 
                 }
             }
         }
     } catch (error) {
-        console.log("Sessão expirada ou usuário não logado.");
+        console.log("Sessão expirada ou inválida.");
     }
 }
-
-// Executa verificação ao carregar
+// Executa ao abrir a página
 document.addEventListener('DOMContentLoaded', () => {
     checkAutoLogin();
 });
-
 // ==========================================
-// 1. FUNÇÕES DE VALIDAÇÃO (CPF, NIF)
+// 1. FUNÇÕES DE VALIDAÇÃO MATEMÁTICA (CPF/NIF)
 // ==========================================
 
 function isValidCPF(cpf) {
@@ -75,7 +57,16 @@ function isValidCPF(cpf) {
     if (cpf == '') return false;
     // Elimina CPFs invalidos conhecidos
     if (cpf.length != 11 || 
-        /^(\d)\1{10}$/.test(cpf)) // Regex para verificar digitos iguais repetidos
+        cpf == "00000000000" || 
+        cpf == "11111111111" || 
+        cpf == "22222222222" || 
+        cpf == "33333333333" || 
+        cpf == "44444444444" || 
+        cpf == "55555555555" || 
+        cpf == "66666666666" || 
+        cpf == "77777777777" || 
+        cpf == "88888888888" || 
+        cpf == "99999999999")
             return false;
     
     // Valida 1o digito
@@ -97,7 +88,6 @@ function isValidCPF(cpf) {
 
 function isValidPT_NIF(nif) {
     // Validação básica de NIF Portugal
-    // Verifica primeiro dígito válido para NIFs Pessoais ou Empresas comuns
     if (!['1', '2', '3', '5', '6', '8', '9'].includes(nif.substr(0, 1)) && 
         !['45', '70', '71', '72', '74', '75', '77', '79'].includes(nif.substr(0, 2))) {
         return false;
@@ -105,7 +95,7 @@ function isValidPT_NIF(nif) {
     const total = nif[0] * 9 + nif[1] * 8 + nif[2] * 7 + nif[3] * 6 + nif[4] * 5 + nif[5] * 4 + nif[6] * 3 + nif[7] * 2;
     const modulo11 = total % 11;
     const comparador = modulo11 < 2 ? 0 : 11 - modulo11;
-    return parseInt(nif[8]) === comparador;
+    return nif[8] == comparador;
 }
 
 // ==========================================
@@ -113,14 +103,14 @@ function isValidPT_NIF(nif) {
 // ==========================================
 
 const countryData = {
-    'GW': { code: '245', phoneMask: '+{245} 00 000 00 00', docMask: '000000000' }, // Guiné
-    'BR': { code: '55',  phoneMask: '+{55} (00) 00000-0000', docMask: '000.000.000-00' }, // Brasil
-    'PT': { code: '351', phoneMask: '+{351} 000 000 000', docMask: '000000000' }, // Portugal
+    'GW': { code: '245', phoneMask: '+{245} 00 000 00 00', docMask: '000000000' }, // Guiné (Biométrico)
+    'BR': { code: '55',  phoneMask: '+{55} (00) 00000-0000', docMask: '000.000.000-00' }, // Brasil (CPF)
+    'PT': { code: '351', phoneMask: '+{351} 000 000 000', docMask: '000000000' }, // Portugal (NIF)
     'SN': { code: '221', phoneMask: '+{221} 00 000 00 00', docMask: '0 000 0000 00000' }, // Senegal
     'MA': { code: '212', phoneMask: '+{212} 0 00 00 00 00', docMask: '00000000' }, // Marrocos
     'US': { code: '1',   phoneMask: '+{1} (000) 000-0000', docMask: '000-00-0000' }, // EUA
     'FR': { code: '33',  phoneMask: '+{33} 0 00 00 00 00', docMask: '000000000000' }, // França
-    'ES': { code: '34',  phoneMask: '+{34} 000 000 000', docMask: '00000000a' }, // Espanha
+    'ES': { code: '34',  phoneMask: '+{34} 000 000 000', docMask: '00000000a' }, // Espanha (NIE/DNI aceita letra no fim)
     'UK': { code: '44',  phoneMask: '+{44} 0000 000000', docMask: '000000000' }, // UK
     'BE': { code: '32',  phoneMask: '+{32} 000 00 00 00', docMask: '00.00.00-000.00' }, // Bélgica
     'CV': { code: '238', phoneMask: '+{238} 000 00 00', docMask: '000000000' }, // Cabo Verde
@@ -131,7 +121,6 @@ let phoneMaskInstance = null;
 let docMaskInstance = null;
 
 function updateMasks() {
-    // Verifica se a biblioteca IMask foi carregada no HTML
     if (typeof IMask === 'undefined') return;
 
     const countrySelect = document.getElementById('reg-country');
@@ -148,10 +137,10 @@ function updateMasks() {
     try {
         phoneMaskInstance = IMask(phoneInput, {
             mask: data.phoneMask,
-            lazy: false, // Mostra o placeholder
+            lazy: false,
             placeholderChar: '_' 
         });
-    } catch (e) { console.error("Erro Mask Phone:", e); }
+    } catch (e) { console.error(e); }
 
     // --- 2. MÁSCARA DE DOCUMENTO ---
     if (docMaskInstance) docMaskInstance.destroy();
@@ -167,143 +156,129 @@ function updateMasks() {
         else if (country === 'GW') docInput.placeholder = "Nº Documento (9 dígitos)";
         else docInput.placeholder = "Número do Documento";
         
-    } catch (e) { console.error("Erro Mask Doc:", e); }
+    } catch (e) { console.error(e); }
 }
 
-// Inicializa Máscaras e Login ao carregar DOM
+// Inicializa
 document.addEventListener('DOMContentLoaded', () => {
-    if(document.getElementById('reg-country')) {
-        updateMasks();
-        // Atualiza máscara se trocar o país
-        document.getElementById('reg-country').addEventListener('change', updateMasks);
+    if(document.getElementById('reg-country')) updateMasks();
+    checkAutoLogin(); // Sua função de login existente
+});
+// --- LOGIN & CADASTRO (CORRIGIDO) ---
+document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const login = document.getElementById('login-user').value;
+    const pass = document.getElementById('login-pass').value;
+    
+    // Envia a role atual (que vem dos botões "Sou Cliente", "Funcionário", etc)
+    const res = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, password: pass, role: currentRole })
+    });
+    
+    const data = await res.json();
+    
+    if(data.success) {
+        localStorage.setItem('userRole', data.role);
+        
+        // --- AQUI ESTÁ A CORREÇÃO DO REDIRECIONAMENTO ---
+        if (data.role === 'client') {
+            window.location.href = 'dashboard-client.html';
+        } else if (data.role === 'employee') {
+            window.location.href = 'dashboard-employee.html'; // <--- O NOVO ARQUIVO
+        } else {
+            window.location.href = 'dashboard-admin.html';
+        }
+        // ------------------------------------------------
+    } else {
+        alert(data.msg);
     }
 });
-
 // ==========================================
-// 3. LOGIN & CADASTRO
+// 3. LÓGICA DE CADASTRO RIGOROSA
 // ==========================================
 
-// --- LOGIN ---
-const loginForm = document.getElementById('login-form');
-if (loginForm) {
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const login = document.getElementById('login-user').value;
-        const pass = document.getElementById('login-pass').value;
-        
-        // 'currentRole' é definida pelos botões da tela inicial (Sou Cliente / Funcionário)
-        // Se não houver botões, assume 'client' como padrão ou o último selecionado
-        
-        const res = await fetch('/api/login', {
+document.getElementById('register-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const pass = document.getElementById('reg-pass').value;
+    const pass2 = document.getElementById('reg-pass2').value;
+    const name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const country = document.getElementById('reg-country').value;
+
+    // --- A. Validação de Senha ---
+    if (pass !== pass2) return alert('❌ As senhas não coincidem!');
+    if (pass.length < 6) return alert('❌ A senha deve ter no mínimo 6 caracteres.');
+
+    // --- B. Validação de Telefone (RIGOROSA) ---
+    if (!phoneMaskInstance || !phoneMaskInstance.masked.isComplete) {
+        return alert('❌ Telefone incompleto! Digite o número com DDD/Código correto.');
+    }
+
+    // --- C. Validação de Documento (INTELIGENTE) ---
+    // 1. Verifica se preencheu a máscara toda (tamanho)
+    if (!docMaskInstance || !docMaskInstance.masked.isComplete) {
+        return alert(`❌ O documento está incompleto para o país selecionado (${country}).`);
+    }
+
+    // 2. Validações matemáticas específicas
+    const cleanDoc = docMaskInstance.unmaskedValue; // Pega só os números/letras
+
+    if (country === 'BR') {
+        if (!isValidCPF(cleanDoc)) {
+            return alert('❌ CPF Inválido! Verifique os números digitados.');
+        }
+    }
+    
+    if (country === 'PT') {
+        if (!isValidPT_NIF(cleanDoc)) {
+            return alert('❌ NIF de Portugal inválido!');
+        }
+    }
+
+    // --- D. Envio dos Dados ---
+    const cleanPhone = phoneMaskInstance.unmaskedValue; // Envia só os números (ex: 558599999999)
+
+    const formData = {
+        name: name,
+        email: email,
+        phone: cleanPhone, 
+        country: country,
+        document: cleanDoc.toUpperCase(),
+        password: pass
+    };
+
+    const btn = e.target.querySelector('button');
+    const oldText = btn.innerText;
+    btn.innerText = "Verificando...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/register', { 
             method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login, password: pass, role: currentRole })
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(formData)
         });
         
         const data = await res.json();
         
-        if(data.success) {
-            localStorage.setItem('userRole', data.role);
-            
-            // Redirecionamento correto
-            if (data.role === 'client') {
-                window.location.href = 'dashboard-client.html';
-            } else if (data.role === 'employee') {
-                window.location.href = 'dashboard-employee.html';
-            } else {
-                window.location.href = 'dashboard-admin.html';
-            }
-        } else {
-            alert(data.msg);
+        if(data.success) { 
+            alert('✅ Cadastro realizado com sucesso!\nFaça login para continuar.'); 
+            showLogin(); // Sua função que volta pra tela de login
+            document.getElementById('register-form').reset();
+            updateMasks(); 
+        } else { 
+            alert('Erro: ' + data.msg); 
         }
-    });
-}
-
-// --- CADASTRO (Lógica Rigorosa) ---
-const registerForm = document.getElementById('register-form');
-if (registerForm) {
-    registerForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const pass = document.getElementById('reg-pass').value;
-        const pass2 = document.getElementById('reg-pass2').value;
-        const name = document.getElementById('reg-name').value.trim();
-        const email = document.getElementById('reg-email').value.trim();
-        const country = document.getElementById('reg-country').value;
-
-        // A. Validação de Senha
-        if (pass !== pass2) return alert('❌ As senhas não coincidem!');
-        if (pass.length < 6) return alert('❌ A senha deve ter no mínimo 6 caracteres.');
-
-        // B. Validação de Telefone
-        if (!phoneMaskInstance || !phoneMaskInstance.masked.isComplete) {
-            return alert('❌ Telefone incompleto! Digite o número com DDD/Código correto.');
-        }
-
-        // C. Validação de Documento
-        if (!docMaskInstance || !docMaskInstance.masked.isComplete) {
-            return alert(`❌ O documento está incompleto para o país selecionado (${country}).`);
-        }
-
-        const cleanDoc = docMaskInstance.unmaskedValue; 
-
-        if (country === 'BR' && !isValidCPF(cleanDoc)) {
-            return alert('❌ CPF Inválido! Verifique os números digitados.');
-        }
-        
-        if (country === 'PT' && !isValidPT_NIF(cleanDoc)) {
-            return alert('❌ NIF de Portugal inválido!');
-        }
-
-        // D. Envio
-        const cleanPhone = phoneMaskInstance.unmaskedValue;
-
-        const formData = {
-            name: name,
-            email: email,
-            phone: cleanPhone, 
-            country: country,
-            document: cleanDoc.toUpperCase(),
-            password: pass
-        };
-
-        const btn = e.target.querySelector('button');
-        const oldText = btn.innerText;
-        btn.innerText = "Verificando...";
-        btn.disabled = true;
-
-        try {
-            const res = await fetch('/api/register', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify(formData)
-            });
-            
-            const data = await res.json();
-            
-            if(data.success) { 
-                alert('✅ Cadastro realizado com sucesso!\nFaça login para continuar.'); 
-                // Função showLogin() deve existir no seu HTML (script inline) ou ser global
-                if(typeof showLogin === 'function') showLogin(); 
-                registerForm.reset();
-                updateMasks(); 
-            } else { 
-                alert('Erro: ' + data.msg); 
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Erro de conexão ao cadastrar.");
-        } finally {
-            btn.innerText = oldText;
-            btn.disabled = false;
-        }
-    });
-}
-
-// ==========================================
-// 4. NAVEGAÇÃO SPA (Single Page Application)
-// ==========================================
-
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão ao cadastrar.");
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
+});
 function showSection(sectionId) {
     console.log("Navegando para:", sectionId);
 
@@ -322,20 +297,22 @@ function showSection(sectionId) {
         localStorage.setItem('activeTab', sectionId);
     }
 
-    // 3. Carregamento dinâmico de dados
-    // Obs: As funções abaixo virão nas próximas partes do script
+    // 3. CARREGAMENTO DE DADOS (Aqui estava o erro: faltavam funções)
     switch(sectionId) {
+        // --- AS QUE JÁ EXISTIAM ---
         case 'orders-view':     if(typeof loadOrders === 'function') loadOrders(); break;
         case 'schedule-view':   if(typeof loadSchedules === 'function') loadSchedules(); break;
         case 'box-view':        if(typeof loadBoxes === 'function') loadBoxes(); break;
         case 'price-section':   if(typeof loadPrice === 'function') loadPrice(); break;
-        case 'billing-view':    if(typeof loadClientInvoices === 'function') loadClientInvoices(); break;
+        case 'billing-view':    if(typeof loadClientInvoices === 'function') loadClientInvoices(); break; // Admin ou Cliente
         case 'history-view':    if(typeof loadHistory === 'function') loadHistory(); break;
         case 'labels-view':     if(typeof loadLabels === 'function') loadLabels(); break;
         case 'expenses-view':   if(typeof loadExpenses === 'function') loadExpenses(); break;
         case 'logs-view':       if(typeof loadSystemLogs === 'function') loadSystemLogs(); break;
         case 'shipments-view':  if(typeof loadShipments === 'function') loadShipments(); break;
         case 'receipts-view':   if(typeof loadReceipts === 'function') loadReceipts(); break;
+
+        // --- AS QUE ESTAVAM FALTANDO (AQUI ESTÁ A CORREÇÃO) ---
         case 'employees-view':  if(typeof loadEmployees === 'function') loadEmployees(); break; 
         case 'clients-view':    if(typeof loadClients === 'function') loadClients(); break;
     }
@@ -350,11 +327,6 @@ function showSection(sectionId) {
         }
     }
 }
-
-// ==========================================
-// 5. INICIALIZAÇÃO DO DASHBOARD
-// ==========================================
-
 async function initDashboard() {
     try {
         const res = await fetch('/api/user');
@@ -370,7 +342,7 @@ async function initDashboard() {
         const roleDisplay = document.getElementById('user-role-display');
         if(roleDisplay) roleDisplay.innerText = `| ${currentUser.role.toUpperCase()}`;
 
-        // Preenche perfil se for cliente e estiver na tela de perfil
+        // Preenche perfil se for cliente
         if(currentUser.role === 'client' && document.getElementById('profile-name')) {
             document.getElementById('profile-name').value = currentUser.name || '';
             document.getElementById('profile-email').value = currentUser.email || '';
@@ -382,22 +354,22 @@ async function initDashboard() {
             }
         }
 
-        // Carrega o Preço Global (Await é importante aqui)
+        // --- AQUI ESTAVA O ERRO DO PREÇO ZERADO ---
+        // O "await" obriga o código a parar aqui até o preço ser carregado do servidor
         await loadPrice(); 
         
-        // Carregamento inicial de listas base
-        if(currentUser.role !== 'client') {
-            if(typeof loadClients === 'function') loadClients();
-        }
-        if(typeof loadOrders === 'function') loadOrders();
-        if(typeof loadSchedules === 'function') loadSchedules();
+        // Só depois de ter o preço, carregamos as listas
+        if(currentUser.role !== 'client') loadClients();
+        loadOrders();
+        loadSchedules();
 
-        // Recupera aba anterior ou vai para default
+        // Recupera aba anterior
         const lastTab = localStorage.getItem('activeTab');
         if (lastTab && document.getElementById(lastTab)) {
             showSection(lastTab);
         } else {
-            showSection('orders-view'); 
+            if(currentUser.role === 'client') showSection('orders-view'); 
+            else showSection('orders-view'); 
         }
 
     } catch (error) {
@@ -405,23 +377,25 @@ async function initDashboard() {
     }
 }
 
-// --- CONFIGURAÇÃO DE PREÇO ---
+// --- CONFIGURAÇÃO DE PREÇO (AGORA ASSÍNCRONA) ---
 async function loadPrice() {
     try {
         const res = await fetch('/api/config/price');
         const data = await res.json();
         
+        // Atualiza a variável global
         globalPricePerKg = parseFloat(data.price) || 0;
         
+        // Atualiza input se existir
         const input = document.getElementById('price-input');
         if(input) input.value = globalPricePerKg;
         
-        // Se a aba de Box estiver aberta, recarrega para atualizar cálculos
+        // Se a aba de Box estiver aberta, recarrega para atualizar valores
         const boxSection = document.getElementById('box-view');
         if(boxSection && !boxSection.classList.contains('hidden')) {
-            if(typeof loadBoxes === 'function') loadBoxes();
+            loadBoxes();
         }
-        console.log("Preço atual carregado:", globalPricePerKg);
+        console.log("Preço carregado:", globalPricePerKg);
     } catch (e) {
         console.error("Erro ao carregar preço:", e);
     }
@@ -447,62 +421,47 @@ function savePrice() {
     });
 }
 
-// ==========================================
-// 6. GESTÃO DE CAIXAS (BOXES) E ENCOMENDAS
-// ==========================================
-
+// --- SISTEMA DE ENCOMENDAS E CAIXAS ---
 async function loadBoxes() {
-    try {
-        const res = await fetch('/api/boxes');
-        const list = await res.json();
-        const tbody = document.getElementById('box-table-body');
-        
-        if(tbody) {
-            tbody.innerHTML = '';
-            list.forEach(b => {
-                const act = (currentUser.role !== 'client') ? 
-                    `<button onclick="deleteBox(${b.id})" class="btn-delete-small">Excluir</button>` : '-';
-                
-                const weight = parseFloat(b.order_weight) || 0;
-                const totalValue = (weight * globalPricePerKg).toFixed(2);
-
-                tbody.innerHTML += `
-                <tr>
-                    <td>${b.box_code}</td>
-                    <td>${b.client_name || '-'}</td>
-                    <td>${b.order_code || '-'}</td>
-                    <td>${weight} Kg</td>
-                    <td style="font-weight:bold; color:green;">${totalValue}</td> 
-                    <td>${b.products || '-'}</td>
-                    <td>${act}</td>
-                </tr>`; 
-            });
+    const res = await fetch('/api/boxes');
+    const list = await res.json();
+    const tbody = document.getElementById('box-table-body');
+    
+    if(tbody) {
+        tbody.innerHTML = '';
+        list.forEach(b => {
+            const act = (currentUser.role !== 'client') ? 
+                `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer;">Excluir</button>` : '-';
             
-            // Ajuste para tabelas responsivas no mobile (se a função existir)
-            if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
-        }
-    } catch(err) {
-        console.error("Erro ao carregar caixas:", err);
+            const weight = parseFloat(b.order_weight) || 0;
+            const totalValue = (weight * globalPricePerKg).toFixed(2);
+
+            tbody.innerHTML += `
+            <tr>
+                <td>${b.box_code}</td>
+                <td>${b.client_name || '-'}</td>
+                <td>${b.order_code || '-'}</td>
+                <td>${weight} Kg</td>
+                <td style="font-weight:bold; color:green;">${totalValue}</td> <td>${b.products || '-'}</td>
+                <td>${act}</td>
+            </tr>`; 
+        });
+        // CORREÇÃO 1: Adicionado para funcionar no mobile
+        makeTablesResponsive();
     }
 }
+// ==========================================
+// FUNÇÃO QUE FALTAVA: CRIAR ENCOMENDA
+// ==========================================
+async function createOrder() {
+    // 1. Pega os dados do formulário
+    const clientId = document.getElementById('order-client-select').value;
+    const code = document.getElementById('order-code').value;
+    const desc = document.getElementById('order-desc').value;
+    const weight = document.getElementById('order-weight').value;
+    const status = document.getElementById('order-status').value;
 
-async function createOrder(e) {
-    if(e) e.preventDefault(); // Previne reload se chamado via form submit
-
-    const clientEl = document.getElementById('order-client-select');
-    const codeEl = document.getElementById('order-code');
-    const descEl = document.getElementById('order-desc');
-    const weightEl = document.getElementById('order-weight');
-    const statusEl = document.getElementById('order-status');
-
-    if (!clientEl || !codeEl || !weightEl) return alert("Erro no formulário.");
-
-    const clientId = clientEl.value;
-    const code = codeEl.value;
-    const desc = descEl.value;
-    const weight = weightEl.value;
-    const status = statusEl.value;
-
+    // 2. Validação simples
     if (!clientId || !code || !weight) {
         return alert("Preencha Cliente, Código e Peso!");
     }
@@ -516,6 +475,7 @@ async function createOrder(e) {
     };
 
     try {
+        // 3. Envia para o servidor
         const res = await fetch('/api/orders/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -527,11 +487,12 @@ async function createOrder(e) {
         if (json.success) {
             alert("✅ Encomenda criada com sucesso!");
             
+            // 4. Limpa e fecha
             document.getElementById('new-order-form').reset();
-            // Função closeModal deve ser global ou estar no script
-            if(typeof closeModal === 'function') closeModal('modal-order');
+            closeModal('modal-order');
             
-            if(typeof loadOrders === 'function') loadOrders();
+            // 5. Atualiza a lista na tela
+            loadOrders();
         } else {
             alert("Erro ao criar: " + (json.msg || "Verifique se o código já existe."));
         }
@@ -540,27 +501,31 @@ async function createOrder(e) {
         alert("Erro de conexão com o servidor.");
     }
 }
-
 async function createBox(e) {
     if(e) e.preventDefault();
 
+    // 1. Captura os ELEMENTOS primeiro (para verificar se existem)
     const clientEl = document.getElementById('box-client-select');
     const orderEl = document.getElementById('box-order-select');
     const codeEl = document.getElementById('box-code');
     const prodEl = document.getElementById('box-products');
-    const amountEl = document.getElementById('box-amount'); 
+    const amountEl = document.getElementById('box-amount'); // <--- Esse pode ser null no painel de funcionário
 
+    // Se por acaso o HTML não carregou direito, evita erro
     if(!clientEl || !codeEl) {
         return alert("Erro de interface: Campos obrigatórios não encontrados.");
     }
 
+    // 2. Pega os valores com segurança
     const clientVal = clientEl.value;
     const codeVal = codeEl.value;
-    const orderVal = orderEl ? orderEl.value : ""; 
-    const prodVal = prodEl ? prodEl.value : ""; 
+    const orderVal = orderEl ? orderEl.value : ""; // Se não existir, vazio
+    const prodVal = prodEl ? prodEl.value : "";   // Se não existir, vazio
     
-    // Se o campo amount não existir (ex: funcionário), assume 0
+    // --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
+    // Se o campo de valor (amountEl) existir, pega o valor. Se não existir (funcionário), usa 0.
     const amountVal = amountEl ? amountEl.value : 0; 
+    // --------------------------------------
 
     if(!clientVal || !codeVal) {
         return alert("Erro: O Cliente e o Número do Box são obrigatórios.");
@@ -584,8 +549,9 @@ async function createBox(e) {
         const json = await res.json();
 
         if(json.success) {
-            if(typeof closeModal === 'function') closeModal('modal-box'); 
+            closeModal('modal-box'); 
             
+            // Reseta o formulário
             const form = document.getElementById('new-box-form');
             if(form) form.reset();
             
@@ -608,14 +574,9 @@ async function createBox(e) {
         alert("Erro de conexão com o sistema.");
     }
 }
-
 async function deleteBox(id) {
-    if(confirm('Tem certeza que deseja apagar esta caixa?')) {
-        await fetch('/api/boxes/delete', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({id})
-        });
+    if(confirm('Apagar esta caixa?')) {
+        await fetch('/api/boxes/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
         loadBoxes();
     }
 }
@@ -688,6 +649,7 @@ async function loadSchedules() {
             const btn = canCancel ? `<button onclick="cancelBooking(${app.id})" style="color:red; border:1px solid red; background:white; padding:2px 5px; cursor:pointer;">Cancelar</button>` : '-';
             tbody.innerHTML += `<tr><td>${formatDate(app.date)}</td><td>${app.time_slot}</td><td>${app.status}</td><td>${btn}</td></tr>`;
         });
+        // Mobile schedule fix could go here if table used
     }
 }
 
@@ -743,39 +705,42 @@ async function cancelBooking(id) {
 
 // --- FUNÇÕES AUXILIARES ---
 function formatDate(dateStr) { if(!dateStr) return ''; const [y, m, d] = dateStr.split('-'); return `${d}/${m}/${y}`; }
-
 // Função atualizada para o novo design Dark/Gold
 function setRole(role) {
     currentRole = role;
     
-    // 1. Seleciona todos os botões dentro da div correta
+    // 1. Seleciona todos os botões dentro da div correta (#role-selector)
     const buttons = document.querySelectorAll('#role-selector button');
     
-    // 2. Reseta TODOS os botões para Cinza
+    // 2. Reseta TODOS os botões para Cinza (Inativo)
     buttons.forEach(b => {
         b.style.background = '#eee';
         b.style.color = '#333';
+        // Remove a classe btn-primary se ela estiver atrapalhando a cor
         b.classList.remove('btn-primary'); 
-        b.classList.add('btn'); 
+        b.classList.add('btn'); // Garante a formatação básica
     });
     
-    // 3. Pinta APENAS o botão clicado
+    // 3. Pinta APENAS o botão clicado de Azul Escuro (Ativo)
     const activeBtn = document.getElementById(`btn-${role}`);
     if(activeBtn) {
-        activeBtn.style.background = '#0a1931'; 
-        activeBtn.style.color = '#fff';        
+        activeBtn.style.background = '#0a1931'; // Cor Azul do seu tema
+        activeBtn.style.color = '#fff';         // Texto Branco
     }
 
-    // 4. Controla visibilidade dos links
+    // 4. Controla visibilidade dos links (Esqueci a senha / Cadastro)
+    // Tenta pegar a div que agrupa os links, ou os links individuais
     const linksContainer = document.getElementById('client-links');
     
     if (linksContainer) {
+        // Se você tem a div agrupando (como no código anterior)
         if (role !== 'client') {
             linksContainer.classList.add('hidden');
         } else {
             linksContainer.classList.remove('hidden');
         }
     } else {
+        // Caso não tenha a div, esconde item por item
         const r = document.getElementById('register-link');
         const f = document.getElementById('forgot-pass');
         
@@ -788,27 +753,34 @@ function setRole(role) {
         }
     }
 }
+// No arquivo script.js
 
 function showRegister() {
+    // Esconde Login, Mostra Cadastro
     document.getElementById('login-form').classList.add('hidden');
     document.getElementById('register-form').classList.remove('hidden');
     
+    // --- SEGURANÇA VISUAL ---
+    // Esconde os botões de Funcionário e Admin
     document.getElementById('btn-employee').style.display = 'none';
     document.getElementById('btn-admin').style.display = 'none';
 
+    // Força a seleção ser "Cliente" automaticamente
     setRole('client');
 
-    if(typeof updateMasks === 'function') updateMasks();
+    updateMasks();
 }
 
 function showLogin() {
+    // Esconde Cadastro, Mostra Login
     document.getElementById('register-form').classList.add('hidden');
     document.getElementById('login-form').classList.remove('hidden');
 
+    // Mostra os botões novamente (para o staff poder logar)
     document.getElementById('btn-employee').style.display = 'inline-block';
     document.getElementById('btn-admin').style.display = 'inline-block';
 }
-
+// A LINHA DO ERRO ESTAVA AQUI (updateMasks duplicada) - FOI REMOVIDA
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function logout() { fetch('/api/logout'); window.location.href = 'index.html'; }
 
@@ -817,6 +789,7 @@ async function loadClients() {
         const res = await fetch('/api/clients'); 
         const list = await res.json(); 
         
+        // Preenche os Selects (ex: na hora de criar encomenda)
         const selects = [
             document.getElementById('order-client-select'),
             document.getElementById('box-client-select')
@@ -833,6 +806,7 @@ async function loadClients() {
             }
         });
 
+        // Preenche a Tabela da Aba "Clientes"
         const tbody = document.getElementById('clients-list'); 
         if(tbody) {
             tbody.innerHTML = ''; 
@@ -850,28 +824,25 @@ async function loadClients() {
                     actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
                 }
 
+                // Status Badge
                 const statusBadge = c.active 
                     ? '<span style="background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Ativo</span>' 
                     : '<span style="background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Inativo</span>';
 
-                // --- INTEGRACAO CLOUDINARY (AJUSTE) ---
+                // --- CORREÇÃO AQUI (profile_pic em vez de photo) ---
                 let imgUrl = '';
                 if (c.profile_pic && c.profile_pic !== 'default.png') {
-                    // Verifica se já é uma URL completa (Cloudinary) ou arquivo local
-                    if (c.profile_pic.startsWith('http') || c.profile_pic.startsWith('//')) {
-                        imgUrl = c.profile_pic;
-                    } else {
-                        imgUrl = '/uploads/' + c.profile_pic; // Legado
-                    }
+                    // Adiciona o caminho da pasta uploads
+                    imgUrl = '/uploads/' + c.profile_pic;
                 } else {
-                    // Avatar genérico
+                    // Avatar genérico com iniciais
                     imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
                 }
-                // ----------------------------------------
 
                 const photoHtml = `<img src="${imgUrl}" 
                     onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" 
                     style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
+                // ----------------------------------------------------
 
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee; text-align: center;">
@@ -897,11 +868,11 @@ async function openBoxModal() { document.getElementById('box-modal').classList.r
 async function loadClientsBox() { const res = await fetch('/api/clients'); const list = await res.json(); const sel = document.getElementById('box-client-select'); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`); }
 async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
 function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
-
 // ==============================================================
-// 1. FUNÇÃO DA TIMELINE VISUAL
+// 1. FUNÇÃO DA TIMELINE VISUAL (CORRIGIDA E ALINHADA)
 // ==============================================================
 function getTimelineHTML(status) {
+    // 1. Define os passos e ícones
     const steps = [
         { label: 'Recebido', icon: '📥' },
         { label: 'Em Trânsito', icon: '✈️' },
@@ -909,6 +880,7 @@ function getTimelineHTML(status) {
         { label: 'Entregue', icon: '✅' }
     ];
     
+    // 2. Descobre em qual passo estamos (Lógica Inteligente)
     let currentIdx = 0;
     const s = status ? status.toLowerCase() : '';
 
@@ -917,13 +889,18 @@ function getTimelineHTML(status) {
     else if (s.includes('chegou') || s.includes('armazém') || s.includes('disponível') || s.includes('retirada')) currentIdx = 2;
     else if (s.includes('entregue') || s.includes('finalizado') || s.includes('avaria')) currentIdx = 3;
 
+    // 3. Calcula % da barra verde (Progresso)
+    // Se for o último passo, enche 100%. Se for o primeiro, 0%.
     const percent = (currentIdx / (steps.length - 1)) * 100;
 
+    // 4. Gera o HTML usando as classes CSS do style.css
     let stepsHTML = '';
 
     steps.forEach((step, idx) => {
         const isActive = idx <= currentIdx;
         const activeClass = isActive ? 'active' : '';
+        
+        // Se estiver ativo mostra o ícone, se não, mostra vazio ou um ponto simples
         const iconContent = isActive ? step.icon : ''; 
 
         stepsHTML += `
@@ -946,7 +923,7 @@ function getTimelineHTML(status) {
 }
 
 // ==============================================================
-// 2. FUNÇÃO LOAD ORDERS ATUALIZADA
+// 2. FUNÇÃO LOAD ORDERS ATUALIZADA (COM BOTÃO DE AVARIA)
 // ==============================================================
 async function loadOrders() {
     if (!currentUser) return; 
@@ -954,12 +931,13 @@ async function loadOrders() {
     try {
         const res = await fetch('/api/orders');
         const list = await res.json();
-        
+        // --- 🔴 ADICIONE ESTE BLOCO AQUI (CORREÇÃO) 🔴 ---
+        // Isso força o contador do início a mostrar o número real de linhas da tabela
         const dashCount = document.getElementById('dash-orders-count');
         if (dashCount) {
-            dashCount.innerText = list.length;
+            dashCount.innerText = list.length; // Se a lista for vazia (0), mostra 0
         }
-        
+        // Tenta pegar o tbody correto dependendo da tela
         const tbody = document.getElementById('orders-list') || 
                       document.getElementById('client-orders-list') || 
                       document.querySelector('.data-table tbody');
@@ -978,12 +956,14 @@ async function loadOrders() {
                 const name = o.client_name || o.name || 'Cliente';
                 const price = o.price || 0; 
 
-                // --- 1. STATUS ---
+                // --- 1. STATUS (VISUAL OU DROPDOWN) ---
                 let statusDisplay;
 
                 if (currentUser.role === 'client') {
+                    // CLIENTE: Vê a Timeline Visual Bonita
                     statusDisplay = getTimelineHTML(o.status);
                 } else {
+                    // ADMIN/FUNC: Vê o Dropdown para editar rápido
                     statusDisplay = `
                     <select onchange="checkDeliveryStatus(this, ${o.id}, '${name}', '${o.code}', '${phone}')" 
                             style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px; width:100%;">
@@ -1002,6 +982,7 @@ async function loadOrders() {
                 let actions = '-';
                 
                 if (currentUser.role !== 'client') {
+                    // --- ADMIN / FUNCIONÁRIO ---
                     const whatsappColor = phone ? '#25D366' : '#ccc';
                     const emailColor = email ? '#007bff' : '#ccc';
 
@@ -1039,15 +1020,16 @@ async function loadOrders() {
                             <i class="fas fa-trash"></i>
                         </button>`;
 
-                    // Avaria (Usa DeliveryProof com tipo 'damage')
+                    // --- [NOVO] BOTÃO DE AVARIA ---
                     actions += `
                         <button onclick="DeliveryProof.start(${o.id}, 'damage')" 
                                 title="Relatar Avaria/Dano"
                                 style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                             <i class="fas fa-exclamation-triangle"></i>
                         </button>`;
+                    // -----------------------------
 
-                    // Ver Foto (Integração Cloudinary via DeliveryProof.view)
+                    // Ver Foto (Se existir)
                     if (o.delivery_proof) {
                         actions += `
                         <button onclick='DeliveryProof.view("${o.delivery_proof}")' 
@@ -1080,8 +1062,8 @@ async function loadOrders() {
                     else if (o.status === 'Pago') {
                         actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
                     } 
+                    // Cliente vê foto se entregue OU se tiver avaria
                     else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.delivery_proof) {
-                        // Visualização de prova para cliente (Cloudinary)
                         actions = `<button onclick='DeliveryProof.view("${o.delivery_proof}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer;">Ver Foto 📸</button>`;
                     }
                     else {
@@ -1089,6 +1071,7 @@ async function loadOrders() {
                     }
                 }
                 
+                // --- RENDERIZAÇÃO DA LINHA ---
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td style="padding:12px;"><strong>${o.code}</strong></td>
@@ -1103,46 +1086,30 @@ async function loadOrders() {
             
             if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
         }
-        
+        // SE FOR CLIENTE, ATUALIZA O SININHO
         if (currentUser.role === 'client') {
-            if(typeof updateClientNotifications === 'function') updateClientNotifications(list);
+            updateClientNotifications(list);
         }
     } catch (error) {
         console.error("Erro ao carregar encomendas:", error);
     }
 }
-// ==========================================
-// PARTE 3: LÓGICA DE INTERFACE E INTEGRAÇÃO CLOUDINARY
-// ==========================================
-
-function toggleOrderForm() { 
-    const f = document.getElementById('new-order-form'); 
-    f.classList.toggle('hidden'); 
-    if(!f.classList.contains('hidden')) loadClients(); 
-}
-
-async function updateOrderStatus(id, status) { 
-    await fetch('/api/orders/update', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({id,status})
-    }); 
-    loadOrders(); 
-}
-
-// --- ATUALIZAR PERFIL (COM FOTO NO CLOUDINARY) ---
+function toggleOrderForm() { const f = document.getElementById('new-order-form'); f.classList.toggle('hidden'); if(!f.classList.contains('hidden')) loadClients(); }
+async function updateOrderStatus(id, status) { await fetch('/api/orders/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status})}); loadOrders(); }
+// --- ATUALIZAR PERFIL (COM FOTO) ---
 async function updateProfile() {
     const fileInput = document.getElementById('profile-upload');
     const nameInput = document.getElementById('profile-name');
     const emailInput = document.getElementById('profile-email');
     const phoneInput = document.getElementById('profile-phone');
     
-    // Feedback visual
+    // Feedback visual de carregamento
     const btn = document.querySelector('#profile-view button');
     const oldText = btn.innerText;
     btn.innerText = "Salvando...";
     btn.disabled = true;
 
+    // Cria o FormData para enviar arquivo + texto
     const formData = new FormData();
     formData.append('name', nameInput.value);
     formData.append('email', emailInput.value);
@@ -1163,12 +1130,11 @@ async function updateProfile() {
         if (result.success) {
             alert('✅ Perfil atualizado com sucesso!');
             
-            // Lógica ajustada para Cloudinary:
-            // O backend deve retornar a URL completa (secure_url) em 'newProfilePicUrl'
+            // Atualiza a foto imediatamente na tela
             if(result.newProfilePicUrl) {
                 const imgDisplay = document.getElementById('profile-img-display');
-                // O cache bust (?v=) ainda é útil, mesmo com URLs remotas, se a URL não mudar
-                imgDisplay.src = result.newProfilePicUrl; 
+                // Adiciona timestamp para forçar atualização do cache do navegador
+                imgDisplay.src = result.newProfilePicUrl + '?v=' + new Date().getTime();
             }
         } else {
             alert('Erro: ' + (result.message || 'Falha ao salvar.'));
@@ -1181,12 +1147,10 @@ async function updateProfile() {
         btn.disabled = false;
     }
 }
-
 // --- VARIÁVEIS GLOBAIS DE VÍDEO ---
-let currentFacingMode = 'environment';
-let recInterval; // Variável para controlar o timer
+let currentFacingMode = 'environment'; // Começa com a câmera traseira
 
-// 1. Verificação de Permissão
+// 1. Habilita o botão apenas se selecionar cliente
 function checkVideoPermission() {
     const sel = document.getElementById('video-client-select');
     const btn = document.getElementById('btn-open-fullscreen');
@@ -1195,21 +1159,20 @@ function checkVideoPermission() {
         if(sel.value) {
             btn.innerHTML = '<i class="fas fa-camera"></i> ABRIR CÂMERA';
             btn.style.background = '#28a745';
-            btn.style.cursor = 'pointer';
         } else {
             btn.innerHTML = 'Selecione uma encomenda acima';
             btn.style.background = '#2c3e50';
-            btn.style.cursor = 'not-allowed';
         }
     }
 }
 
-// 2. Modo Tela Cheia
+// 2. Abre o Modo Tela Cheia
 async function openFullscreenCamera() {
     const overlay = document.getElementById('fullscreen-camera-overlay');
-    overlay.classList.remove('hidden');
-    overlay.style.display = 'flex';
+    overlay.classList.remove('hidden'); // Mostra a div preta
+    overlay.style.display = 'flex'; // Garante o display flex
     
+    // Reseta UI
     document.getElementById('record-ui').classList.remove('hidden');
     document.getElementById('upload-ui').classList.add('hidden');
     document.getElementById('camera-feed').style.display = 'block';
@@ -1219,9 +1182,11 @@ async function openFullscreenCamera() {
 }
 
 function closeFullscreenCamera() {
+    // Esconde a sobreposição
     const overlay = document.getElementById('fullscreen-camera-overlay');
     if (overlay) overlay.classList.add('hidden');
 
+    // Para o vídeo (stream) para economizar bateria/processamento
     const video = document.getElementById('camera-feed');
     if (video && video.srcObject) {
         const tracks = video.srcObject.getTracks();
@@ -1229,13 +1194,43 @@ function closeFullscreenCamera() {
         video.srcObject = null;
     }
 
-    discardVideo(); // Limpa dados temporários
+    // Reseta variaveis globais
+    recordedBlob = null;
+    mediaRecorder = null;
+    chunks = [];
+
+    // Reseta visual dos botões (UI) com segurança
+    const recordUI = document.getElementById('record-ui');
+    const uploadUI = document.getElementById('upload-ui');
+    const preview = document.getElementById('video-preview');
+    const cameraFeed = document.getElementById('camera-feed');
+    const timer = document.getElementById('recording-timer');
+
+    if(recordUI) recordUI.classList.remove('hidden');
+    if(uploadUI) uploadUI.classList.add('hidden');
+    if(preview) {
+        preview.style.display = 'none';
+        preview.src = '';
+    }
+    if(cameraFeed) cameraFeed.style.display = 'block';
+    if(timer) {
+        timer.classList.add('hidden');
+        timer.innerText = "00:00";
+    }
+
+    // Reseta botões de gravar
+    const btnStart = document.getElementById('btn-start-rec');
+    const btnStop = document.getElementById('btn-stop-rec');
+    
+    if(btnStart) btnStart.classList.remove('hidden');
+    if(btnStop) btnStop.classList.add('hidden');
 }
 
-// 3. Stream da Câmera
+// 4. Inicia o Stream da Câmera
 async function startCamera(facingMode) {
     const video = document.getElementById('camera-feed');
     
+    // Para stream anterior se existir
     if(currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
     }
@@ -1244,7 +1239,7 @@ async function startCamera(facingMode) {
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { 
                 facingMode: facingMode,
-                width: { ideal: 1280 },
+                width: { ideal: 1280 }, // Tenta HD
                 height: { ideal: 720 }
             }, 
             audio: true 
@@ -1252,7 +1247,7 @@ async function startCamera(facingMode) {
         currentStream = stream;
         video.srcObject = stream;
     } catch (err) {
-        alert("Erro ao acessar câmera: " + err.message);
+        alert("Erro ao acessar câmera: " + err);
         closeFullscreenCamera();
     }
 }
@@ -1262,13 +1257,14 @@ function switchCamera() {
     startCamera(currentFacingMode);
 }
 
-// 4. Gravação
+// 5. Gravação
 function startRecording() {
     recordedChunks = [];
     
+    // Tenta codecs melhores para celular
     let options = { mimeType: 'video/webm;codecs=vp8' };
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/webm' };
+        options = { mimeType: 'video/webm' }; // Fallback
     }
 
     try {
@@ -1288,145 +1284,72 @@ function startRecording() {
         const previewEl = document.getElementById('video-preview');
         previewEl.src = videoURL;
         
+        // Troca visualização: Câmera -> Preview Gravado
         document.getElementById('camera-feed').style.display = 'none';
         previewEl.style.display = 'block';
         
+        // Troca botões: Gravar -> Enviar
         document.getElementById('record-ui').classList.add('hidden');
         document.getElementById('upload-ui').classList.remove('hidden');
         
-        previewEl.play();
+        previewEl.play(); // Toca o vídeo automaticamente pra conferir
     };
 
     mediaRecorder.start();
 
-    // UI e Timer
+    // UI de gravando
     document.getElementById('btn-start-rec').classList.add('hidden');
     document.getElementById('btn-stop-rec').classList.remove('hidden');
-    const timerEl = document.getElementById('recording-timer');
-    timerEl.classList.remove('hidden');
-    
-    // Inicia contagem do tempo
-    let seconds = 0;
-    timerEl.innerText = "00:00";
-    recInterval = setInterval(() => {
-        seconds++;
-        const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const secs = (seconds % 60).toString().padStart(2, '0');
-        timerEl.innerText = `${mins}:${secs}`;
-    }, 1000);
+    document.getElementById('recording-timer').classList.remove('hidden');
 }
 
 function stopRecording() {
-    if(mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-    }
-    clearInterval(recInterval); // Para o timer
+    mediaRecorder.stop();
     document.getElementById('btn-start-rec').classList.remove('hidden');
     document.getElementById('btn-stop-rec').classList.add('hidden');
+    document.getElementById('recording-timer').classList.add('hidden');
 }
 
+// 6. Refazer vídeo (Botão Descartar)
 function retakeVideo() {
-    discardVideo();
-    // Reabre controles de gravação
+    currentBlob = null;
     document.getElementById('camera-feed').style.display = 'block';
     document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('video-preview').src = "";
+    
     document.getElementById('record-ui').classList.remove('hidden');
     document.getElementById('upload-ui').classList.add('hidden');
 }
-
-function discardVideo() {
-    currentBlob = null;
-    recordedChunks = [];
-    clearInterval(recInterval);
-    
-    const preview = document.getElementById('video-preview');
-    if(preview) {
-        preview.pause();
-        preview.src = "";
-    }
-
-    const timer = document.getElementById('recording-timer');
-    if(timer) {
-        timer.innerText = "00:00";
-        timer.classList.add('hidden');
-    }
-}
-
-// --- LÓGICA DE UPLOAD (ATUALIZADA) ---
-async function confirmUpload() {
-    if(!currentBlob) return alert("Erro: Nenhum vídeo gravado.");
-
-    const clientSelect = document.getElementById('video-client-select');
-    const clientId = clientSelect ? clientSelect.value : null;
-    
-    if (!clientId) return alert("⚠️ Selecione um Cliente/Encomenda antes de enviar!");
-
-    const descEl = document.getElementById('info-desc');
-    const descText = descEl ? descEl.innerText : 'Vídeo de Encomenda';
-    
-    const formData = new FormData();
-    formData.append('client_id', clientId);
-    formData.append('description', descText);
-    // O backend Cloudinary receberá este arquivo
-    formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
-
-    let btn = document.getElementById('btn-confirm-upload');
-    const oldText = btn ? btn.innerText : 'Enviar';
-    if(btn) {
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; 
-        btn.disabled = true;
-    }
-
-    try {
-        const res = await fetch('/api/videos/upload', { 
-            method: 'POST', 
-            body: formData 
-        });
-        
-        const data = await res.json();
-        
-        if(data.success) {
-            alert("✅ Vídeo enviado com sucesso para a nuvem!");
-            
-            if(typeof currentUser !== 'undefined' && currentUser.role !== 'client') {
-                 if(typeof loadAdminVideos === 'function') loadAdminVideos(); 
-            } else {
-                 if(typeof loadClientVideos === 'function') loadClientVideos();
-            }
-            
-            closeFullscreenCamera();
-            
-        } else {
-            throw new Error(data.message || "Erro no upload");
-        }
-    } catch(e) { 
-        console.error(e);
-        alert("❌ Falha no envio: " + e.message); 
-    } finally {
-        if(btn) {
-            btn.innerText = oldText; 
-            btn.disabled = false;
-        }
-    }
-}
-
-// --- CARREGAMENTO DE DADOS ---
-
+// --- FUNÇÃO CORRIGIDA: CARREGAR ENCOMENDAS NA ABA DE VÍDEO ---
 async function loadOrdersForVideo() {
     const select = document.getElementById('video-client-select');
     const infoBox = document.getElementById('video-order-info');
+    
+    // Se não estiver na tela de admin/funcionário, sai
     if (!select || !infoBox) return;
 
+    // Reseta o botão da câmera
+    const btnCamera = document.getElementById('btn-open-fullscreen');
+    if(btnCamera) {
+        btnCamera.disabled = true;
+        btnCamera.style.background = '#2c3e50';
+        btnCamera.innerHTML = '<i class="fas fa-camera"></i> Selecione uma encomenda';
+    }
+
     try {
+        // Busca todas as encomendas (que já trazem dados do cliente graças ao JOIN no server)
         const res = await fetch('/api/orders');
         const orders = await res.json();
 
         select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
-        // Filtra entregues se necessário
+
+        // Filtra para não mostrar encomendas já entregues (opcional)
+        // Se quiser ver todas, remova o .filter
         const activeOrders = orders.filter(o => o.status !== 'Entregue');
 
         activeOrders.forEach(o => {
             const clientName = o.client_name || 'Cliente';
+            // Salva TUDO que precisamos nos atributos data-*
             select.innerHTML += `
                 <option value="${o.client_id}" 
                         data-code="${o.code}" 
@@ -1438,17 +1361,23 @@ async function loadOrdersForVideo() {
             `;
         });
 
+        // --- EVENTO: QUANDO O USUÁRIO SELECIONA UMA ENCOMENDA ---
         select.onchange = function() {
-            checkVideoPermission();
+            checkVideoPermission(); // Libera o botão da câmera
+            
             const option = select.options[select.selectedIndex];
+            
+            // Elementos visuais onde vamos jogar os dados
             const spanResumo = document.getElementById('info-desc');
             
+            // Se o usuário selecionou algo válido
             if (select.value && spanResumo) {
                 const code = option.getAttribute('data-code');
                 const desc = option.getAttribute('data-desc');
                 const name = option.getAttribute('data-name');
                 const weight = option.getAttribute('data-weight');
 
+                // Atualiza o visual bonito
                 infoBox.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
@@ -1461,38 +1390,204 @@ async function loadOrdersForVideo() {
                         </div>
                     </div>
                 `;
+                // Atualiza também o span oculto caso precise
                 if(spanResumo) spanResumo.innerText = `Vídeo da Encomenda ${code}`;
+
             } else {
+                // Se desmarcou, limpa
                 infoBox.innerHTML = `<small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>`;
             }
         };
 
     } catch (error) {
-        console.error("Erro ao carregar encomendas:", error);
+        console.error("Erro ao carregar encomendas para vídeo:", error);
         select.innerHTML = '<option value="">Erro ao carregar lista</option>';
     }
 }
 
-// --- VISUALIZAÇÃO DE VÍDEOS (ADAPTADO PARA CLOUDINARY) ---
+// --- FUNÇÃO PARA LIBERAR O BOTÃO DA CÂMERA ---
+function checkVideoPermission() {
+    const sel = document.getElementById('video-client-select');
+    const btn = document.getElementById('btn-open-fullscreen');
+    
+    if(sel && btn) {
+        // Se tem valor selecionado, ativa o botão
+        if(sel.value) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-camera"></i> ABRIR CÂMERA';
+            btn.style.background = '#28a745'; // Verde
+            btn.style.cursor = 'pointer';
+        } else {
+            btn.disabled = true;
+            btn.innerHTML = 'Selecione uma encomenda acima';
+            btn.style.background = '#2c3e50'; // Cinza escuro
+            btn.style.cursor = 'not-allowed';
+        }
+    }
+}
+
+async function loadClientsForVideoSelect() {
+    const res = await fetch('/api/clients');
+    const clients = await res.json();
+    const sel = document.getElementById('video-client-select');
+    if(!sel) return;
+    sel.innerHTML = '<option value="">Selecione para vincular...</option>';
+    clients.forEach(c => {
+        sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+    });
+}
+// ==========================================
+// CORREÇÃO DO UPLOAD E TIMER
+// ==========================================
+
+async function confirmUpload() {
+    // 1. Validações Iniciais
+    if(!currentBlob) return alert("Erro: Nenhum vídeo gravado.");
+
+    const clientSelect = document.getElementById('video-client-select');
+    const clientId = clientSelect ? clientSelect.value : null;
+    
+    if (!clientId) return alert("⚠️ Erro: Selecione um Cliente/Encomenda na lista antes de enviar!");
+
+    // 2. Prepara Dados
+    const descEl = document.getElementById('info-desc');
+    const descText = descEl ? descEl.innerText : 'Vídeo de Encomenda';
+    
+    const formData = new FormData();
+    formData.append('client_id', clientId);
+    formData.append('description', descText);
+    // Adiciona o nome do arquivo para garantir que o servidor entenda a extensão
+    formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
+
+    // 3. Feedback Visual (Bloqueia botão)
+    let btn = document.getElementById('btn-confirm-upload'); // Tente usar ID fixo se possível
+    if(!btn) btn = document.querySelector('#preview-controls-ui .btn-primary');
+    
+    const oldText = btn ? btn.innerText : 'Enviar';
+    if(btn) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; 
+        btn.disabled = true;
+    }
+
+    try {
+        // 4. Envio para o Servidor
+        const res = await fetch('/api/videos/upload', { 
+            method: 'POST', 
+            body: formData 
+        });
+        
+        // Verifica se a resposta é JSON antes de tentar ler
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            const text = await res.text(); // Pega o erro em texto (ex: HTML de erro 500)
+            console.error("Resposta não-JSON do servidor:", text);
+            throw new Error("O servidor retornou um erro inesperado. Verifique o terminal.");
+        }
+
+        const data = await res.json();
+        
+        if(data.success) {
+            alert("✅ Vídeo enviado com sucesso!");
+            
+            // Atualiza a lista na tela (verifica qual função chamar)
+            if(currentUser.role !== 'client') {
+                 if(typeof loadAdminVideos === 'function') loadAdminVideos(); 
+            } else {
+                 if(typeof loadClientVideos === 'function') loadClientVideos();
+            }
+            
+            // 5. IMPORTANTE: Limpa tudo (Timer, vídeo, memória)
+            discardVideo(); 
+            closeFullscreenCamera(); // Fecha a tela cheia para evitar bugs
+            
+        } else {
+            throw new Error(data.msg || "Erro desconhecido no upload");
+        }
+    } catch(e) { 
+        console.error(e);
+        alert("❌ Falha no envio: " + e.message); 
+    } finally {
+        // Restaura o botão
+        if(btn) {
+            btn.innerText = oldText; 
+            btn.disabled = false;
+        }
+    }
+}
+
+// Garante que o timer pare ao descartar ou finalizar
+function discardVideo() {
+    currentBlob = null;
+    recordedChunks = [];
+    
+    // Para o vídeo se estiver tocando
+    const preview = document.getElementById('video-preview');
+    if(preview) {
+        preview.pause();
+        preview.src = "";
+        preview.style.display = 'none';
+    }
+
+    // Volta para a câmera
+    const camFeed = document.getElementById('camera-feed');
+    if(camFeed) camFeed.style.display = 'block';
+
+    // Troca os controles
+    document.getElementById('record-ui').classList.remove('hidden');
+    document.getElementById('upload-ui').classList.add('hidden');
+
+    // ZERA O TIMER VISUALMENTE
+    const timerEl = document.getElementById('recording-timer');
+    if(timerEl) {
+        timerEl.innerText = "00:00";
+        timerEl.classList.add('hidden');
+    }
+    
+    // PARA O LOOP DO RELÓGIO (CRÍTICO)
+    if(typeof recInterval !== 'undefined') clearInterval(recInterval);
+}
+
+async function loadClientInfoForVideo(clientId) {
+    const divInfo = document.getElementById('video-order-info');
+    if(!clientId) {
+        divInfo.style.opacity = '0.5';
+        document.getElementById('info-name').innerText = '-';
+        return;
+    }
+    const res = await fetch(`/api/orders/by-client/${clientId}`);
+    const orders = await res.json();
+    const resC = await fetch('/api/clients'); 
+    const allClients = await resC.json();
+    const client = allClients.find(c => c.id == clientId);
+
+    divInfo.style.opacity = '1';
+    document.getElementById('info-name').innerText = client ? client.name : 'Erro';
+    document.getElementById('info-email').innerText = client ? client.email : '-';
+
+    if(orders.length > 0) {
+        const lastOrder = orders[orders.length - 1]; 
+        document.getElementById('info-desc').innerText = lastOrder.description;
+        document.getElementById('info-weight').innerText = lastOrder.weight + ' Kg';
+    } else {
+        document.getElementById('info-desc').innerText = "Nenhum pedido recente";
+        document.getElementById('info-weight').innerText = "-";
+    }
+}
 
 async function loadAdminVideos() {
     const res = await fetch('/api/videos/list');
     const list = await res.json();
     const tbody = document.getElementById('admin-video-list');
     if(!tbody) return;
-    
     tbody.innerHTML = '';
     list.forEach(v => {
-        // AJUSTE CLOUDINARY: Verifica se existe video_url ou usa filename se ele conter a URL
-        const videoUrl = v.video_url || v.filename; 
-        
         tbody.innerHTML += `
             <tr>
                 <td>${v.id}</td>
                 <td>${v.client_name || 'Desconhecido'}</td>
-                <td>${new Date(v.created_at).toLocaleDateString('pt-BR')}</td>
+                <td>${formatDate(v.created_at)}</td>
                 <td>
-                    <a href="${videoUrl}" target="_blank" style="color:blue">Ver Online</a> | 
+                    <a href="/uploads/videos/${v.filename}" target="_blank" style="color:blue">Ver</a> | 
                     <button onclick="deleteVideo(${v.id}, '${v.filename}')" style="color:red; border:none; background:none; cursor:pointer;">Excluir</button>
                 </td>
             </tr>
@@ -1509,33 +1604,31 @@ async function loadClientVideos() {
         const list = await res.json();
         
         if(list.length === 0) {
-            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%; margin-top:20px;">Nenhum vídeo disponível.</p>';
+            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%; margin-top:20px;">Nenhum vídeo disponível no momento.</p>';
             return;
         }
 
+        // Monta todo o HTML numa variável primeiro (Mais rápido)
         let htmlBuffer = '';
 
         list.forEach(v => {
             const dateStr = new Date(v.created_at).toLocaleDateString('pt-BR');
+            // Escapa aspas para evitar quebra de HTML
             const descSafe = (v.description || 'Sem descrição').replace(/"/g, '&quot;');
             
-            // AJUSTE CLOUDINARY: Usa a URL completa vinda do backend
-            const videoUrl = v.video_url || v.filename; 
-
             htmlBuffer += `
                 <div class="video-card" style="border:1px solid #ddd; padding:15px; border-radius:8px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                     <div style="margin-bottom:10px; font-weight:bold; color:#0a1931; font-size:14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${descSafe}">
                         📦 ${descSafe}
                     </div>
                     <video controls preload="metadata" style="width:100%; border-radius:5px; background:black; aspect-ratio: 16/9;">
-                        <source src="${videoUrl}" type="video/webm">
-                        <source src="${videoUrl}" type="video/mp4">
+                        <source src="/uploads/videos/${v.filename}" type="video/webm">
                         Seu navegador não suporta vídeos.
                     </video>
                     <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:#666;">📅 ${dateStr}</span>
-                        <a href="${videoUrl}" target="_blank" class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">
-                            <i class="fas fa-external-link-alt"></i> Abrir
+                        <a href="/uploads/videos/${v.filename}" download="video-${v.id}.webm" class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">
+                            <i class="fas fa-download"></i> Baixar
                         </a>
                     </div>
                 </div>
@@ -1546,24 +1639,20 @@ async function loadClientVideos() {
 
     } catch (error) {
         console.error("Erro ao carregar vídeos:", error);
-        grid.innerHTML = '<p style="color:red; text-align:center;">Erro de conexão.</p>';
+        grid.innerHTML = '<p style="color:red; text-align:center;">Erro de conexão ao buscar vídeos.</p>';
     }
 }
 
 async function deleteVideo(id, filename) {
     if(!confirm("Excluir este vídeo permanentemente?")) return;
-    
-    // O backend Cloudinary precisa do ID ou filename (que pode ser o public_id) para deletar
     await fetch('/api/videos/delete', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({id, filename})
     });
     loadAdminVideos();
+    
 }
-// ==========================================
-// PARTE 4: UTILITÁRIOS, FINANCEIRO E PAGAMENTOS (PIX)
-// ==========================================
 
 // --- FUNÇÃO DE PESQUISA GLOBAL ---
 function searchTable(inputId, tableBodyId) {
@@ -1571,7 +1660,6 @@ function searchTable(inputId, tableBodyId) {
     const filter = input.value.toLowerCase();
     
     const tbody = document.getElementById(tableBodyId);
-    if (!tbody) return;
     const rows = tbody.getElementsByTagName('tr');
 
     for (let i = 0; i < rows.length; i++) {
@@ -1584,7 +1672,7 @@ function searchTable(inputId, tableBodyId) {
     }
 }
 
-// --- RESPONSIVIDADE TABELAS ---
+// --- RESPONSIVIDADE: CORRIGIDA E COMPLETADA ---
 function makeTablesResponsive() {
     const tables = document.querySelectorAll('.data-table');
     
@@ -1596,14 +1684,13 @@ function makeTablesResponsive() {
             const cells = row.querySelectorAll('td');
             cells.forEach((cell, index) => {
                 if (headers[index]) {
+                    // Pega o texto do cabeçalho e coloca no atributo
                     cell.setAttribute('data-label', headers[index].innerText);
                 }
             });
         });
     });
 }
-
-// --- NOTIFICAÇÕES (WHATSAPP / EMAIL) ---
 function sendNotification(type, contact, name, code, status) {
     if(!contact || contact === 'undefined' || contact === 'null') {
         return alert("Erro: Contato não cadastrado para este cliente.");
@@ -1612,11 +1699,13 @@ function sendNotification(type, contact, name, code, status) {
     const message = `Olá *${name}*! 👋\n\nPassando para informar sobre sua encomenda *${code}* na Guineexpress.\n\n📦 *Novo Status:* ${status.toUpperCase()}\n\nAcesse nosso painel para mais detalhes.\nObrigado!`;
 
     if (type === 'whatsapp') {
+        // Limpa o numero deixando apenas digitos
         let cleanPhone = contact.replace(/\D/g, '');
         const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
         window.open(url, '_blank');
     
     } else if (type === 'email') {
+        // Abre o app de email do celular/pc
         const subject = `📦 Atualização: ${code}`;
         const url = `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
         window.open(url, '_blank');
@@ -1624,21 +1713,23 @@ function sendNotification(type, contact, name, code, status) {
 }
 
 async function updateOrderStatus(id, status, name, code, phone) {
+    // 1. Confirmação
     if(!confirm(`Deseja alterar o status para: ${status}?`)) return;
 
     try {
+        // 2. Envia para o servidor (que vai disparar o E-MAIL automático)
         await fetch('/api/orders/update', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({id, status})
         });
         
-        // Verifica se loadOrders existe (Parte 1 ou 2) antes de chamar
-        if(typeof loadOrders === 'function') loadOrders();
-
+        // 3. Pergunta sobre o WhatsApp (Manual mas facilitado)
         if(phone && confirm(`Status salvo! 💾\n\nDeseja avisar o cliente no WhatsApp agora?`)) {
             sendNotification('whatsapp', phone, name, code, status);
         }
+        
+        loadOrders(); // Recarrega a tabela
 
     } catch (error) {
         console.error(error);
@@ -1646,62 +1737,56 @@ async function updateOrderStatus(id, status, name, code, phone) {
     }
 }
 
-// --- MODAIS ---
+// --- FUNÇÕES PARA ABRIR E FECHAR MODAIS ---
+
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
+        // Isso aqui anula o display: none que colocamos no HTML
         modal.style.display = 'flex'; 
+        // Remove a classe hidden caso ela exista
         modal.classList.remove('hidden');
+    } else {
+        console.error("Modal não encontrado: " + modalId);
     }
 }
 
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
+        // Volta a esconder
         modal.style.display = 'none';
-        
-        // Se for o modal de pagamento, garante que para o robô do Pix
-        if(modalId === 'modal-payment') {
-            closePaymentModal();
-        }
     }
 }
 
+// Update the existing openBoxModal to use the new generic openModal
 async function openBoxModal() {
+    // Ensure the ID matches your HTML ('modal-box')
     openModal('modal-box'); 
-    if(typeof loadClientsBox === 'function') loadClientsBox(); 
+    loadClientsBox(); 
 }
 
-// Fecha modal ao clicar fora
+// Close modal when clicking outside
 window.onclick = function(event) {
     if (event.target.classList.contains('modal-overlay')) {
-        event.target.style.display = 'none';
-        // Se fechou o de pagamento clicando fora
-        if(event.target.id === 'modal-payment') {
-             closePaymentModal();
-        }
+        event.target.classList.remove('active');
     }
 }
+// --- SISTEMA FINANCEIRO E COBRANÇA ---
 
-// ==========================================
-// SISTEMA FINANCEIRO E COBRANÇA
-// ==========================================
-
-// 1. Carregar Clientes para Cobrança
+// 1. Carregar Clientes no Select de Cobrança
 async function loadClientsForBilling() {
     const sel = document.getElementById('bill-client-select');
     if(!sel) return;
-    try {
-        const res = await fetch('/api/clients');
-        const list = await res.json();
-        sel.innerHTML = '<option value="">Selecione...</option>';
-        list.forEach(c => {
-            sel.innerHTML += `<option value="${c.id}" data-email="${c.email}">${c.name}</option>`;
-        });
-    } catch(e) { console.error(e); }
+    const res = await fetch('/api/clients');
+    const list = await res.json();
+    sel.innerHTML = '<option value="">Selecione...</option>';
+    list.forEach(c => {
+        sel.innerHTML += `<option value="${c.id}" data-email="${c.email}">${c.name}</option>`;
+    });
 }
 
-// 2. Carregar Boxes do Cliente
+// 2. Quando seleciona cliente, busca os BOXES dele
 async function loadClientBoxesForBilling(clientId) {
     const boxSel = document.getElementById('bill-box-select');
     boxSel.innerHTML = '<option value="">Carregando...</option>';
@@ -1709,39 +1794,38 @@ async function loadClientBoxesForBilling(clientId) {
 
     if(!clientId) return;
 
-    try {
-        const res = await fetch('/api/boxes'); 
-        const allBoxes = await res.json();
-        
-        const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
+    // Precisamos de uma rota que filtre boxes. Vamos usar a existente e filtrar no JS por simplicidade
+    // Idealmente: /api/boxes?client_id=X
+    const res = await fetch('/api/boxes'); 
+    const allBoxes = await res.json();
+    
+    // Filtra boxes do cliente
+    const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
 
-        boxSel.innerHTML = '<option value="">Selecione o Box...</option>';
-        clientBoxes.forEach(b => {
-            const weight = b.order_weight || 0;
-            const desc = b.products || `Box ${b.box_code}`;
-            // Sanitiza descrição para não quebrar HTML
-            const safeDesc = desc.replace(/"/g, '&quot;');
-            
-            boxSel.innerHTML += `<option value="${b.id}" data-weight="${weight}" data-desc="${safeDesc}">
-                ${b.box_code} (${weight} Kg)
-            </option>`;
-        });
-        boxSel.disabled = false;
-    } catch(e) { console.error(e); boxSel.innerHTML = '<option>Erro</option>'; }
+    boxSel.innerHTML = '<option value="">Selecione o Box...</option>';
+    clientBoxes.forEach(b => {
+        // Guarda peso e descrição nos atributos para calcular preço
+        const weight = b.order_weight || 0; // Pega o peso da encomenda vinculada
+        const desc = b.products || `Box ${b.box_code}`;
+        boxSel.innerHTML += `<option value="${b.id}" data-weight="${weight}" data-desc="${desc}">
+            ${b.box_code} (${weight} Kg)
+        </option>`;
+    });
+    boxSel.disabled = false;
 }
 
-// 3. Calcular Valor (Peso * Preço Global)
+// 3. Calcula o Valor (Peso * Preço Global)
 function calculateBillAmount(selectElement) {
     const option = selectElement.options[selectElement.selectedIndex];
     const weight = parseFloat(option.getAttribute('data-weight')) || 0;
     
-    // globalPricePerKg deve estar definido na Parte 1
-    const price = (typeof globalPricePerKg !== 'undefined') ? globalPricePerKg : 0;
-    const total = (weight * price).toFixed(2);
+    // Usa o preço global carregado no inicio do dashboard
+    // Se globalPricePerKg for 0, certifique-se que loadPrice() foi chamado
+    const total = (weight * globalPricePerKg).toFixed(2);
     document.getElementById('bill-amount').value = total;
 }
 
-// 4. Criar Fatura (Mercado Pago)
+// 4. Criar a Fatura no Mercado Pago
 async function createInvoice(e) {
     e.preventDefault();
     
@@ -1756,11 +1840,11 @@ async function createInvoice(e) {
         amount: document.getElementById('bill-amount').value
     };
 
-    if(!confirm(`Gerar cobrança de R$ ${data.amount} para este cliente?`)) return;
+    if(!confirm(`Gerar cobrança de ${data.amount} para este cliente?`)) return;
 
     const btn = e.target.querySelector('button');
     const originalText = btn.innerText;
-    btn.innerText = "Gerando...";
+    btn.innerText = "Gerando Pix e Link...";
     btn.disabled = true;
 
     try {
@@ -1772,68 +1856,69 @@ async function createInvoice(e) {
         const json = await res.json();
         
         if(json.success) {
-            alert("✅ Cobrança Gerada!");
-            loadInvoices(); 
+            alert("✅ Cobrança Gerada! O cliente já pode ver no painel dele.");
+            loadInvoices(); // Atualiza tabela
             e.target.reset();
         } else {
             alert("Erro: " + json.msg);
         }
     } catch(err) {
         alert("Erro de conexão.");
-    } finally {
-        btn.innerText = originalText;
-        btn.disabled = false;
     }
+    
+    btn.innerText = originalText;
+    btn.disabled = false;
 }
 
-// 5. Listar Faturas (Admin vs Cliente)
+// Função INTELIGENTE: Esconde o valor se for funcionário
 async function loadInvoices() {
     const tbody = document.getElementById('invoices-list');
     if(!tbody) return;
 
-    try {
-        const res = await fetch('/api/invoices/list');
-        const list = await res.json();
+    const res = await fetch('/api/invoices/list');
+    const list = await res.json();
 
-        tbody.innerHTML = '';
-        
-        list.forEach(inv => {
-            let statusHtml = '';
-            if(inv.status === 'approved') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
-            else if(inv.status === 'pending') statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
-            else statusHtml = '<span style="color:red;">Cancelado</span>';
+    tbody.innerHTML = '';
+    
+    list.forEach(inv => {
+        let statusHtml = '';
+        if(inv.status === 'approved') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+        else if(inv.status === 'pending') statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
+        else statusHtml = '<span style="color:red;">Cancelado</span>';
 
-            let deleteBtn = '';
-            if(currentUser && currentUser.role === 'admin') {
-                deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
-            }
+        // Botão de Excluir (SÓ ADMIN VÊ)
+        let deleteBtn = '';
+        if(currentUser && currentUser.role === 'admin') {
+            deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
+        }
 
-            const checkBtn = `<button onclick="checkInvoiceStatus('${inv.mp_payment_id}', ${inv.id})" style="font-size:12px; cursor:pointer;" title="Sincronizar Status">🔄</button>`;
+        const checkBtn = `<button onclick="checkInvoiceStatus('${inv.mp_payment_id}', ${inv.id})" style="font-size:12px; cursor:pointer;" title="Verificar">🔄</button>`;
 
-            // Lógica de exibição Admin vs Funcionário
-            if (currentUser && currentUser.role === 'admin') {
-                tbody.innerHTML += `
-                <tr>
-                    <td>#${inv.id}</td>
-                    <td>${inv.client_name}</td>
-                    <td>${inv.box_code || '-'}</td>
-                    <td>R$ ${inv.amount}</td> <td>${statusHtml}</td>
-                    <td>${checkBtn} ${deleteBtn}</td>
-                </tr>`;
-            } else {
-                tbody.innerHTML += `
-                <tr>
-                    <td>#${inv.id}</td>
-                    <td>${inv.client_name}</td>
-                    <td>${inv.box_code || '-'}</td>
-                    <td>${statusHtml}</td>
-                    <td>${checkBtn}</td>
-                </tr>`;
-            }
-        });
-    } catch(e) { console.error(e); }
+        // AQUI ESTÁ O TRUQUE:
+        if (currentUser && currentUser.role === 'admin') {
+            // ADMIN: Vê coluna de VALOR e AÇÕES completas
+            tbody.innerHTML += `
+            <tr>
+                <td>#${inv.id}</td>
+                <td>${inv.client_name}</td>
+                <td>${inv.box_code || '-'}</td>
+                <td>R$ ${inv.amount}</td> <td>${statusHtml}</td>
+                <td>${checkBtn} ${deleteBtn}</td>
+            </tr>`;
+        } else {
+            // FUNCIONÁRIO: Não tem a coluna de valor
+            tbody.innerHTML += `
+            <tr>
+                <td>#${inv.id}</td>
+                <td>${inv.client_name}</td>
+                <td>${inv.box_code || '-'}</td>
+                <td>${statusHtml}</td>
+                <td>${checkBtn}</td>
+            </tr>`;
+        }
+    });
 }
-
+// 6. Verificar Status no Mercado Pago (Sincronização)
 async function checkInvoiceStatus(mpId, localId) {
     const res = await fetch('/api/invoices/check-status', {
         method: 'POST', headers: {'Content-Type':'application/json'},
@@ -1842,7 +1927,7 @@ async function checkInvoiceStatus(mpId, localId) {
     const json = await res.json();
     if(json.success) {
         if(json.status === 'approved') alert("Pagamento Confirmado!");
-        else alert("Status atual no Banco: " + json.status);
+        else alert("Ainda consta como: " + json.status);
         loadInvoices();
     }
 }
@@ -1852,8 +1937,7 @@ async function deleteInvoice(id) {
     await fetch('/api/invoices/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
     loadInvoices();
 }
-
-// --- CLIENTE: LISTA E PAGAMENTO ---
+// --- FUNÇÕES DE FATURA DO CLIENTE ---
 
 async function loadClientInvoices() {
     const tbody = document.getElementById('client-invoices-list');
@@ -1874,6 +1958,8 @@ async function loadClientInvoices() {
         list.forEach(inv => {
             let statusHtml = '';
             let actionHtml = '';
+
+            // Sanitiza a descrição (Troca aspas simples por código HTML)
             let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
             let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
 
@@ -1882,7 +1968,11 @@ async function loadClientInvoices() {
                 actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
             } else if(inv.status === 'pending') {
                 statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
-                actionHtml = `<button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" class="btn-primary" style="padding:5px 15px; font-size:12px;">💸 Pagar</button>`;
+                
+                // CORREÇÃO: Usamos safeDesc para não quebrar o onclick
+                actionHtml = `<button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" class="btn-primary" style="padding:5px 15px; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                    💸 Pagar
+                </button>`;
             } else {
                 statusHtml = '<span style="color:red;">Cancelado</span>';
                 actionHtml = '-';
@@ -1898,30 +1988,40 @@ async function loadClientInvoices() {
             </tr>`;
         });
     } catch (err) {
+        console.error(err);
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
     }
 }
-
-// --- MODAL DE PAGAMENTO ---
-
 function openPaymentModal(orderId, description, amount) {
+    console.log("Tentando abrir modal:", { orderId, description, amount }); // Debug no Console
+
     document.getElementById('modal-payment').style.display = 'block';
 
+    // 1. Limpa o valor recebido
     let valorNumerico = limparValor(amount);
 
+    // 2. Preenche os inputs ocultos (importante para o envio ao backend)
     document.getElementById('pay-order-id').value = orderId;
     document.getElementById('pay-amount').value = valorNumerico; 
 
-    let valorParaExibir = valorNumerico.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    // 3. Formata para exibir bonito no título (Ex: R$ 4,00)
+    let valorParaExibir = valorNumerico.toLocaleString('pt-BR', { 
+        style: 'currency', 
+        currency: 'BRL' 
+    });
+
+    // Atualiza o texto visual
     document.getElementById('pay-desc').innerText = `${description} - ${valorParaExibir}`;
     
-    // Reseta UI do PIX
+    // Reseta visualização do QR Code
     document.getElementById('qrcode-container').innerHTML = '';
     document.getElementById('pix-copy-paste').value = '';
     
     showMethod('pix');
 }
 
+
+// 2. Alternar Abas (Pix vs Cartão)
 function showMethod(method) {
     const pixArea = document.getElementById('area-pix');
     const cardArea = document.getElementById('area-card');
@@ -1931,46 +2031,68 @@ function showMethod(method) {
     if(method === 'pix') {
         pixArea.style.display = 'block';
         cardArea.style.display = 'none';
-        btnPix.style.background = '#0a1931'; btnPix.style.color = '#fff';
-        btnCard.style.background = '#eee'; btnCard.style.color = '#333';
+        btnPix.style.background = '#0a1931';
+        btnPix.style.color = '#fff';
+        btnCard.style.background = '#eee';
+        btnCard.style.color = '#333';
     } else {
         pixArea.style.display = 'none';
         cardArea.style.display = 'block';
-        btnCard.style.background = '#009ee3'; btnCard.style.color = '#fff';
-        btnPix.style.background = '#eee'; btnPix.style.color = '#333';
+        btnCard.style.background = '#009ee3';
+        btnCard.style.color = '#fff';
+        btnPix.style.background = '#eee';
+        btnPix.style.color = '#333';
     }
 }
-
+// Função robusta para limpar dinheiro (aceita "R$ 4", "R$ 4,00" e "1.200,50")
 function limparValor(valor) {
     if (!valor) return 0;
+    
+    // Converte para string para garantir
     let str = valor.toString();
-    // Remove tudo que não é numero, ponto ou virgula
+
+    // 1. Remove "R$", espaços e qualquer letra
     str = str.replace(/[^\d.,]/g, '');
-    // Se tiver ponto e virgula (1.000,00), remove ponto
-    if (str.includes('.') && str.includes(',')) str = str.replace(/\./g, ''); 
+
+    // 2. Lógica para diferenciar milhar de decimal
+    // Se tiver ponto E vírgula (ex: 1.200,50), remove o ponto
+    if (str.includes('.') && str.includes(',')) {
+        str = str.replace(/\./g, ''); 
+    }
+    
+    // 3. Troca vírgula por ponto (para o JavaScript entender)
     str = str.replace(',', '.');
+
+    // 4. Converte para float
     let numero = parseFloat(str);
+
+    // Se der NaN, retorna 0
     return isNaN(numero) ? 0 : numero;
 }
 
-// --- PIX: GERAÇÃO E ROBÔ VIGILANTE ---
-
+// Variável global para controlar o "robô" que verifica o pagamento
 let pixCheckInterval = null;
 
+// --- 1. GERAR PIX (Modificada para iniciar a verificação) ---
 async function generatePixPayment() {
     const btn = document.getElementById('btn-gen-pix');
-    const orderId = document.getElementById('pay-order-id').value;
-    let amountVal = parseFloat(document.getElementById('pay-amount').value); 
+    const orderId = document.getElementById('pay-order-id').value; // ID da fatura no seu banco
+    
+    let rawAmount = document.getElementById('pay-amount').value; 
+    let amountVal = parseFloat(rawAmount); 
 
-    if (!amountVal || amountVal <= 0) return alert('Erro: Valor inválido.');
+    if (!amountVal || amountVal <= 0) { 
+        alert('Erro: Valor inválido.'); 
+        return; 
+    }
 
     btn.innerHTML = 'Gerando... <i class="fas fa-spinner fa-spin"></i>';
     btn.disabled = true;
 
     try {
-        // Usa dados do currentUser (definido na Parte 1)
-        const userEmail = (typeof currentUser !== 'undefined') ? currentUser.email : 'cliente@guineexpress.com';
-        const userName = (typeof currentUser !== 'undefined') ? currentUser.name : 'Cliente';
+        // Pega o email do usuário logado se existir, senão usa genérico
+        const userEmail = currentUser ? currentUser.email : 'cliente@guineexpress.com';
+        const userName = currentUser ? currentUser.name : 'Cliente';
 
         const response = await fetch('/api/create-pix', {
             method: 'POST',
@@ -1984,11 +2106,13 @@ async function generatePixPayment() {
         });
 
         const data = await response.json();
+
         if (data.error) throw new Error(data.error);
 
-        // Exibe QR Code (Base64 vindo do Backend)
+        // Exibe o QR Code
         const container = document.getElementById('qrcode-container');
         container.innerHTML = '';
+
         if(data.qr_code_base64) {
             const img = document.createElement('img');
             img.src = `data:image/png;base64,${data.qr_code_base64}`;
@@ -1997,9 +2121,9 @@ async function generatePixPayment() {
         }
         
         document.getElementById('pix-copy-paste').value = data.qr_code;
-        btn.style.display = 'none'; 
+        btn.style.display = 'none'; // Esconde o botão de gerar
         
-        // Status Visual
+        // AVISO VISUAL
         const containerArea = document.getElementById('area-pix');
         let statusMsg = document.getElementById('pix-status-msg');
         if(!statusMsg) {
@@ -2012,19 +2136,20 @@ async function generatePixPayment() {
         }
         statusMsg.innerHTML = '<i class="fas fa-sync fa-spin"></i> Aguardando pagamento...';
 
-        // INICIA O ROBÔ
+        // === A MÁGICA: INICIA O ROBÔ VIGILANTE ===
         startPixPolling(data.payment_id, orderId);
 
     } catch (error) {
         console.error(error);
         alert("Erro ao gerar PIX: " + error.message);
-        btn.innerHTML = 'GERAR QR CODE AGORA';
+        btn.innerHTML = 'Tentar Novamente';
         btn.disabled = false;
-        btn.style.display = 'block';
     }
 }
 
+// --- 2. ROBÔ VIGILANTE (Verifica a cada 5 segundos) ---
 function startPixPolling(paymentId, invoiceId) {
+    // Limpa qualquer verificação anterior para não acumular
     if(pixCheckInterval) clearInterval(pixCheckInterval);
 
     pixCheckInterval = setInterval(async () => {
@@ -2038,7 +2163,8 @@ function startPixPolling(paymentId, invoiceId) {
             const json = await res.json();
             
             if(json.status === 'approved') {
-                clearInterval(pixCheckInterval);
+                // SUCESSO! O DINHEIRO CAIU
+                clearInterval(pixCheckInterval); // Para o robô
                 
                 const statusMsg = document.getElementById('pix-status-msg');
                 if(statusMsg) {
@@ -2046,23 +2172,29 @@ function startPixPolling(paymentId, invoiceId) {
                     statusMsg.style.color = 'green';
                 }
 
+                // Toca um som de sucesso (opcional)
+                // const audio = new Audio('sucesso.mp3'); audio.play();
+
                 setTimeout(() => {
                     alert("Pagamento Recebido com Sucesso! ✈️");
                     closePaymentModal();
-                    loadClientInvoices(); 
+                    loadClientInvoices(); // Atualiza a tabela no fundo
                 }, 1000);
             }
         } catch (e) {
-            console.error("Erro no polling pix:", e);
+            console.error("Erro verificando pix:", e);
         }
-    }, 5000);
+    }, 5000); // 5000ms = 5 segundos
 }
 
+// --- 3. FECHAR MODAL (Importante parar o robô) ---
 function closePaymentModal() {
     document.getElementById('modal-payment').style.display = 'none';
+    
+    // Para a verificação para não gastar internet do cliente
     if(pixCheckInterval) clearInterval(pixCheckInterval);
     
-    // Reseta botão
+    // Reseta visual
     const btn = document.getElementById('btn-gen-pix');
     if(btn) {
         btn.style.display = 'block';
@@ -2073,6 +2205,8 @@ function closePaymentModal() {
     if(statusMsg) statusMsg.remove();
 }
 
+
+// Função auxiliar para copiar o código Pix
 function copyPix() {
     const copyText = document.getElementById("pix-copy-paste");
     copyText.select();
@@ -2106,7 +2240,6 @@ async function recoverPassword() {
         alert("Erro ao tentar recuperar senha. Verifique sua conexão.");
     }
 }
-
 // --- LÓGICA DO MODAL DE RECUPERAÇÃO ---
 
 function openRecoverModal() {
@@ -2166,7 +2299,6 @@ async function sendRecoveryRequest() {
     btn.innerText = originalText;
     btn.disabled = false;
 }
-
 // --- FUNÇÕES DO HISTÓRICO ---
 
 async function loadHistory() {
@@ -2224,12 +2356,10 @@ async function loadHistory() {
         tbody.innerHTML = '<tr><td colspan="5" align="center">Erro ao carregar histórico.</td></tr>';
     }
 }
-
 // Função de filtro para o Histórico
 function filterHistory() {
     searchTable('history-search', 'history-list');
 }
-
 // --- SISTEMA DE ETIQUETAS ---
 
 async function loadLabels() {
@@ -2381,9 +2511,8 @@ function printSelectedLabels() {
 
     setTimeout(() => { window.print(); }, 500);
 }
-
 // ============================================================
-// LÓGICA DE RECIBOS PROFISSIONAIS
+// LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)
 // ============================================================
 
 // 1. Carrega a tabela na aba (Moeda R$)
@@ -2410,9 +2539,11 @@ async function loadReceipts() {
         boxes.sort((a, b) => b.id - a.id);
 
         boxes.forEach(box => {
+            // CORREÇÃO: Usa 'box' aqui dentro do loop
             const peso = parseFloat(box.order_weight || 0).toFixed(2);
             
             // Lógica visual para valor (apenas visualização rápida na tabela)
+            // O valor real calculado vem na hora de imprimir
             let valorNum = parseFloat(box.amount || 0);
             
             // Se o valor for 0, tenta estimar visualmente (peso * preço global) para a tabela não ficar zerada
@@ -2454,7 +2585,7 @@ async function loadReceipts() {
     }
 }
 
-// 5. GERAR RECIBO A4
+// 5. GERAR RECIBO A4 (Tamanho Normal - CORRIGIDO)
 async function printReceipt(boxId) {
     const printArea = document.getElementById('print-area');
     
@@ -2575,7 +2706,6 @@ async function printReceipt(boxId) {
         alert("Erro ao gerar recibo: " + e.message);
     }
 }
-
 // ==========================================
 // LÓGICA DO DASHBOARD (GRÁFICOS REAIS)
 // ==========================================
@@ -2679,7 +2809,6 @@ async function loadDashboardStats() {
         console.error("Erro ao carregar dashboard:", err);
     }
 }
-
 // ==========================================
 // FUNÇÃO DE BACKUP MANUAL
 // ==========================================
@@ -2697,7 +2826,7 @@ async function forceBackup() {
         if (data.success) {
             alert("✅ " + data.msg);
         } else {
-            alert("❌ " + data.msg);
+            alert("❌ Erro: " + data.msg);
         }
 
         btn.innerHTML = originalText;
@@ -2777,7 +2906,6 @@ async function deleteExpense(id) {
     });
     loadExpenses();
 }
-
 // --- FUNÇÃO CORRIGIDA: Ler Logs de Auditoria ---
 async function loadSystemLogs() {
     const list = document.getElementById('logs-list');
@@ -2825,7 +2953,6 @@ async function loadSystemLogs() {
         list.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Erro ao carregar logs.</td></tr>';
     }
 }
-
 // ==========================================
 // LÓGICA DE EMBARQUES (MANIFESTO)
 // ==========================================
@@ -2982,6 +3109,27 @@ async function printManifest(shipId) {
     `;
 
     setTimeout(() => { window.print(); }, 500);
+}
+// --- FUNÇÃO: EXCLUIR ENCOMENDA ---
+async function deleteOrder(id) {
+    if (!confirm("⚠️ Tem certeza que deseja EXCLUIR esta encomenda? Essa ação não pode ser desfeita.")) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ Encomenda excluída!");
+            loadOrders(); // Recarrega a tabela
+        } else {
+            alert("Erro ao excluir: " + data.message);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão.");
+    }
 }
 
 // ==========================================

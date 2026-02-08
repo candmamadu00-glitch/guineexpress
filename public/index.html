@@ -1,16 +1,30 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+    <link rel="stylesheet" href="cici.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Guineexpress</title>
-    
-    <link rel="icon" type="image/png" href="https://res.cloudinary.com/dn89ygzxz/image/upload/v1/logo.png">
-    
+    <link rel="icon" type="image/png" href="/logo.png">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="cici.css">
-    
     <script src="https://unpkg.com/imask"></script>
+    <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a1931">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Guineexpress">
+<link rel="apple-touch-icon" href="logo.png">
+
+<script>
+    // Registra o App no navegador
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('App PWA registrado:', reg.scope))
+                .catch(err => console.log('Erro ao registrar PWA:', err));
+        });
+    }
+</script>
 </head>
 <body>
 

@@ -1,0 +1,21 @@
+{
+  "name": "Guineexpress Logística",
+  "short_name": "Guineexpress",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "background_color": "#0a1931",
+  "theme_color": "#0a1931",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

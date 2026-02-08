@@ -3,83 +3,55 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
-const app = express(); // <--- O APP É CRIADO AQUI
-
-// ============================================================
-// CORREÇÃO DO ERRO DE LOGIN (LINHA MÁGICA)
-// ============================================================
-// Isso é OBRIGATÓRIO no Render para cookies seguros funcionarem
-app.set('trust proxy', 1); 
-// ============================================================
-
-// app.use('/uploads', express.static('uploads')); // REMOVIDO: Cloudinary usa URLs externas
-const fs = require('fs'); // Mantido caso use para outras coisas, mas não para upload
+const app = express();
+app.use('/uploads', express.static('uploads'));
+const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
-const helmet = require('helmet'); 
-const compression = require('compression'); 
+const helmet = require('helmet'); // Instale: npm install helmet
+const compression = require('compression'); // Instale: npm install compression
 const MercadoPagoConfig = require('mercadopago').MercadoPagoConfig;
 const Payment = require('mercadopago').Payment;
 const Preference = require('mercadopago').Preference;
-const cron = require('node-cron'); 
-const path = require('path'); 
-const pgSession = require('connect-pg-simple')(session);
-const { Pool } = require('pg');
+const cron = require('node-cron'); // Agendador de tarefas
+const path = require('path');      // Para lidar com caminhos de pastas
+const SQLiteStore = require('connect-sqlite3')(session);
+// --- CORREÇÃO DO BANCO DE DADOS (Adicione no server.js logo após conectar o banco) ---
+const db = require('./database'); // Ou onde você define o db
 
-// --- IMPORTAÇÕES DO CLOUDINARY ---
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
-const db = require('./database'); 
-
-// --- 1. CONFIGURAÇÃO DO CLOUDINARY ---
-// Certifique-se de ter essas chaves no seu arquivo .env
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-// --- 2. CONFIGURAÇÃO DE UPLOAD GERAL (IMAGENS - FOTOS, COMPROVANTES) ---
-const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        folder: 'guineexpress_uploads', // Nome da pasta no Cloudinary
-        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
-        // transformation: [{ width: 500, height: 500, crop: 'limit' }] // Opcional: redimensionar
+// --- 4. CONFIGURAÇÃO DE UPLOAD (MULTER - MODO DISCO) ---
+// Isso salva o arquivo fisicamente na pasta 'uploads'
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        if (!fs.existsSync('uploads')) {
+            fs.mkdirSync('uploads');
+        }
+        cb(null, 'uploads/');
     },
+    filename: function (req, file, cb) {
+        // Gera um nome único: timestamp + extensão (ex: 123456789.jpg)
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
 });
 const upload = multer({ storage: storage });
-
-// --- 3. CONFIGURAÇÃO DE UPLOAD DE VÍDEO ---
-const videoStorage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        folder: 'guineexpress_videos', // Nome da pasta de vídeos
-        resource_type: 'video', // IMPORTANTE: Avisa ao Cloudinary que é vídeo
-        allowed_formats: ['mp4', 'mov', 'avi', 'mkv'], 
-    },
-});
-const uploadVideo = multer({ storage: videoStorage });
-
-// --- CONFIGURAÇÃO DE EMAIL (MANTIDA IGUAL) ---
+// --- CONFIGURAÇÃO DE EMAIL CORRIGIDA (GMAIL) ---
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
-    secure: false, 
+    secure: false, // false para porta 587 (usa STARTTLS)
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
     tls: {
-        rejectUnauthorized: false 
+        rejectUnauthorized: false // Ajuda a evitar erros de certificado no Render
     }
 });
-
-// Função Auxiliar para Enviar Email (MANTIDA)
+// Função Auxiliar para Enviar Email (CORRIGIDA)
 async function sendEmailHtml(to, subject, title, message) {
     if (!to || to.includes('undefined')) return;
 
+    // Pega o email correto do arquivo .env para não dar erro de permissão
     const senderEmail = process.env.EMAIL_USER; 
 
     const htmlContent = `
@@ -103,7 +75,7 @@ async function sendEmailHtml(to, subject, title, message) {
 
     try {
         await transporter.sendMail({
-            from: `"Guineexpress Logística" <${senderEmail}>`, 
+            from: `"Guineexpress Logística" <${senderEmail}>`, // AQUI ESTAVA O ERRO (Agora usa o email do login)
             to: to,
             subject: subject,
             html: htmlContent
@@ -113,70 +85,72 @@ async function sendEmailHtml(to, subject, title, message) {
         console.error("❌ Erro ao enviar email:", error);
     }
 }
-
-// Função para gravar logs automaticamente (MANTIDA)
+// Função para gravar logs automaticamente
 function logSystemAction(req, action, details) {
+    // Tenta pegar o nome da sessão, senão usa 'Sistema'
+    // (Certifique-se de que no login você salvou req.session.userName = user.name)
     const user = req.session.userName || 'Admin/Sistema';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    if (db && db.run) {
-        db.run("INSERT INTO system_logs (user_name, action, details, ip_address) VALUES (?, ?, ?, ?)", 
-            [user, action, details, ip], 
-            (err) => {
-                if(err) console.error("Erro ao salvar log:", err);
-            }
-        );
-    }
+    db.run("INSERT INTO system_logs (user_name, action, details, ip_address) VALUES (?, ?, ?, ?)", 
+        [user, action, details, ip], 
+        (err) => {
+            if(err) console.error("Erro ao salvar log:", err);
+        }
+    );
 }
-
-const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }); 
+const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }); // Lê do .env
 const payment = new Payment(client);
-
 // Segurança e Performance
-app.use(helmet({ contentSecurityPolicy: false })); 
-app.use(compression()); 
+app.use(helmet({ contentSecurityPolicy: false })); // Protege headers HTTP
+app.use(compression()); // Comprime respostas para ficar mais rápido
+
+// Garante pastas de upload
+if (!fs.existsSync('uploads/videos')){ fs.mkdirSync('uploads/videos', { recursive: true }); }
+
+// Configuração de armazenamento de vídeos
+const videoStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, 'uploads/videos/'),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const uploadVideo = multer({ storage: videoStorage });
+// -------------------------------------------------
+
+// Servir a pasta de vídeos estática
+app.use('/uploads/videos', express.static('uploads/videos'));
 
 // Verificação de segurança do banco
 if (!db || typeof db.get !== 'function') {
     console.error("ERRO CRÍTICO: Banco de dados não carregou. Verifique o final do arquivo database.js"); 
-    // Não vamos dar exit aqui para não derrubar o server se o banco demorar 1 seg a mais, 
-    // mas em produção isso seria ideal.
+    process.exit(1);
 }
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
-
-// --- CONFIGURAÇÃO DA SESSÃO (POSTGRESQL) ---
-const sessionPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
-
 app.use(session({
-    store: new pgSession({
-        pool: sessionPool,                // Usa a conexão do Postgres
-        tableName: 'session',             // Nome da tabela de sessões
-        createTableIfMissing: true        // Cria a tabela automaticamente se não existir
-    }),
-    secret: process.env.SESSION_SECRET,
+    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), // Salva sessão em arquivo
+    secret: process.env.SESSION_SECRET || 'segredo_padrao',
     resave: false,
     saveUninitialized: false,
-    proxy: true, // Adicional de segurança para garantir
-    cookie: {
-        secure: process.env.NODE_ENV === 'production', // True se estiver no Render (HTTPS)
-        httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
-    }
+    cookie: { 
+        maxAge: 1000 * 60 * 60 * 24 * 7, // Login dura 7 dias
+        secure: false // Mude para true quando tiver HTTPS
+    } 
 }));
+// Permite que o navegador acesse os vídeos gravados
+app.use('/uploads/videos', express.static('uploads/videos'));
 
 // ==================================================================
 // FUNÇÃO AUXILIAR: Detectar Dispositivo e Salvar Log
 // ==================================================================
 function logAccess(req, userInput, status, reason) {
     const userAgent = req.headers['user-agent'] || '';
+    // Verifica se é mobile (Android, iPhone, etc)
     const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
     const device = isMobile ? 'Celular 📱' : 'Computador 💻';
+    
+    // Pega o IP (considerando proxies como o Render)
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'IP Oculto';
 
     const sql = "INSERT INTO access_logs (user_input, status, reason, device, ip_address) VALUES (?, ?, ?, ?, ?)";
@@ -186,11 +160,12 @@ function logAccess(req, userInput, status, reason) {
 }
 
 // ==================================================================
-// ROTA: LOGIN INTELIGENTE
+// ROTA: LOGIN INTELIGENTE (COM RASTREAMENTO)
 // ==================================================================
 app.post('/api/login', (req, res) => {
     const { login, password, role } = req.body;
 
+    // 1. Busca o usuário
     const sql = "SELECT * FROM users WHERE email = ? OR phone = ?";
     
     db.get(sql, [login, login], (err, user) => {
@@ -199,21 +174,26 @@ app.post('/api/login', (req, res) => {
             return res.status(500).json({ success: false, msg: 'Erro interno.' });
         }
 
+        // 2. Se não achou o usuário
         if (!user) {
             logAccess(req, login, 'Falha', 'Usuário não encontrado');
             return res.status(400).json({ success: false, msg: 'Usuário não encontrado.' });
         }
 
+        // 3. Verifica se a conta está ativa
         if (user.active !== 1) {
             logAccess(req, login, 'Falha', 'Conta Desativada');
             return res.status(400).json({ success: false, msg: 'Conta desativada. Fale com o suporte.' });
         }
 
+        // 4. Verifica a Senha
         if (!bcrypt.compareSync(password, user.password)) {
+            // AQUI ESTÁ O PULO DO GATO: Salvamos que alguém tentou invadir
             logAccess(req, login, 'Falha', 'Senha Incorreta 🔒');
             return res.status(400).json({ success: false, msg: 'Senha incorreta.' });
         }
 
+        // 5. Verifica o Cargo
         if (user.role !== role) {
             logAccess(req, login, 'Falha', `Cargo Errado (Tentou ${role} sendo ${user.role})`);
             return res.status(400).json({ 
@@ -222,10 +202,12 @@ app.post('/api/login', (req, res) => {
             });
         }
 
+        // 6. Sucesso Absoluto
         req.session.userId = user.id;
         req.session.role = user.role;
-        req.session.user = user; 
+        req.session.user = user; // Salva o objeto user inteiro na sessão para facilitar
         
+        // Registra o sucesso
         logAccess(req, login, 'Sucesso', `Login Realizado (${user.role}) ✅`);
         
         console.log(`✅ Login Sucesso: ${user.name}`);
@@ -238,14 +220,13 @@ app.get('/api/admin/logs', (req, res) => {
     if (!req.session.role || req.session.role !== 'admin') {
         return res.status(403).json([]);
     }
+    // Pega os últimos 100 acessos, do mais recente para o mais antigo
     db.all("SELECT * FROM access_logs ORDER BY id DESC LIMIT 100", (err, rows) => {
         res.json(rows || []);
     });
 });
-
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({success: true}); });
-
-// ROTA: Checar Sessão Ativa
+// ROTA: Checar Sessão Ativa (Para Auto-Login)
 app.get('/api/check-session', (req, res) => {
     if (req.session.userId) {
         res.json({ 
@@ -260,28 +241,30 @@ app.get('/api/check-session', (req, res) => {
         res.json({ loggedIn: false });
     }
 });
-
 app.get('/api/user', (req, res) => {
     if (!req.session.userId) return res.status(401).json({});
     db.get("SELECT * FROM users WHERE id = ?", [req.session.userId], (err, row) => res.json(row));
 });
-
 // ROTA: Alterar Senha (CORRIGIDA)
 app.post('/api/users/change-password', (req, res) => {
+    // CORREÇÃO: Agora verificamos 'userId' em vez de 'user'
     if (!req.session.userId) {
         return res.status(401).json({ success: false, message: 'Não autorizado. Por favor, faça login novamente.' });
     }
 
     const { currentPass, newPass } = req.body;
-    const userId = req.session.userId; 
+    const userId = req.session.userId; // Pega o ID correto da sessão
 
+    // 1. Busca a senha atual do banco
     db.get("SELECT password FROM users WHERE id = ?", [userId], (err, user) => {
         if (err || !user) return res.json({ success: false, message: "Erro ao buscar usuário." });
 
+        // 2. Verifica se a senha atual confere
         if (!bcrypt.compareSync(currentPass, user.password)) {
             return res.json({ success: false, message: "❌ A senha atual está incorreta." });
         }
 
+        // 3. Criptografa a nova senha e salva
         const newHash = bcrypt.hashSync(newPass, 10);
         db.run("UPDATE users SET password = ? WHERE id = ?", [newHash, userId], (err) => {
             if (err) return res.json({ success: false, message: "Erro ao atualizar." });
@@ -291,8 +274,12 @@ app.post('/api/users/change-password', (req, res) => {
 });
 
 // --- ROTA: Ler Logs do Sistema ---
-app.get('/api/admin/system_logs', (req, res) => { // Ajustei o nome levemente para não conflitar com access_logs se houver duplicidade
-     db.all("SELECT * FROM system_logs ORDER BY created_at DESC LIMIT 100", (err, rows) => {
+app.get('/api/admin/logs', (req, res) => {
+    // Apenas Admin pode ver
+    // if (!req.session.role || req.session.role !== 'admin') return res.status(403).json([]);
+
+    // CORREÇÃO: Lendo da tabela 'system_logs' ordenado pelo mais recente
+    db.all("SELECT * FROM system_logs ORDER BY created_at DESC LIMIT 100", (err, rows) => {
         if (err) {
             console.error(err);
             return res.json([]);
@@ -300,8 +287,9 @@ app.get('/api/admin/system_logs', (req, res) => { // Ajustei o nome levemente pa
         res.json(rows);
     });
 });
-
+// --- ROTA QUE ESTAVA FALTANDO ---
 app.get('/api/clients', (req, res) => {
+    // Busca todos os usuários que são 'client'
     db.all("SELECT * FROM users WHERE role = 'client'", (err, rows) => {
         if(err) {
             console.error(err);
@@ -310,11 +298,11 @@ app.get('/api/clients', (req, res) => {
         res.json(rows);
     });
 });
-
 // --- ROTA DE DADOS COMPLETOS PARA O RECIBO ---
 app.get('/api/full-receipt/:orderId', (req, res) => {
     const orderId = req.params.orderId;
 
+    // 1. Busca dados da Encomenda + Cliente
     const sqlOrder = `
         SELECT orders.*, users.name as client_name, users.phone, users.document, users.country
         FROM orders
@@ -322,6 +310,7 @@ app.get('/api/full-receipt/:orderId', (req, res) => {
         WHERE orders.id = ?
     `;
 
+    // 2. Busca TODAS as Caixas vinculadas a essa encomenda
     const sqlBoxes = `SELECT * FROM boxes WHERE order_id = ?`;
 
     db.get(sqlOrder, [orderId], (err, order) => {
@@ -329,53 +318,65 @@ app.get('/api/full-receipt/:orderId', (req, res) => {
 
         db.all(sqlBoxes, [orderId], (err, boxes) => {
             if (err) return res.json({ success: false, msg: "Erro nas caixas." });
+            
+            // Envia tudo junto para o frontend
             res.json({ success: true, order: order, boxes: boxes });
         });
     });
 });
-
-// --- ROTA DE CADASTRO ---
+// --- ROTA DE CADASTRO (COM VALIDAÇÃO DE SEGURANÇA) ---
 app.post('/api/register', (req, res) => {
     const {name, email, phone, country, document, password} = req.body;
 
+    // 1. Validação de Campos Vazios
     if (!name || !email || !password || !phone || !document) {
         return res.json({success: false, msg: 'Preencha todos os campos obrigatórios.'});
     }
 
+    // 2. Validação de Senha (Mínimo 6 caracteres)
     if (password.length < 6) {
         return res.json({success: false, msg: 'A senha deve ter no mínimo 6 caracteres.'});
     }
 
+    // 3. Validação e Limpeza do Documento (CPF/CNPJ)
+    // Remove tudo que não for número (pontos, traços)
     const cleanDoc = document.replace(/\D/g, '');
+    
+    // Verifica se tem 11 dígitos (CPF) ou 14 (CNPJ)
     if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
         return res.json({success: false, msg: 'Documento inválido. Digite um CPF (11) ou CNPJ (14) válido.'});
     }
 
+    // 4. Validação de Telefone (Mínimo 10 dígitos com DDD)
     const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.length < 10) {
         return res.json({success: false, msg: 'Telefone inválido. Inclua o DDD.'});
     }
 
+    // 5. Validação de Email (Formato básico)
     if (!email.includes('@') || !email.includes('.')) {
         return res.json({success: false, msg: 'E-mail inválido.'});
     }
 
+    // 6. Se passou por tudo, criptografa e salva
     const hash = bcrypt.hashSync(password, 10);
     
+    // Salvamos 'cleanDoc' e 'cleanPhone' para manter o banco limpo (opcional, mas recomendado)
     db.run(`INSERT INTO users (role, name, email, phone, country, document, password) VALUES ('client', ?, ?, ?, ?, ?, ?)`, 
         [name, email, phone, country, document, hash], (err) => {
             if (err) {
+                // Se der erro, geralmente é porque o email ou CPF já existe (UNIQUE no banco)
                 console.error(err);
                 return res.json({success: false, msg: 'Erro: E-mail ou Documento já cadastrados.'});
             }
             res.json({success: true});
     });
 });
-
 // ==========================================
-// CONTROLE DE DESPESAS
+// CONTROLE DE DESPESAS (LUCRO REAL)
 // ==========================================
 
+// 1. Adicionar Despesa
 app.post('/api/expenses/add', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
     const { description, category, amount, date } = req.body;
@@ -386,6 +387,7 @@ app.post('/api/expenses/add', (req, res) => {
     );
 });
 
+// 2. Listar Despesas
 app.get('/api/expenses/list', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
     
@@ -399,10 +401,12 @@ app.post('/api/expenses/delete', (req, res) => {
     
     const id = req.body.id;
 
+    // Primeiro buscamos o dado para saber o que está sendo apagado (para o log ficar rico)
     db.get("SELECT description, amount FROM expenses WHERE id = ?", [id], (err, row) => {
         if(row) {
             db.run("DELETE FROM expenses WHERE id = ?", [id], (err) => {
                 if(!err) {
+                    // GRAVA O LOG AQUI
                     logSystemAction(req, 'EXCLUSÃO FINANCEIRA', `Apagou despesa: ${row.description} (R$ ${row.amount})`);
                 }
                 res.json({ success: !err });
@@ -413,12 +417,12 @@ app.post('/api/expenses/delete', (req, res) => {
     });
 });
 
-// Relatório Financeiro
+// 4. Relatório Financeiro (Lucro Líquido)
 app.get('/api/financial-report', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
 
-    const sqlRevenue = "SELECT SUM(amount) as total FROM boxes"; 
-    const sqlExpenses = "SELECT SUM(amount) as total FROM expenses"; 
+    const sqlRevenue = "SELECT SUM(amount) as total FROM boxes"; // Ganhos (Boxes)
+    const sqlExpenses = "SELECT SUM(amount) as total FROM expenses"; // Gastos
 
     db.get(sqlRevenue, [], (err, rev) => {
         const revenue = rev ? rev.total : 0;
@@ -435,30 +439,34 @@ app.get('/api/financial-report', (req, res) => {
         });
     });
 });
+// --- SISTEMA DE AGENDAMENTO (CORRIGIDO) ---
 
-// --- SISTEMA DE AGENDAMENTO ---
-
+// 1. Admin cria janela de disponibilidade
 app.post('/api/schedule/create-availability', (req, res) => {
     const { date, start_time, end_time, max_slots } = req.body;
     db.run("INSERT INTO availability (date, start_time, end_time, max_slots) VALUES (?,?,?,?)",
         [date, start_time, end_time, max_slots], (err) => res.json({ success: !err }));
 });
-
+// Rota que faltava: Lista as janelas criadas (para o Admin ver e excluir)
 app.get('/api/schedule/availability', (req, res) => {
     db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, rows) => {
         if(err) return res.json([]);
         res.json(rows);
     });
 });
-
+// 2. Admin exclui disponibilidade
 app.post('/api/schedule/delete-availability', (req, res) => {
     db.serialize(() => {
         db.run("DELETE FROM appointments WHERE availability_id = ?", [req.body.id]);
         db.run("DELETE FROM availability WHERE id = ?", [req.body.id], (err) => res.json({ success: !err }));
+     // Garante que a coluna de data existe para os gráficos
+db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP", (err) => {
+    // Ignora erro se a coluna já existir
+});
     });
 });
-
 app.post('/api/admin/broadcast', (req, res) => {
+    // Verifica se é Admin (Segurança)
     const isAdmin = (req.session.role === 'admin') || (req.session.user && req.session.user.role === 'admin');
     if (!isAdmin) return res.status(403).json({ success: false, msg: 'Sem permissão.' });
 
@@ -466,14 +474,18 @@ app.post('/api/admin/broadcast', (req, res) => {
 
     if (!subject || !message) return res.json({ success: false, msg: 'Preencha tudo.' });
 
+    // Busca clientes
     db.all("SELECT email, name FROM users WHERE role = 'client'", [], async (err, clients) => {
         if (err) return res.json({ success: false, msg: 'Erro no banco.' });
         if (clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente.' });
 
+        // Envia usando a função corrigida
         clients.forEach(client => {
+            // Chama a função auxiliar que já tem o HTML bonito e o remetente certo
             sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
         });
 
+        // Salva Log
         if (typeof logAction === 'function') {
              logAction(req, 'Comunicado Geral', `Enviou: "${subject}" para ${clients.length} clientes.`);
         }
@@ -481,16 +493,18 @@ app.post('/api/admin/broadcast', (req, res) => {
         res.json({ success: true, msg: `Enviando para ${clients.length} clientes!` });
     });
 });
-
-app.get('/favicon.ico', (req, res) => res.status(204)); 
-
-// Rota: Quebra os horários em 15 min
+app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
+// 3. Rota INTELIGENTE: Quebra os horários em 15 min (CORREÇÃO DO ERRO AQUI)
 app.get('/api/schedule/slots-15min', (req, res) => {
+    // Busca todas as janelas
     db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, ranges) => {
         if(err) return res.json([]);
 
+        // Busca todos os agendamentos
         db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
             
+            // --- PROTEÇÃO CONTRA O ERRO ---
+            // Se der erro no SQL ou bookings for undefined, define como array vazio para não travar
             if (err2 || !bookings) {
                 console.log("Aviso: Tabela appointments vazia ou com erro de coluna.", err2);
                 bookings = []; 
@@ -505,6 +519,7 @@ app.get('/api/schedule/slots-15min', (req, res) => {
                 while (current < end) {
                     let timeStr = current.toTimeString().substring(0,5);
                     
+                    // Agora é seguro usar .filter porque bookings é garantido ser um array
                     let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
                     
                     finalSlots.push({
@@ -525,14 +540,17 @@ app.get('/api/schedule/slots-15min', (req, res) => {
     });
 });
 
+// 4. Reservar
 app.post('/api/schedule/book', (req, res) => {
     const { availability_id, date, time } = req.body;
     const client_id = req.session.userId;
 
+    // A. Verifica agendamento no dia
     db.get(`SELECT ap.id FROM appointments ap JOIN availability av ON ap.availability_id = av.id WHERE ap.client_id = ? AND av.date = ? AND ap.status != 'Cancelado'`, 
     [client_id, date], (err, hasBooking) => {
         if (hasBooking) return res.json({ success: false, msg: 'Você já tem um agendamento neste dia.' });
 
+        // B. Verifica lotação do horário
         db.get(`SELECT count(*) as qtd FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, 
         [availability_id, time], (err, row) => {
             db.get("SELECT max_slots FROM availability WHERE id = ?", [availability_id], (err, avail) => {
@@ -540,6 +558,7 @@ app.post('/api/schedule/book', (req, res) => {
                 
                 if (row.qtd >= avail.max_slots) return res.json({ success: false, msg: 'Horário esgotado.' });
 
+                // C. Agenda
                 db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Pendente')", 
                     [availability_id, client_id, time], (err) => res.json({success: !err}));
             });
@@ -547,6 +566,7 @@ app.post('/api/schedule/book', (req, res) => {
     });
 });
 
+// 5. Lista Agendamentos
 app.get('/api/schedule/appointments', (req, res) => {
     let sql = `SELECT ap.id, ap.status, ap.time_slot, av.date, u.name as client_name, u.phone as client_phone FROM appointments ap JOIN availability av ON ap.availability_id = av.id JOIN users u ON ap.client_id = u.id`;
     let params = [];
@@ -558,12 +578,14 @@ app.get('/api/schedule/appointments', (req, res) => {
     });
 });
 
+// 6. Ações (Status e Cancelar)
 app.post('/api/schedule/status', (req, res) => db.run("UPDATE appointments SET status = ? WHERE id = ?", [req.body.status, req.body.id], (err) => res.json({success: !err})));
 app.post('/api/schedule/cancel', (req, res) => db.run("UPDATE appointments SET status = 'Cancelado' WHERE id = ? AND client_id = ?", [req.body.id, req.session.userId], (err) => res.json({success: !err})));
+
 // --- OUTROS (Mantidos) ---
 // Rota de Pedidos (Atualizada para trazer Telefone e Email)
 app.get('/api/orders', (req, res) => {
-    // Adicionamos client_phone e client_email no SELECT
+    // AQUI ESTÁ A MUDANÇA: Adicionamos client_phone e client_email no SELECT
     let sql = `SELECT 
                 orders.*, 
                 users.name as client_name, 
@@ -593,7 +615,6 @@ app.get('/api/orders', (req, res) => {
 });
 
 app.get('/api/orders/by-client/:id', (req, res) => db.all("SELECT * FROM orders WHERE client_id = ?", [req.params.id], (err, rows) => res.json(rows)));
-
 // --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CÁLCULO DE PREÇO) ---
 app.post('/api/orders/create', (req, res) => {
     const { client_id, code, description, weight, status } = req.body;
@@ -604,6 +625,7 @@ app.post('/api/orders/create', (req, res) => {
         const pricePerKg = row ? parseFloat(row.value) : 0;
         
         // 2. Calcula o Total: Peso x Preço
+        // Ex: 10kg * 5.50 = 55.00
         const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
 
         console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
@@ -611,7 +633,7 @@ app.post('/api/orders/create', (req, res) => {
         // 3. Insere no banco INCLUINDO o preço (coluna 'price')
         const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) 
                      VALUES (?, ?, ?, ?, ?, ?)`;
-                      
+                     
         db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
             if (err) {
                 if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "Código já existe." });
@@ -621,7 +643,6 @@ app.post('/api/orders/create', (req, res) => {
         });
     });
 });
-
 // ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO (COM FOTO)
 app.post('/api/orders/update', (req, res) => {
     // Pegamos também delivery_proof e location
@@ -677,22 +698,17 @@ app.post('/api/orders/update', (req, res) => {
         });
     });
 });
-
 app.get('/api/boxes', (req, res) => {
     let sql = `SELECT boxes.*, users.name as client_name, orders.code as order_code, orders.status as order_status, orders.weight as order_weight FROM boxes JOIN users ON boxes.client_id = users.id LEFT JOIN orders ON boxes.order_id = orders.id`;
     let params = [];
     if(req.session.role === 'client') { sql += " WHERE boxes.client_id = ?"; params.push(req.session.userId); }
     db.all(sql, params, (err, rows) => res.json(rows));
 });
-
 app.post('/api/boxes/create', (req, res) => {
     const {client_id, order_id, box_code, products, amount} = req.body;
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
 });
-
 app.post('/api/boxes/delete', (req, res) => db.run("DELETE FROM boxes WHERE id = ?", [req.body.id], (err) => res.json({success: !err})));
-
-// --- ATUALIZAÇÃO DE PERFIL (COM CLOUDINARY) ---
 app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
     // 1. Verifica se existe usuário na sessão
     if (!req.session.user) {
@@ -700,24 +716,24 @@ app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
     }
 
     const { name, phone, email, password } = req.body;
-    const userId = req.session.user.id; 
+    const userId = req.session.user.id; // Atenção: Verifique se sua sessão usa .user.id ou .userId
 
     let sql, params;
 
     // Cenário 1: Usuário enviou FOTO NOVA
     if (req.file) {
-        // --- CORREÇÃO: Usamos .path para pegar a URL do Cloudinary ---
-        const fileUrl = req.file.path;
+        // Salvamos apenas o NOME do arquivo no banco (ex: "17100022.jpg")
+        const filename = req.file.filename;
 
         // Se tiver senha nova
         if (password && password.trim() !== "") {
             const hash = bcrypt.hashSync(password, 10);
             sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=?, password=? WHERE id=?";
-            params = [name, phone, email, fileUrl, hash, userId];
+            params = [name, phone, email, filename, hash, userId];
         } else {
             // Sem senha nova
             sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?";
-            params = [name, phone, email, fileUrl, userId];
+            params = [name, phone, email, filename, userId];
         }
     } 
     // Cenário 2: Usuário NÃO enviou foto (mantém a antiga)
@@ -738,11 +754,12 @@ app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
             return res.json({ success: false, message: "Erro no banco de dados." });
         }
 
-        // --- Atualiza a Sessão Atual ---
+        // --- IMPORTANTE: Atualiza a Sessão Atual ---
+        // Assim a foto/nome atualiza na hora sem precisar relogar
         req.session.user.name = name;
         req.session.user.email = email;
         if (req.file) {
-            req.session.user.profile_pic = req.file.path; // Atualiza sessão com URL
+            req.session.user.profile_pic = req.file.filename;
         }
 
         res.json({ 
@@ -752,9 +769,7 @@ app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
         });
     });
 });
-
 app.post('/api/clients/toggle', (req, res) => db.run("UPDATE users SET active = ? WHERE id = ?", [req.body.active, req.body.id], () => res.json({ success: true })));
-
 // --- ROTA DE PREÇO (CONFIGURAÇÃO) ---
 app.get('/api/config/price', (req, res) => {
     db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
@@ -771,8 +786,7 @@ app.post('/api/config/price', (req, res) => {
         res.json({ success: !err });
     });
 });
-
-// --- ROTA DE UPLOAD DE VÍDEO (COM CLOUDINARY) ---
+// --- CORREÇÃO DA ROTA DE UPLOAD DE VÍDEO ---
 app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
     // 1. Verifica se o arquivo chegou
     if(!req.file) {
@@ -787,22 +801,22 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
         return res.status(400).json({success: false, msg: "Cliente não identificado."});
     }
 
-    // 3. Salva no Banco - CORREÇÃO: SALVA A URL (req.file.path)
+    // 3. Salva no Banco
     db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", 
-    [client_id, req.file.path, description], (err) => {
+    [client_id, req.file.filename, description], (err) => {
         if(err) {
             console.error("❌ Erro no Banco ao salvar vídeo:", err.message);
             return res.status(500).json({success: false, msg: "Erro ao salvar no banco.", err: err.message});
         }
         
-        console.log(`✅ Vídeo salvo com sucesso! URL: ${req.file.path}`);
+        console.log(`✅ Vídeo salvo com sucesso! Arquivo: ${req.file.filename}`);
         res.json({success: true});
     });
 });
 
 // 2. Listar Vídeos
 app.get('/api/videos/list', (req, res) => {
-    // Se for admin, vê tudo. Se for cliente, vê só os dele.
+    // Se for admin, vê tudo (ou filtra por cliente se quiser). Se for cliente, vê só os dele.
     if(req.session.role === 'client') {
         db.all("SELECT * FROM videos WHERE client_id = ? ORDER BY id DESC", [req.session.userId], (err, rows) => {
             res.json(rows);
@@ -816,19 +830,19 @@ app.get('/api/videos/list', (req, res) => {
         });
     }
 });
-
 // 3. Excluir Vídeo
 app.post('/api/videos/delete', (req, res) => {
     if(req.session.role === 'client') return res.status(403).json({}); // Cliente não deleta
     const { id, filename } = req.body;
     
-    // CORREÇÃO: Removemos a tentativa de apagar do disco local (fs.unlinkSync)
-    // pois o arquivo está na nuvem (Cloudinary).
     db.run("DELETE FROM videos WHERE id = ?", [id], (err) => {
+        if(!err) {
+            // Tenta apagar o arquivo físico
+            try { fs.unlinkSync(`uploads/videos/${filename}`); } catch(e){}
+        }
         res.json({success: !err});
     });
 });
-
 // CRIAR FATURA E ENVIAR EMAIL DE COBRANÇA
 app.post('/api/invoices/create', async (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
@@ -836,7 +850,7 @@ app.post('/api/invoices/create', async (req, res) => {
     const { client_id, box_id, amount, description, email } = req.body; // O email vem do front
 
     try {
-        // A. Mercado Pago
+        // A. Mercado Pago (Mantém igual)
         const paymentData = {
             transaction_amount: parseFloat(amount),
             description: description,
@@ -914,6 +928,7 @@ app.post('/api/invoices/delete', (req, res) => {
 });
 
 // 4. Verificar Status (Webhook Simulado)
+// O botão "Verificar Pagamento" vai chamar isso para atualizar o status real
 app.post('/api/invoices/check-status', async (req, res) => {
     const { mp_payment_id, invoice_id } = req.body;
     
@@ -931,12 +946,13 @@ app.post('/api/invoices/check-status', async (req, res) => {
         res.json({ success: false });
     }
 });
-
 // ======================================================
 // 🚀 INÍCIO DAS ROTAS DE PAGAMENTO (PIX E CARTÃO)
 // ======================================================
 
-// 1. ROTA DE PIX
+// ======================================================
+// 1. ROTA DE PIX (ATUALIZADA)
+// ======================================================
 app.post('/api/create-pix', async (req, res) => {
     try {
         const { amount, description, email, firstName } = req.body;
@@ -969,7 +985,9 @@ app.post('/api/create-pix', async (req, res) => {
     }
 });
 
+// ======================================================
 // 2. NOVA ROTA: CHECAR STATUS (O ROBÔ USA ESSA)
+// ======================================================
 app.post('/api/check-payment-status', async (req, res) => {
     try {
         // Recebe o ID do pagamento (MP) e o ID da fatura (Banco de dados)
@@ -994,7 +1012,8 @@ app.post('/api/check-payment-status', async (req, res) => {
                 }
             );
 
-            // 2. Marca Encomenda como Paga
+            // 2. (Opcional) Se a fatura for de um Box, acha o Box e a Encomenda e marca como Pago
+            // Isso garante que a encomenda mude de cor na tabela
             db.get("SELECT box_id FROM invoices WHERE id = ?", [invoice_id], (err, row) => {
                 if(row && row.box_id) {
                     db.run("UPDATE orders SET status = 'Pago' WHERE id IN (SELECT order_id FROM boxes WHERE id = ?)", [row.box_id]);
@@ -1010,6 +1029,10 @@ app.post('/api/check-payment-status', async (req, res) => {
         res.status(500).json({ error: "Erro na verificação" });
     }
 });
+
+// ======================================================
+// 3. ROTA CARTÃO (MANTENHA COMO ESTÁ, SÓ PULE ELA)
+// ======================================================
 
 // 2. Rota para gerar Link de Cartão (Checkout Pro)
 app.post('/api/create-preference', async (req, res) => {
@@ -1047,16 +1070,20 @@ app.post('/api/create-preference', async (req, res) => {
     }
 });
 
-// --- ROTA: PEGAR FATURAS DO CLIENTE LOGADO ---
+// ======================================================
+// 🏁 FIM DAS ROTAS DE PAGAMENTO
+// ======================================================
+// --- ROTA: PEGAR FATURAS DO CLIENTE LOGADO (CORRIGIDA) ---
 app.get('/api/invoices/my_invoices', (req, res) => {
-    // 1. Verifica se o ID do usuário está na sessão
+    // 1. Verifica se o ID do usuário está na sessão (Correção aqui)
     if (!req.session.userId) {
         return res.status(401).json({ msg: 'Usuário não autenticado' });
     }
 
-    const clientId = req.session.userId;
+    const clientId = req.session.userId; // Correção: usa userId direto
 
     // 2. Busca as faturas
+    // Nota: Se der erro de 'no such column: mp_payment_link', remova essa coluna do SELECT abaixo
     const sql = `
         SELECT i.id, i.amount, i.status, i.payment_link, b.box_code
         FROM invoices i
@@ -1075,20 +1102,27 @@ app.get('/api/invoices/my_invoices', (req, res) => {
 });
 // --- ROTA: RECUPERAR SENHA (CORRIGIDA) ---
 app.post('/api/recover-password', (req, res) => {
+    // Pegamos apenas o email. Não importa a 'role' que veio do front,
+    // nós vamos forçar a busca apenas por CLIENTES no banco de dados.
     const { email } = req.body;
 
     if (!email) return res.json({ success: false, msg: "E-mail é obrigatório." });
 
-    // 1. Busca APENAS se for role='client'
-    // Se um Admin tentar, o banco não acha e retorna msg genérica (segurança)
+    // --- REMOVI O BLOCO "IF" QUE BLOQUEAVA ADMIN/EMPLOYEE AQUI ---
+    // Motivo: A consulta SQL abaixo já filtra "AND role = 'client'". 
+    // Se um Admin tentar, o banco simplesmente não vai achar nada e retornará "Cliente não encontrado",
+    // o que é mais seguro e evita o erro de usabilidade.
+
+    // 2. Busca APENAS se for role='client'
     const sqlFind = `SELECT * FROM users WHERE (email = ? OR phone = ?) AND role = 'client'`;
     
     db.get(sqlFind, [email, email], (err, user) => {
         if (err || !user) {
+            // Se for um Admin tentando, vai cair aqui (User not found), o que é perfeito.
             return res.json({ success: false, msg: "Cliente não encontrado com este e-mail." });
         }
 
-        // 2. Gera nova senha e envia
+        // 3. Gera nova senha e envia
         const newPassword = Math.random().toString(36).slice(-6).toUpperCase(); 
         const newHash = bcrypt.hashSync(newPassword, 10);
 
@@ -1097,7 +1131,6 @@ app.post('/api/recover-password', (req, res) => {
                 return res.status(500).json({ success: false, msg: "Erro ao atualizar senha." });
             }
 
-            // Configuração do Email
             const mailOptions = {
                 from: '"Guineexpress" <seu_email_aqui@gmail.com>', 
                 to: user.email,
@@ -1113,7 +1146,6 @@ app.post('/api/recover-password', (req, res) => {
                 `
             };
 
-            // Certifique-se que 'transporter' está definido no topo do arquivo
             transporter.sendMail(mailOptions, (error, info) => {
                 if (error) {
                     console.error("Erro email:", error);
@@ -1124,7 +1156,6 @@ app.post('/api/recover-password', (req, res) => {
         });
     });
 });
-
 // --- ROTA: HISTÓRICO DE ENVIOS ---
 app.get('/api/history', (req, res) => {
     // Base da Query: Pega dados da encomenda e o nome do dono
@@ -1152,7 +1183,6 @@ app.get('/api/history', (req, res) => {
         res.json(rows);
     });
 });
-
 // =======================================================
 // ROTA DE IMPRESSÃO INTELIGENTE (RECIBO COMPLETO)
 // =======================================================
@@ -1214,10 +1244,10 @@ app.get('/api/print-receipt/:boxId', (req, res) => {
         });
     });
 });
-
 // ==========================================
 // ROTA DASHBOARD BI (ESTATÍSTICAS)
 // ==========================================
+// --- ROTA: DADOS DO DASHBOARD (GRÁFICOS REAIS) ---
 app.get('/api/dashboard-stats', (req, res) => {
     
     // 1. Totais Gerais (Cards do Topo)
@@ -1233,6 +1263,7 @@ app.get('/api/dashboard-stats', (req, res) => {
     const sqlStatus = "SELECT status, COUNT(*) as count FROM orders GROUP BY status";
 
     // 3. Faturamento Mensal - Últimos 6 Meses (Gráfico de Barras)
+    // Nota: strftime é função do SQLite para formatar datas
     const sqlMonthly = `
         SELECT strftime('%m/%Y', created_at) as month, SUM(price) as total 
         FROM orders 
@@ -1245,7 +1276,10 @@ app.get('/api/dashboard-stats', (req, res) => {
         if (err) return res.json({ success: false });
 
         db.all(sqlStatus, [], (err, statusRows) => {
+            
             db.all(sqlMonthly, [], (err, monthlyRows) => {
+                
+                // Prepara os meses (caso não tenha vendas em algum mês, o gráfico mostra o que tem)
                 res.json({
                     success: true,
                     data: {
@@ -1254,14 +1288,13 @@ app.get('/api/dashboard-stats', (req, res) => {
                         totalOrders: totals.totalOrders || 0,
                         totalClients: totals.totalClients || 0,
                         statusDistribution: statusRows || [],
-                        revenueHistory: monthlyRows || [] 
+                        revenueHistory: monthlyRows || [] // Envia o histórico real
                     }
                 });
             });
         });
     });
 });
-
 // ==========================================
 // ROTA DO RECIBO PRO (COM STATUS DE PAGAMENTO)
 // ==========================================
@@ -1274,7 +1307,7 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
             orders.weight as weight, 
             orders.code as order_code,
             users.name as client_name, users.phone, users.document, users.country, users.email,
-            invoices.status as payment_status
+            invoices.status as payment_status -- Pega o status do pagamento (approved/pending)
         FROM boxes
         LEFT JOIN users ON boxes.client_id = users.id
         LEFT JOIN orders ON boxes.order_id = orders.id
@@ -1307,22 +1340,23 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
         });
     });
 });
-
 // ==========================================
 // SISTEMA DE BACKUP AUTOMÁTICO
 // ==========================================
+
+// Função que executa a cópia do arquivo
 function performBackup() {
     const backupDir = './backups';
-    const dbFile = './guineexpress_v4.db'; // Confirme se o nome do arquivo é este mesmo
+    const dbFile = './guineexpress_v4.db';
     
     // 1. Cria a pasta 'backups' se não existir
     if (!fs.existsSync(backupDir)){
         fs.mkdirSync(backupDir);
     }
 
-    // 2. Gera nome do arquivo com Data e Hora
+    // 2. Gera nome do arquivo com Data e Hora (ex: backup-2023-10-25-1430.db)
     const date = new Date();
-    const timestamp = date.toISOString().replace(/[:.]/g, '-').slice(0, 16); 
+    const timestamp = date.toISOString().replace(/[:.]/g, '-').slice(0, 16); // Formata data
     const destFile = path.join(backupDir, `backup-${timestamp}.db`);
 
     // 3. Copia o arquivo
@@ -1332,9 +1366,10 @@ function performBackup() {
         } else {
             console.log(`✅ Backup realizado com sucesso: ${destFile}`);
             
-            // Limpeza: Mantém apenas os últimos backups
+            // (Opcional) Limpeza: Mantém apenas os últimos 7 backups para não encher o disco
             fs.readdir(backupDir, (err, files) => {
                 if (files.length > 30) {
+                    // Lógica simples para remover os mais antigos se tiver muitos
                     const oldFile = path.join(backupDir, files[0]);
                     fs.unlink(oldFile, () => console.log("Backup antigo removido."));
                 }
@@ -1344,7 +1379,6 @@ function performBackup() {
 }
 
 // AGENDAMENTO: Roda todo dia à 00:00 (Meia-noite)
-// Requer: npm install node-cron
 cron.schedule('0 0 * * *', () => {
     console.log('⏳ Iniciando backup automático...');
     performBackup();
@@ -1352,8 +1386,9 @@ cron.schedule('0 0 * * *', () => {
 
 // ROTA MANUAL: Para chamar via botão no Painel
 app.get('/api/admin/force-backup', (req, res) => {
-    if (!req.session.role || req.session.role !== 'admin') return res.status(403).json({});
-    
+    // Verifica se é admin (opcional, mas recomendado)
+    // if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({});
+
     try {
         performBackup();
         res.json({ success: true, msg: "Backup realizado e salvo na pasta /backups!" });
@@ -1361,7 +1396,6 @@ app.get('/api/admin/force-backup', (req, res) => {
         res.json({ success: false, msg: "Erro ao fazer backup." });
     }
 });
-
 // ==========================================
 // LOGÍSTICA DE EMBARQUES (MANIFESTO)
 // ==========================================
@@ -1389,6 +1423,7 @@ app.get('/api/shipments/list', (req, res) => {
 
 // 3. Listar Caixas "Órfãs" (Sem embarque)
 app.get('/api/shipments/pending-boxes', (req, res) => {
+    // Só mostra caixas que NÃO têm shipment_id
     const sql = `SELECT b.id, b.box_code, u.name as client_name 
                  FROM boxes b 
                  JOIN users u ON b.client_id = u.id 
@@ -1428,7 +1463,6 @@ app.get('/api/shipments/manifest/:id', (req, res) => {
         });
     });
 });
-
 // --- ROTA: Pegar UMA encomenda pelo ID (Para preencher o modal de edição) ---
 app.get('/api/orders/:id', (req, res) => {
     db.get("SELECT * FROM orders WHERE id = ?", [req.params.id], (err, row) => {
@@ -1468,16 +1502,14 @@ app.put('/api/orders/:id', (req, res) => {
         });
     });
 });
-
-// --- ROTA: Excluir Encomenda (COM LOG CORRIGIDO) ---
+// --- ROTA: Excluir Encomenda (CORRIGIDA) ---
 app.delete('/api/orders/:id', (req, res) => {
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
     }
 
     const id = req.params.id;
-    // --- CORREÇÃO: Pega o nome corretamente do objeto User na sessão ---
-    const userName = (req.session.user && req.session.user.name) ? req.session.user.name : 'Staff'; 
+    const userName = req.session.userName || 'Staff'; // Nome de quem apagou
     const ip = req.ip || req.connection.remoteAddress;
 
     // 1. Pega o código da encomenda antes de apagar
@@ -1502,9 +1534,9 @@ app.delete('/api/orders/:id', (req, res) => {
         });
     });
 });
-
-// LISTAR TODOS OS USUÁRIOS
+// Certifique-se que a rota está assim:
 app.get('/api/users-all', (req, res) => {
+    // Permite ADMIN e EMPLOYEE. Só bloqueia se não estiver logado ou se for CLIENTE.
     if(!req.session.role || req.session.role === 'client') {
         return res.status(403).json([]);
     }
@@ -1513,13 +1545,14 @@ app.get('/api/users-all', (req, res) => {
         res.json(rows || []);
     });
 });
-
 // --- ROTA: Listar Funcionários (Para o Admin) ---
 app.get('/api/admin/employees', (req, res) => {
+    // Verifica se é admin
     if (!req.session.role || req.session.role !== 'admin') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
     }
 
+    // Busca apenas usuários com cargo 'employee'
     db.all("SELECT id, name, email, active, phone FROM users WHERE role = 'employee'", (err, rows) => {
         if (err) {
             console.error(err);
@@ -1538,8 +1571,7 @@ app.post('/api/admin/toggle-employee', (req, res) => {
         res.json({ success: !err });
     });
 });
-
-// --- ROTA: Pegar dados do Usuário Logado ---
+// --- ROTA: Pegar dados do Usuário Logado (Para o Painel) ---
 app.get('/api/user/me', (req, res) => {
     if (req.session.user) {
         // Devolve o nome e a foto que estão na sessão
@@ -1552,7 +1584,6 @@ app.get('/api/user/me', (req, res) => {
         res.json({ success: false });
     }
 });
-
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR
 // =====================================================
