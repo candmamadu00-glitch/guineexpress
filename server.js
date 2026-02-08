@@ -15,7 +15,8 @@ const Payment = require('mercadopago').Payment;
 const Preference = require('mercadopago').Preference;
 const cron = require('node-cron'); 
 const path = require('path'); 
-const SQLiteStore = require('connect-sqlite3')(session);
+const pgSession = require('connect-pg-simple')(session);
+const { Pool } = require('pg');
 
 // --- IMPORTAÇÕES DO CLOUDINARY ---
 const cloudinary = require('cloudinary').v2;
@@ -135,15 +136,25 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// --- CONFIGURAÇÃO DA SESSÃO (POSTGRESQL) ---
+const sessionPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
 app.use(session({
-    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), 
-    secret: process.env.SESSION_SECRET || 'segredo_padrao',
+    store: new pgSession({
+        pool: sessionPool,                // Usa a conexão do Postgres
+        tableName: 'session',             // Nome da tabela de sessões
+        createTableIfMissing: true        // Cria a tabela automaticamente se não existir
+    }),
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 7, 
-        secure: false 
-    } 
+    cookie: {
+        secure: process.env.NODE_ENV === 'production', // True se estiver no Render (HTTPS)
+        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
+    }
 }));
 
 // ==================================================================
