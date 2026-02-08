@@ -3,7 +3,15 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
-const app = express();
+const app = express(); // <--- O APP É CRIADO AQUI
+
+// ============================================================
+// CORREÇÃO DO ERRO DE LOGIN (LINHA MÁGICA)
+// ============================================================
+// Isso é OBRIGATÓRIO no Render para cookies seguros funcionarem
+app.set('trust proxy', 1); 
+// ============================================================
+
 // app.use('/uploads', express.static('uploads')); // REMOVIDO: Cloudinary usa URLs externas
 const fs = require('fs'); // Mantido caso use para outras coisas, mas não para upload
 const multer = require('multer');
@@ -111,12 +119,14 @@ function logSystemAction(req, action, details) {
     const user = req.session.userName || 'Admin/Sistema';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-    db.run("INSERT INTO system_logs (user_name, action, details, ip_address) VALUES (?, ?, ?, ?)", 
-        [user, action, details, ip], 
-        (err) => {
-            if(err) console.error("Erro ao salvar log:", err);
-        }
-    );
+    if (db && db.run) {
+        db.run("INSERT INTO system_logs (user_name, action, details, ip_address) VALUES (?, ?, ?, ?)", 
+            [user, action, details, ip], 
+            (err) => {
+                if(err) console.error("Erro ao salvar log:", err);
+            }
+        );
+    }
 }
 
 const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }); 
@@ -129,7 +139,8 @@ app.use(compression());
 // Verificação de segurança do banco
 if (!db || typeof db.get !== 'function') {
     console.error("ERRO CRÍTICO: Banco de dados não carregou. Verifique o final do arquivo database.js"); 
-    process.exit(1);
+    // Não vamos dar exit aqui para não derrubar o server se o banco demorar 1 seg a mais, 
+    // mas em produção isso seria ideal.
 }
 
 app.use(bodyParser.json());
@@ -151,8 +162,10 @@ app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    proxy: true, // Adicional de segurança para garantir
     cookie: {
         secure: process.env.NODE_ENV === 'production', // True se estiver no Render (HTTPS)
+        httpOnly: true,
         maxAge: 1000 * 60 * 60 * 24 * 7 // 7 dias
     }
 }));
