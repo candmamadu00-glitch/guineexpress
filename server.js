@@ -151,7 +151,38 @@ app.use(session({
         secure: false 
     } 
 }));
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// ROTA DA CICÍ: É aqui que a mágica acontece!
+app.post('/api/cici/chat', async (req, res) => {
+    try {
+        const { text, userContext } = req.body;
 
+        // O modelo de IA super rápido do Google
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        // A INSTRUÇÃO DE MESTRE (Onde você molda a personalidade dela)
+        const prompt = `
+            Você é a Cicí, a inteligência artificial da Guineexpress, uma empresa de logística para Guiné-Bissau.
+            Seja amigável, direta e use emojis. Não seja prolixa.
+            
+            Informações do usuário atual conversando com você:
+            - Papel: ${userContext.role} (pode ser admin, employee, client ou visitor)
+            - Nome: ${userContext.name || "Não identificado"}
+            
+            Mensagem do usuário: "${text}"
+            
+            Responda como a Cicí:
+        `;
+
+        const result = await model.generateContent(prompt);
+        const respostaDaCici = result.response.text();
+
+        res.json({ reply: respostaDaCici });
+    } catch (error) {
+        console.error("Erro na IA:", error);
+        res.status(500).json({ reply: "Ops, meus circuitos estão embaralhados agora. Pode tentar novamente em um minuto? 🔌" });
+    }
+});
 // ==================================================================
 // FUNÇÃO AUXILIAR: Detectar Dispositivo e Salvar Log
 // ==================================================================
