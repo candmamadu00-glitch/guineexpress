@@ -151,38 +151,7 @@ app.use(session({
         secure: false 
     } 
 }));
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// ROTA DA CICÍ: É aqui que a mágica acontece!
-app.post('/api/cici/chat', async (req, res) => {
-    try {
-        const { text, userContext } = req.body;
 
-        // O modelo de IA super rápido do Google
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        // A INSTRUÇÃO DE MESTRE (Onde você molda a personalidade dela)
-        const prompt = `
-            Você é a Cicí, a inteligência artificial da Guineexpress, uma empresa de logística para Guiné-Bissau.
-            Seja amigável, direta e use emojis. Não seja prolixa.
-            
-            Informações do usuário atual conversando com você:
-            - Papel: ${userContext.role} (pode ser admin, employee, client ou visitor)
-            - Nome: ${userContext.name || "Não identificado"}
-            
-            Mensagem do usuário: "${text}"
-            
-            Responda como a Cicí:
-        `;
-
-        const result = await model.generateContent(prompt);
-        const respostaDaCici = result.response.text();
-
-        res.json({ reply: respostaDaCici });
-    } catch (error) {
-        console.error("Erro na IA:", error);
-        res.status(500).json({ reply: "Ops, meus circuitos estão embaralhados agora. Pode tentar novamente em um minuto? 🔌" });
-    }
-});
 // ==================================================================
 // FUNÇÃO AUXILIAR: Detectar Dispositivo e Salvar Log
 // ==================================================================
@@ -1596,6 +1565,67 @@ app.get('/api/user/me', (req, res) => {
         });
     } else {
         res.json({ success: false });
+    }
+});
+// Função auxiliar para o servidor Node.js "esperar" o banco de dados responder
+const queryDB = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+};
+
+app.post('/api/cici/chat', async (req, res) => {
+    try {
+        const { text, userContext } = req.body;
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        let dataContext = "Visitante novo no sistema.";
+        let saudacaoExtra = "";
+
+        if (req.session && req.session.user) {
+            const userId = req.session.user.id;
+            const userRole = req.session.user.role;
+
+            // Verifica se é o primeiro acesso (se tem apenas 1 log de sucesso)
+            const logs = await queryDB("SELECT COUNT(*) as count FROM access_logs WHERE user_input = ? AND status = 'Sucesso'", [req.session.user.email]);
+            if (logs[0].count <= 1) {
+                saudacaoExtra = "Dê as boas-vindas calorosas pois este é o PRIMEIRO acesso deste usuário ao painel!";
+            }
+
+            if (userRole === 'client') {
+                const boxes = await queryDB("SELECT box_code, products, amount FROM boxes WHERE client_id = ?", [userId]);
+                const invoices = await queryDB("SELECT status, amount FROM invoices WHERE client_id = ? AND status = 'pending'", [userId]);
+                dataContext = `CLIENTE: Possui ${boxes.length} caixas e ${invoices.length} faturas pendentes. Detalhes: ${JSON.stringify(boxes)}`;
+            } else {
+                const stats = await queryDB("SELECT (SELECT COUNT(*) FROM boxes) as b, (SELECT COUNT(*) FROM invoices WHERE status='pending') as i");
+                dataContext = `STAFF/ADMIN: O sistema tem ${stats[0].b} encomendas totais e ${stats[0].i} faturas pendentes hoje.`;
+            }
+        }
+
+        const systemPrompt = `
+        Você é a Cicí, assistente virtual da Guineexpress. 
+        Contexto do Usuário: ${userContext.name} (${userContext.roleLabel}).
+        Aparelho do Usuário: ${userContext.deviceInfo}.
+        Dados do Banco: ${dataContext}.
+        ${saudacaoExtra}
+
+        REGRAS:
+        1. Se o usuário estiver no Celular (Android/iPhone) e for visitante ou cliente, explique que ele pode instalar o App: 
+           - No Android: "Clique nos 3 pontinhos do Chrome e em 'Instalar Aplicativo'".
+           - No iPhone: "Clique no ícone de compartilhar (quadrado com seta) e 'Adicionar à Tela de Início'".
+        2. Se for Admin/Funcionário, ajude-os a gerenciar o sistema e foque nos números.
+        3. Identifique-se sempre como assistente oficial. Seja simpática e use emojis 📦✈️.
+        
+        Pergunta: ${text}`;
+
+        const result = await model.generateContent(systemPrompt);
+        res.json({ reply: result.response.text() });
+    } catch (error) {
+        res.status(500).json({ reply: "Estou com um probleminha técnico, mas já volto! ⚡" });
     }
 });
 // =====================================================
