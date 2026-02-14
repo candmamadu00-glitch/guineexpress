@@ -16,11 +16,11 @@ const Preference = require('mercadopago').Preference;
 const cron = require('node-cron'); // Agendador de tarefas
 const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
-// --- CORREÇÃO DO BANCO DE DADOS (Adicione no server.js logo após conectar o banco) ---
-const db = require('./database'); // Ou onde você define o db
 
-// --- 4. CONFIGURAÇÃO DE UPLOAD (MULTER - MODO DISCO) ---
-// Isso salva o arquivo fisicamente na pasta 'uploads'
+// --- CORREÇÃO DO BANCO DE DADOS ---
+const db = require('./database'); 
+
+// --- 4. CONFIGURAÇÃO DE UPLOAD GERAL (MULTER - MODO DISCO) ---
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         if (!fs.existsSync('uploads')) {
@@ -29,29 +29,29 @@ const storage = multer.diskStorage({
         cb(null, 'uploads/');
     },
     filename: function (req, file, cb) {
-        // Gera um nome único: timestamp + extensão (ex: 123456789.jpg)
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
 const upload = multer({ storage: storage });
+
 // --- CONFIGURAÇÃO DE EMAIL CORRIGIDA (GMAIL) ---
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
-    secure: false, // false para porta 587 (usa STARTTLS)
+    secure: false, 
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
     tls: {
-        rejectUnauthorized: false // Ajuda a evitar erros de certificado no Render
+        rejectUnauthorized: false 
     }
 });
+
 // Função Auxiliar para Enviar Email (CORRIGIDA)
 async function sendEmailHtml(to, subject, title, message) {
     if (!to || to.includes('undefined')) return;
 
-    // Pega o email correto do arquivo .env para não dar erro de permissão
     const senderEmail = process.env.EMAIL_USER; 
 
     const htmlContent = `
@@ -75,7 +75,7 @@ async function sendEmailHtml(to, subject, title, message) {
 
     try {
         await transporter.sendMail({
-            from: `"Guineexpress Logística" <${senderEmail}>`, // AQUI ESTAVA O ERRO (Agora usa o email do login)
+            from: `"Guineexpress Logística" <${senderEmail}>`,
             to: to,
             subject: subject,
             html: htmlContent
@@ -85,10 +85,9 @@ async function sendEmailHtml(to, subject, title, message) {
         console.error("❌ Erro ao enviar email:", error);
     }
 }
+
 // Função para gravar logs automaticamente
 function logSystemAction(req, action, details) {
-    // Tenta pegar o nome da sessão, senão usa 'Sistema'
-    // (Certifique-se de que no login você salvou req.session.userName = user.name)
     const user = req.session.userName || 'Admin/Sistema';
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
@@ -99,11 +98,13 @@ function logSystemAction(req, action, details) {
         }
     );
 }
-const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }); // Lê do .env
+
+const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }); 
 const payment = new Payment(client);
+
 // Segurança e Performance
-app.use(helmet({ contentSecurityPolicy: false })); // Protege headers HTTP
-app.use(compression()); // Comprime respostas para ficar mais rápido
+app.use(helmet({ contentSecurityPolicy: false })); 
+app.use(compression()); 
 
 // Garante pastas de upload
 if (!fs.existsSync('uploads/videos')){ fs.mkdirSync('uploads/videos', { recursive: true }); }
@@ -114,7 +115,6 @@ const videoStorage = multer.diskStorage({
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const uploadVideo = multer({ storage: videoStorage });
-// -------------------------------------------------
 
 // Servir a pasta de vídeos estática
 app.use('/uploads/videos', express.static('uploads/videos'));
@@ -129,28 +129,23 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(session({
-    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), // Salva sessão em arquivo
+    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), 
     secret: process.env.SESSION_SECRET || 'segredo_padrao',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 7, // Login dura 7 dias
-        secure: false // Mude para true quando tiver HTTPS
+        maxAge: 1000 * 60 * 60 * 24 * 7, 
+        secure: false 
     } 
 }));
-// Permite que o navegador acesse os vídeos gravados
-app.use('/uploads/videos', express.static('uploads/videos'));
 
 // ==================================================================
 // FUNÇÃO AUXILIAR: Detectar Dispositivo e Salvar Log
 // ==================================================================
 function logAccess(req, userInput, status, reason) {
     const userAgent = req.headers['user-agent'] || '';
-    // Verifica se é mobile (Android, iPhone, etc)
     const isMobile = /mobile|android|iphone|ipad|phone/i.test(userAgent);
     const device = isMobile ? 'Celular 📱' : 'Computador 💻';
-    
-    // Pega o IP (considerando proxies como o Render)
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'IP Oculto';
 
     const sql = "INSERT INTO access_logs (user_input, status, reason, device, ip_address) VALUES (?, ?, ?, ?, ?)";
@@ -619,20 +614,13 @@ app.get('/api/orders/by-client/:id', (req, res) => db.all("SELECT * FROM orders 
 app.post('/api/orders/create', (req, res) => {
     const { client_id, code, description, weight, status } = req.body;
 
-    // 1. Busca o valor do KG configurado no banco (tabela 'settings')
     db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-        // Se der erro ou não achar, assume 0
         const pricePerKg = row ? parseFloat(row.value) : 0;
-        
-        // 2. Calcula o Total: Peso x Preço
-        // Ex: 10kg * 5.50 = 55.00
         const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
 
         console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
 
-        // 3. Insere no banco INCLUINDO o preço (coluna 'price')
-        const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) 
-                     VALUES (?, ?, ?, ?, ?, ?)`;
+        const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
                      
         db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
             if (err) {
@@ -643,12 +631,10 @@ app.post('/api/orders/create', (req, res) => {
         });
     });
 });
-// ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO (COM FOTO)
+// --- ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO (COM FOTO) ---
 app.post('/api/orders/update', (req, res) => {
-    // Pegamos também delivery_proof e location
     const { id, status, location, delivery_proof } = req.body;
 
-    // 1. Busca os dados da encomenda e do cliente para o email
     db.get(`SELECT orders.code, orders.description, users.email, users.name 
             FROM orders JOIN users ON orders.client_id = users.id 
             WHERE orders.id = ?`, [id], (err, row) => {
@@ -657,27 +643,22 @@ app.post('/api/orders/update', (req, res) => {
             return res.json({ success: false, msg: "Encomenda não encontrada" });
         }
 
-        // 2. Define a Query SQL (Lógica Inteligente)
         let sql, params;
 
         if (delivery_proof) {
-            // Se tem foto, atualiza status, foto e localização
             sql = "UPDATE orders SET status = ?, delivery_proof = ?, delivery_location = ? WHERE id = ?";
             params = [status, delivery_proof, location || 'Local não informado', id];
         } else {
-            // Se NÃO tem foto, atualiza só o status
             sql = "UPDATE orders SET status = ? WHERE id = ?";
             params = [status, id];
         }
 
-        // 3. Executa no banco
         db.run(sql, params, (errUpdate) => {
             if (errUpdate) {
                 console.error(errUpdate);
                 return res.json({ success: false, msg: "Erro ao atualizar banco" });
             }
 
-            // 4. SE TIVER EMAIL, ENVIA NOTIFICAÇÃO
             if (row.email) {
                 const subject = `Atualização: Encomenda ${row.code} - ${status}`;
                 let msg = `Olá, <strong>${row.name}</strong>.<br><br>
@@ -688,7 +669,6 @@ app.post('/api/orders/update', (req, res) => {
                     msg += `<br>📦 <strong>Entrega confirmada com foto/assinatura digital.</strong><br>Acesse seu painel para visualizar o comprovante.`;
                 }
                 
-                // Verifica se a função de email existe antes de chamar
                 if (typeof sendEmailHtml === 'function') {
                     sendEmailHtml(row.email, subject, `Status: ${status}`, msg);
                 }
@@ -709,35 +689,28 @@ app.post('/api/boxes/create', (req, res) => {
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
 });
 app.post('/api/boxes/delete', (req, res) => db.run("DELETE FROM boxes WHERE id = ?", [req.body.id], (err) => res.json({success: !err})));
+// --- ROTA: Atualizar Usuário ---
 app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
-    // 1. Verifica se existe usuário na sessão
     if (!req.session.user) {
         return res.status(401).json({ success: false, message: "Sessão expirada. Faça login novamente." });
     }
 
     const { name, phone, email, password } = req.body;
-    const userId = req.session.user.id; // Atenção: Verifique se sua sessão usa .user.id ou .userId
+    const userId = req.session.user.id; 
 
     let sql, params;
 
-    // Cenário 1: Usuário enviou FOTO NOVA
     if (req.file) {
-        // Salvamos apenas o NOME do arquivo no banco (ex: "17100022.jpg")
         const filename = req.file.filename;
-
-        // Se tiver senha nova
         if (password && password.trim() !== "") {
             const hash = bcrypt.hashSync(password, 10);
             sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=?, password=? WHERE id=?";
             params = [name, phone, email, filename, hash, userId];
         } else {
-            // Sem senha nova
             sql = "UPDATE users SET name=?, phone=?, email=?, profile_pic=? WHERE id=?";
             params = [name, phone, email, filename, userId];
         }
-    } 
-    // Cenário 2: Usuário NÃO enviou foto (mantém a antiga)
-    else {
+    } else {
         if (password && password.trim() !== "") {
             const hash = bcrypt.hashSync(password, 10);
             sql = "UPDATE users SET name=?, phone=?, email=?, password=? WHERE id=?";
@@ -754,8 +727,6 @@ app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
             return res.json({ success: false, message: "Erro no banco de dados." });
         }
 
-        // --- IMPORTANTE: Atualiza a Sessão Atual ---
-        // Assim a foto/nome atualiza na hora sem precisar relogar
         req.session.user.name = name;
         req.session.user.email = email;
         if (req.file) {
@@ -1574,7 +1545,6 @@ app.post('/api/admin/toggle-employee', (req, res) => {
 // --- ROTA: Pegar dados do Usuário Logado (Para o Painel) ---
 app.get('/api/user/me', (req, res) => {
     if (req.session.user) {
-        // Devolve o nome e a foto que estão na sessão
         res.json({ 
             success: true, 
             name: req.session.user.name,

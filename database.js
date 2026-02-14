@@ -1,13 +1,23 @@
 require('dotenv').config(); // Lê as variáveis de ambiente
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
 
-// 1. Conecta ao banco de dados (Cria o arquivo se não existir)
-const db = new sqlite3.Database('./guineexpress_v4.db', (err) => {
+// ==================================================================
+// 1. CONFIGURAÇÃO DO DISCO PERMANENTE (RENDER)
+// ==================================================================
+// Verifica se o disco do Render (pasta '/data') existe. 
+// Se existir, usa ela. Se não (no seu computador), usa a pasta atual ('.').
+const dataFolder = fs.existsSync('/data') ? '/data' : '.';
+const dbPath = path.join(dataFolder, 'guineexpress_v4.db');
+
+// Conecta ao banco de dados no local correto
+const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('❌ Erro ao conectar ao banco de dados:', err.message);
     } else {
-        console.log('✅ Conectado ao banco de dados SQLite.');
+        console.log(`✅ Conectado ao banco de dados SQLite em: ${dbPath}`);
     }
 });
 
@@ -81,14 +91,14 @@ db.serialize(() => {
     )`);
 
     // Garante que a tabela de logs existe
-db.run(`CREATE TABLE IF NOT EXISTS system_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_name TEXT,
-    action TEXT,      
-    details TEXT,    
-    ip_address TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)`);
+    db.run(`CREATE TABLE IF NOT EXISTS system_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_name TEXT,
+        action TEXT,      
+        details TEXT,    
+        ip_address TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
     // Tabela de Embarques (Shipments)
     db.run(`CREATE TABLE IF NOT EXISTS shipments (
@@ -155,9 +165,6 @@ db.run(`CREATE TABLE IF NOT EXISTS system_logs (
     )`);
 
     // --- PATCH DE CORREÇÃO (ALTER TABLE) ---
-    // Isso garante que se o banco já existia sem essas colunas, elas serão criadas agora.
-    // O callback vazio () => {} serve para ignorar erros caso a coluna já exista.
-    
     db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
     db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      
     db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
