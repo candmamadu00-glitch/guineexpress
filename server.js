@@ -14,7 +14,7 @@ const Preference = require('mercadopago').Preference;
 const cron = require('node-cron'); // Agendador de tarefas
 const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
-
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const app = express();
 
 // --- CORREÇÃO DO BANCO DE DADOS ---
