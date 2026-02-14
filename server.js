@@ -3,8 +3,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
-const app = express();
-app.use('/uploads', express.static('uploads'));
 const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
@@ -17,16 +15,35 @@ const cron = require('node-cron'); // Agendador de tarefas
 const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
 
+const app = express();
+
 // --- CORREÇÃO DO BANCO DE DADOS ---
 const db = require('./database'); 
 
-// --- 4. CONFIGURAÇÃO DE UPLOAD GERAL (MULTER - MODO DISCO) ---
+// ==================================================================
+// CONFIGURAÇÃO DO DISCO PERMANENTE (FOTOS E VÍDEOS)
+// ==================================================================
+// 1. Descobre se está no Render (/data) ou no seu PC
+const baseStorageFolder = fs.existsSync('/data') ? '/data' : __dirname;
+
+// 2. Define os caminhos exatos
+const uploadsFolder = path.join(baseStorageFolder, 'uploads');
+const videosFolder = path.join(uploadsFolder, 'videos');
+
+// 3. Cria as pastas se elas não existirem
+if (!fs.existsSync(uploadsFolder)) fs.mkdirSync(uploadsFolder, { recursive: true });
+if (!fs.existsSync(videosFolder)) fs.mkdirSync(videosFolder, { recursive: true });
+
+// 4. Libera o acesso para o navegador poder ver as fotos e vídeos
+app.use('/uploads', express.static(uploadsFolder));
+
+// ==================================================================
+// CONFIGURAÇÃO DO MULTER (SALVAR ARQUIVOS)
+// ==================================================================
+// Para Fotos (Perfil, Comprovantes)
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        if (!fs.existsSync('uploads')) {
-            fs.mkdirSync('uploads');
-        }
-        cb(null, 'uploads/');
+        cb(null, uploadsFolder);
     },
     filename: function (req, file, cb) {
         cb(null, Date.now() + path.extname(file.originalname));
@@ -34,7 +51,16 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- CONFIGURAÇÃO DE EMAIL CORRIGIDA (GMAIL) ---
+// Para Vídeos
+const videoStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, videosFolder),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const uploadVideo = multer({ storage: videoStorage });
+
+// ==================================================================
+// CONFIGURAÇÃO DE EMAIL (GMAIL)
+// ==================================================================
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
@@ -48,7 +74,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Função Auxiliar para Enviar Email (CORRIGIDA)
+// Função Auxiliar para Enviar Email
 async function sendEmailHtml(to, subject, title, message) {
     if (!to || to.includes('undefined')) return;
 
@@ -105,19 +131,6 @@ const payment = new Payment(client);
 // Segurança e Performance
 app.use(helmet({ contentSecurityPolicy: false })); 
 app.use(compression()); 
-
-// Garante pastas de upload
-if (!fs.existsSync('uploads/videos')){ fs.mkdirSync('uploads/videos', { recursive: true }); }
-
-// Configuração de armazenamento de vídeos
-const videoStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/videos/'),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
-const uploadVideo = multer({ storage: videoStorage });
-
-// Servir a pasta de vídeos estática
-app.use('/uploads/videos', express.static('uploads/videos'));
 
 // Verificação de segurança do banco
 if (!db || typeof db.get !== 'function') {

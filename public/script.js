@@ -832,8 +832,12 @@ async function loadClients() {
                 // --- CORREÇÃO AQUI (profile_pic em vez de photo) ---
                 let imgUrl = '';
                 if (c.profile_pic && c.profile_pic !== 'default.png') {
-                    // Adiciona o caminho da pasta uploads
-                    imgUrl = '/uploads/' + c.profile_pic;
+                    // Verifica se já é um link completo (ex: Google) ou se é arquivo nosso
+                    if (c.profile_pic.startsWith('http')) {
+                        imgUrl = c.profile_pic;
+                    } else {
+                        imgUrl = '/uploads/' + c.profile_pic;
+                    }
                 } else {
                     // Avatar genérico com iniciais
                     imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
