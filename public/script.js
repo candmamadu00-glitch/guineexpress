@@ -126,11 +126,18 @@ function updateMasks() {
     const countrySelect = document.getElementById('reg-country');
     const phoneInput = document.getElementById('reg-phone');
     const docInput = document.getElementById('reg-doc');
+    const loginCard = document.querySelector('.login-card'); // Pega o card
 
     if (!countrySelect || !phoneInput || !docInput) return;
 
     const country = countrySelect.value;
     const data = countryData[country] || countryData['default'];
+
+    // --- NOVIDADE: ATUALIZA BANDEIRA NO FUNDO ---
+    // Remove qualquer classe de bandeira anterior
+    loginCard.className = loginCard.className.replace(/\bbg-flag-\S+/g, '');
+    // Adiciona a nova classe de bandeira
+    loginCard.classList.add(`bg-flag-${country}`);
 
     // --- 1. MÁSCARA DE TELEFONE ---
     if (phoneMaskInstance) phoneMaskInstance.destroy();
@@ -147,7 +154,7 @@ function updateMasks() {
     try {
         docMaskInstance = IMask(docInput, {
             mask: data.docMask,
-            prepare: (str) => str.toUpperCase() // Força maiúsculas
+            prepare: (str) => str.toUpperCase()
         });
         
         // Placeholders dinâmicos
