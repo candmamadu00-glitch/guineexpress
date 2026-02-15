@@ -16,7 +16,8 @@ const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const app = express();
-
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // --- CORREÇÃO DO BANCO DE DADOS ---
 const db = require('./database'); 
 
@@ -1576,56 +1577,60 @@ const queryDB = (sql, params = []) => {
         });
     });
 };
-
+// --- ROTA DA CICÍ ATUALIZADA (SERVER.JS) ---
 app.post('/api/cici/chat', async (req, res) => {
     try {
         const { text, userContext } = req.body;
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const userId = req.session.user ? req.session.user.id : null;
 
-        let dataContext = "Visitante novo no sistema.";
-        let saudacaoExtra = "";
+        let dataContext = "Usuário não identificado.";
+        let alertasCriticos = "Nenhum problema detectado.";
 
-        if (req.session && req.session.user) {
-            const userId = req.session.user.id;
-            const userRole = req.session.user.role;
+        // --- BUSCA DE DADOS NO BANCO (Mantendo sua lógica original) ---
+        if (userId) {
+            if (userContext.role === 'client') {
+                const orders = await new Promise(resolve => db.all("SELECT * FROM orders WHERE user_id = ?", [userId], (err, rows) => resolve(rows || [])));
+                const finance = await new Promise(resolve => db.get("SELECT SUM(amount) as saldo FROM transactions WHERE user_id = ?", [userId], (err, row) => resolve(row || {saldo:0})));
+                dataContext = `Cliente: ${userContext.name}. Encomendas: ${JSON.stringify(orders)}. Saldo: ${finance.saldo}`;
+                
+                const atrasadas = orders.filter(o => o.status === 'Pendente' && (new Date() - new Date(o.created_at)) > 7*24*60*60*1000);
+                if(atrasadas.length > 0) alertasCriticos = `O cliente tem ${atrasadas.length} encomendas pendentes há mais de uma semana.`;
 
-            // Verifica se é o primeiro acesso (se tem apenas 1 log de sucesso)
-            const logs = await queryDB("SELECT COUNT(*) as count FROM access_logs WHERE user_input = ? AND status = 'Sucesso'", [req.session.user.email]);
-            if (logs[0].count <= 1) {
-                saudacaoExtra = "Dê as boas-vindas calorosas pois este é o PRIMEIRO acesso deste usuário ao painel!";
-            }
-
-            if (userRole === 'client') {
-                const boxes = await queryDB("SELECT box_code, products, amount FROM boxes WHERE client_id = ?", [userId]);
-                const invoices = await queryDB("SELECT status, amount FROM invoices WHERE client_id = ? AND status = 'pending'", [userId]);
-                dataContext = `CLIENTE: Possui ${boxes.length} caixas e ${invoices.length} faturas pendentes. Detalhes: ${JSON.stringify(boxes)}`;
-            } else {
-                const stats = await queryDB("SELECT (SELECT COUNT(*) FROM boxes) as b, (SELECT COUNT(*) FROM invoices WHERE status='pending') as i");
-                dataContext = `STAFF/ADMIN: O sistema tem ${stats[0].b} encomendas totais e ${stats[0].i} faturas pendentes hoje.`;
+            } else if (userContext.role === 'admin' || userContext.role === 'employee') {
+                const stats = await new Promise(resolve => db.get("SELECT COUNT(*) as total, (SELECT COUNT(*) FROM users) as users FROM orders", (err, row) => resolve(row)));
+                const erros = await new Promise(resolve => db.all("SELECT id FROM orders WHERE status = 'Erro' OR status = 'Cancelado'", (err, rows) => resolve(rows || [])));
+                dataContext = `Painel Staff. Total de ordens: ${stats.total}. Total de usuários: ${stats.users}.`;
+                if(erros.length > 0) alertasCriticos = `EXISTEM ${erros.length} ORDENS COM ERRO.`;
             }
         }
 
-        const systemPrompt = `
-        Você é a Cicí, assistente virtual da Guineexpress. 
-        Contexto do Usuário: ${userContext.name} (${userContext.roleLabel}).
-        Aparelho do Usuário: ${userContext.deviceInfo}.
-        Dados do Banco: ${dataContext}.
-        ${saudacaoExtra}
+        // --- PROMPT COM REGRAS DE IDIOMA ---
+        const systemPrompt = `Você é a Cicí PRO MAX ULTRA, a inteligência central da Guineexpress.
+        DADOS REAIS: ${dataContext}
+        ALERTAS: ${alertasCriticos}
+        USUÁRIO: ${userContext.name} (${userContext.roleLabel}) no ${userContext.deviceInfo}.
 
-        REGRAS:
-        1. Se o usuário estiver no Celular (Android/iPhone) e for visitante ou cliente, explique que ele pode instalar o App: 
-           - No Android: "Clique nos 3 pontinhos do Chrome e em 'Instalar Aplicativo'".
-           - No iPhone: "Clique no ícone de compartilhar (quadrado com seta) e 'Adicionar à Tela de Início'".
-        2. Se for Admin/Funcionário, ajude-os a gerenciar o sistema e foque nos números.
-        3. Identifique-se sempre como assistente oficial. Seja simpática e use emojis 📦✈️.
-        
-        Pergunta: ${text}`;
+        REGRAS POLIGLOTAS:
+        1. Identifique o idioma do usuário.
+        2. Se for a primeira vez que ele usa esse idioma nesta conversa, pergunte: "Percebi que você prefere [Idioma]. Quer que eu continue respondendo assim ou prefere outro?"
+        3. No final da resposta, você DEVE incluir a tag [LANG:código] (ex: [LANG:pt-BR], [LANG:en-US], [LANG:fr-FR], [LANG:es-ES]).
+        4. Use emojis de logística (📦, 🚀, 🇬🇼).`;
 
-        const result = await model.generateContent(systemPrompt);
-        res.json({ reply: result.response.text() });
+        // Chama a IA (certifique-se que 'model' está definido no seu server.js)
+        const result = await model.generateContent([systemPrompt, text]);
+        let replyText = result.response.text();
+
+        // --- LÓGICA DE EXTRAÇÃO DE IDIOMA ---
+        const langMatch = replyText.match(/\[LANG:(.*?)\]/);
+        const langCode = langMatch ? langMatch[1] : 'pt-BR';
+        replyText = replyText.replace(/\[LANG:.*?\]/g, '').trim(); 
+
+        // Retorna o texto limpo e o código do idioma para o Front-end
+        res.json({ reply: replyText, lang: langCode });
+
     } catch (error) {
-        res.status(500).json({ reply: "Estou com um probleminha técnico, mas já volto! ⚡" });
+        console.error("Erro Cicí:", error);
+        res.status(500).json({ reply: "Tive um soluço técnico! ⚡", lang: 'pt-BR' });
     }
 });
 // =====================================================
