@@ -2003,6 +2003,53 @@ async function loadClientInvoices() {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
     }
 }
+// ======================================================
+// FUNÇÃO PARA PAGAR COM CARTÃO (CHECKOUT PRO MERCADO PAGO)
+// ======================================================
+async function goToCardCheckout() {
+    // 1. Pega os dados escondidos no modal (ID e Valor)
+    const orderId = document.getElementById('pay-order-id').value;
+    const amount = document.getElementById('pay-amount').value;
+    const description = document.getElementById('pay-desc').innerText;
+
+    // Muda o botão para mostrar que está carregando
+    const btnCard = document.querySelector('#area-card button');
+    const originalText = btnCard.innerHTML;
+    btnCard.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecionando...';
+    btnCard.disabled = true;
+
+    try {
+        // 2. Chama a nossa rota no backend que cria a "Preferência"
+        const response = await fetch('/api/create-preference', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                title: description || `Fatura #${orderId}`,
+                price: parseFloat(amount),
+                quantity: 1
+            })
+        });
+
+        const data = await response.json();
+
+        // 3. Se o backend devolver o link de pagamento, manda o cliente pra lá!
+        if (data.init_point) {
+            window.location.href = data.init_point;
+        } else {
+            alert('Erro ao gerar o link de pagamento. Tente novamente.');
+            btnCard.innerHTML = originalText;
+            btnCard.disabled = false;
+        }
+
+    } catch (error) {
+        console.error("Erro ao redirecionar para o cartão:", error);
+        alert('Erro de conexão com o servidor.');
+        btnCard.innerHTML = originalText;
+        btnCard.disabled = false;
+    }
+}
 function openPaymentModal(orderId, description, amount) {
     console.log("Tentando abrir modal:", { orderId, description, amount }); // Debug no Console
 

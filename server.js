@@ -1013,11 +1013,6 @@ app.post('/api/check-payment-status', async (req, res) => {
         res.status(500).json({ error: "Erro na verificação" });
     }
 });
-
-// ======================================================
-// 3. ROTA CARTÃO (MANTENHA COMO ESTÁ, SÓ PULE ELA)
-// ======================================================
-
 // 2. Rota para gerar Link de Cartão (Checkout Pro)
 app.post('/api/create-preference', async (req, res) => {
     try {
@@ -1576,49 +1571,63 @@ const queryDB = (sql, params = []) => {
         });
     });
 };
-// --- ROTA DA CICÍ (AGORA COM VISÃO E WHATSAPP) ---
+// --- ROTA DA CICÍ (MENSAGEM INICIAL FIXA + AJUDA NO CADASTRO) ---
 app.post('/api/cici/chat', async (req, res) => {
     try {
-        const { text, userContext, image } = req.body;
-        
+        const { text, userContext, image, isFirstMessage } = req.body;
+
+        // REGRA DE OURO: Se for a primeira mensagem, devolve o texto EXATO que você pediu!
+        if (isFirstMessage) {
+            // Descobre se é para "computador" ou "celular" baseado no dispositivo
+            const tipoAparelho = /Computador|Mac|Windows|Linux/i.test(userContext.deviceInfo) ? 'computador' : 'celular';
+            
+            // Define o nome do painel
+            let painelNome = 'visitante';
+            if (userContext.role === 'admin') painelNome = 'admin';
+            if (userContext.role === 'employee') painelNome = 'colaborador';
+            if (userContext.role === 'client') painelNome = 'cliente';
+
+            const nomeUsuario = userContext.name && userContext.name !== '...' ? userContext.name : 'Usuário';
+
+            const mensagemExata = `Olá, ${nomeUsuario}! Que bom ter você aqui no seu painel de ${painelNome}! Vejo que você está usando um ${userContext.deviceInfo}. Gostaria de instalar o aplicativo da Guineexpress para ${tipoAparelho} e ter acesso facilitado a todas as suas ferramentas? Antes de começarmos, em qual idioma você prefere que eu te atenda?`;
+
+            // Responde imediatamente sem gastar a cota da IA
+            return res.json({ reply: mensagemExata, lang: 'pt-BR' });
+        }
+
         if (!text && !image) return res.status(400).json({ reply: "Preciso de um texto ou imagem." });
 
-        const dataContext = `Usuário: ${userContext.name || 'Visitante'}. Papel: ${userContext.role}. Dispositivo: ${userContext.deviceInfo || 'Desconhecido'}.`;
+        const dataContext = `Usuário: ${userContext.name || 'Visitante'}. Papel: ${userContext.role}. Dispositivo exato: ${userContext.deviceInfo || 'Desconhecido'}.`;
 
         const systemPrompt = `Você é a Cicí da Guineexpress, uma assistente avançada de logística.
 Contexto: ${dataContext}
 
-REGRAS GERAIS:
-1. Responda sempre de forma amigável, no idioma que o usuário falar, e inclua no final a tag [LANG:codigo_do_idioma].
-2. Se o usuário anexar uma imagem (etiqueta, caixa, comprovante), analise o conteúdo visual (leia os textos, códigos de rastreio, pesos) e responda o que ele pedir.
+REGRAS GERAIS E MULTI-IDIOMA:
+1. Você é fluente em qualquer idioma.
+2. No final da sua resposta, adicione OBRIGATORIAMENTE a tag [LANG:codigo_do_idioma]. Ex: [LANG:pt-BR], [LANG:en-US], [LANG:fr-FR].
+3. Você deve ajudar os clientes em TUDO que precisarem dentro do painel (rastreio, saldo, dúvidas).
+
+AJUDA COM CADASTRO:
+Se o usuário pedir ajuda para abrir o formulário de cadastro ou quiser criar uma conta, forneça instruções amigáveis e inclua o link para a página. Exemplo: "Aqui está o link para você: <a href='/cadastro.html' style='color:#009ee3; font-weight:bold;'>Abrir Formulário de Cadastro</a>". Adapte o link conforme necessário.
 
 REGRA DO WHATSAPP (Apenas para Admin/Employee):
-Se o usuário pedir para avisar um cliente, notificar sobre um status de encomenda ou "mandar um zap", siga estes passos:
-1. Escreva a mensagem que será enviada ao cliente.
-2. No final da sua resposta, adicione OBRIGATORIAMENTE a tag [ZAP:numero_do_telefone:Mensagem que será enviada].
-3. Se o usuário não te passar o número do telefone do cliente na conversa, peça a ele o número antes de gerar a tag.
-Exemplo de uso correto da tag: [ZAP:5511999999999:Olá! Sua encomenda da Guineexpress acabou de chegar no status X!]`;
+Se pedirem para notificar um cliente, escreva a mensagem e adicione a tag: [ZAP:numero_do_telefone:Mensagem]. Se faltar o número, peça antes.
 
-        // Monta as partes da mensagem (com ou sem imagem)
+REGRA DE IMAGENS:
+Se o usuário anexar uma imagem, analise-a (textos, códigos, pesos) e responda de acordo.`;
+
         let messageParts = [{ text: text || "Analise esta imagem." }];
 
-        // Se o frontend enviou uma imagem, preparamos ela para o Gemini 2.5 Flash
         if (image) {
             const mimeType = image.split(';')[0].split(':')[1];
             const base64Data = image.split(',')[1];
-            
-            messageParts.push({
-                inlineData: {
-                    data: base64Data,
-                    mimeType: mimeType
-                }
-            });
+            messageParts.push({ inlineData: { data: base64Data, mimeType: mimeType } });
         }
 
         const chat = model.startChat({
             history: [
                 { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Entendido! Estou pronta para ler imagens e gerar atalhos de WhatsApp quando solicitado." }] }
+                { role: "model", parts: [{ text: "Entendido! Seguirei as regras, ajudarei com o cadastro se solicitado e gerarei as tags corretamente." }] }
             ]
         });
 

@@ -1,6 +1,6 @@
 /* ===========================================================
-   CICÍ PRO MAX ULTRA - VISÃO COMPUTACIONAL & WHATSAPP
-   Versão: 12.0
+   CICÍ PRO MAX ULTRA - VISÃO, WHATSAPP E DETECÇÃO DE HARDWARE
+   Versão: 13.0
    =========================================================== */
 
 const CiciAI = {
@@ -8,10 +8,10 @@ const CiciAI = {
     userRole: 'visitor',
     userName: '',
     roleLabel: 'Visitante',
-    deviceInfo: 'Computador',
+    deviceInfo: 'Dispositivo Desconhecido',
     hasGreeted: false,
     currentLang: 'pt-BR', 
-    currentImageBase64: null, // Guarda a imagem anexada
+    currentImageBase64: null,
     
     avatarUrl: 'https://img.freepik.com/fotos-gratis/jovem-mulher-confiante-com-oculos_1098-20868.jpg?w=200',
 
@@ -46,14 +46,32 @@ const CiciAI = {
         }, 1500);
     },
 
+    // Detecção Avançada de Dispositivo
     detectContext: function() {
         const path = window.location.pathname;
         const ua = navigator.userAgent;
-        this.deviceInfo = /android/i.test(ua) ? "Android" : /iPhone|iPad|iPod/i.test(ua) ? "iOS" : "Computador";
+        
+        // Descobre o aparelho
+        let device = "Computador Desconhecido";
+        if (/iPhone/i.test(ua)) device = "iPhone";
+        else if (/iPad/i.test(ua)) device = "iPad";
+        else if (/Samsung/i.test(ua)) device = "Celular Samsung";
+        else if (/Xiaomi|Redmi/i.test(ua)) device = "Celular Xiaomi";
+        else if (/Motorola/i.test(ua)) device = "Celular Motorola";
+        else if (/Android/i.test(ua)) device = "Celular Android";
+        else if (/Windows NT 10/i.test(ua)) device = "Computador com Windows 10/11";
+        else if (/Mac OS/i.test(ua)) device = "MacBook ou Mac";
+        else if (/Linux/i.test(ua)) device = "Computador com Linux";
+        
+        this.deviceInfo = device;
 
+        // Descobre o cargo
         if (path.includes('dashboard-admin')) { this.userRole = 'admin'; this.roleLabel = 'Administrador'; } 
         else if (path.includes('dashboard-employee')) { this.userRole = 'employee'; this.roleLabel = 'Colaborador'; } 
         else if (path.includes('dashboard-client')) { this.userRole = 'client'; this.roleLabel = 'Cliente VIP'; }
+        
+        const nameEl = document.getElementById('user-name-display');
+        if (nameEl && nameEl.innerText !== '...') this.userName = nameEl.innerText.trim();
     },
 
     renderWidget: function() {
@@ -71,9 +89,7 @@ const CiciAI = {
                         <button onclick="CiciAI.toggle()" style="background:none;border:none;color:white;cursor:pointer;font-size:24px;">&times;</button>
                     </div>
                     
-                    <div class="cici-body" id="cici-messages">
-                        <div class="msg cici">Olá! Estou analisando seu painel... 🔍</div>
-                    </div>
+                    <div class="cici-body" id="cici-messages"></div>
 
                     <div id="cici-image-preview" style="display:none; padding: 10px; background: #f1f3f5; border-top: 1px solid #ddd; position: relative;">
                         <img id="cici-preview-img" style="max-height: 50px; border-radius: 5px;">
@@ -84,7 +100,7 @@ const CiciAI = {
                         <input type="file" id="cici-file-input" accept="image/*" style="display:none;" onchange="CiciAI.handleFileSelect(event)">
                         <button onclick="document.getElementById('cici-file-input').click()" class="cici-mic-btn" style="color: #666;"><i class="fas fa-paperclip"></i></button>
                         <button onclick="CiciAI.listen()" class="cici-mic-btn"><i class="fas fa-microphone"></i></button>
-                        <input type="text" id="cici-input" placeholder="Digite ou anexe uma foto..." onkeypress="CiciAI.handleInput(event)">
+                        <input type="text" id="cici-input" placeholder="Digite ou anexe foto..." onkeypress="CiciAI.handleInput(event)">
                         <button onclick="CiciAI.handleSend()" class="cici-send-btn"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
@@ -99,13 +115,14 @@ const CiciAI = {
         const win = document.getElementById('cici-chat-window');
         this.isOpen = !this.isOpen;
         win.classList.toggle('open', this.isOpen);
+        
         if (this.isOpen && !this.hasGreeted) {
-            this.processText("Olá Cicí, analise meu painel, me cumprimente de acordo com meu nível de acesso.", true);
+            // Dispara a primeira mensagem com a flag isFirstMessage
+            this.processText("", true, true);
             this.hasGreeted = true;
         }
     },
 
-    // Funções de Imagem
     handleFileSelect: function(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -124,18 +141,17 @@ const CiciAI = {
         document.getElementById('cici-image-preview').style.display = 'none';
     },
 
-    processText: async function(text, silent = false) {
-        if(!text && !this.currentImageBase64) return;
+    processText: async function(text, silent = false, isFirstMessage = false) {
+        if(!text && !this.currentImageBase64 && !isFirstMessage) return;
         
-        let displayMsg = text || "📸 Imagem enviada.";
-        if(!silent) this.addMessage(displayMsg, 'user');
+        if(!silent && text) this.addMessage(text, 'user');
+        if(!silent && this.currentImageBase64) this.addMessage("📸 Imagem enviada.", 'user');
         
         this.showTyping();
 
         const ctx = { role: this.userRole, name: this.userName || 'Usuário', deviceInfo: this.deviceInfo };
-        const payload = { text: text, userContext: ctx, image: this.currentImageBase64 };
+        const payload = { text: text, userContext: ctx, image: this.currentImageBase64, isFirstMessage: isFirstMessage };
 
-        // Limpa a imagem após enviar
         this.clearImage();
 
         try {
@@ -155,26 +171,65 @@ const CiciAI = {
             const zapMatch = finalReply.match(/\[ZAP:(.*?):(.*?)\]/);
             
             if(zapMatch) {
-                const phone = zapMatch[1].replace(/\D/g, ''); // Limpa o telefone
-                const msg = encodeURIComponent(zapMatch[2].trim()); // Prepara pro URL
+                const phone = zapMatch[1].replace(/\D/g, ''); 
+                const msg = encodeURIComponent(zapMatch[2].trim());
                 const zapLink = `https://wa.me/${phone}?text=${msg}`;
                 
-                // Remove a tag e insere o botão do Zap
                 finalReply = finalReply.replace(/\[ZAP:.*?:.*?\]/g, '').trim();
                 finalReply += `
                     <div style="margin-top: 10px;">
-                        <a href="${zapLink}" target="_blank" style="display:inline-block; background:#25D366; color:white; padding:8px 15px; border-radius:20px; text-decoration:none; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition:0.3s;">
+                        <a href="${zapLink}" target="_blank" style="display:inline-block; background:#25D366; color:white; padding:8px 15px; border-radius:20px; text-decoration:none; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition:0.3s; width:100%; text-align:center; box-sizing: border-box;">
                             <i class="fab fa-whatsapp"></i> Enviar WhatsApp
                         </a>
                     </div>`;
             }
 
             this.addMessage(finalReply, 'cici');
+            this.renderLanguageButtons(this.currentLang);
 
         } catch (error) {
             this.hideTyping();
             this.addMessage("Ops, tive um erro de conexão. 📡", 'cici');
         }
+    },
+
+    renderLanguageButtons: function(lang) {
+        const msgs = document.getElementById('cici-messages');
+        const oldBtns = document.querySelectorAll('.cici-buttons-container');
+        oldBtns.forEach(el => el.remove());
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'cici-buttons-container'; 
+        // Flexbox para garantir que fique bom no celular (quebra linha se precisar)
+        btnContainer.style = "display:flex; gap:8px; padding:10px 0; flex-wrap:wrap; justify-content: flex-start; width: 100%;";
+
+        const labels = {
+            'pt-BR': ['📦 Rastrear Encomenda', '💰 Ver Saldo', '👨‍💻 Suporte'],
+            'en-US': ['📦 Track Package', '💰 Check Balance', '👨‍💻 Support'],
+            'fr-FR': ['📦 Suivre Colis', '💰 Voir Solde', '👨‍💻 Support'],
+            'es-ES': ['📦 Rastrear Pedido', '💰 Ver Saldo', '👨‍💻 Soporte']
+        };
+
+        const currentLabels = labels[lang] || labels['pt-BR'];
+
+        currentLabels.forEach(label => {
+            const btn = document.createElement('button');
+            btn.innerText = label;
+            // Estilo responsivo (flex: 1 1 auto faz o botão crescer no celular)
+            btn.style = "flex: 1 1 auto; background:#0a1931; color:white; border:none; padding:8px 12px; border-radius:15px; cursor:pointer; font-size:12px; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap;";
+            
+            btn.onmouseover = () => btn.style.background = "#1a3a6d";
+            btn.onmouseout = () => btn.style.background = "#0a1931";
+            
+            btn.onclick = () => {
+                btnContainer.remove(); 
+                this.processText(label);
+            };
+            btnContainer.appendChild(btn);
+        });
+
+        msgs.appendChild(btnContainer);
+        msgs.scrollTop = msgs.scrollHeight;
     },
 
     addMessage: function(text, sender) {
