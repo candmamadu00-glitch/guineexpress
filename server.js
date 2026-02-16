@@ -1,4 +1,7 @@
 require('dotenv').config(); // Lê o arquivo .env
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI("AIzaSyDTDbQbHTeAXRDzlbkWN-Emb4H4KL5nRug");
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
@@ -14,11 +17,7 @@ const Preference = require('mercadopago').Preference;
 const cron = require('node-cron'); // Agendador de tarefas
 const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const app = express();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-// --- CORREÇÃO DO BANCO DE DADOS ---
 const db = require('./database'); 
 
 // ==================================================================
@@ -1577,60 +1576,65 @@ const queryDB = (sql, params = []) => {
         });
     });
 };
-// --- ROTA DA CICÍ ATUALIZADA (SERVER.JS) ---
+// --- ROTA DA CICÍ (AGORA COM VISÃO E WHATSAPP) ---
 app.post('/api/cici/chat', async (req, res) => {
     try {
-        const { text, userContext } = req.body;
-        const userId = req.session.user ? req.session.user.id : null;
+        const { text, userContext, image } = req.body;
+        
+        if (!text && !image) return res.status(400).json({ reply: "Preciso de um texto ou imagem." });
 
-        let dataContext = "Usuário não identificado.";
-        let alertasCriticos = "Nenhum problema detectado.";
+        const dataContext = `Usuário: ${userContext.name || 'Visitante'}. Papel: ${userContext.role}. Dispositivo: ${userContext.deviceInfo || 'Desconhecido'}.`;
 
-        // --- BUSCA DE DADOS NO BANCO (Mantendo sua lógica original) ---
-        if (userId) {
-            if (userContext.role === 'client') {
-                const orders = await new Promise(resolve => db.all("SELECT * FROM orders WHERE user_id = ?", [userId], (err, rows) => resolve(rows || [])));
-                const finance = await new Promise(resolve => db.get("SELECT SUM(amount) as saldo FROM transactions WHERE user_id = ?", [userId], (err, row) => resolve(row || {saldo:0})));
-                dataContext = `Cliente: ${userContext.name}. Encomendas: ${JSON.stringify(orders)}. Saldo: ${finance.saldo}`;
-                
-                const atrasadas = orders.filter(o => o.status === 'Pendente' && (new Date() - new Date(o.created_at)) > 7*24*60*60*1000);
-                if(atrasadas.length > 0) alertasCriticos = `O cliente tem ${atrasadas.length} encomendas pendentes há mais de uma semana.`;
+        const systemPrompt = `Você é a Cicí da Guineexpress, uma assistente avançada de logística.
+Contexto: ${dataContext}
 
-            } else if (userContext.role === 'admin' || userContext.role === 'employee') {
-                const stats = await new Promise(resolve => db.get("SELECT COUNT(*) as total, (SELECT COUNT(*) FROM users) as users FROM orders", (err, row) => resolve(row)));
-                const erros = await new Promise(resolve => db.all("SELECT id FROM orders WHERE status = 'Erro' OR status = 'Cancelado'", (err, rows) => resolve(rows || [])));
-                dataContext = `Painel Staff. Total de ordens: ${stats.total}. Total de usuários: ${stats.users}.`;
-                if(erros.length > 0) alertasCriticos = `EXISTEM ${erros.length} ORDENS COM ERRO.`;
-            }
+REGRAS GERAIS:
+1. Responda sempre de forma amigável, no idioma que o usuário falar, e inclua no final a tag [LANG:codigo_do_idioma].
+2. Se o usuário anexar uma imagem (etiqueta, caixa, comprovante), analise o conteúdo visual (leia os textos, códigos de rastreio, pesos) e responda o que ele pedir.
+
+REGRA DO WHATSAPP (Apenas para Admin/Employee):
+Se o usuário pedir para avisar um cliente, notificar sobre um status de encomenda ou "mandar um zap", siga estes passos:
+1. Escreva a mensagem que será enviada ao cliente.
+2. No final da sua resposta, adicione OBRIGATORIAMENTE a tag [ZAP:numero_do_telefone:Mensagem que será enviada].
+3. Se o usuário não te passar o número do telefone do cliente na conversa, peça a ele o número antes de gerar a tag.
+Exemplo de uso correto da tag: [ZAP:5511999999999:Olá! Sua encomenda da Guineexpress acabou de chegar no status X!]`;
+
+        // Monta as partes da mensagem (com ou sem imagem)
+        let messageParts = [{ text: text || "Analise esta imagem." }];
+
+        // Se o frontend enviou uma imagem, preparamos ela para o Gemini 2.5 Flash
+        if (image) {
+            const mimeType = image.split(';')[0].split(':')[1];
+            const base64Data = image.split(',')[1];
+            
+            messageParts.push({
+                inlineData: {
+                    data: base64Data,
+                    mimeType: mimeType
+                }
+            });
         }
 
-        // --- PROMPT COM REGRAS DE IDIOMA ---
-        const systemPrompt = `Você é a Cicí PRO MAX ULTRA, a inteligência central da Guineexpress.
-        DADOS REAIS: ${dataContext}
-        ALERTAS: ${alertasCriticos}
-        USUÁRIO: ${userContext.name} (${userContext.roleLabel}) no ${userContext.deviceInfo}.
+        const chat = model.startChat({
+            history: [
+                { role: "user", parts: [{ text: systemPrompt }] },
+                { role: "model", parts: [{ text: "Entendido! Estou pronta para ler imagens e gerar atalhos de WhatsApp quando solicitado." }] }
+            ]
+        });
 
-        REGRAS POLIGLOTAS:
-        1. Identifique o idioma do usuário.
-        2. Se for a primeira vez que ele usa esse idioma nesta conversa, pergunte: "Percebi que você prefere [Idioma]. Quer que eu continue respondendo assim ou prefere outro?"
-        3. No final da resposta, você DEVE incluir a tag [LANG:código] (ex: [LANG:pt-BR], [LANG:en-US], [LANG:fr-FR], [LANG:es-ES]).
-        4. Use emojis de logística (📦, 🚀, 🇬🇼).`;
+        const result = await chat.sendMessage(messageParts);
+        const response = await result.response;
+        let replyText = response.text();
 
-        // Chama a IA (certifique-se que 'model' está definido no seu server.js)
-        const result = await model.generateContent([systemPrompt, text]);
-        let replyText = result.response.text();
-
-        // --- LÓGICA DE EXTRAÇÃO DE IDIOMA ---
         const langMatch = replyText.match(/\[LANG:(.*?)\]/);
         const langCode = langMatch ? langMatch[1] : 'pt-BR';
         replyText = replyText.replace(/\[LANG:.*?\]/g, '').trim(); 
 
-        // Retorna o texto limpo e o código do idioma para o Front-end
         res.json({ reply: replyText, lang: langCode });
 
     } catch (error) {
-        console.error("Erro Cicí:", error);
-        res.status(500).json({ reply: "Tive um soluço técnico! ⚡", lang: 'pt-BR' });
+        console.error("🔥 ERRO FATAL NA CICI:", error);
+        res.status(500).json({ reply: "Tive um soluço técnico! 🔌", error: error.message });
     }
 });
 // =====================================================

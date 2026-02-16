@@ -1,6 +1,6 @@
 /* ===========================================================
-   CICÍ PRO MAX ULTRA - MULTILINGUAL EDITION
-   Versão: 11.0 (Suporte Multi-idioma + Botões Contextuais)
+   CICÍ PRO MAX ULTRA - VISÃO COMPUTACIONAL & WHATSAPP
+   Versão: 12.0
    =========================================================== */
 
 const CiciAI = {
@@ -10,117 +10,39 @@ const CiciAI = {
     roleLabel: 'Visitante',
     deviceInfo: 'Computador',
     hasGreeted: false,
-    currentLang: 'pt-BR', // Idioma padrão inicial
+    currentLang: 'pt-BR', 
+    currentImageBase64: null, // Guarda a imagem anexada
     
-    // Avatar Premium
     avatarUrl: 'https://img.freepik.com/fotos-gratis/jovem-mulher-confiante-com-oculos_1098-20868.jpg?w=200',
 
-    // ===============================================
-    // MOTOR DE VOZ E AUDIÇÃO
-    // ===============================================
     speak: function(text) {
         if (!window.speechSynthesis) return;
         window.speechSynthesis.cancel(); 
-        
-        const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/\*/g, '');
+        const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/\*/g, '').replace(/\[ZAP:.*?\]/g, '');
         const utterance = new SpeechSynthesisUtterance(cleanText);
-        
         utterance.lang = this.currentLang;
-        utterance.rate = 1.0; 
-        utterance.pitch = 1.1; 
-        
-        const voices = window.speechSynthesis.getVoices();
-        let voice = voices.find(v => v.lang === this.currentLang);
-        
-        if (!voice) {
-            const langPrefix = this.currentLang.split('-')[0];
-            voice = voices.find(v => v.lang.startsWith(langPrefix));
-        }
-
-        if (voice) utterance.voice = voice;
         window.speechSynthesis.speak(utterance);
     },
 
     listen: function() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            this.addMessage("Seu navegador não suporta voz. 😢", "cici");
-            return;
-        }
-
+        if (!SpeechRecognition) return;
         const recognition = new SpeechRecognition();
         recognition.lang = this.currentLang;
-        
-        recognition.onstart = () => {
-            const input = document.getElementById('cici-input');
-            input.placeholder = "🎤 Ouvindo...";
-            input.style.backgroundColor = "#fff3cd";
-        };
-
+        recognition.onstart = () => { document.getElementById('cici-input').placeholder = "🎤 Ouvindo..."; };
         recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            const input = document.getElementById('cici-input');
-            input.value = transcript;
-            input.style.backgroundColor = "#f1f3f5";
+            document.getElementById('cici-input').value = event.results[0][0].transcript;
             this.handleSend(); 
         };
-
         recognition.start();
     },
 
-    // ===============================================
-    // INTERFACE E BOTÕES DE IDIOMA
-    // ===============================================
-    renderLanguageButtons: function(lang) {
-        const msgs = document.getElementById('cici-messages');
-        
-        // Remove botões anteriores para não acumular
-        const oldButtons = document.querySelectorAll('.cici-buttons-container');
-        oldButtons.forEach(el => el.remove());
-
-        const btnContainer = document.createElement('div');
-        btnContainer.className = 'cici-buttons-container'; 
-        btnContainer.style = "display:flex; gap:5px; padding:10px; flex-wrap:wrap; justify-content: flex-start;";
-
-        const labels = {
-            'pt-BR': ['📦 Rastrear Encomenda', '💰 Ver Saldo', '👨‍💻 Suporte'],
-            'en-US': ['📦 Track Package', '💰 Check Balance', '👨‍💻 Support'],
-            'fr-FR': ['📦 Suivre Colis', '💰 Voir Solde', '👨‍💻 Support'],
-            'es-ES': ['📦 Rastrear Pedido', '💰 Ver Saldo', '👨‍💻 Soporte']
-        };
-
-        const currentLabels = labels[lang] || labels['pt-BR'];
-
-        currentLabels.forEach(label => {
-            const btn = document.createElement('button');
-            btn.innerText = label;
-            btn.style = "background:#0a1931; color:white; border:none; padding:8px 12px; border-radius:15px; cursor:pointer; font-size:12px; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);";
-            
-            btn.onmouseover = () => btn.style.background = "#1a3a6d";
-            btn.onmouseout = () => btn.style.background = "#0a1931";
-            
-            btn.onclick = () => {
-                btnContainer.remove(); 
-                this.processText(label);
-            };
-            btnContainer.appendChild(btn);
-        });
-
-        msgs.appendChild(btnContainer);
-        msgs.scrollTop = msgs.scrollHeight;
-    },
-
-    // ===============================================
-    // LÓGICA DO SISTEMA
-    // ===============================================
     init: function() {
         this.detectContext();
         this.renderWidget();
-        
         setTimeout(() => {
             const badge = document.getElementById('cici-badge');
             if(badge) badge.classList.remove('hidden');
-            window.speechSynthesis.getVoices();
         }, 1500);
     },
 
@@ -129,18 +51,9 @@ const CiciAI = {
         const ua = navigator.userAgent;
         this.deviceInfo = /android/i.test(ua) ? "Android" : /iPhone|iPad|iPod/i.test(ua) ? "iOS" : "Computador";
 
-        if (path.includes('dashboard-admin')) { 
-            this.userRole = 'admin'; this.roleLabel = 'Administrador'; 
-        } else if (path.includes('dashboard-employee')) { 
-            this.userRole = 'employee'; this.roleLabel = 'Colaborador'; 
-        } else if (path.includes('dashboard-client')) { 
-            this.userRole = 'client'; this.roleLabel = 'Cliente VIP';
-        }
-
-        const nameEl = document.getElementById('user-name-display');
-        if (nameEl && nameEl.innerText !== '...') {
-            this.userName = nameEl.innerText.trim();
-        }
+        if (path.includes('dashboard-admin')) { this.userRole = 'admin'; this.roleLabel = 'Administrador'; } 
+        else if (path.includes('dashboard-employee')) { this.userRole = 'employee'; this.roleLabel = 'Colaborador'; } 
+        else if (path.includes('dashboard-client')) { this.userRole = 'client'; this.roleLabel = 'Cliente VIP'; }
     },
 
     renderWidget: function() {
@@ -151,24 +64,27 @@ const CiciAI = {
                     <div class="cici-header">
                         <div class="cici-info">
                             <div style="display:flex; align-items:center; gap:12px;">
-                                <div style="position:relative;">
-                                    <div style="width:40px; height:40px; background:url('${this.avatarUrl}'); background-size:cover; border-radius:50%; border:2px solid #fff;"></div>
-                                    <div style="width:12px; height:12px; background:#28a745; border-radius:50%; position:absolute; bottom:0; right:0; border:2px solid #fff;"></div>
-                                </div>
-                                <div>
-                                    <h4 style="margin:0; font-size:15px; font-weight:700;">Cicí Pro</h4>
-                                    <small style="color:rgba(255,255,255,0.8); font-size:11px;">Inteligência Guineexpress</small>
-                                </div>
+                                <div style="width:40px; height:40px; background:url('${this.avatarUrl}') center/cover; border-radius:50%; border:2px solid #fff;"></div>
+                                <div><h4 style="margin:0; font-size:15px; font-weight:700;">Cicí Pro</h4><small>Inteligência Guineexpress</small></div>
                             </div>
                         </div>
                         <button onclick="CiciAI.toggle()" style="background:none;border:none;color:white;cursor:pointer;font-size:24px;">&times;</button>
                     </div>
+                    
                     <div class="cici-body" id="cici-messages">
                         <div class="msg cici">Olá! Estou analisando seu painel... 🔍</div>
                     </div>
+
+                    <div id="cici-image-preview" style="display:none; padding: 10px; background: #f1f3f5; border-top: 1px solid #ddd; position: relative;">
+                        <img id="cici-preview-img" style="max-height: 50px; border-radius: 5px;">
+                        <button onclick="CiciAI.clearImage()" style="position: absolute; top: 5px; right: 10px; background: #ff4757; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer;">&times;</button>
+                    </div>
+
                     <div class="cici-input-area">
+                        <input type="file" id="cici-file-input" accept="image/*" style="display:none;" onchange="CiciAI.handleFileSelect(event)">
+                        <button onclick="document.getElementById('cici-file-input').click()" class="cici-mic-btn" style="color: #666;"><i class="fas fa-paperclip"></i></button>
                         <button onclick="CiciAI.listen()" class="cici-mic-btn"><i class="fas fa-microphone"></i></button>
-                        <input type="text" id="cici-input" placeholder="Pergunte qualquer coisa..." onkeypress="CiciAI.handleInput(event)">
+                        <input type="text" id="cici-input" placeholder="Digite ou anexe uma foto..." onkeypress="CiciAI.handleInput(event)">
                         <button onclick="CiciAI.handleSend()" class="cici-send-btn"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
@@ -183,42 +99,77 @@ const CiciAI = {
         const win = document.getElementById('cici-chat-window');
         this.isOpen = !this.isOpen;
         win.classList.toggle('open', this.isOpen);
-
         if (this.isOpen && !this.hasGreeted) {
-            this.processText("Olá Cicí, analise meu painel, me cumprimente e pergunte se prefiro falar em outro idioma.", true);
+            this.processText("Olá Cicí, analise meu painel, me cumprimente de acordo com meu nível de acesso.", true);
             this.hasGreeted = true;
         }
     },
 
+    // Funções de Imagem
+    handleFileSelect: function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            this.currentImageBase64 = e.target.result;
+            document.getElementById('cici-preview-img').src = this.currentImageBase64;
+            document.getElementById('cici-image-preview').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    },
+
+    clearImage: function() {
+        this.currentImageBase64 = null;
+        document.getElementById('cici-file-input').value = "";
+        document.getElementById('cici-image-preview').style.display = 'none';
+    },
+
     processText: async function(text, silent = false) {
-        if(!text) return;
-        if(!silent) this.addMessage(text, 'user');
+        if(!text && !this.currentImageBase64) return;
+        
+        let displayMsg = text || "📸 Imagem enviada.";
+        if(!silent) this.addMessage(displayMsg, 'user');
+        
         this.showTyping();
 
-        const ctx = { 
-            role: this.userRole, 
-            name: this.userName || 'Usuário', 
-            roleLabel: this.roleLabel,
-            deviceInfo: this.deviceInfo
-        };
+        const ctx = { role: this.userRole, name: this.userName || 'Usuário', deviceInfo: this.deviceInfo };
+        const payload = { text: text, userContext: ctx, image: this.currentImageBase64 };
+
+        // Limpa a imagem após enviar
+        this.clearImage();
 
         try {
             const response = await fetch('/api/cici/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text, userContext: ctx })
+                body: JSON.stringify(payload)
             });
 
             const data = await response.json();
             this.hideTyping();
             
-            // Atualiza o idioma e a interface baseado na resposta da IA
             if (data.lang) this.currentLang = data.lang;
 
-            this.addMessage(data.reply, 'cici');
+            // INTERCEPTADOR DE WHATSAPP
+            let finalReply = data.reply;
+            const zapMatch = finalReply.match(/\[ZAP:(.*?):(.*?)\]/);
             
-            // Renderiza os botões sugeridos no idioma atual
-            this.renderLanguageButtons(this.currentLang);
+            if(zapMatch) {
+                const phone = zapMatch[1].replace(/\D/g, ''); // Limpa o telefone
+                const msg = encodeURIComponent(zapMatch[2].trim()); // Prepara pro URL
+                const zapLink = `https://wa.me/${phone}?text=${msg}`;
+                
+                // Remove a tag e insere o botão do Zap
+                finalReply = finalReply.replace(/\[ZAP:.*?:.*?\]/g, '').trim();
+                finalReply += `
+                    <div style="margin-top: 10px;">
+                        <a href="${zapLink}" target="_blank" style="display:inline-block; background:#25D366; color:white; padding:8px 15px; border-radius:20px; text-decoration:none; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition:0.3s;">
+                            <i class="fab fa-whatsapp"></i> Enviar WhatsApp
+                        </a>
+                    </div>`;
+            }
+
+            this.addMessage(finalReply, 'cici');
 
         } catch (error) {
             this.hideTyping();
@@ -244,11 +195,7 @@ const CiciAI = {
     showTyping: function() {
         const msgs = document.getElementById('cici-messages');
         if(document.getElementById('typing-dots')) return;
-        const typingDiv = document.createElement('div');
-        typingDiv.id = 'typing-dots';
-        typingDiv.className = 'typing-indicator';
-        typingDiv.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
-        msgs.appendChild(typingDiv);
+        msgs.insertAdjacentHTML('beforeend', '<div id="typing-dots" class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>');
         msgs.scrollTop = msgs.scrollHeight;
     },
 
@@ -257,19 +204,15 @@ const CiciAI = {
         if(el) el.remove();
     },
 
-    handleInput: function(e) {
-        if(e.key === 'Enter') this.handleSend();
-    },
+    handleInput: function(e) { if(e.key === 'Enter') this.handleSend(); },
 
     handleSend: function() {
         const input = document.getElementById('cici-input');
         const txt = input.value.trim();
-        if(!txt) return;
+        if(!txt && !this.currentImageBase64) return;
         input.value = '';
         this.processText(txt);
     }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => { CiciAI.init(); }, 1000);
-});
+document.addEventListener('DOMContentLoaded', () => { setTimeout(() => { CiciAI.init(); }, 1000); });
