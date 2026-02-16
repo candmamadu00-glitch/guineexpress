@@ -786,6 +786,18 @@ function showLogin() {
     // Mostra os botões novamente (para o staff poder logar)
     document.getElementById('btn-employee').style.display = 'inline-block';
     document.getElementById('btn-admin').style.display = 'inline-block';
+
+    // === CORREÇÃO DA BANDEIRA FANTASMA ===
+    // Pega o cartão de login
+    const loginCard = document.querySelector('.login-card');
+    if (loginCard) {
+        // Remove TODAS as classes de bandeira que possam estar presas lá
+        loginCard.classList.remove(
+            'bg-flag-GW', 'bg-flag-BR', 'bg-flag-PT', 'bg-flag-SN', 
+            'bg-flag-US', 'bg-flag-FR', 'bg-flag-ES', 'bg-flag-MA', 
+            'bg-flag-UK', 'bg-flag-CV'
+        );
+    }
 }
 // A LINHA DO ERRO ESTAVA AQUI (updateMasks duplicada) - FOI REMOVIDA
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
@@ -3977,3 +3989,17 @@ async function loadAccessLogs() {
         alert("Erro ao carregar histórico.");
     }
 }
+// ==============================================================
+// GARANTIA DE TELA LIMPA AO CARREGAR A PÁGINA
+// ==============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Força a tela de login a não ter nenhuma classe de bandeira ao abrir
+    const loginCard = document.querySelector('.login-card');
+    if (loginCard) {
+        loginCard.classList.remove(
+            'bg-flag-GW', 'bg-flag-BR', 'bg-flag-PT', 'bg-flag-SN', 
+            'bg-flag-US', 'bg-flag-FR', 'bg-flag-ES', 'bg-flag-MA', 
+            'bg-flag-UK', 'bg-flag-CV'
+        );
+    }
+});

@@ -10,13 +10,106 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/imask"></script>
     <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0a1931">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Guineexpress">
+    <meta name="theme-color" content="#0a1931">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Guineexpress">
 
-<link rel="icon" type="image/png" href="/logo.png">
-<link rel="apple-touch-icon" href="/logo.png">
+    <style>
+        /* Define a imagem de fundo em tela cheia */
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .login-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            /* Imagem premium de logística */
+            background-image: linear-gradient(rgba(10, 25, 49, 0.7), rgba(10, 25, 49, 0.7)), url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=2070&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            padding: 20px;
+        }
+
+        /* Efeito Glassmorphism (Vidro Fosco) no Cartão */
+        .login-card {
+            background: rgba(255, 255, 255, 0.15); /* Transparente */
+            backdrop-filter: blur(12px); /* O desfoque mágico */
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            color: #fff; /* Muda os textos base para branco */
+        }
+
+        /* Ajustes de cores para combinar com o vidro escuro */
+        .company-header h1 {
+            color: #fff;
+            margin-bottom: 5px;
+            font-weight: 800;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+        }
+        .company-header p {
+            color: #e0e0e0;
+            margin: 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        .login-card h3 {
+            color: #009ee3; /* Azul do Mercado Pago/Accent para destacar */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+
+        .form-group label {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        /* Inputs ligeiramente transparentes */
+        .form-control {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            color: #333;
+        }
+        .form-control:focus {
+            background: #fff;
+            box-shadow: 0 0 8px rgba(0, 158, 227, 0.6);
+        }
+
+        /* Ajuste dos botões de Cargo */
+        #role-selector .btn {
+            border: 1px solid rgba(255,255,255,0.4);
+            backdrop-filter: blur(5px);
+        }
+        #btn-employee, #btn-admin {
+            background: rgba(255, 255, 255, 0.2) !important;
+            color: #fff !important;
+        }
+        #btn-employee:hover, #btn-admin:hover {
+            background: rgba(255, 255, 255, 0.4) !important;
+        }
+
+        /* Links do rodapé */
+        #forgot-pass, #register-link {
+            color: #fff !important;
+            text-decoration: underline;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        #forgot-pass:hover, #register-link:hover {
+            color: #009ee3 !important;
+        }
+        
+        /* Ajuste para o formulário de registro ficar legível no vidro */
+        #register-form p { color: #fff; }
+    </style>
 
 <script>
     if ('serviceWorker' in navigator) {
@@ -32,20 +125,20 @@
 
 <div class="login-wrapper">
     <div class="login-card">
-        <div class="company-header">
+        <div class="company-header" style="text-align: center; margin-bottom: 25px;">
             <h1>Guineexpress</h1>
             <p>Logística Internacional</p>
-            <p style="font-size: 10px; margin-top: 5px;">📍 Av. Tristão Gonçalves, 1203 - (85) 98239-207</p>
+            <p style="font-size: 11px; margin-top: 8px;">📍 Av. Tristão Gonçalves, 1203 - (85) 98239-207</p>
         </div>
 
-        <div id="role-selector" class="form-group" style="display: flex; gap: 10px; justify-content: center; margin-bottom: 25px;">
-            <button onclick="setRole('client')" class="btn btn-primary" id="btn-client">Sou Cliente</button>
-            <button onclick="setRole('employee')" class="btn" style="background:#eee; color:#333;" id="btn-employee">Funcionário</button>
-            <button onclick="setRole('admin')" class="btn" style="background:#eee; color:#333;" id="btn-admin">Admin</button>
+        <div id="role-selector" class="form-group" style="display: flex; gap: 8px; justify-content: center; margin-bottom: 25px;">
+            <button onclick="setRole('client')" class="btn btn-primary" id="btn-client" style="flex: 1; padding: 8px;">Cliente</button>
+            <button onclick="setRole('employee')" class="btn" id="btn-employee" style="flex: 1; padding: 8px;">Staff</button>
+            <button onclick="setRole('admin')" class="btn" id="btn-admin" style="flex: 1; padding: 8px;">Admin</button>
         </div>
 
         <form id="login-form">
-            <h3 style="text-align:center; margin-bottom:20px; color: var(--primary);">Acessar Conta</h3>
+            <h3 style="text-align:center; margin-bottom:20px;">Acessar Conta</h3>
             
             <div class="form-group">
                 <label>Email ou Celular</label>
@@ -57,11 +150,11 @@
                 <input type="password" id="login-pass" class="form-control" required autocomplete="current-password">
             </div>
             
-            <button type="submit" class="btn btn-accent" style="width: 100%; font-weight: bold;">ENTRAR</button>
+            <button type="submit" class="btn btn-accent" style="width: 100%; font-weight: bold; background: #009ee3; color: white; margin-top: 10px; font-size: 16px;">ENTRAR</button>
             
-            <div id="client-links" style="margin-top: 15px;">
-                <p id="forgot-pass" onclick="openRecoverModal()" style="text-align:center; font-size:13px; cursor:pointer; color:var(--primary);">Esqueci minha senha</p>
-                <p onclick="showRegister()" id="register-link" style="text-align:center; margin-top:10px; font-size:13px; cursor:pointer; color:var(--accent);">Não tem conta? Cadastre-se</p>
+            <div id="client-links" style="margin-top: 20px;">
+                <p id="forgot-pass" onclick="openRecoverModal()" style="text-align:center; font-size:14px; cursor:pointer;">Esqueci minha senha</p>
+                <p onclick="showRegister()" id="register-link" style="text-align:center; margin-top:15px; font-size:14px; cursor:pointer;">Não tem conta? <strong>Cadastre-se</strong></p>
             </div>
         </form>
 
@@ -70,19 +163,21 @@
             
             <div class="form-group">
                 <label>País</label>
-                <select id="reg-country" class="form-control" onchange="updateMasks()">
-                    <option value="GW">Guiné-Bissau</option>
-                    <option value="BR">Brasil</option>
-                    <option value="PT">Portugal</option>
-                    <option value="SN">Senegal</option>
-                    <option value="MA">Marrocos</option>
-                    <option value="US">Estados Unidos</option>
-                    <option value="FR">França</option>
-                    <option value="ES">Espanha</option>
-                    <option value="UK">Inglaterra</option>
-                    <option value="BE">Bélgica</option>
-                    <option value="CV">Cabo Verde</option>
-                </select>
+               <select id="reg-country" class="form-control" onchange="updateMasks()" required>
+    <option value="" disabled selected>Selecione um país...</option>
+    
+    <option value="GW">Guiné-Bissau</option>
+    <option value="BR">Brasil</option>
+    <option value="PT">Portugal</option>
+    <option value="SN">Senegal</option>
+    <option value="MA">Marrocos</option>
+    <option value="US">Estados Unidos</option>
+    <option value="FR">França</option>
+    <option value="ES">Espanha</option>
+    <option value="UK">Inglaterra</option>
+    <option value="BE">Bélgica</option>
+    <option value="CV">Cabo Verde</option>
+</select>
             </div>
 
             <div class="form-group">
@@ -106,29 +201,14 @@
                 <input type="password" id="reg-pass2" class="form-control" placeholder="Confirmar Senha" required autocomplete="new-password">
             </div>
             
-            <button type="submit" class="btn btn-primary" style="width: 100%;">CADASTRAR</button>
-            <p onclick="showLogin()" style="text-align:center; margin-top:15px; font-size:13px; cursor:pointer;">Voltar para Login</p>
+            <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 16px; margin-top: 10px;">CADASTRAR</button>
+            <p onclick="showLogin()" style="text-align:center; margin-top:20px; font-size:14px; cursor:pointer;">&larr; Voltar para Login</p>
         </form>
     </div>
 </div>
 
 <div id="modal-recover" class="modal-overlay hidden">
-    <div class="modal-card">
-        <div class="modal-header">
-            <h3>🔒 Recuperar Acesso</h3>
-            <button class="btn-close" onclick="closeRecoverModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                Digite seu E-mail ou Celular cadastrado.
-            </p>
-            <div class="form-group">
-                <input type="text" id="recover-input" class="form-control" placeholder="ex: seuemail@gmail.com">
-            </div>
-            <button id="btn-send-recover" onclick="sendRecoveryRequest()" class="btn btn-primary" style="width: 100%; margin-top: 10px;">ENVIAR</button>
-        </div>
     </div>
-</div>
 
 <script src="cici.js"></script>
 <script src="script.js"></script>
