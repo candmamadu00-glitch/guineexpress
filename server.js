@@ -1647,10 +1647,12 @@ Se o usuário anexar uma imagem, analise-a (textos, códigos, pesos) e responda 
     }
 });
 // =====================================================
-// INICIALIZAÇÃO DO SERVIDOR
+// INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+
+// O segredo está no '0.0.0.0' adicionado aqui embaixo 👇
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Servidor Guineexpress rodando na porta ${PORT}`);
     console.log(`📡 Modo: ${process.env.NODE_ENV || 'Desenvolvimento'}`);
 });
