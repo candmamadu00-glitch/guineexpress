@@ -191,7 +191,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     .btn { width: 100%; margin-bottom: 5px; }
 }
 /* =========================================
-   6. TELA DE LOGIN (ESTILO PREMIUM)
+   6. TELA DE LOGIN (ESTILO DARK GLASS ULTIMATE)
    ========================================= */
 .login-wrapper {
     min-height: 100vh;
@@ -199,24 +199,49 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     display: flex;
     justify-content: center;
     align-items: center;
-    /* Adicionei a imagem aqui, com o gradiente por cima para ficar legível */
-background: linear-gradient(135deg, #0a1931, #185adb);
+    
+    /* Fundo bem escuro para destacar o dourado */
+    background-image: 
+        linear-gradient(rgba(0, 0, 0, 0.85), rgba(10, 20, 40, 0.9)), 
+        url('https://images.unsplash.com/photo-1586528116311-ad8ed3c812d0?q=80&w=2070&auto=format&fit=crop');
     background-size: cover;
     background-position: center;
+    background-attachment: fixed;
     padding: 20px;
 }
 
 .login-card {
-    background: #ffffff;
+    /* Vidro Escuro Profundo (Transparente com marca d'água) */
+    background: rgba(20, 20, 20, 0.70) !important; 
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    
     width: 100%;
-    max-width: 420px;
-    padding: 40px;
-    border-radius: 16px;
-    /* Sombra forte para destacar do fundo escuro */
-    box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-    /* Borda dourada no topo para o toque premium */
-    border-top: 5px solid var(--accent);
-    animation: fadeIn 0.5s ease-in-out;
+    max-width: 400px;
+    padding: 40px 35px;
+    border-radius: 24px;
+    
+    /* Bordas sutis simulando vidro */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: none !important; 
+    
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
+    animation: fadeIn 0.6s ease-out;
+}
+
+/* ESTILO DO LOGO CIRCULAR E LEGÍVEL */
+.login-logo {
+    width: 130px; /* Largura */
+    height: 130px; /* Altura igual a largura para ficar um círculo perfeito */
+    object-fit: cover; /* Garante que a imagem não achate */
+    border-radius: 50%; /* Faz o recorte circular */
+    
+    /* Borda e brilho dourado para separar do fundo e dar legibilidade */
+    border: 2px solid rgba(212, 175, 55, 0.8);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.8), 0 0 20px rgba(212, 175, 55, 0.2); 
+    
+    display: block;
+    margin: 0 auto 20px auto;
 }
 
 .company-header {
@@ -225,42 +250,117 @@ background: linear-gradient(135deg, #0a1931, #185adb);
 }
 
 .company-header h1 {
-    color: var(--primary);
-    font-size: 28px;
-    font-weight: 800;
+    color: #ffffff !important;
+    font-size: 30px !important;
+    font-weight: 900 !important;
     margin-bottom: 5px;
-    letter-spacing: -0.5px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5) !important;
 }
 
 .company-header p {
-    color: #777;
+    color: #cccccc !important;
     font-size: 14px;
+    text-shadow: none !important;
 }
 
-/* Ajuste específico para os inputs do login ficarem mais "altos" */
+/* =========================================
+   BOTÕES DE SELEÇÃO (Cliente, Staff, Admin)
+   ========================================= */
+#role-selector .btn {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #bbbbbb !important;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+#role-selector .btn:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+}
+
+/* Efeito ao CLICAR nos botões superiores */
+#role-selector .btn:active {
+    transform: scale(0.95);
+    background: rgba(212, 175, 55, 0.5) !important; /* Fica dourado ao apertar */
+    border-color: #d4af37 !important;
+    color: #ffffff !important;
+}
+
+/* Botão que está selecionado no momento */
+#role-selector .btn.btn-primary {
+    background: rgba(0, 158, 227, 0.8) !important; /* Azulão */
+    color: #ffffff !important;
+    border-color: #009ee3 !important;
+    box-shadow: 0 4px 10px rgba(0, 158, 227, 0.3);
+}
+
+/* LABELS (Títulos dos campos) */
+.login-card label, .login-card h3 {
+    color: #eeeeee !important;
+    font-weight: 600;
+    font-size: 14px;
+    text-shadow: none !important;
+}
+
+/* INPUTS ESCUROS (Para combinar com o vidro) */
 .login-card .form-control {
-    padding: 12px;
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
+    padding: 14px !important;
+    background-color: rgba(0, 0, 0, 0.3) !important; 
+    border: 1px solid rgba(255, 255, 255, 0.63) !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+    transition: all 0.3s;
+}
+
+.login-card .form-control::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
 }
 
 .login-card .form-control:focus {
-    background-color: #fff;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15); /* Brilho dourado suave */
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    border-color: #d4af37 !important;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2) !important;
 }
 
-/* Animação suave de entrada */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+/* BOTÃO ENTRAR PRINCIPAL */
+.login-card .btn-accent {
+    background: #009ee3 !important; 
+    border: none !important;
+    font-weight: 800 !important;
+    letter-spacing: 1px;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 10px 20px -5px rgba(0, 158, 227, 0.5);
+    transition: all 0.2s ease;
 }
 
-/* Ajuste para telas muito pequenas (celulares antigos) */
+.login-card .btn-accent:hover { 
+    background: #008cba !important; 
+}
+
+/* EFEITO AO CLICAR NO BOTÃO ENTRAR */
+.login-card .btn-accent:active {
+    transform: scale(0.96); /* O botão afunda */
+    background: #006b8f !important; /* Fica um azul mais escuro e profundo */
+    box-shadow: 0 5px 10px -2px rgba(0, 158, 227, 0.5); /* A sombra diminui */
+}
+
+/* LINKS INFERIORES */
+.login-card p, .login-card a { color: #bbbbbb !important; }
+.login-card p:hover, .login-card a:hover { color: #ffffff !important; }
+
+/* Responsividade para Celular */
 @media (max-width: 480px) {
     .login-card {
-        padding: 25px;
+        padding: 30px 20px;
+        max-width: 90%; 
     }
+    .login-logo {
+        width: 110px; 
+        height: 110px;
+    }
+    .company-header h1 { font-size: 26px !important; }
 }
 
 /* =========================================
@@ -1221,30 +1321,7 @@ background: linear-gradient(135deg, #0a1931, #185adb);
     border-radius: 6px;
     font-size: 14px;
 }
-/* --- LOGIN: Entrada Suave do Cartão --- */
-@keyframes slideUpFade {
-    0% {
-        opacity: 0;
-        transform: translateY(40px) scale(0.95);
-    }
-    100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
 
-.login-card {
-    /* Adiciona isso à classe existente .login-card */
-    animation: slideUpFade 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.2); /* Sombra mais profunda */
-}
-
-/* --- LOGIN: Input que "Acende" --- */
-.form-control:focus {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(212, 175, 55, 0.2); /* Sombra Dourada Suave */
-    border-color: var(--accent);
-}
 /* --- FUNCIONÁRIO: Laser do Scanner --- */
 /* Adicione a classe .scanner-overlay ao redor da div do vídeo no HTML se quiser, 
    ou aplique diretamente no container do QR Code */
@@ -1381,15 +1458,6 @@ background: linear-gradient(135deg, #0a1931, #185adb);
     #logs-view td:nth-of-type(4)::before { content: "📱 Disp.:"; }
     #logs-view td:nth-of-type(5)::before { content: "🌐 IP:"; }
     #logs-view td:nth-of-type(6)::before { content: "ℹ️ Detalhe:"; }
-}
-/* Container do card de login/cadastro */
-.login-card {
-    position: relative;
-    overflow: hidden;
-    z-index: 1;
-    /* Mantemos o fundo semi-transparente para o texto não sumir */
-    background-color: rgba(255, 255, 255, 0.88) !important; 
-    transition: background 0.5s;
 }
 
 /* O elemento da bandeira (Pseudo-elemento) */
