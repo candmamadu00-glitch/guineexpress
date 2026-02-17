@@ -19,7 +19,13 @@ const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
 const app = express();
 const db = require('./database'); 
+const webpush = require('web-push');
 
+webpush.setVapidDetails(
+    'mailto:candemamadu00@gmail.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+);
 // ==================================================================
 // CONFIGURAÇÃO DO DISCO PERMANENTE (FOTOS E VÍDEOS)
 // ==================================================================
@@ -1652,6 +1658,47 @@ VISÃO: Se houver imagem de etiqueta/documento, extraia os dados e use fillForm 
         console.error("🔥 ERRO CICÍ:", error);
         res.status(500).json({ reply: "Tive um soluço técnico! 🔌" });
     }
+});
+// --- FUNÇÃO MÁGICA DE NOTIFICAÇÃO ---
+async function notifyUser(userId, title, message) {
+    db.get("SELECT push_subscription FROM users WHERE id = ?", [userId], (err, row) => {
+        if (row && row.push_subscription) {
+            const subscription = JSON.parse(row.push_subscription);
+            const payload = JSON.stringify({
+                title: title,
+                body: message,
+                icon: 'https://sua-url.com/logo-cici.png', // Ícone da sua empresa
+                badge: 'https://sua-url.com/badge-icon.png', // Ícone pequeno da barra de status
+                vibrate: [200, 100, 200]
+            });
+
+            webpush.sendNotification(subscription, payload).catch(err => console.error("Erro Push:", err));
+        }
+    });
+}
+
+// ROTA PARA O CELULAR SE INSCREVER (Chame isso no frontend após login)
+app.post('/api/notifications/subscribe', (req, res) => {
+    const subscription = req.body;
+    const userId = req.session.userId;
+    if (!userId) return res.status(401).json({ error: "Não logado" });
+
+    db.run("UPDATE users SET push_subscription = ? WHERE id = ?", [JSON.stringify(subscription), userId], (err) => {
+        if (err) return res.status(500).json({ error: "Erro ao salvar inscrição" });
+        res.status(201).json({ success: true });
+    });
+});
+// Exemplo dentro da rota de atualização de pacotes:
+app.post('/api/update-package', (req, res) => {
+    const { code, newStatus, clientId } = req.body;
+    
+    db.run("UPDATE orders SET status = ? WHERE code = ?", [newStatus, code], function(err) {
+        if (!err) {
+            // DISPARA A NOTIFICAÇÃO ESTILO SHEIN!
+            notifyUser(clientId, "📦 Guineexpress: Status Atualizado", `Sua encomenda ${code} agora está: ${newStatus}`);
+        }
+        res.json({ success: true });
+    });
 });
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)

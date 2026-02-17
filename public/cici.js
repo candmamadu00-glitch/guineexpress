@@ -54,7 +54,32 @@ const CiciAI = {
             if(badge) badge.classList.remove('hidden');
         }, 1500);
     },
+  // 🌟 NOVA HABILIDADE: Ativar Notificações no Celular
+    enableNotifications: async function() {
+        if (!('serviceWorker' in navigator)) return;
+        
+        try {
+            const register = await navigator.serviceWorker.register('/sw.js');
+            const permission = await Notification.requestPermission();
+            
+            if (permission === 'granted') {
+                const subscription = await register.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY'
+});
 
+                await fetch('/api/notifications/subscribe', {
+                    method: 'POST',
+                    body: JSON.stringify(subscription),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                this.addMessage("✅ Ótimo! Agora vou te avisar direto na tela do seu celular sobre qualquer novidade.", 'cici');
+            }
+        } catch (e) {
+            console.error("Erro ao ativar notificações", e);
+        }
+    },
     detectContext: function() {
         const path = window.location.pathname;
         const ua = navigator.userAgent;

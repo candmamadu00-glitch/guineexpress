@@ -4003,3 +4003,29 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 });
+async function registerPush() {
+    // 1. Registrar o Service Worker
+    const register = await navigator.serviceWorker.register('/sw.js');
+
+    // 2. Pedir permissão
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    // 3. Gerar assinatura do aparelho
+    const subscription = await register.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: 'SUA_CHAVE_PUBLICA_GERADA'
+    });
+
+    // 4. Enviar para o seu servidor
+    await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(subscription),
+        headers: { 'Content-Type': 'application/json' }
+    });
+}
+
+// Chame essa função após o login do usuário
+if ('serviceWorker' in navigator) {
+    registerPush().catch(err => console.error(err));
+}
