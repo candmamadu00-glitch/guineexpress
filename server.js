@@ -1714,10 +1714,17 @@ app.post('/api/update-package', (req, res) => {
         res.json({ success: true });
     });
 });
-app.get('/test-push', (req, res) => {
-    const userId = req.session.userId; // Ou coloque um ID manual que você saiba que existe
-    notifyUser(userId, "Teste da Cicí", "Isso é uma notificação estilo Shein!");
-    res.send("Tentativa de envio enviada ao log!");
+// ROTA DE TESTE DIRETO
+app.get('/testar-meu-push', (req, res) => {
+    const userId = req.session.userId;
+    if (!userId) return res.send("ERRO: Você não está logado! Faça login primeiro.");
+
+    console.log("Solicitado teste de push para o usuário:", userId);
+    
+    // Chamando a função de disparo que revisamos
+    notifyUser(userId, "Guineexpress Teste", "Sua notificação estilo Shein está funcionando! 📦🔥");
+    
+    res.send("<h1>Comando enviado!</h1><p>Olhe os logs do Render e verifique seu celular.</p>");
 });
 app.get('/enviar-teste', (req, res) => {
     const userId = req.session.userId;
