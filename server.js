@@ -1659,34 +1659,28 @@ VISÃO: Se houver imagem de etiqueta/documento, extraia os dados e use fillForm 
         res.status(500).json({ reply: "Tive um soluço técnico! 🔌" });
     }
 });
-// --- FUNÇÃO MÁGICA DE NOTIFICAÇÃO (REVISADA) ---
 async function notifyUser(userId, title, message) {
     db.get("SELECT push_subscription FROM users WHERE id = ?", [userId], (err, row) => {
-        if (err) return console.error("Erro ao buscar sub no banco:", err);
-        
         if (row && row.push_subscription) {
-            try {
-                const subscription = JSON.parse(row.push_subscription);
-                const payload = JSON.stringify({
-                    title: title,
-                    body: message,
-                    // DICA: Use caminhos relativos ou a URL real do seu logo para o ícone aparecer
-                    icon: '/logo.png', 
-                    badge: '/logo.png', 
-                    vibrate: [200, 100, 200],
-                    data: {
-                        url: '/dashboard-client.html' // Para onde o usuário vai ao clicar
-                    }
-                });
+            const subscription = JSON.parse(row.push_subscription);
+            const payload = JSON.stringify({
+                title: title,
+                body: message,
+                icon: '/logo.png',
+                badge: '/logo.png'
+            });
 
-                webpush.sendNotification(subscription, payload)
-                    .catch(err => {
-                        console.error("Erro ao enviar Push (Sub expirada?):", err);
-                        // Opcional: se der erro 410, a sub expirou, você pode limpar no banco
-                    });
-            } catch (e) {
-                console.error("Erro ao processar JSON da sub:", e);
-            }
+            console.log(`🚀 Tentando enviar push para o usuário ${userId}...`);
+
+            webpush.sendNotification(subscription, payload)
+                .then(result => {
+                    console.log("✅ Resposta do Servidor Push (Google/Apple):", result.statusCode);
+                })
+                .catch(error => {
+                    console.error("❌ Erro Real no envio:", error.statusCode, error.body);
+                });
+        } else {
+            console.log(`⚠️ Usuário ${userId} não tem um celular registrado no banco.`);
         }
     });
 }
