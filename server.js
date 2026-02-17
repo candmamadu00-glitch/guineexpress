@@ -1659,32 +1659,51 @@ VISÃO: Se houver imagem de etiqueta/documento, extraia os dados e use fillForm 
         res.status(500).json({ reply: "Tive um soluço técnico! 🔌" });
     }
 });
-// --- FUNÇÃO MÁGICA DE NOTIFICAÇÃO ---
+// --- FUNÇÃO MÁGICA DE NOTIFICAÇÃO (REVISADA) ---
 async function notifyUser(userId, title, message) {
     db.get("SELECT push_subscription FROM users WHERE id = ?", [userId], (err, row) => {
+        if (err) return console.error("Erro ao buscar sub no banco:", err);
+        
         if (row && row.push_subscription) {
-            const subscription = JSON.parse(row.push_subscription);
-            const payload = JSON.stringify({
-                title: title,
-                body: message,
-                icon: 'https://sua-url.com/logo-cici.png', // Ícone da sua empresa
-                badge: 'https://sua-url.com/badge-icon.png', // Ícone pequeno da barra de status
-                vibrate: [200, 100, 200]
-            });
+            try {
+                const subscription = JSON.parse(row.push_subscription);
+                const payload = JSON.stringify({
+                    title: title,
+                    body: message,
+                    // DICA: Use caminhos relativos ou a URL real do seu logo para o ícone aparecer
+                    icon: '/logo.png', 
+                    badge: '/logo.png', 
+                    vibrate: [200, 100, 200],
+                    data: {
+                        url: '/dashboard-client.html' // Para onde o usuário vai ao clicar
+                    }
+                });
 
-            webpush.sendNotification(subscription, payload).catch(err => console.error("Erro Push:", err));
+                webpush.sendNotification(subscription, payload)
+                    .catch(err => {
+                        console.error("Erro ao enviar Push (Sub expirada?):", err);
+                        // Opcional: se der erro 410, a sub expirou, você pode limpar no banco
+                    });
+            } catch (e) {
+                console.error("Erro ao processar JSON da sub:", e);
+            }
         }
     });
 }
 
-// ROTA PARA O CELULAR SE INSCREVER (Chame isso no frontend após login)
+// ROTA PARA O CELULAR SE INSCREVER
 app.post('/api/notifications/subscribe', (req, res) => {
     const subscription = req.body;
     const userId = req.session.userId;
+    
     if (!userId) return res.status(401).json({ error: "Não logado" });
 
+    // Armazenamos a string da inscrição no banco de dados
     db.run("UPDATE users SET push_subscription = ? WHERE id = ?", [JSON.stringify(subscription), userId], (err) => {
-        if (err) return res.status(500).json({ error: "Erro ao salvar inscrição" });
+        if (err) {
+            console.error("Erro banco ao salvar push:", err);
+            return res.status(500).json({ error: "Erro ao salvar inscrição" });
+        }
         res.status(201).json({ success: true });
     });
 });

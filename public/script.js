@@ -4019,34 +4019,43 @@ function urlBase64ToUint8Array(base64String) {
     return outputArray;
 }
 
-// Sua função de registro atualizada
+// NO SEU SCRIPT.JS (Frontend)
 async function registerPush() {
+    if (!('serviceWorker' in navigator)) return;
+
     try {
         const register = await navigator.serviceWorker.register('/sw.js');
-
         const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-            console.log("Permissão de notificação negada.");
-            return;
-        }
-
-        // 🌟 AQUI ESTÁ A CORREÇÃO: convertendo a chave antes de usar
-        const publicVapidKey = 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY';
-        const convertedVapidKey = urlBase64ToUint8Array(publicVapidKey);
-
-        const subscription = await register.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: convertedVapidKey // Usa a chave convertida
-        });
-
-        await fetch('/api/notifications/subscribe', {
-            method: 'POST',
-            body: JSON.stringify(subscription),
-            headers: { 'Content-Type': 'application/json' }
-        });
         
-        console.log("Push registrado com sucesso!");
-    } catch (error) {
-        console.error("Erro ao registrar push:", error);
+        if (permission === 'granted') {
+            // ESSA FUNÇÃO É OBRIGATÓRIA PARA NÃO DAR O ERRO QUE VOCÊ TEVE
+            const urlBase64ToUint8Array = (base64String) => {
+                const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+                const rawData = window.atob(base64);
+                const outputArray = new Uint8Array(rawData.length);
+                for (let i = 0; i < rawData.length; ++i) {
+                    outputArray[i] = rawData.charCodeAt(i);
+                }
+                return outputArray;
+            };
+
+            const publicVapidKey = 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY';
+            const convertedKey = urlBase64ToUint8Array(publicVapidKey);
+
+            const subscription = await register.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: convertedKey // AQUI VAI A CHAVE CONVERTIDA
+            });
+
+            await fetch('/api/notifications/subscribe', {
+                method: 'POST',
+                body: JSON.stringify(subscription),
+                headers: { 'Content-Type': 'application/json' }
+            });
+            console.log("Push ativado com sucesso!");
+        }
+    } catch (e) {
+        console.error("Erro no processo de push:", e);
     }
 }
