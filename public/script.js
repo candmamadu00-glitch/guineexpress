@@ -4003,29 +4003,50 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 });
-async function registerPush() {
-    // 1. Registrar o Service Worker
-    const register = await navigator.serviceWorker.register('/sw.js');
+// Função auxiliar necessária para converter a chave
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
 
-    // 2. Pedir permissão
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
 
-    // 3. Gerar assinatura do aparelho
-    const subscription = await register.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: 'SUA_CHAVE_PUBLICA_GERADA'
-    });
-
-    // 4. Enviar para o seu servidor
-    await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        body: JSON.stringify(subscription),
-        headers: { 'Content-Type': 'application/json' }
-    });
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
 }
 
-// Chame essa função após o login do usuário
-if ('serviceWorker' in navigator) {
-    registerPush().catch(err => console.error(err));
+// Sua função de registro atualizada
+async function registerPush() {
+    try {
+        const register = await navigator.serviceWorker.register('/sw.js');
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.log("Permissão de notificação negada.");
+            return;
+        }
+
+        // 🌟 AQUI ESTÁ A CORREÇÃO: convertendo a chave antes de usar
+        const publicVapidKey = 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY';
+        const convertedVapidKey = urlBase64ToUint8Array(publicVapidKey);
+
+        const subscription = await register.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: convertedVapidKey // Usa a chave convertida
+        });
+
+        await fetch('/api/notifications/subscribe', {
+            method: 'POST',
+            body: JSON.stringify(subscription),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        console.log("Push registrado com sucesso!");
+    } catch (error) {
+        console.error("Erro ao registrar push:", error);
+    }
 }
