@@ -1725,6 +1725,22 @@ app.get('/test-push', (req, res) => {
     notifyUser(userId, "Teste da Cicí", "Isso é uma notificação estilo Shein!");
     res.send("Tentativa de envio enviada ao log!");
 });
+app.get('/enviar-teste', (req, res) => {
+    const userId = req.session.userId;
+    if (!userId) return res.send("Faça login primeiro!");
+    
+    notifyUser(userId, "Teste Guineexpress", "Sua notificação estilo Shein chegou! 🚀");
+    res.send("Tentativa de envio processada! Verifique o celular.");
+});
+app.get('/disparar-meu-push', (req, res) => {
+    const userId = req.session.userId; // Pega o ID de quem está logado navegando
+    if (!userId) return res.send("Erro: Você precisa estar logado no navegador para testar!");
+
+    // Chama a função que criamos antes
+    notifyUser(userId, "Guineexpress", "Sua encomenda chegou! 📦🚀");
+    
+    res.send("<h1>Comando enviado!</h1><p>Verifique a tela do seu celular agora.</p>");
+});
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================
