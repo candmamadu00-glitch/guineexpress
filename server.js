@@ -1,6 +1,6 @@
 require('dotenv').config(); // Lê o arquivo .env
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI("AIzaSyDTDbQbHTeAXRDzlbkWN-Emb4H4KL5nRug");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -138,8 +138,8 @@ if (!db || typeof db.get !== 'function') {
     process.exit(1);
 }
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
 app.use(session({
     store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), 
@@ -1571,53 +1571,60 @@ const queryDB = (sql, params = []) => {
         });
     });
 };
-// --- ROTA DA CICÍ (MENSAGEM INICIAL FIXA + AJUDA NO CADASTRO) ---
+// --- ROTA DA CICÍ (VERSÃO PRO MAX - RASTREIO, FORMULÁRIOS E DESTAQUE) ---
 app.post('/api/cici/chat', async (req, res) => {
     try {
         const { text, userContext, image, isFirstMessage } = req.body;
+        const userId = req.session.userId; 
 
-        // REGRA DE OURO: Se for a primeira mensagem, devolve o texto EXATO que você pediu!
+        // 1. BUSCA DE DADOS REAIS NO BANCO PARA CONTEXTO
+        let dadosExtras = "";
+        if (userId) {
+            const orders = await new Promise((resolve) => {
+                db.all("SELECT code, status, description FROM orders WHERE client_id = ? ORDER BY id DESC LIMIT 3", [userId], (err, rows) => {
+                    resolve(rows || []);
+                });
+            });
+            if (orders.length > 0) {
+                dadosExtras = "\nENCOMENDAS REAIS DO UTILIZADOR NO SISTEMA:\n" + 
+                orders.map(o => `- Código: ${o.code}, Estado: ${o.status}, Descrição: ${o.description}`).join('\n');
+            }
+        }
+
+        // REGRA DE OURO: Saudação inicial sem gasto de IA
         if (isFirstMessage) {
-            // Descobre se é para "computador" ou "celular" baseado no dispositivo
-            const tipoAparelho = /Computador|Mac|Windows|Linux/i.test(userContext.deviceInfo) ? 'computador' : 'celular';
+            const tipoAparelho = /Computador|Mac|Windows|Linux/i.test(userContext.deviceInfo) ? 'computador' : 'telemóvel';
+            const paginaAtual = userContext.currentPage || 'Página Desconhecida';
+            const nomeUsuario = userContext.name && userContext.name !== '...' ? userContext.name : 'Visitante';
             
-            // Define o nome do painel
-            let painelNome = 'visitante';
-            if (userContext.role === 'admin') painelNome = 'admin';
-            if (userContext.role === 'employee') painelNome = 'colaborador';
-            if (userContext.role === 'client') painelNome = 'cliente';
-
-            const nomeUsuario = userContext.name && userContext.name !== '...' ? userContext.name : 'Usuário';
-
-            const mensagemExata = `Olá, ${nomeUsuario}! Que bom ter você aqui no seu painel de ${painelNome}! Vejo que você está usando um ${userContext.deviceInfo}. Gostaria de instalar o aplicativo da Guineexpress para ${tipoAparelho} e ter acesso facilitado a todas as suas ferramentas? Antes de começarmos, em qual idioma você prefere que eu te atenda?`;
-
-            // Responde imediatamente sem gastar a cota da IA
+            let mensagemExata = '';
+            if (paginaAtual.includes('Login')) {
+                mensagemExata = `Olá! Sou a Cicí, assistente da Guineexpress. Vejo que estás na tela de acesso via ${tipoAparelho}. Precisas de ajuda com o login, cadastro ou rastreio? [LANG:pt-BR]`;
+            } else {
+                let painelNome = userContext.role === 'admin' ? 'admin' : (userContext.role === 'employee' ? 'colaborador' : 'cliente');
+                mensagemExata = `Olá, ${nomeUsuario}! Bem-vindo ao teu painel de ${painelNome}. Como posso ajudar com as tuas ferramentas no ${tipoAparelho} hoje? [LANG:pt-BR]`;
+            }
             return res.json({ reply: mensagemExata, lang: 'pt-BR' });
         }
 
-        if (!text && !image) return res.status(400).json({ reply: "Preciso de um texto ou imagem." });
+        if (!text && !image) return res.status(400).json({ reply: "Preciso de texto ou imagem." });
 
-        const dataContext = `Usuário: ${userContext.name || 'Visitante'}. Papel: ${userContext.role}. Dispositivo exato: ${userContext.deviceInfo || 'Desconhecido'}.`;
+        const dataContext = `Usuário: ${userContext.name}. Papel: ${userContext.role}. Tela: ${userContext.currentPage}. ${dadosExtras}`;
 
-        const systemPrompt = `Você é a Cicí da Guineexpress, uma assistente avançada de logística.
-Contexto: ${dataContext}
+        const systemPrompt = `Você é a Cicí da Guineexpress, assistente logística avançada.
+Contexto Atual: ${dataContext}
 
-REGRAS GERAIS E MULTI-IDIOMA:
-1. Você é fluente em qualquer idioma.
-2. No final da sua resposta, adicione OBRIGATORIAMENTE a tag [LANG:codigo_do_idioma]. Ex: [LANG:pt-BR], [LANG:en-US], [LANG:fr-FR].
-3. Você deve ajudar os clientes em TUDO que precisarem dentro do painel (rastreio, saldo, dúvidas).
+AÇÕES ESPECIAIS (TAGS DE COMANDO):
+1. [ACTION:redirect:URL] - Muda a página do usuário.
+2. [ACTION:fillForm:ID_DO_CAMPO:VALOR] - Preenche campos (ex: peso, código, nome) se vir dados em fotos de etiquetas.
+3. [ACTION:highlight:ID_DO_ELEMENTO] - Faz um botão ou campo brilhar para guiar o usuário.
+4. [ZAP:numero:mensagem] - Gera link de WhatsApp.
+5. [LANG:codigo] - Idioma da resposta.
 
-AJUDA COM CADASTRO:
-Se o usuário pedir ajuda para abrir o formulário de cadastro ou quiser criar uma conta, forneça instruções amigáveis e inclua o link para a página. Exemplo: "Aqui está o link para você: <a href='/cadastro.html' style='color:#009ee3; font-weight:bold;'>Abrir Formulário de Cadastro</a>". Adapte o link conforme necessário.
-
-REGRA DO WHATSAPP (Apenas para Admin/Employee):
-Se pedirem para notificar um cliente, escreva a mensagem e adicione a tag: [ZAP:numero_do_telefone:Mensagem]. Se faltar o número, peça antes.
-
-REGRA DE IMAGENS:
-Se o usuário anexar uma imagem, analise-a (textos, códigos, pesos) e responda de acordo.`;
+DADOS REAIS: Se houver "ENCOMENDAS REAIS" no contexto, use-as para informar o status exato ao cliente.
+VISÃO: Se houver imagem de etiqueta/documento, extraia os dados e use fillForm para automatizar o trabalho do usuário.`;
 
         let messageParts = [{ text: text || "Analise esta imagem." }];
-
         if (image) {
             const mimeType = image.split(';')[0].split(':')[1];
             const base64Data = image.split(',')[1];
@@ -1627,7 +1634,7 @@ Se o usuário anexar uma imagem, analise-a (textos, códigos, pesos) e responda 
         const chat = model.startChat({
             history: [
                 { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Entendido! Seguirei as regras, ajudarei com o cadastro se solicitado e gerarei as tags corretamente." }] }
+                { role: "model", parts: [{ text: "Entendido. Usarei as encomendas reais do banco e as novas tags [ACTION:fillForm] e [ACTION:highlight] para ajudar o usuário." }] }
             ]
         });
 
@@ -1642,8 +1649,8 @@ Se o usuário anexar uma imagem, analise-a (textos, códigos, pesos) e responda 
         res.json({ reply: replyText, lang: langCode });
 
     } catch (error) {
-        console.error("🔥 ERRO FATAL NA CICI:", error);
-        res.status(500).json({ reply: "Tive um soluço técnico! 🔌", error: error.message });
+        console.error("🔥 ERRO CICÍ:", error);
+        res.status(500).json({ reply: "Tive um soluço técnico! 🔌" });
     }
 });
 // =====================================================

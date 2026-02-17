@@ -274,3 +274,17 @@
     align-self: flex-start;
     border-radius: 15px 15px 15px 0;
 }
+@keyframes cici-pulse {
+    0% { box-shadow: 0 0 0 0px rgba(52, 152, 219, 0.7); }
+    100% { box-shadow: 0 0 0 15px rgba(52, 152, 219, 0); }
+}
+.cici-highlight-pulse {
+    animation: cici-pulse 1.5s infinite;
+    border: 3px solid #3498db !important;
+    position: relative;
+    z-index: 9999;
+}
+.zap-btn {
+    display: block; background: #25D366; color: white; padding: 10px; 
+    border-radius: 10px; text-align: center; font-weight: bold; text-decoration: none; margin-top: 10px;
+}

@@ -306,7 +306,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 /* INPUTS ESCUROS (Para combinar com o vidro) */
 .login-card .form-control {
     padding: 14px !important;
-    background-color: rgba(0, 0, 0, 0.3) !important; 
+    background-color: rgba(141, 134, 134, 0.3) !important; 
     border: 1px solid rgba(255, 255, 255, 0.63) !important;
     border-radius: 12px !important;
     color: #ffffff !important;
@@ -318,7 +318,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 }
 
 .login-card .form-control:focus {
-    background-color: rgba(0, 0, 0, 0.5) !important;
+    background-color: rgba(49, 49, 49, 0.5) !important;
     border-color: #d4af37 !important;
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2) !important;
 }
