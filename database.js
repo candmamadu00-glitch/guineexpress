@@ -170,7 +170,10 @@ db.serialize(() => {
     db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
     db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
     db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
-
+    // 🌟 ADICIONE ESTA LINHA ABAIXO PARA CORRIGIR O ERRO:
+    db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
+        if (!err) console.log("✅ Coluna push_subscription adicionada com sucesso!");
+    });
     console.log("✅ Tabelas sincronizadas e colunas verificadas.");
 
     // =======================================================

@@ -1693,6 +1693,7 @@ async function notifyUser(userId, title, message) {
 
 // ROTA PARA O CELULAR SE INSCREVER
 app.post('/api/notifications/subscribe', (req, res) => {
+    console.log("Recebi uma tentativa de inscrição push!");
     const subscription = req.body;
     const userId = req.session.userId;
     
@@ -1718,6 +1719,11 @@ app.post('/api/update-package', (req, res) => {
         }
         res.json({ success: true });
     });
+});
+app.get('/test-push', (req, res) => {
+    const userId = req.session.userId; // Ou coloque um ID manual que você saiba que existe
+    notifyUser(userId, "Teste da Cicí", "Isso é uma notificação estilo Shein!");
+    res.send("Tentativa de envio enviada ao log!");
 });
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)

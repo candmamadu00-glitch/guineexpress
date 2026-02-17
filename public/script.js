@@ -4059,3 +4059,12 @@ async function registerPush() {
         console.error("Erro no processo de push:", e);
     }
 }
+// Forçar o registro ao carregar a página
+document.addEventListener('DOMContentLoaded', () => {
+    if ('serviceWorker' in navigator) {
+        // Pequeno atraso para garantir que tudo carregou
+        setTimeout(() => {
+            registerPush(); 
+        }, 2000);
+    }
+});
