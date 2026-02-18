@@ -244,20 +244,15 @@ app.get('/api/admin/logs', (req, res) => {
         res.json(rows || []);
     });
 });
-app.post('/api/logout', (req, res) => { 
-    req.session.destroy((err) => {
-        res.clearCookie('connect.sid'); // Limpa o ID da sessão no navegador
-        res.json({ success: true }); 
-    });
-});
+app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({success: true}); });
+// ROTA: Checar Sessão Ativa (Para Auto-Login)
 app.get('/api/check-session', (req, res) => {
     if (req.session.userId) {
         res.json({ 
             loggedIn: true, 
             user: { 
                 id: req.session.userId,
-                // Buscamos do objeto 'user' que você salvou no login
-                name: req.session.user ? req.session.user.name : 'Usuário',
+                name: req.session.userName,
                 role: req.session.role
             }
         });
