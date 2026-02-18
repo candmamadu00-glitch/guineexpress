@@ -1577,13 +1577,11 @@ const queryDB = (sql, params = []) => {
         });
     });
 };
-// --- ROTA DA CICÍ (VERSÃO PRO MAX - RASTREIO, FORMULÁRIOS E DESTAQUE) ---
 app.post('/api/cici/chat', async (req, res) => {
     try {
         const { text, userContext, image, isFirstMessage } = req.body;
         const userId = req.session.userId; 
 
-        // 1. BUSCA DE DADOS REAIS NO BANCO PARA CONTEXTO
         let dadosExtras = "";
         if (userId) {
             const orders = await new Promise((resolve) => {
@@ -1592,55 +1590,39 @@ app.post('/api/cici/chat', async (req, res) => {
                 });
             });
             if (orders.length > 0) {
-                dadosExtras = "\nENCOMENDAS REAIS DO UTILIZADOR NO SISTEMA:\n" + 
-                orders.map(o => `- Código: ${o.code}, Estado: ${o.status}, Descrição: ${o.description}`).join('\n');
+                dadosExtras = "\nENCOMENDAS REAIS:\n" + orders.map(o => `- ${o.code}: ${o.status}`).join('\n');
             }
         }
 
-        // REGRA DE OURO: Saudação inicial sem gasto de IA
+        // Saudação Inicial Inteligente
         if (isFirstMessage) {
-            const tipoAparelho = /Computador|Mac|Windows|Linux/i.test(userContext.deviceInfo) ? 'computador' : 'telemóvel';
-            const paginaAtual = userContext.currentPage || 'Página Desconhecida';
-            const nomeUsuario = userContext.name && userContext.name !== '...' ? userContext.name : 'Visitante';
+            const isMobile = /Telemóvel/i.test(userContext.deviceInfo);
+            let msg = `Olá! Sou a Cicí. Como posso ajudar hoje?`;
             
-            let mensagemExata = '';
-            if (paginaAtual.includes('Login')) {
-                mensagemExata = `Olá! Sou a Cicí, assistente da Guineexpress. Vejo que estás na tela de acesso via ${tipoAparelho}. Precisas de ajuda com o login, cadastro ou rastreio? [LANG:pt-BR]`;
-            } else {
-                let painelNome = userContext.role === 'admin' ? 'admin' : (userContext.role === 'employee' ? 'colaborador' : 'cliente');
-                mensagemExata = `Olá, ${nomeUsuario}! Bem-vindo ao teu painel de ${painelNome}. Como posso ajudar com as tuas ferramentas no ${tipoAparelho} hoje? [LANG:pt-BR]`;
+            if (isMobile) {
+                msg += `\n\n💡 Dica: Sabia que podes instalar o nosso sistema como um App no teu telemóvel? Queres que te ensine?`;
             }
-            return res.json({ reply: mensagemExata, lang: 'pt-BR' });
+            return res.json({ reply: msg, lang: 'pt-BR' });
         }
 
-        if (!text && !image) return res.status(400).json({ reply: "Preciso de texto ou imagem." });
+        const systemPrompt = `Você é a Cicí, assistente humana e prestativa da Guineexpress.
+Contexto: ${userContext.name}, na tela ${userContext.currentPage}. ${dadosExtras}
 
-        const dataContext = `Usuário: ${userContext.name}. Papel: ${userContext.role}. Tela: ${userContext.currentPage}. ${dadosExtras}`;
+AÇÕES NOVAS:
+- Se o usuário quiser instalar o sistema ou usar como app, use [ACTION:install].
+- Se o usuário reclamar que não recebe avisos, use [ACTION:push].
 
-        const systemPrompt = `Você é a Cicí da Guineexpress, assistente logística avançada.
-Contexto Atual: ${dataContext}
+INSTRUÇÃO DE VOZ: Escreva de forma natural, use exclamações leves e seja empática para que a voz sintetizada soe humana. Evite frases muito longas sem vírgulas.`;
 
-AÇÕES ESPECIAIS (TAGS DE COMANDO):
-1. [ACTION:redirect:URL] - Muda a página do usuário.
-2. [ACTION:fillForm:ID_DO_CAMPO:VALOR] - Preenche campos (ex: peso, código, nome) se vir dados em fotos de etiquetas.
-3. [ACTION:highlight:ID_DO_ELEMENTO] - Faz um botão ou campo brilhar para guiar o usuário.
-4. [ZAP:numero:mensagem] - Gera link de WhatsApp.
-5. [LANG:codigo] - Idioma da resposta.
-
-DADOS REAIS: Se houver "ENCOMENDAS REAIS" no contexto, use-as para informar o status exato ao cliente.
-VISÃO: Se houver imagem de etiqueta/documento, extraia os dados e use fillForm para automatizar o trabalho do usuário.`;
-
-        let messageParts = [{ text: text || "Analise esta imagem." }];
+        let messageParts = [{ text: text || "Analise a imagem." }];
         if (image) {
-            const mimeType = image.split(';')[0].split(':')[1];
-            const base64Data = image.split(',')[1];
-            messageParts.push({ inlineData: { data: base64Data, mimeType: mimeType } });
+            messageParts.push({ inlineData: { data: image.split(',')[1], mimeType: image.split(';')[0].split(':')[1] } });
         }
 
         const chat = model.startChat({
             history: [
                 { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Entendido. Usarei as encomendas reais do banco e as novas tags [ACTION:fillForm] e [ACTION:highlight] para ajudar o usuário." }] }
+                { role: "model", parts: [{ text: "Entendido. Vou agir como uma assistente humana, oferecendo instalação [ACTION:install] e notificações [ACTION:push] quando necessário." }] }
             ]
         });
 
@@ -1655,8 +1637,7 @@ VISÃO: Se houver imagem de etiqueta/documento, extraia os dados e use fillForm 
         res.json({ reply: replyText, lang: langCode });
 
     } catch (error) {
-        console.error("🔥 ERRO CICÍ:", error);
-        res.status(500).json({ reply: "Tive um soluço técnico! 🔌" });
+        res.status(500).json({ reply: "Estou com um probleminha técnico." });
     }
 });
 async function notifyUser(userId, title, message) {
