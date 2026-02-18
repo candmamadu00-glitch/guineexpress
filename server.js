@@ -147,19 +147,20 @@ if (!db || typeof db.get !== 'function') {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
+app.set('trust proxy', 1); // Essencial para sessões seguras no Render
+
 app.use(session({
-    // Importante: no Render, o sessions.db deve ficar na pasta /data para não apagar no deploy
     store: new SQLiteStore({ 
         db: 'sessions.db', 
         dir: fs.existsSync('/data') ? '/data' : '.' 
     }), 
     secret: process.env.SESSION_SECRET || 'segredo_padrao',
-    resave: false,
+    resave: true, // Alterado para true para manter a sessão viva em cada requisição
     saveUninitialized: false,
     cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 365, // 1 ano de duração
-        secure: true, // Render usa HTTPS, então 'true' é melhor para segurança
-        sameSite: 'lax' 
+        maxAge: 1000 * 60 * 60 * 24 * 365,
+        secure: true, // Mantenha true pois o Render tem SSL
+        sameSite: 'lax'
     } 
 }));
 
