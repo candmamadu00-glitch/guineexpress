@@ -1,5 +1,5 @@
 /* ===========================================================
-   CICÍ PRO MAX ULTRA - VERSÃO 17.0 (INSTALADOR & VOZ HUMANA)
+   CICÍ PRO MAX ULTRA - VERSÃO 17.0 (INSTALADOR & VOZ HUMANA MASCULINA)
    =========================================================== */
 
 const CiciAI = {
@@ -13,7 +13,7 @@ const CiciAI = {
     currentImageBase64: null,
     avatarUrl: 'https://img.freepik.com/fotos-gratis/jovem-mulher-confiante-com-oculos_1098-20868.jpg?w=200',
 
-    // 🌟 MELHORIA: Voz Mais Humana e Expressiva
+    // 🌟 MELHORIA: Voz Masculina Humana e Expressiva
     speak: function(text) {
         if (!window.speechSynthesis) return;
         window.speechSynthesis.cancel(); 
@@ -22,16 +22,19 @@ const CiciAI = {
         const utterance = new SpeechSynthesisUtterance(cleanText);
         
         const voices = window.speechSynthesis.getVoices();
-        // Procura vozes "Natural" ou "Premium" que soam muito melhor
-        const humanVoice = voices.find(v => (v.lang.startsWith('pt') && v.name.includes('Google')) || v.name.includes('Natural'));
         
-        if (humanVoice) {
-            utterance.voice = humanVoice;
+        // 🧔 BUSCA POR VOZ MASCULINA (Prioriza Google Português ou vozes masculinas do sistema)
+        const maleVoice = voices.find(v => 
+            (v.lang.startsWith('pt') && (v.name.includes('Male') || v.name.includes('Masc') || v.name.includes('Daniel') || v.name.includes('Antonio')))
+        ) || voices.find(v => v.lang.startsWith('pt')); // Fallback para qualquer pt-BR se não achar masculina específica
+        
+        if (maleVoice) {
+            utterance.voice = maleVoice;
         }
         
-        // Parâmetros para voz menos robótica
-        utterance.pitch = 1.1; // Tom levemente mais agudo (mais amigável)
-        utterance.rate = 0.95; // Velocidade levemente reduzida para clareza
+        // Parâmetros para voz masculina humana
+        utterance.pitch = 0.8; // Tom mais baixo/grave para parecer homem
+        utterance.rate = 1.0;  // Velocidade normal
         utterance.lang = this.currentLang;
         
         window.speechSynthesis.speak(utterance);
@@ -67,7 +70,8 @@ const CiciAI = {
     init: function() {
         this.detectContext();
         this.renderWidget();
-        window.speechSynthesis.getVoices();
+        // Garante carga de vozes em alguns navegadores
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
         setTimeout(() => {
             const badge = document.getElementById('cici-badge');
             if(badge) badge.classList.remove('hidden');
