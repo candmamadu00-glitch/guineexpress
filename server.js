@@ -148,13 +148,18 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
 app.use(session({
-    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), 
+    // Importante: no Render, o sessions.db deve ficar na pasta /data para não apagar no deploy
+    store: new SQLiteStore({ 
+        db: 'sessions.db', 
+        dir: fs.existsSync('/data') ? '/data' : '.' 
+    }), 
     secret: process.env.SESSION_SECRET || 'segredo_padrao',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 7, 
-        secure: false 
+        maxAge: 1000 * 60 * 60 * 24 * 365, // 1 ano de duração
+        secure: true, // Render usa HTTPS, então 'true' é melhor para segurança
+        sameSite: 'lax' 
     } 
 }));
 
@@ -239,15 +244,20 @@ app.get('/api/admin/logs', (req, res) => {
         res.json(rows || []);
     });
 });
-app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({success: true}); });
-// ROTA: Checar Sessão Ativa (Para Auto-Login)
+app.post('/api/logout', (req, res) => { 
+    req.session.destroy((err) => {
+        res.clearCookie('connect.sid'); // Limpa o ID da sessão no navegador
+        res.json({ success: true }); 
+    });
+});
 app.get('/api/check-session', (req, res) => {
     if (req.session.userId) {
         res.json({ 
             loggedIn: true, 
             user: { 
                 id: req.session.userId,
-                name: req.session.userName,
+                // Buscamos do objeto 'user' que você salvou no login
+                name: req.session.user ? req.session.user.name : 'Usuário',
                 role: req.session.role
             }
         });
@@ -1702,37 +1712,23 @@ app.post('/api/notifications/subscribe', (req, res) => {
         res.status(201).json({ success: true });
     });
 });
-// Exemplo dentro da rota de atualização de pacotes:
 app.post('/api/update-package', (req, res) => {
     const { code, newStatus, clientId } = req.body;
     
     db.run("UPDATE orders SET status = ? WHERE code = ?", [newStatus, code], function(err) {
         if (!err) {
-            // DISPARA A NOTIFICAÇÃO ESTILO SHEIN!
-            notifyUser(clientId, "📦 Guineexpress: Status Atualizado", `Sua encomenda ${code} agora está: ${newStatus}`);
+            // Buscamos o ID do cliente dono da encomenda para garantir o envio
+            // Mesmo que você não envie o clientId no body, podemos buscar pelo código da encomenda
+            db.get("SELECT client_id FROM orders WHERE code = ?", [code], (err, order) => {
+                if (order && order.client_id) {
+                    notifyUser(order.client_id, "📦 Status Atualizado", `Sua encomenda ${code} mudou para: ${newStatus}`);
+                }
+            });
         }
         res.json({ success: true });
     });
 });
-// ROTA DE TESTE DIRETO
-app.get('/testar-meu-push', (req, res) => {
-    const userId = req.session.userId;
-    if (!userId) return res.send("ERRO: Você não está logado! Faça login primeiro.");
 
-    console.log("Solicitado teste de push para o usuário:", userId);
-    
-    // Chamando a função de disparo que revisamos
-    notifyUser(userId, "Guineexpress Teste", "Sua notificação estilo Shein está funcionando! 📦🔥");
-    
-    res.send("<h1>Comando enviado!</h1><p>Olhe os logs do Render e verifique seu celular.</p>");
-});
-app.get('/enviar-teste', (req, res) => {
-    const userId = req.session.userId;
-    if (!userId) return res.send("Faça login primeiro!");
-    
-    notifyUser(userId, "Teste Guineexpress", "Sua notificação estilo Shein chegou! 🚀");
-    res.send("Tentativa de envio processada! Verifique o celular.");
-});
 app.get('/disparar-meu-push', (req, res) => {
     const userId = req.session.userId; // Pega o ID de quem está logado navegando
     if (!userId) return res.send("Erro: Você precisa estar logado no navegador para testar!");

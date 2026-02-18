@@ -5,43 +5,40 @@ let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
-// ==========================================
-// AUTO-LOGIN (Ao atualizar a página)
-// ==========================================
 async function checkAutoLogin() {
     try {
         const res = await fetch('/api/check-session');
         const data = await res.json();
 
         if (data.loggedIn) {
-            // Salva dados globais
             currentUser = data.user;
             currentRole = data.user.role;
 
-            // --- NOVO: ATUALIZA O NOME NA TELA ---
+            // --- 🌟 NOVO: ATIVA NOTIFICAÇÕES AUTOMATICAMENTE ---
+            if ('serviceWorker' in navigator) {
+                registerPush(); 
+            }
+            // ------------------------------------------------
+
             const nameDisplay = document.getElementById('user-name-display');
             if (nameDisplay && currentUser.name) {
-                // Pega só o primeiro nome (Ex: "João Silva" vira "João")
                 const firstName = currentUser.name.split(' ')[0];
                 nameDisplay.innerText = firstName;
             }
-            // -------------------------------------
 
-            // Esconde Login e Mostra Dashboard
-            document.getElementById('login-screen').classList.add('hidden');
+            // Lógica de redirecionamento que você já tem...
+            document.getElementById('login-screen')?.classList.add('hidden');
             
-            if (currentRole === 'admin') {
+            const isAtRoot = window.location.pathname.includes('index') || window.location.pathname === '/';
+            
+            if (currentRole === 'admin' && isAtRoot) {
                 window.location.href = 'dashboard-admin.html'; 
-            } else {
-                if(window.location.pathname.includes('index') || window.location.pathname === '/') {
-                     window.location.href = 'dashboard-client.html';
-                } else {
-                     showSection('home-view'); 
-                }
+            } else if (currentRole === 'client' && isAtRoot) {
+                window.location.href = 'dashboard-client.html';
             }
         }
     } catch (error) {
-        console.log("Sessão expirada ou inválida.");
+        console.log("Sessão expirada.");
     }
 }
 // Executa ao abrir a página
