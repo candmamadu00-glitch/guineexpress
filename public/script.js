@@ -14,23 +14,27 @@ async function checkAutoLogin() {
             currentUser = data.user;
             currentRole = data.user.role;
 
-            // 🌟 SÓ registra o push se estivermos em um Dashboard (onde o login é garantido)
-            // E damos um pequeno delay de 2 segundos para o cookie estabilizar
-            if ('serviceWorker' in navigator && window.location.pathname.includes('dashboard')) {
-                setTimeout(() => {
-                    registerPush();
-                }, 2000); 
+            // --- 🌟 NOVO: ATIVA NOTIFICAÇÕES AUTOMATICAMENTE ---
+            if ('serviceWorker' in navigator) {
+                registerPush(); 
             }
+            // ------------------------------------------------
 
             const nameDisplay = document.getElementById('user-name-display');
             if (nameDisplay && currentUser.name) {
-                nameDisplay.innerText = currentUser.name.split(' ')[0];
+                const firstName = currentUser.name.split(' ')[0];
+                nameDisplay.innerText = firstName;
             }
 
-            // Evita o loop de redirecionamento: só redireciona se estiver na index
-            const isAtRoot = window.location.pathname.endsWith('/') || window.location.pathname.includes('index.html');
-            if (isAtRoot) {
-                window.location.href = currentRole === 'admin' ? 'dashboard-admin.html' : 'dashboard-client.html';
+            // Lógica de redirecionamento que você já tem...
+            document.getElementById('login-screen')?.classList.add('hidden');
+            
+            const isAtRoot = window.location.pathname.includes('index') || window.location.pathname === '/';
+            
+            if (currentRole === 'admin' && isAtRoot) {
+                window.location.href = 'dashboard-admin.html'; 
+            } else if (currentRole === 'client' && isAtRoot) {
+                window.location.href = 'dashboard-client.html';
             }
         }
     } catch (error) {
