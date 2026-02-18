@@ -5,40 +5,43 @@ let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
+// ==========================================
+// AUTO-LOGIN (Ao atualizar a página)
+// ==========================================
 async function checkAutoLogin() {
     try {
         const res = await fetch('/api/check-session');
         const data = await res.json();
 
         if (data.loggedIn) {
+            // Salva dados globais
             currentUser = data.user;
             currentRole = data.user.role;
 
-            // --- 🌟 NOVO: ATIVA NOTIFICAÇÕES AUTOMATICAMENTE ---
-            if ('serviceWorker' in navigator) {
-                registerPush(); 
-            }
-            // ------------------------------------------------
-
+            // --- NOVO: ATUALIZA O NOME NA TELA ---
             const nameDisplay = document.getElementById('user-name-display');
             if (nameDisplay && currentUser.name) {
+                // Pega só o primeiro nome (Ex: "João Silva" vira "João")
                 const firstName = currentUser.name.split(' ')[0];
                 nameDisplay.innerText = firstName;
             }
+            // -------------------------------------
 
-            // Lógica de redirecionamento que você já tem...
-            document.getElementById('login-screen')?.classList.add('hidden');
+            // Esconde Login e Mostra Dashboard
+            document.getElementById('login-screen').classList.add('hidden');
             
-            const isAtRoot = window.location.pathname.includes('index') || window.location.pathname === '/';
-            
-            if (currentRole === 'admin' && isAtRoot) {
+            if (currentRole === 'admin') {
                 window.location.href = 'dashboard-admin.html'; 
-            } else if (currentRole === 'client' && isAtRoot) {
-                window.location.href = 'dashboard-client.html';
+            } else {
+                if(window.location.pathname.includes('index') || window.location.pathname === '/') {
+                     window.location.href = 'dashboard-client.html';
+                } else {
+                     showSection('home-view'); 
+                }
             }
         }
     } catch (error) {
-        console.log("Sessão expirada.");
+        console.log("Sessão expirada ou inválida.");
     }
 }
 // Executa ao abrir a página
