@@ -1579,69 +1579,35 @@ const queryDB = (sql, params = []) => {
 };
 app.post('/api/cici/chat', async (req, res) => {
     try {
-        const { text, userContext, image, isFirstMessage, lang } = req.body;
-        const userId = req.session.userId; 
+        const { text, userContext, image, lang } = req.body;
 
-        // 1. Contexto de Logística (Busca no Banco)
-        let dadosExtras = "";
-        if (userId) {
-            const orders = await new Promise((resolve) => {
-                db.all("SELECT code, status FROM orders WHERE client_id = ? ORDER BY id DESC LIMIT 3", [userId], (err, rows) => {
-                    resolve(rows || []);
-                });
-            });
-            if (orders.length > 0) {
-                dadosExtras = "\nENCOMENDAS ATUAIS:\n" + orders.map(o => `- ${o.code}: ${o.status}`).join('\n');
-            }
-        }
+        const systemPrompt = `Você é a Cicí Pro Max 20.0 da Guineexpress.
+        Contexto do Usuário: Nome: ${userContext.name}, Cargo: ${userContext.role}, Aparelho: ${userContext.deviceInfo}.
+        Idioma de resposta: ${lang}.
 
-        // 2. Prompt Mestre
-        const systemPrompt = `Você é a Cicí 18.0, a IA suprema da Guineexpress. 
-        Usuário: ${userContext.name || 'Cliente'}. Tela: ${userContext.currentPage}.
-        ${dadosExtras}
-        Idioma: ${lang || 'pt-BR'}
+        HABILIDADES ESPECIAIS:
+        1. ANALISAR DOCUMENTOS/IMAGENS: Se o usuário enviar uma foto de documento ou fatura, descreva os dados e ajude-o.
+        2. APOIO AO CADASTRO: Se o usuário der informações como "Meu nome é João, moro na rua X", você deve responder com o comando: [ACTION:fillForm:{"nome":"João", "endereco":"rua X"}] e confirmar que preencheu.
+        3. MULTILÍNGUE: Fale fluentemente qualquer idioma solicitado.
+        4. INSTALAÇÃO: Sugira [ACTION:install] se ele quiser o app.
 
-        AÇÕES DISPONÍVEIS:
-        - Para instalar o PWA: [ACTION:install]
-        - Para notificações: [ACTION:push]
-        - Para redirecionar: [ACTION:redirect:/url]
+        Personalidade: Útil, rápida e super inteligente.`;
 
-        PERSONALIDADE: Eficiente, humana e técnica. Use linguagem clara para síntese de voz.`;
-
-        let messageParts = [{ text: text || "Analisando imagem ou início de conversa." }];
+        let messageParts = [{ text: text || "Análise este arquivo/imagem." }];
         if (image) {
+            // Suporte para análise de OCR/Documentos via Gemini Vision
             messageParts.push({ 
-                inlineData: { 
-                    data: image.split(',')[1], 
-                    mimeType: image.split(';')[0].split(':')[1] 
-                } 
+                inlineData: { data: image.split(',')[1], mimeType: "image/jpeg" } 
             });
         }
 
-        const chat = model.startChat({
-            history: [
-                { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Entendido. Cicí 18.0 pronta para operar." }] }
-            ]
-        });
-
-        const result = await chat.sendMessage(messageParts);
-        const replyText = result.response.text();
-
-        res.json({ reply: replyText, lang: lang || 'pt-BR' });
+        const result = await model.generateContent([systemPrompt, ...messageParts]);
+        const response = await result.response;
+        res.json({ reply: response.text(), lang });
 
     } catch (error) {
-        console.error("Erro Cicí:", error.message);
-
-        // Verifica se o erro é de quota (429)
-        if (error.status === 429 || error.message.includes('429')) {
-            return res.status(429).json({ 
-                reply: "Estou recebendo muitas mensagens agora! 😅 Pode tentar de novo em cerca de 1 minuto? Minha 'bateria' de processamento gratuito precisa de um descanso rápido.",
-                isQuotaError: true 
-            });
-        }
-
-        res.status(500).json({ reply: "Tive um soluço técnico aqui no meu servidor." });
+        console.error(error);
+        res.status(500).json({ reply: "Erro no processamento da Cicí." });
     }
 });
 async function notifyUser(userId, title, message) {

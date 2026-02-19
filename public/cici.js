@@ -151,7 +151,7 @@ const CiciAI = {
         win.classList.toggle('open', this.isOpen);
         
         if (this.isOpen && !this.hasGreeted) {
-            const saudacao = `Olá! Sou o assistente virtual da <b>Guineexpress</b>. <br><br>Qual idioma prefere? / Which language?`;
+            const saudacao = `Olá! Sou o assistente virtual da <b>Guineexpress</b>. <br><br>Qual idioma prefere?  Which language?`;
             this.addMessage(saudacao, 'cici');
             
             const botoes = `
@@ -256,7 +256,28 @@ const CiciAI = {
         };
         recognition.start();
     },
+// Adicione estas funções dentro do objeto CiciAI
 
+    // 📄 Função para selecionar e processar documentos
+    handleDocumentSelect: function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            // Armazena o documento como base64 para o Gemini analisar
+            this.currentImageBase64 = e.target.result;
+            
+            // Feedback visual para o usuário
+            this.addMessage(`📄 <b>Documento recebido:</b> ${file.name}<br>Estou analisando o conteúdo, só um momento...`, 'user');
+            
+            // Dispara a análise automática
+            this.processText(`Analise este documento chamado ${file.name} e extraia as informações principais para mim.`);
+        };
+        
+        // Se for imagem ou PDF (O Gemini Vision lida bem com imagens de documentos)
+        reader.readAsDataURL(file);
+    },
     handleInput: function(e) { if(e.key === 'Enter') this.handleSend(); },
     handleSend: function() {
         const input = document.getElementById('cici-input');
