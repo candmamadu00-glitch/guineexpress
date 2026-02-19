@@ -25,19 +25,23 @@ const qrcode = require('qrcode-terminal');
 
 const { execSync } = require('child_process');
 
-// 1. Limpeza Blindada e Eliminação de Zumbis
+// 1. OPÇÃO NUCLEAR: Apagando a sessão corrompida inteira
 if (process.platform === 'linux') {
-    console.log('🧹 Limpando ambiente para o WhatsApp...');
-    
-    // PASSO A: Matar qualquer Chrome fantasma rodando na memória
+    const { execSync } = require('child_process');
     try {
-        // O -9 força o encerramento imediato do processo
-        const { execSync } = require('child_process');
-        execSync('pkill -9 -f chrome');
-        console.log('🔫 Processos zumbis do Chrome encerrados.');
+        console.log('💥 [OPÇÃO NUCLEAR] Apagando sessão antiga e corrompida...');
+        
+        // Mata processos residuais
+        execSync('pkill -9 -f chrome || true');
+        
+        // DELETA a pasta inteira do WhatsApp do disco do Render
+        execSync('rm -rf /data/session-whatsapp || true');
+        
+        console.log('✅ Pasta apagada com sucesso. O WhatsApp vai gerar um QR Code novo e limpo!');
     } catch (e) {
-        // É normal cair aqui se não houver nenhum Chrome rodando, então apenas ignoramos
+        console.error('⚠️ Erro na limpeza nuclear:', e.message);
     }
+}
 
     // PASSO B: Apagar todos os arquivos de trava (Adicionamos o DevToolsActivePort)
     const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
