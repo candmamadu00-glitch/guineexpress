@@ -24,14 +24,24 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
 const { execSync } = require('child_process');
+const fs = require('fs');
 
-// 1. Mata qualquer Chrome fantasma travado no Render antes de iniciar
+// 1. Limpeza Bruta Definitiva (Quebrando o Cadeado)
 if (process.platform === 'linux') {
     try {
-        execSync('pkill -f chrome');
-        console.log('🧹 Processos zumbis do Chrome eliminados.');
+        console.log('🧹 Limpando travas de processos anteriores do Chrome...');
+        
+        // Mata processos zumbis
+        execSync('pkill -f chrome || true');
+        
+        // Deleta os arquivos de "Cadeado" (SingletonLock) que causam o Erro 21 no disco /data
+        execSync('find /data -type f -name "SingletonLock" -delete || true');
+        execSync('find /data -type f -name "SingletonCookie" -delete || true');
+        execSync('find /data -type f -name "SingletonSocket" -delete || true');
+        
+        console.log('✅ Travas removidas com sucesso.');
     } catch (e) {
-        // Ignora se não houver nenhum processo rodando
+        console.error('Aviso ao limpar travas:', e.message);
     }
 }
 
@@ -51,7 +61,6 @@ const whatsappClient = new Client({
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--no-zygote'
-            // IMPORTANTE: Não use '--single-process', pois ele causa o Erro 0
         ],
     }
 });
