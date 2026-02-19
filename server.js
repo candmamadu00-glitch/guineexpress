@@ -25,23 +25,35 @@ const qrcode = require('qrcode-terminal');
 
 const { execSync } = require('child_process');
 
-// 1. Limpeza Bruta Definitiva (Quebrando o Cadeado)
+// 1. Limpeza Blindada (Usando Node.js nativo em vez de comandos Linux)
 if (process.platform === 'linux') {
-    try {
-        console.log('🧹 Limpando travas de processos anteriores do Chrome...');
+    console.log('🧹 Procurando e deletando travas do Chrome...');
+    
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    const sessionDir = '/data/session-whatsapp';
+
+    // Função que varre as pastas e apaga as travas
+    function clearLocks(dir) {
+        if (!fs.existsSync(dir)) return;
         
-        // Mata processos zumbis
-        execSync('pkill -f chrome || true');
-        
-        // Deleta os arquivos de "Cadeado" (SingletonLock) que causam o Erro 21 no disco /data
-        execSync('find /data -type f -name "SingletonLock" -delete || true');
-        execSync('find /data -type f -name "SingletonCookie" -delete || true');
-        execSync('find /data -type f -name "SingletonSocket" -delete || true');
-        
-        console.log('✅ Travas removidas com sucesso.');
-    } catch (e) {
-        console.error('Aviso ao limpar travas:', e.message);
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+            const fullPath = path.join(dir, file);
+            if (fs.statSync(fullPath).isDirectory()) {
+                clearLocks(fullPath); // Procura dentro das subpastas
+            } else if (lockFiles.includes(file)) {
+                try {
+                    fs.unlinkSync(fullPath);
+                    console.log(`✅ Cadeado quebrado: ${fullPath}`);
+                } catch (e) {
+                    console.error(`⚠️ Não consegui apagar ${fullPath}:`, e.message);
+                }
+            }
+        }
     }
+
+    // Roda a limpeza antes de abrir o WhatsApp
+    clearLocks(sessionDir);
 }
 
 // 2. Configuração do Cliente
