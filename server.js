@@ -44,7 +44,8 @@ const whatsappClient = new Client({
 });
 
 whatsappClient.on('qr', (qr) => {
-    qrcode.generate(qr, { small: false });
+    // Mudamos para small: true para o QR Code ficar mais compacto
+    qrcode.generate(qr, { small: true });
     console.log('👉 SCANNEIE O QR CODE ACIMA PARA CONECTAR O WHATSAPP DA CICÍ');
 });
 
