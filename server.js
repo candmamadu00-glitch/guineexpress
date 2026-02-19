@@ -68,7 +68,7 @@ if (process.platform === 'linux') {
     }
 
     clearLocks(sessionDir);
-}
+
 
 // 2. Configuração do Cliente
 const whatsappClient = new Client({
