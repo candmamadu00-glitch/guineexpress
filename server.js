@@ -554,13 +554,16 @@ app.get('/api/schedule/slots-15min', (req, res) => {
     });
 });
 
-// 4. Reservar
+// 4. Reservar (APROVAÇÃO AUTOMÁTICA)
 app.post('/api/schedule/book', (req, res) => {
     const { availability_id, date, time } = req.body;
     const client_id = req.session.userId;
 
-    // A. Verifica agendamento no dia
-    db.get(`SELECT ap.id FROM appointments ap JOIN availability av ON ap.availability_id = av.id WHERE ap.client_id = ? AND av.date = ? AND ap.status != 'Cancelado'`, 
+    if (!client_id) return res.json({ success: false, msg: 'Sessão expirada. Faça login novamente.' });
+
+    // A. Verifica se o cliente já tem agendamento no dia (Evita duplicidade)
+    db.get(`SELECT ap.id FROM appointments ap JOIN availability av ON ap.availability_id = av.id 
+            WHERE ap.client_id = ? AND av.date = ? AND ap.status != 'Cancelado'`, 
     [client_id, date], (err, hasBooking) => {
         if (hasBooking) return res.json({ success: false, msg: 'Você já tem um agendamento neste dia.' });
 
@@ -568,13 +571,26 @@ app.post('/api/schedule/book', (req, res) => {
         db.get(`SELECT count(*) as qtd FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, 
         [availability_id, time], (err, row) => {
             db.get("SELECT max_slots FROM availability WHERE id = ?", [availability_id], (err, avail) => {
-                if (!row || !avail) return res.json({success: false, msg: "Erro ao verificar vaga"});
+                if (!row || !avail) return res.json({success: false, msg: "Erro ao verificar vaga."});
                 
                 if (row.qtd >= avail.max_slots) return res.json({ success: false, msg: 'Horário esgotado.' });
 
-                // C. Agenda
-                db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Pendente')", 
-                    [availability_id, client_id, time], (err) => res.json({success: !err}));
+                // C. Agenda com STATUS DIRETO PARA 'Confirmado'
+                // Mudamos de 'Pendente' para 'Confirmado' aqui:
+                db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Confirmado')", 
+                    [availability_id, client_id, time], function(err) {
+                        if (err) {
+                            return res.json({success: false, msg: "Erro ao salvar agendamento."});
+                        }
+                        
+                        // Retornamos sucesso e uma mensagem para a Cicí ler
+                        res.json({
+                            success: true, 
+                            msg: 'Agendamento confirmado automaticamente!',
+                            appointmentId: this.lastID
+                        });
+                    }
+                );
             });
         });
     });
