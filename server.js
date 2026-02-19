@@ -25,24 +25,22 @@ const qrcode = require('qrcode-terminal');
 
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
-        // Se estiver no Windows, usa pasta local, no Render usa /data
-        dataPath: process.platform === 'linux' ? '/data/session-whatsapp' : './session'
+        dataPath: '/data/session-whatsapp' // Forçando o uso do disco do Render
     }),
     puppeteer: {
-        headless: true, // Pode mudar para false temporariamente para ver o que acontece
-        executablePath: process.platform === 'linux' 
-            ? '/opt/render/project/src/.puppeteer_cache/chrome/linux-145.0.7632.77/chrome-linux64/chrome'
-            : undefined,
+        headless: true,
+        // Mantendo o caminho que o Buildpack ou instalação do Render usa
+        executablePath: '/opt/render/project/src/.puppeteer_cache/chrome/linux-145.0.7632.77/chrome-linux64/chrome',
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--no-zygote'
+            '--disable-accelerated-2d-canvas', // Economiza memória no Render
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', // Importante para ambientes com pouca RAM
+            '--disable-gpu'
         ],
-        // Adicione isso para dar mais tempo ao navegador
-        handleSIGINT: false, 
-        waitNavigationFinished: true,
     }
 });
 
