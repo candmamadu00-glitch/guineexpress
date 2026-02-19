@@ -23,14 +23,19 @@ const webpush = require('web-push');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
-// No seu computador, dentro do server.js:
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
-        dataPath: '/data/session-whatsapp' // Pasta persistente do Render
+        dataPath: '/data/session-whatsapp' 
     }),
     puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        // Caminho exato baseado no erro gerado pelo Render
+        executablePath: '/opt/render/project/src/.puppeteer_cache/chrome/linux-145.0.7632.77/chrome-linux64/chrome',
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage'
+        ],
     }
 });
 
