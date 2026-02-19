@@ -25,7 +25,7 @@ const qrcode = require('qrcode-terminal');
 
 const { execSync } = require('child_process');
 
-// 1. Limpeza Blindada (Usando Node.js nativo em vez de comandos Linux)
+// 1. Limpeza Blindada (Usando Node.js nativo e à prova de links quebrados)
 if (process.platform === 'linux') {
     console.log('🧹 Procurando e deletando travas do Chrome...');
     
@@ -39,14 +39,21 @@ if (process.platform === 'linux') {
         const files = fs.readdirSync(dir);
         for (const file of files) {
             const fullPath = path.join(dir, file);
-            if (fs.statSync(fullPath).isDirectory()) {
-                clearLocks(fullPath); // Procura dentro das subpastas
-            } else if (lockFiles.includes(file)) {
-                try {
+            
+            try {
+                // Usar lstatSync em vez de statSync evita crash com links simbólicos quebrados
+                const stats = fs.lstatSync(fullPath);
+                
+                if (stats.isDirectory()) {
+                    clearLocks(fullPath); // Procura dentro das subpastas
+                } else if (lockFiles.includes(file)) {
                     fs.unlinkSync(fullPath);
                     console.log(`✅ Cadeado quebrado: ${fullPath}`);
-                } catch (e) {
-                    console.error(`⚠️ Não consegui apagar ${fullPath}:`, e.message);
+                }
+            } catch (err) {
+                // Ignora erros em arquivos específicos (ex: permissão ou link quebrado que já sumiu)
+                if (lockFiles.includes(file)) {
+                   console.error(`⚠️ Tentativa ignorada no arquivo ${fullPath}`);
                 }
             }
         }
