@@ -24,7 +24,6 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
 const { execSync } = require('child_process');
-const fs = require('fs');
 
 // 1. Limpeza Bruta Definitiva (Quebrando o Cadeado)
 if (process.platform === 'linux') {
