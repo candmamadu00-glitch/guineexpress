@@ -25,21 +25,20 @@ const qrcode = require('qrcode-terminal');
 
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
-        dataPath: '/data/session-whatsapp' // Forçando o uso do disco do Render
+        dataPath: '/data/session-whatsapp'
     }),
     puppeteer: {
         headless: true,
-        // Mantendo o caminho que o Buildpack ou instalação do Render usa
         executablePath: '/opt/render/project/src/.puppeteer_cache/chrome/linux-145.0.7632.77/chrome-linux64/chrome',
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas', // Economiza memória no Render
-            '--no-first-run',
+            '--disable-extensions',
             '--no-zygote',
-            '--single-process', // Importante para ambientes com pouca RAM
-            '--disable-gpu'
+            '--single-process',
+            // Esta linha abaixo é o segredo para resolver o Erro 21:
+            '--user-data-dir=/tmp/puppeteer_profile' 
         ],
     }
 });
