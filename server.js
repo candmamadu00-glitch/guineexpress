@@ -50,7 +50,7 @@ if (process.platform === 'linux') {
     clearLocks(sessionDir);
     console.log('🧹 Limpeza de rotina concluída. Sessão preservada.');
 }
-
+let isWhatsAppReady = false;
 // 2. Configuração do Cliente Ultra-Leve (Modo Sobrevivência de RAM)
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
@@ -72,6 +72,7 @@ const whatsappClient = new Client({
             '--disable-extensions',
             '--no-first-run',
             '--mute-audio'
+            
         ],
     }
 });
@@ -83,23 +84,28 @@ whatsappClient.on('qr', (qr) => {
 
 whatsappClient.on('ready', () => {
     console.log('Cicí está conectada ao WhatsApp! ✅');
+    isWhatsAppReady = true; // Agora ela está pronta!
+});
+
+whatsappClient.on('disconnected', () => {
+    console.log('Cicí foi desconectada do WhatsApp! ❌');
+    isWhatsAppReady = false; // Voltou a dormir
 });
 // 2. FUNÇÃO DE ENVIO DIRETA E BLINDADA
 async function sendWhatsAppMessage(phone, message) {
-    try {
-        // 1. Limpa tudo que não é número (tira espaços, traços, +, etc)
-        let cleanPhone = phone.replace(/\D/g, ''); 
+    // Trava de segurança: impede o erro do WidFactory
+    if (!isWhatsAppReady) {
+        console.log(`⚠️ Cicí ainda não está conectada ao Zap. O envio para ${phone} foi cancelado.`);
+        return false;
+    }
 
-        // 2. Garante o DDI da Guiné-Bissau (245)
-        // Se a pessoa digitou só 9 números (ex: 961234567), colocamos o 245 na frente
+    try {
+        let cleanPhone = phone.replace(/\D/g, ''); 
         if (cleanPhone.length === 9) {
             cleanPhone = '245' + cleanPhone;
         }
-
-        // 3. Monta a identidade do Zap (O SEGREDO ESTÁ AQUI: @c.us)
         const chatId = cleanPhone + '@c.us';
 
-        // 4. Manda a mensagem direto na força bruta
         await whatsappClient.sendMessage(chatId, message);
         console.log(`✅ Zap enviado com sucesso para: ${chatId}`);
         return true;
