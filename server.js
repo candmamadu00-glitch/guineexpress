@@ -78,10 +78,12 @@ const whatsappClient = new Client({
 });
 
 whatsappClient.on('qr', (qr) => {
+    // 'small: true' ajuda, mas vamos garantir que o log não quebre a linha
     qrcode.generate(qr, { small: true });
-    console.log('👉 SCANNEIE O QR CODE ACIMA PARA CONECTAR O WHATSAPP DA CICÍ');
+    console.log('-------------------------------------------');
+    console.log('NOVO QR CODE GERADO! Tente escanear acima.');
+    console.log('-------------------------------------------');
 });
-
 whatsappClient.on('ready', () => {
     console.log('Cicí está conectada ao WhatsApp! ✅');
     isWhatsAppReady = true; // Agora ela está pronta!
