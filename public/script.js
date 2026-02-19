@@ -3725,50 +3725,57 @@ function getTimelineHTML(status) {
     html += `</div>`;
     return html;
 }
-// ==========================================
-// FUNÇÕES DE COMUNICADO EM MASSA (ADMIN)
-// ==========================================
-
-function openBroadcastModal() {
-    document.getElementById('broadcast-modal').classList.remove('hidden');
-}
-
 async function sendBroadcast() {
     const subject = document.getElementById('broadcast-subject').value;
     const message = document.getElementById('broadcast-message').value;
+    const sendEmail = document.getElementById('broadcast-use-email').checked;
+    const sendWA = document.getElementById('broadcast-use-whatsapp').checked;
 
     if (!subject || !message) return alert("❌ Preencha o assunto e a mensagem.");
+    if (!sendEmail && !sendWA) return alert("❌ Selecione ao menos um canal (Email ou WhatsApp).");
 
-    if (!confirm("⚠️ Tem a certeza? Isso enviará e-mails para TODOS os clientes.")) return;
+    if (!confirm(`⚠️ Confirmar envio para TODOS via: ${sendEmail ? '[Email] ' : ''}${sendWA ? '[WhatsApp]' : ''}?`)) return;
 
     const btn = document.querySelector('#broadcast-modal .btn-primary');
-    const oldText = btn.innerText;
-    btn.innerText = "Enviando...";
+    btn.innerText = "Processando Envios...";
     btn.disabled = true;
 
     try {
         const res = await fetch('/api/admin/broadcast', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subject, message })
+            body: JSON.stringify({ subject, message, sendEmail, sendWA })
         });
         
         const data = await res.json();
-
         if (data.success) {
             alert("✅ " + data.msg);
             closeModal('broadcast-modal');
-            document.getElementById('broadcast-subject').value = '';
-            document.getElementById('broadcast-message').value = '';
         } else {
             alert("Erro: " + data.msg);
         }
     } catch (error) {
-        console.error(error);
         alert("Erro de conexão.");
     } finally {
-        btn.innerText = oldText;
+        btn.innerText = "ENVIAR AGORA 🚀";
         btn.disabled = false;
+    }
+}
+// Função para abrir o modal de comunicado
+function openBroadcastModal() {
+    const modal = document.getElementById('broadcast-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    } else {
+        console.error("Erro: O elemento broadcast-modal não foi encontrado no HTML.");
+    }
+}
+
+// Aproveite e adicione a função de fechar também
+function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.add('hidden');
     }
 }
 // ==========================================

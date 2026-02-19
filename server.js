@@ -480,31 +480,29 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
     });
 });
 app.post('/api/admin/broadcast', (req, res) => {
-    // Verifica se é Admin (Segurança)
     const isAdmin = (req.session.role === 'admin') || (req.session.user && req.session.user.role === 'admin');
     if (!isAdmin) return res.status(403).json({ success: false, msg: 'Sem permissão.' });
 
-    const { subject, message } = req.body;
+    const { subject, message, sendEmail, sendWA } = req.body;
 
-    if (!subject || !message) return res.json({ success: false, msg: 'Preencha tudo.' });
-
-    // Busca clientes
-    db.all("SELECT email, name FROM users WHERE role = 'client'", [], async (err, clients) => {
+    // Busca clientes e o campo de telefone/whatsapp
+    db.all("SELECT email, name, phone FROM users WHERE role = 'client'", [], async (err, clients) => {
         if (err) return res.json({ success: false, msg: 'Erro no banco.' });
-        if (clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente.' });
-
-        // Envia usando a função corrigida
+        
         clients.forEach(client => {
-            // Chama a função auxiliar que já tem o HTML bonito e o remetente certo
-            sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
+            // 1. Envio por E-mail
+            if (sendEmail && client.email) {
+                sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
+            }
+
+            // 2. Envio por WhatsApp (Ajuste conforme sua função de Zap)
+            if (sendWA && client.phone && typeof sendWhatsAppMessage === 'function') {
+                const textWA = `*📢 ${subject}*\n\nOlá ${client.name},\n${message}`;
+                sendWhatsAppMessage(client.phone, textWA);
+            }
         });
 
-        // Salva Log
-        if (typeof logAction === 'function') {
-             logAction(req, 'Comunicado Geral', `Enviou: "${subject}" para ${clients.length} clientes.`);
-        }
-
-        res.json({ success: true, msg: `Enviando para ${clients.length} clientes!` });
+        res.json({ success: true, msg: `Comunicado disparado para ${clients.length} clientes!` });
     });
 });
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
