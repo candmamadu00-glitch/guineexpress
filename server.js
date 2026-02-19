@@ -22,53 +22,34 @@ const db = require('./database');
 const webpush = require('web-push');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-
 const { execSync } = require('child_process');
 
-// 1. OPÇÃO NUCLEAR: Apagando a sessão corrompida inteira
+// 1. OPÇÃO NUCLEAR BLINDADA (Usando Node.js nativo para não falhar)
 if (process.platform === 'linux') {
-    const { execSync } = require('child_process');
+    const sessionDir = '/data/session-whatsapp';
+    
+    console.log('💥 [OPÇÃO NUCLEAR] Apagando sessão antiga e corrompida...');
+    
+    // Passo A: Tenta matar processos zumbis do Chrome (se der erro, ignora em silêncio)
     try {
-        console.log('💥 [OPÇÃO NUCLEAR] Apagando sessão antiga e corrompida...');
-        
-        // Mata processos residuais
-        execSync('pkill -9 -f chrome || true');
-        
-        // DELETA a pasta inteira do WhatsApp do disco do Render
-        execSync('rm -rf /data/session-whatsapp || true');
-        
-        console.log('✅ Pasta apagada com sucesso. O WhatsApp vai gerar um QR Code novo e limpo!');
+        execSync('pkill -9 -f chrome');
     } catch (e) {
-        console.error('⚠️ Erro na limpeza nuclear:', e.message);
+        // Ignora
+    }
+    
+    // Passo B: Deleta a pasta inteira na força bruta usando o próprio Node (Isso não falha!)
+    try {
+        if (fs.existsSync(sessionDir)) {
+            // Apaga a pasta e tudo dentro dela
+            fs.rmSync(sessionDir, { recursive: true, force: true });
+            console.log('✅ Pasta corrompida APAGADA com sucesso! O caminho está limpo.');
+        } else {
+            console.log('✅ A pasta já estava limpa.');
+        }
+    } catch (e) {
+        console.error('⚠️ Erro ao apagar pasta:', e.message);
     }
 }
-
-    // PASSO B: Apagar todos os arquivos de trava (Adicionamos o DevToolsActivePort)
-    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
-    const sessionDir = '/data/session-whatsapp';
-
-    function clearLocks(dir) {
-        if (!fs.existsSync(dir)) return;
-        
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-            const fullPath = path.join(dir, file);
-            try {
-                const stats = fs.lstatSync(fullPath);
-                if (stats.isDirectory()) {
-                    clearLocks(fullPath);
-                } else if (lockFiles.includes(file)) {
-                    fs.unlinkSync(fullPath);
-                    console.log(`✅ Arquivo de trava removido: ${file}`);
-                }
-            } catch (err) {
-                // Ignora erros em arquivos que já sumiram
-            }
-        }
-    }
-
-    clearLocks(sessionDir);
-
 
 // 2. Configuração do Cliente
 const whatsappClient = new Client({
@@ -89,8 +70,8 @@ const whatsappClient = new Client({
         ],
     }
 });
+
 whatsappClient.on('qr', (qr) => {
-    // Mudamos para small: true para o QR Code ficar mais compacto
     qrcode.generate(qr, { small: true });
     console.log('👉 SCANNEIE O QR CODE ACIMA PARA CONECTAR O WHATSAPP DA CICÍ');
 });
@@ -98,8 +79,6 @@ whatsappClient.on('qr', (qr) => {
 whatsappClient.on('ready', () => {
     console.log('Cicí está conectada ao WhatsApp! ✅');
 });
-
-whatsappClient.initialize();
 
 // 2. FUNÇÃO DE ENVIO CORRIGIDA
 async function sendWhatsAppMessage(phone, message) {
