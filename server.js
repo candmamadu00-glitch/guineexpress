@@ -24,18 +24,18 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
 const whatsappClient = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new LocalAuth({
+        dataPath: '/data/session-whatsapp' // Se estiver no Render, use a pasta persistente /data
+    }),
     puppeteer: {
         headless: true,
+        executablePath: process.env.CHROME_PATH || null, // Opcional, o Puppeteer costuma achar sozinho no cache
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process', // Importante para servidores com pouca RAM
-            '--disable-gpu'
+            '--single-process',
+            '--no-zygote'
         ],
     }
 });
