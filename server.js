@@ -1801,13 +1801,13 @@ app.get('/disparar-meu-push', (req, res) => {
     
     res.send("<h1>Comando enviado!</h1><p>Verifique a tela do seu celular agora.</p>");
 });
-// =====================================================
-// INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
-// =====================================================
+// Pega a porta dinâmica do Render ou usa a 3000 no seu PC
 const PORT = process.env.PORT || 3000;
 
-// O segredo está no '0.0.0.0' adicionado aqui embaixo 👇
+// O '0.0.0.0' é OBRIGATÓRIO no Render para não dar 502 Bad Gateway
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Servidor Guineexpress rodando na porta ${PORT}`);
-    console.log(`📡 Modo: ${process.env.NODE_ENV || 'Desenvolvimento'}`);
+    
+    // Inicia o Zap SOMENTE DEPOIS que o site já abriu as portas com sucesso
+    whatsappClient.initialize().catch(err => console.error('Erro no zap:', err));
 });
