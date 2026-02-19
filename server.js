@@ -84,33 +84,28 @@ whatsappClient.on('qr', (qr) => {
 whatsappClient.on('ready', () => {
     console.log('Cicí está conectada ao WhatsApp! ✅');
 });
-// 2. FUNÇÃO DE ENVIO CORRIGIDA
+// 2. FUNÇÃO DE ENVIO DIRETA E BLINDADA
 async function sendWhatsAppMessage(phone, message) {
     try {
-        // 1. Limpa tudo que não é número
+        // 1. Limpa tudo que não é número (tira espaços, traços, +, etc)
         let cleanPhone = phone.replace(/\D/g, ''); 
 
         // 2. Garante o DDI da Guiné-Bissau (245)
-        // Se o número começar com 9 ou 7 e tiver 9 dígitos, adicionamos 245
-        if (cleanPhone.length === 9 && (cleanPhone.startsWith('9') || cleanPhone.startsWith('7'))) {
+        // Se a pessoa digitou só 9 números (ex: 961234567), colocamos o 245 na frente
+        if (cleanPhone.length === 9) {
             cleanPhone = '245' + cleanPhone;
         }
 
-        // 3. Obtém o ID correto do número no WhatsApp (O tal do LID)
-        // Isso resolve o erro "No LID for user"
-        const numberDetails = await whatsappClient.getNumberId(cleanPhone);
+        // 3. Monta a identidade do Zap (O SEGREDO ESTÁ AQUI: @c.us)
+        const chatId = cleanPhone + '@c.us';
 
-        if (numberDetails) {
-            // O getNumberId retorna o ID formatado corretamente (ex: 24596... @c.us)
-            await whatsappClient.sendMessage(numberDetails._serialized, message);
-            console.log(`✅ Zap enviado com sucesso para: ${cleanPhone}`);
-            return true;
-        } else {
-            console.error(`⚠️ O número ${cleanPhone} não foi encontrado no WhatsApp. Verifique se o número está correto.`);
-            return false;
-        }
+        // 4. Manda a mensagem direto na força bruta
+        await whatsappClient.sendMessage(chatId, message);
+        console.log(`✅ Zap enviado com sucesso para: ${chatId}`);
+        return true;
+
     } catch (err) {
-        console.error("❌ Erro técnico ao enviar Zap:", err.message);
+        console.error(`❌ Erro técnico ao enviar Zap para ${phone}:`, err.message);
         return false;
     }
 }
