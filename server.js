@@ -1579,65 +1579,69 @@ const queryDB = (sql, params = []) => {
 };
 app.post('/api/cici/chat', async (req, res) => {
     try {
-        const { text, userContext, image, isFirstMessage } = req.body;
+        const { text, userContext, image, isFirstMessage, lang } = req.body;
         const userId = req.session.userId; 
 
+        // 1. Contexto de Logística (Busca no Banco)
         let dadosExtras = "";
         if (userId) {
             const orders = await new Promise((resolve) => {
-                db.all("SELECT code, status, description FROM orders WHERE client_id = ? ORDER BY id DESC LIMIT 3", [userId], (err, rows) => {
+                db.all("SELECT code, status FROM orders WHERE client_id = ? ORDER BY id DESC LIMIT 3", [userId], (err, rows) => {
                     resolve(rows || []);
                 });
             });
             if (orders.length > 0) {
-                dadosExtras = "\nENCOMENDAS REAIS:\n" + orders.map(o => `- ${o.code}: ${o.status}`).join('\n');
+                dadosExtras = "\nENCOMENDAS ATUAIS:\n" + orders.map(o => `- ${o.code}: ${o.status}`).join('\n');
             }
         }
 
-        // Saudação Inicial Inteligente
-        if (isFirstMessage) {
-            const isMobile = /Telemóvel/i.test(userContext.deviceInfo);
-            let msg = `Olá! Sou a Cicí. Como posso ajudar hoje?`;
-            
-            if (isMobile) {
-                msg += `\n\n💡 Dica: Sabia que podes instalar o nosso sistema como um App no teu telemóvel? Queres que te ensine?`;
-            }
-            return res.json({ reply: msg, lang: 'pt-BR' });
-        }
+        // 2. Prompt Mestre
+        const systemPrompt = `Você é a Cicí 18.0, a IA suprema da Guineexpress. 
+        Usuário: ${userContext.name || 'Cliente'}. Tela: ${userContext.currentPage}.
+        ${dadosExtras}
+        Idioma: ${lang || 'pt-BR'}
 
-        const systemPrompt = `Você é a Cicí, assistente humana e prestativa da Guineexpress.
-Contexto: ${userContext.name}, na tela ${userContext.currentPage}. ${dadosExtras}
+        AÇÕES DISPONÍVEIS:
+        - Para instalar o PWA: [ACTION:install]
+        - Para notificações: [ACTION:push]
+        - Para redirecionar: [ACTION:redirect:/url]
 
-AÇÕES NOVAS:
-- Se o usuário quiser instalar o sistema ou usar como app, use [ACTION:install].
-- Se o usuário reclamar que não recebe avisos, use [ACTION:push].
+        PERSONALIDADE: Eficiente, humana e técnica. Use linguagem clara para síntese de voz.`;
 
-INSTRUÇÃO DE VOZ: Escreva de forma natural, use exclamações leves e seja empática para que a voz sintetizada soe humana. Evite frases muito longas sem vírgulas.`;
-
-        let messageParts = [{ text: text || "Analise a imagem." }];
+        let messageParts = [{ text: text || "Analisando imagem ou início de conversa." }];
         if (image) {
-            messageParts.push({ inlineData: { data: image.split(',')[1], mimeType: image.split(';')[0].split(':')[1] } });
+            messageParts.push({ 
+                inlineData: { 
+                    data: image.split(',')[1], 
+                    mimeType: image.split(';')[0].split(':')[1] 
+                } 
+            });
         }
 
         const chat = model.startChat({
             history: [
                 { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Entendido. Vou agir como uma assistente humana, oferecendo instalação [ACTION:install] e notificações [ACTION:push] quando necessário." }] }
+                { role: "model", parts: [{ text: "Entendido. Cicí 18.0 pronta para operar." }] }
             ]
         });
 
         const result = await chat.sendMessage(messageParts);
-        const response = await result.response;
-        let replyText = response.text();
+        const replyText = result.response.text();
 
-        const langMatch = replyText.match(/\[LANG:(.*?)\]/);
-        const langCode = langMatch ? langMatch[1] : 'pt-BR';
-        replyText = replyText.replace(/\[LANG:.*?\]/g, '').trim(); 
-
-        res.json({ reply: replyText, lang: langCode });
+        res.json({ reply: replyText, lang: lang || 'pt-BR' });
 
     } catch (error) {
-        res.status(500).json({ reply: "Estou com um probleminha técnico." });
+        console.error("Erro Cicí:", error.message);
+
+        // Verifica se o erro é de quota (429)
+        if (error.status === 429 || error.message.includes('429')) {
+            return res.status(429).json({ 
+                reply: "Estou recebendo muitas mensagens agora! 😅 Pode tentar de novo em cerca de 1 minuto? Minha 'bateria' de processamento gratuito precisa de um descanso rápido.",
+                isQuotaError: true 
+            });
+        }
+
+        res.status(500).json({ reply: "Tive um soluço técnico aqui no meu servidor." });
     }
 });
 async function notifyUser(userId, title, message) {

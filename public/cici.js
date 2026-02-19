@@ -1,5 +1,5 @@
 /* ===========================================================
-   CICÍ PRO MAX ULTRA - VERSÃO 17.0 (INSTALADOR & VOZ HUMANA MASCULINA)
+   CICÍ PRO MAX ULTRA - VERSÃO 18.0 (GUINEEXPRESS)
    =========================================================== */
 
 const CiciAI = {
@@ -12,114 +12,103 @@ const CiciAI = {
     currentLang: 'pt-BR', 
     currentImageBase64: null,
     avatarUrl: 'https://img.freepik.com/fotos-gratis/jovem-mulher-confiante-com-oculos_1098-20868.jpg?w=200',
+    languageSet: false,
 
-    // 🌟 MELHORIA: Voz Masculina Humana e Expressiva
+    // 🌟 Voz Masculina Humana e Expressiva (Suporte Poliglota)
     speak: function(text) {
         if (!window.speechSynthesis) return;
         window.speechSynthesis.cancel(); 
         
         const cleanText = text.replace(/<[^>]*>?/gm, '').replace(/\*/g, '').replace(/\[.*?\]/g, '');
         const utterance = new SpeechSynthesisUtterance(cleanText);
-        
         const voices = window.speechSynthesis.getVoices();
         
-        // 🧔 BUSCA POR VOZ MASCULINA (Prioriza Google Português ou vozes masculinas do sistema)
-        const maleVoice = voices.find(v => 
-            (v.lang.startsWith('pt') && (v.name.includes('Male') || v.name.includes('Masc') || v.name.includes('Daniel') || v.name.includes('Antonio')))
-        ) || voices.find(v => v.lang.startsWith('pt')); // Fallback para qualquer pt-BR se não achar masculina específica
-        
-        if (maleVoice) {
-            utterance.voice = maleVoice;
-        }
-        
-        // Parâmetros para voz masculina humana
-        utterance.pitch = 0.8; // Tom mais baixo/grave para parecer homem
-        utterance.rate = 1.0;  // Velocidade normal
+        const langPrefix = this.currentLang.split('-')[0];
+
+        // Busca voz masculina específica do idioma ou fallback
+        let targetVoice = voices.find(v => 
+            v.lang.startsWith(langPrefix) && 
+            (v.name.includes('Male') || v.name.includes('Masc') || v.name.includes('Daniel') || v.name.includes('David'))
+        ) || voices.find(v => v.lang.startsWith(langPrefix));
+
+        if (targetVoice) utterance.voice = targetVoice;
+        utterance.pitch = 0.8; 
+        utterance.rate = 1.0;  
         utterance.lang = this.currentLang;
         
         window.speechSynthesis.speak(utterance);
     },
 
-    // 🌟 NOVA HABILIDADE: Tutorial de Instalação (PWA)
-    showInstallGuide: function() {
-        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
+    // 🌟 Definição de Idioma e Saudação Inteligente
+    setLang: function(code, name) {
+        this.currentLang = code;
+        this.languageSet = true;
 
-        if (isIOS) {
-            this.addMessage("<b>📱 Instalar no iPhone:</b><br>1. Toque no ícone de <b>Compartilhar</b> (quadrado com seta abaixo).<br>2. Role e escolha <b>'Adicionar à Tela de Início'</b>.<br>3. Pronto! O ícone aparecerá como um App.", 'cici');
-        } else if (isAndroid) {
-            this.addMessage("<b>🤖 Instalar no Android:</b><br>1. Toque nos <b>3 pontinhos</b> lá em cima.<br>2. Escolha <b>'Instalar Aplicativo'</b> ou 'Adicionar à tela inicial'.", 'cici');
-        } else {
-            this.addMessage("Para instalar no computador, clique no ícone de (+) na barra de endereços do Chrome.", 'cici');
+        let nomeUsuario = this.userName ? `, <b>${this.userName}</b>` : "";
+        let saudacao = "";
+        
+        const templates = {
+            'pt-BR': `Excelente${nomeUsuario}! Vejo que você está acessando a Guineexpress através de um <b>${this.deviceInfo}</b>. Como posso ajudar sua logística hoje?`,
+            'en-US': `Excellent${nomeUsuario}! I see you're accessing Guineexpress from a <b>${this.deviceInfo}</b>. How can I help today?`,
+            'fr-FR': `Super${nomeUsuario}! Je vois que vous accédez depuis un <b>${this.deviceInfo}</b>. Comment puis-je vous aider?`
+        };
+
+        saudacao = templates[code] || `Ok! I switched to ${name}. I see you're on a ${this.deviceInfo}. Let's chat!`;
+        saudacao += `<br><br>💡 <i>Dica:</i> Deseja instalar nosso App?<br>
+        <button onclick="CiciAI.showInstallGuide()" style="margin-top:10px; background:#f39c12; color:white; border:none; padding:8px 12px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%;">📥 Instalar App no ${this.deviceInfo.split(' ')[0]}</button>`;
+
+        this.addMessage(saudacao, 'cici');
+        
+        const langContainer = document.querySelector('.cici-lang-btn')?.parentElement;
+        if(langContainer) langContainer.remove();
+
+        this.checkNetwork();
+    },
+
+    // 🌟 Sensor de Conexão (Inteligência de Dados)
+    checkNetwork: function() {
+        if (navigator.connection) {
+            const conn = navigator.connection.effectiveType; 
+            const speed = navigator.connection.downlink; 
+            if (conn === '2g' || conn === '3g' || speed < 1.5) {
+                setTimeout(() => {
+                    this.addMessage(`⚠️ Conexão lenta (${conn}). Serei mais direta nas respostas para poupar seus dados!`, 'cici');
+                }, 2000);
+            }
         }
     },
 
-    listen: function() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
-        const recognition = new SpeechRecognition();
-        recognition.lang = this.currentLang;
-        recognition.onstart = () => { document.getElementById('cici-input').placeholder = "🎤 Ouvindo..."; };
-        recognition.onresult = (event) => {
-            document.getElementById('cici-input').value = event.results[0][0].transcript;
-            this.handleSend(); 
-        };
-        recognition.start();
-    },
+    // 🌟 Tutorial de Instalação (PWA Dinâmico)
+    showInstallGuide: function() {
+        const isMobile = this.deviceInfo.includes("Telemóvel");
+        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
-    init: function() {
-        this.detectContext();
-        this.renderWidget();
-        // Garante carga de vozes em alguns navegadores
-        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-        setTimeout(() => {
-            const badge = document.getElementById('cici-badge');
-            if(badge) badge.classList.remove('hidden');
-        }, 1500);
-    },
-
-    enableNotifications: async function() {
-        if (!('serviceWorker' in navigator)) return;
-        try {
-            const register = await navigator.serviceWorker.register('/sw.js');
-            const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-                const urlBase64ToUint8Array = (base64String) => {
-                    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-                    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-                    const rawData = window.atob(base64);
-                    const outputArray = new Uint8Array(rawData.length);
-                    for (let i = 0; i < rawData.length; ++i) {
-                        outputArray[i] = rawData.charCodeAt(i);
-                    }
-                    return outputArray;
-                };
-                const publicVapidKey = 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY';
-                const subscription = await register.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
-                });
-                await fetch('/api/notifications/subscribe', {
-                    method: 'POST',
-                    body: JSON.stringify(subscription),
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                this.addMessage("✅ Notificações ativadas! Vou te avisar de tudo.", 'cici');
+        if (isMobile) {
+            if (isIOS) {
+                this.addMessage("<b>📱 iPhone:</b> Toque em <b>Compartilhar</b> (seta para cima) e depois em <b>'Adicionar à Tela de Início'</b>.", 'cici');
+            } else {
+                this.addMessage("<b>🤖 Android:</b> Toque nos <b>3 pontos</b> e selecione <b>'Instalar Aplicativo'</b>.", 'cici');
             }
-        } catch (e) { console.error(e); }
+        } else {
+            this.addMessage("<b>💻 PC/Notebook:</b> Clique no ícone de <b>instalação (⊕)</b> na barra de endereços do navegador.", 'cici');
+        }
     },
 
     detectContext: function() {
         const path = window.location.pathname;
         const ua = navigator.userAgent;
-        this.deviceInfo = /Android|iPhone|iPad/i.test(ua) ? "Telemóvel" : "Computador";
-        if (path === '/' || path.includes('login') || path.includes('index')) this.currentPage = 'Login';
-        else if (path.includes('cadastro')) this.currentPage = 'Cadastro';
-        else if (path.includes('admin')) { this.currentPage = 'Painel Admin'; this.userRole = 'admin'; }
-        else if (path.includes('employee')) { this.currentPage = 'Painel Colaborador'; this.userRole = 'employee'; }
+        
+        if (/tablet|ipad|playbook|silk/i.test(ua)) this.deviceInfo = "Tablet";
+        else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Opera Mini/i.test(ua)) this.deviceInfo = "Telemóvel (Smartphone)";
+        else this.deviceInfo = "Computador (Notebook/Desktop)";
+
+        if (path.includes('admin')) { this.currentPage = 'Painel Admin'; this.userRole = 'admin'; }
         else if (path.includes('client')) { this.currentPage = 'Painel Cliente'; this.userRole = 'client'; }
+        else { this.currentPage = 'Portal Principal'; }
+        
         const nameEl = document.getElementById('user-name-display');
         if (nameEl && nameEl.innerText !== '...') this.userName = nameEl.innerText.trim();
+        else if (window.currentUser && window.currentUser.name) this.userName = window.currentUser.name; 
     },
 
     renderWidget: function() {
@@ -131,7 +120,7 @@ const CiciAI = {
                         <div class="cici-info">
                             <div style="display:flex; align-items:center; gap:12px;">
                                 <div style="width:40px; height:40px; background:url('${this.avatarUrl}') center/cover; border-radius:50%; border:2px solid #fff;"></div>
-                                <div><h4 style="margin:0; font-size:15px; font-weight:700;">Cicí Pro 17.0</h4><small>Logística Inteligente</small></div>
+                                <div><h4 style="margin:0; font-size:15px; font-weight:700;">Cicí Pro 18.0</h4><small>Logística Inteligente</small></div>
                             </div>
                         </div>
                         <button onclick="CiciAI.toggle()" style="background:none;border:none;color:white;cursor:pointer;font-size:24px;">&times;</button>
@@ -160,7 +149,21 @@ const CiciAI = {
         const win = document.getElementById('cici-chat-window');
         this.isOpen = !this.isOpen;
         win.classList.toggle('open', this.isOpen);
-        if (this.isOpen && !this.hasGreeted) { this.processText("", true, true); this.hasGreeted = true; }
+        
+        if (this.isOpen && !this.hasGreeted) {
+            const saudacao = `Olá! Sou o assistente virtual da <b>Guineexpress</b>. <br><br>Qual idioma prefere? / Which language?`;
+            this.addMessage(saudacao, 'cici');
+            
+            const botoes = `
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                    <button onclick="CiciAI.setLang('pt-BR', 'Português')" class="cici-lang-btn" style="background:#2ecc71; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🇵🇹 Português</button>
+                    <button onclick="CiciAI.setLang('en-US', 'English')" class="cici-lang-btn" style="background:#3498db; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🇺🇸 English</button>
+                    <button onclick="CiciAI.setLang('fr-FR', 'Français')" class="cici-lang-btn" style="background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer;">🇫🇷 Français</button>
+                </div>
+            `;
+            document.getElementById('cici-messages').insertAdjacentHTML('beforeend', botoes);
+            this.hasGreeted = true;
+        }
     },
 
     handleFileSelect: function(event) {
@@ -186,62 +189,39 @@ const CiciAI = {
         if(!silent && text) this.addMessage(text, 'user');
         this.showTyping();
 
-        const payload = { 
-            text, 
-            userContext: { role: this.userRole, name: this.userName, deviceInfo: this.deviceInfo, currentPage: this.currentPage },
-            image: this.currentImageBase64,
-            isFirstMessage 
-        };
-        this.clearImage();
-
         try {
             const response = await fetch('/api/cici/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ 
+                    text, 
+                    userContext: { role: this.userRole, name: this.userName, deviceInfo: this.deviceInfo, currentPage: this.currentPage },
+                    image: this.currentImageBase64,
+                    isFirstMessage,
+                    lang: this.currentLang 
+                })
             });
             const data = await response.json();
             this.hideTyping();
-            if(data.lang) this.currentLang = data.lang;
-            let finalReply = data.reply;
-
-            // --- PROCESSADOR DE AÇÕES ---
-            if(finalReply.includes('[ACTION:install]')) {
-                this.showInstallGuide();
-                finalReply = finalReply.replace(/\[ACTION:install\]/g, '');
-            }
-            if(finalReply.includes('[ACTION:push]')) {
-                this.enableNotifications();
-                finalReply = finalReply.replace(/\[ACTION:push\]/g, '');
-            }
             
-            // Redirecionamento
-            const redMatch = finalReply.match(/\[ACTION:redirect:(.*?)\]/);
+            if(data.lang) this.currentLang = data.lang;
+            let reply = data.reply;
+
+            // Execução de Ações enviadas pelo Back-end
+            if(reply.includes('[ACTION:install]')) { this.showInstallGuide(); reply = reply.replace(/\[ACTION:install\]/g, ''); }
+            if(reply.includes('[ACTION:push]')) { this.enableNotifications(); reply = reply.replace(/\[ACTION:push\]/g, ''); }
+            
+            const redMatch = reply.match(/\[ACTION:redirect:(.*?)\]/);
             if(redMatch) {
                 setTimeout(() => window.location.href = redMatch[1], 2500);
-                finalReply = finalReply.replace(/\[ACTION:redirect:.*?\]/g, '<br>🔄 Redirecionando...');
+                reply = reply.replace(/\[ACTION:redirect:.*?\]/g, '<br>🔄 Redirecionando...');
             }
 
-            // Preenchimento
-            const fillMatches = [...finalReply.matchAll(/\[ACTION:fillForm:(.*?):(.*?)\]/g)];
-            fillMatches.forEach(match => {
-                const el = document.getElementById(match[1]);
-                if(el) { el.value = match[2]; el.style.border = "2px solid #2ecc71"; }
-            });
-            finalReply = finalReply.replace(/\[ACTION:fillForm:.*?:.*?\]/g, '');
-
-            // WhatsApp
-            const zapMatch = finalReply.match(/\[ZAP:(.*?):(.*?)\]/);
-            if(zapMatch) {
-                const link = `https://wa.me/${zapMatch[1].replace(/\D/g,'')}?text=${encodeURIComponent(zapMatch[2])}`;
-                finalReply = finalReply.replace(/\[ZAP:.*?:.*?\]/g, '') + 
-                `<br><br><a href="${link}" target="_blank" class="zap-btn">Chamar no WhatsApp</a>`;
-            }
-
-            this.addMessage(finalReply, 'cici');
+            this.addMessage(reply, 'cici');
+            this.clearImage(); 
         } catch (e) { 
             this.hideTyping(); 
-            this.addMessage("Tive um probleminha de conexão.", 'cici'); 
+            this.addMessage("Ops, tive um problema na conexão.", 'cici'); 
         }
     },
 
@@ -263,11 +243,37 @@ const CiciAI = {
         }
     },
     hideTyping: function() { const el = document.getElementById('typing-dots'); if(el) el.remove(); },
+    
+    listen: function() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) return this.addMessage("Reconhecimento de voz não suportado.", 'cici');
+        const recognition = new SpeechRec();
+        recognition.lang = this.currentLang;
+        recognition.onstart = () => document.getElementById('cici-input').placeholder = "🎤 Ouvindo..."; 
+        recognition.onresult = (e) => {
+            document.getElementById('cici-input').value = e.results[0][0].transcript;
+            this.handleSend(); 
+        };
+        recognition.start();
+    },
+
     handleInput: function(e) { if(e.key === 'Enter') this.handleSend(); },
     handleSend: function() {
         const input = document.getElementById('cici-input');
-        const txt = input.value.trim();
-        if(txt || this.currentImageBase64) { this.processText(txt); input.value = ''; }
+        if(input.value.trim() || this.currentImageBase64) { 
+            this.processText(input.value.trim()); 
+            input.value = ''; 
+        }
+    },
+
+    init: function() {
+        this.detectContext();
+        this.renderWidget();
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+        setTimeout(() => {
+            const badge = document.getElementById('cici-badge');
+            if(badge) badge.classList.remove('hidden');
+        }, 1500);
     }
 };
 

@@ -288,3 +288,29 @@
     display: block; background: #25D366; color: white; padding: 10px; 
     border-radius: 10px; text-align: center; font-weight: bold; text-decoration: none; margin-top: 10px;
 }
+/* Efeito de Vidro (Glassmorphism) no Header */
+.cici-header {
+    background: rgba(10, 25, 49, 0.9) !important;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Bolha de digitando animada */
+.typing-indicator span {
+    height: 8px; width: 8px; margin: 0 2px;
+    background-color: #185adb;
+    display: inline-block; border-radius: 50%;
+    animation: bounce 1.3s infinite ease-in-out;
+}
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+}
+
+/* Botão de WhatsApp flutuante dentro do chat */
+.zap-btn {
+    transition: transform 0.2s;
+    box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);
+}
+.zap-btn:hover { transform: translateY(-3px); background: #1ebe57; }
