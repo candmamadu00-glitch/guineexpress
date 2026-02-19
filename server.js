@@ -25,18 +25,19 @@ const qrcode = require('qrcode-terminal');
 
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
-        dataPath: '/data/session-whatsapp' // Garante que a sessão fique salva no disco /data do Render
+        // No Render, a pasta /data é a única que não apaga ao reiniciar
+        dataPath: fs.existsSync('/data') ? '/data/session-whatsapp' : './session-whatsapp'
     }),
     puppeteer: {
         headless: true,
-        // O código abaixo tenta pegar o caminho da variável que configuramos no Render
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
+            '--no-first-run',
+            '--no-zygote',
             '--single-process',
-            '--no-zygote'
+            '--disable-gpu'
         ],
     }
 });
