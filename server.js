@@ -25,41 +25,44 @@ const qrcode = require('qrcode-terminal');
 
 const { execSync } = require('child_process');
 
-// 1. Limpeza Blindada (Usando Node.js nativo e à prova de links quebrados)
+// 1. Limpeza Blindada e Eliminação de Zumbis
 if (process.platform === 'linux') {
-    console.log('🧹 Procurando e deletando travas do Chrome...');
+    console.log('🧹 Limpando ambiente para o WhatsApp...');
     
-    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    // PASSO A: Matar qualquer Chrome fantasma rodando na memória
+    try {
+        // O -9 força o encerramento imediato do processo
+        const { execSync } = require('child_process');
+        execSync('pkill -9 -f chrome');
+        console.log('🔫 Processos zumbis do Chrome encerrados.');
+    } catch (e) {
+        // É normal cair aqui se não houver nenhum Chrome rodando, então apenas ignoramos
+    }
+
+    // PASSO B: Apagar todos os arquivos de trava (Adicionamos o DevToolsActivePort)
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
     const sessionDir = '/data/session-whatsapp';
 
-    // Função que varre as pastas e apaga as travas
     function clearLocks(dir) {
         if (!fs.existsSync(dir)) return;
         
         const files = fs.readdirSync(dir);
         for (const file of files) {
             const fullPath = path.join(dir, file);
-            
             try {
-                // Usar lstatSync em vez de statSync evita crash com links simbólicos quebrados
                 const stats = fs.lstatSync(fullPath);
-                
                 if (stats.isDirectory()) {
-                    clearLocks(fullPath); // Procura dentro das subpastas
+                    clearLocks(fullPath);
                 } else if (lockFiles.includes(file)) {
                     fs.unlinkSync(fullPath);
-                    console.log(`✅ Cadeado quebrado: ${fullPath}`);
+                    console.log(`✅ Arquivo de trava removido: ${file}`);
                 }
             } catch (err) {
-                // Ignora erros em arquivos específicos (ex: permissão ou link quebrado que já sumiu)
-                if (lockFiles.includes(file)) {
-                   console.error(`⚠️ Tentativa ignorada no arquivo ${fullPath}`);
-                }
+                // Ignora erros em arquivos que já sumiram
             }
         }
     }
 
-    // Roda a limpeza antes de abrir o WhatsApp
     clearLocks(sessionDir);
 }
 
