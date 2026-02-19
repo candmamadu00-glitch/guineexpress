@@ -1809,6 +1809,5 @@ const PORT = process.env.PORT || 3000;
 // O segredo está no '0.0.0.0' adicionado aqui embaixo 👇
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Servidor Guineexpress rodando na porta ${PORT}`);
-    whatsappClient.initialize().catch(err => console.error('Erro no zap:', err));
     console.log(`📡 Modo: ${process.env.NODE_ENV || 'Desenvolvimento'}`);
 });
