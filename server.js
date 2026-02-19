@@ -1,4 +1,4 @@
-require('dotenv').config(); // Lê o arquivo .env
+require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -9,13 +9,13 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
-const helmet = require('helmet'); // Instale: npm install helmet
-const compression = require('compression'); // Instale: npm install compression
+const helmet = require('helmet');
+const compression = require('compression');
 const MercadoPagoConfig = require('mercadopago').MercadoPagoConfig;
 const Payment = require('mercadopago').Payment;
 const Preference = require('mercadopago').Preference;
-const cron = require('node-cron'); // Agendador de tarefas
-const path = require('path');      // Para lidar com caminhos de pastas
+const cron = require('node-cron');
+const path = require('path');
 const SQLiteStore = require('connect-sqlite3')(session);
 const app = express();
 const db = require('./database'); 
@@ -24,34 +24,34 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const { execSync } = require('child_process');
 
-// 1. OPÇÃO NUCLEAR BLINDADA (Usando Node.js nativo para não falhar)
+// 1. Limpeza Segura (Preserva a sessão, apaga só os cadeados e zumbis)
 if (process.platform === 'linux') {
     const sessionDir = '/data/session-whatsapp';
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
     
-    console.log('💥 [OPÇÃO NUCLEAR] Apagando sessão antiga e corrompida...');
-    
-    // Passo A: Tenta matar processos zumbis do Chrome (se der erro, ignora em silêncio)
-    try {
-        execSync('pkill -9 -f chrome');
-    } catch (e) {
-        // Ignora
-    }
-    
-    // Passo B: Deleta a pasta inteira na força bruta usando o próprio Node (Isso não falha!)
-    try {
-        if (fs.existsSync(sessionDir)) {
-            // Apaga a pasta e tudo dentro dela
-            fs.rmSync(sessionDir, { recursive: true, force: true });
-            console.log('✅ Pasta corrompida APAGADA com sucesso! O caminho está limpo.');
-        } else {
-            console.log('✅ A pasta já estava limpa.');
+    // Mata processos zumbis do Chrome para liberar a RAM
+    try { execSync('pkill -9 -f chrome'); } catch (e) {}
+
+    function clearLocks(dir) {
+        if (!fs.existsSync(dir)) return;
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+            const fullPath = path.join(dir, file);
+            try {
+                const stats = fs.lstatSync(fullPath);
+                if (stats.isDirectory()) {
+                    clearLocks(fullPath);
+                } else if (lockFiles.includes(file)) {
+                    fs.unlinkSync(fullPath);
+                }
+            } catch (err) {}
         }
-    } catch (e) {
-        console.error('⚠️ Erro ao apagar pasta:', e.message);
     }
+    clearLocks(sessionDir);
+    console.log('🧹 Limpeza de rotina concluída. Sessão preservada.');
 }
 
-// 2. Configuração do Cliente
+// 2. Configuração do Cliente Ultra-Leve (Evita estourar a RAM do Render)
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
         dataPath: process.platform === 'linux' ? '/data/session-whatsapp' : './session'
@@ -66,7 +66,10 @@ const whatsappClient = new Client({
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--no-zygote'
+            '--no-zygote',
+            '--disable-accelerated-2d-canvas',
+            '--disable-extensions',
+            '--no-first-run'
         ],
     }
 });
@@ -79,7 +82,6 @@ whatsappClient.on('qr', (qr) => {
 whatsappClient.on('ready', () => {
     console.log('Cicí está conectada ao WhatsApp! ✅');
 });
-
 // 2. FUNÇÃO DE ENVIO CORRIGIDA
 async function sendWhatsAppMessage(phone, message) {
     try {
