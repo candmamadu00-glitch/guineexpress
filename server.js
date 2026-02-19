@@ -51,7 +51,7 @@ if (process.platform === 'linux') {
     console.log('🧹 Limpeza de rotina concluída. Sessão preservada.');
 }
 
-// 2. Configuração do Cliente Ultra-Leve (Evita estourar a RAM do Render)
+// 2. Configuração do Cliente Ultra-Leve (Modo Sobrevivência de RAM)
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
         dataPath: process.platform === 'linux' ? '/data/session-whatsapp' : './session'
@@ -67,9 +67,11 @@ const whatsappClient = new Client({
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--no-zygote',
+            '--single-process', // 🔥 A MÁGICA PARA CORTAR A RAM PELA METADE
             '--disable-accelerated-2d-canvas',
             '--disable-extensions',
-            '--no-first-run'
+            '--no-first-run',
+            '--mute-audio'
         ],
     }
 });
