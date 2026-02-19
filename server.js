@@ -25,11 +25,12 @@ const qrcode = require('qrcode-terminal');
 
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
-        dataPath: '/data/session-whatsapp' // Se estiver no Render, use a pasta persistente /data
+        dataPath: '/data/session-whatsapp' // Garante que a sessão fique salva no disco /data do Render
     }),
     puppeteer: {
         headless: true,
-        executablePath: process.env.CHROME_PATH || null, // Opcional, o Puppeteer costuma achar sozinho no cache
+        // O código abaixo tenta pegar o caminho da variável que configuramos no Render
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
