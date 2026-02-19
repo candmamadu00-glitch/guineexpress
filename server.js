@@ -20,7 +20,59 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const app = express();
 const db = require('./database'); 
 const webpush = require('web-push');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
 
+// 1. ÚNICA DECLARAÇÃO DO CLIENTE WHATSAPP
+const whatsappClient = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        handleSIGINT: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    }
+});
+
+whatsappClient.on('qr', (qr) => {
+    qrcode.generate(qr, { small: true });
+    console.log('👉 SCANNEIE O QR CODE ACIMA PARA CONECTAR O WHATSAPP DA CICÍ');
+});
+
+whatsappClient.on('ready', () => {
+    console.log('Cicí está conectada ao WhatsApp! ✅');
+});
+
+whatsappClient.initialize();
+
+// 2. FUNÇÃO DE ENVIO CORRIGIDA
+async function sendWhatsAppMessage(phone, message) {
+    try {
+        // 1. Limpa tudo que não é número
+        let cleanPhone = phone.replace(/\D/g, ''); 
+
+        // 2. Garante o DDI da Guiné-Bissau (245)
+        // Se o número começar com 9 ou 7 e tiver 9 dígitos, adicionamos 245
+        if (cleanPhone.length === 9 && (cleanPhone.startsWith('9') || cleanPhone.startsWith('7'))) {
+            cleanPhone = '245' + cleanPhone;
+        }
+
+        // 3. Obtém o ID correto do número no WhatsApp (O tal do LID)
+        // Isso resolve o erro "No LID for user"
+        const numberDetails = await whatsappClient.getNumberId(cleanPhone);
+
+        if (numberDetails) {
+            // O getNumberId retorna o ID formatado corretamente (ex: 24596... @c.us)
+            await whatsappClient.sendMessage(numberDetails._serialized, message);
+            console.log(`✅ Zap enviado com sucesso para: ${cleanPhone}`);
+            return true;
+        } else {
+            console.error(`⚠️ O número ${cleanPhone} não foi encontrado no WhatsApp. Verifique se o número está correto.`);
+            return false;
+        }
+    } catch (err) {
+        console.error("❌ Erro técnico ao enviar Zap:", err.message);
+        return false;
+    }
+}
 webpush.setVapidDetails(
     'mailto:candemamadu00@gmail.com',
     process.env.VAPID_PUBLIC_KEY,
@@ -485,24 +537,30 @@ app.post('/api/admin/broadcast', (req, res) => {
 
     const { subject, message, sendEmail, sendWA } = req.body;
 
-    // Busca clientes e o campo de telefone/whatsapp
     db.all("SELECT email, name, phone FROM users WHERE role = 'client'", [], async (err, clients) => {
         if (err) return res.json({ success: false, msg: 'Erro no banco.' });
-        
-        clients.forEach(client => {
+        if (!clients || clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente encontrado.' });
+
+        console.log(`Iniciando broadcast para ${clients.length} clientes...`);
+
+        // Usamos um loop for...of para poder usar o 'await' e dar o delay
+        for (const client of clients) {
             // 1. Envio por E-mail
             if (sendEmail && client.email) {
                 sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
             }
 
-            // 2. Envio por WhatsApp (Ajuste conforme sua função de Zap)
-            if (sendWA && client.phone && typeof sendWhatsAppMessage === 'function') {
+            // 2. Envio por WhatsApp
+            if (sendWA && client.phone) {
                 const textWA = `*📢 ${subject}*\n\nOlá ${client.name},\n${message}`;
-                sendWhatsAppMessage(client.phone, textWA);
+                await sendWhatsAppMessage(client.phone, textWA);
+                
+                // ESPERA 3 SEGUNDOS entre cada envio para evitar ser banido pelo WhatsApp
+                await new Promise(resolve => setTimeout(resolve, 3000));
             }
-        });
+        }
 
-        res.json({ success: true, msg: `Comunicado disparado para ${clients.length} clientes!` });
+        res.json({ success: true, msg: `Processo de envio finalizado para ${clients.length} clientes!` });
     });
 });
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
