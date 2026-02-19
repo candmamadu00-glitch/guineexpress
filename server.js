@@ -23,22 +23,14 @@ const webpush = require('web-push');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
+// No seu computador, dentro do server.js:
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
-        // No Render, a pasta /data é a única que não apaga ao reiniciar
-        dataPath: fs.existsSync('/data') ? '/data/session-whatsapp' : './session-whatsapp'
+        dataPath: '/data/session-whatsapp' // Pasta persistente do Render
     }),
     puppeteer: {
         headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu'
-        ],
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
 });
 
