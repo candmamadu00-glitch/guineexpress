@@ -23,26 +23,38 @@ const webpush = require('web-push');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
+const { execSync } = require('child_process');
+
+// 1. Mata qualquer Chrome fantasma travado no Render antes de iniciar
+if (process.platform === 'linux') {
+    try {
+        execSync('pkill -f chrome');
+        console.log('🧹 Processos zumbis do Chrome eliminados.');
+    } catch (e) {
+        // Ignora se não houver nenhum processo rodando
+    }
+}
+
+// 2. Configuração do Cliente
 const whatsappClient = new Client({
     authStrategy: new LocalAuth({
-        dataPath: '/data/session-whatsapp'
+        dataPath: process.platform === 'linux' ? '/data/session-whatsapp' : './session'
     }),
     puppeteer: {
         headless: true,
-        executablePath: '/opt/render/project/src/.puppeteer_cache/chrome/linux-145.0.7632.77/chrome-linux64/chrome',
+        executablePath: process.platform === 'linux' 
+            ? '/opt/render/project/src/.puppeteer_cache/chrome/linux-145.0.7632.77/chrome-linux64/chrome'
+            : undefined,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-extensions',
-            '--no-zygote',
-            '--single-process',
-            // Esta linha abaixo é o segredo para resolver o Erro 21:
-            '--user-data-dir=/tmp/puppeteer_profile' 
+            '--disable-gpu',
+            '--no-zygote'
+            // IMPORTANTE: Não use '--single-process', pois ele causa o Erro 0
         ],
     }
 });
-
 whatsappClient.on('qr', (qr) => {
     // Mudamos para small: true para o QR Code ficar mais compacto
     qrcode.generate(qr, { small: true });
