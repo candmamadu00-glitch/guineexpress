@@ -40,7 +40,7 @@ const whatsappClient = new Client({
 });
 
 whatsappClient.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
+    qrcode.generate(qr, { small: false });
     console.log('👉 SCANNEIE O QR CODE ACIMA PARA CONECTAR O WHATSAPP DA CICÍ');
 });
 
