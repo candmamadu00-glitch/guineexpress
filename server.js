@@ -415,61 +415,80 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
-// Rota para iniciar o Zap e gerar QR Code (Versão Blindada)
+// Rota para iniciar o Zap e gerar QR Code (Versão com Rastreador)
 app.get('/api/admin/zap-qr', async (req, res) => {
-    // 1. Se já está conectado, avisa e para aqui
-    if (clientZap && clientZap.info) {
-        return res.json({ success: true, msg: "WhatsApp já está conectado!" });
-    }
-
-    // 2. Se o cliente já foi criado, mas o QR code ainda não foi lido,
-    // avisa para o usuário aguardar, em vez de criar 2 WhatsApps ao mesmo tempo e bugar.
-    if (clientZap && !clientZap.info) {
-        return res.json({ success: false, msg: "O WhatsApp já está abrindo, aguarde a tela do QR Code." });
-    }
-
-    clientZap = new Client({
-        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
-        puppeteer: {
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            executablePath: process.env.CHROME_PATH || null 
-        }
-    });
-
-    // MUDANÇA MÁGICA: 'once' em vez de 'on'. Ele manda o QR code uma vez e ignora as atualizações de 20s.
-    clientZap.once('qr', async (qr) => {
-        try {
-            const qrImage = await qrcode.toDataURL(qr);
-            // Trava de Segurança: Só manda se ainda não tiver mandado nada
-            if (!res.headersSent) {
-                res.json({ success: true, qr: qrImage });
-            }
-        } catch (error) {
-            console.log("Erro ao gerar imagem QR:", error);
-        }
-    });
-
-    // Se a sessão já estava salva e ele conectar direto sem pedir QR Code
-    clientZap.once('ready', () => {
-        console.log('✅ WhatsApp Pronto!');
-        if (!res.headersSent) {
-            res.json({ success: true, msg: "WhatsApp reconectado com sucesso!" });
-        }
-    });
+    console.log("📞 [ZAP] 1. Recebi o clique para gerar o QR Code...");
     
-    // Se a conexão cair no futuro, limpamos a memória para poder escanear de novo
-    clientZap.on('disconnected', () => {
-        console.log('❌ WhatsApp Desconectado!');
-        clientZap = null;
-    });
-
-    clientZap.initialize().catch((err) => { 
-        console.error("Erro ao iniciar o Zap:", err);
-        clientZap = null; 
-        if (!res.headersSent) {
-            res.status(500).json({ success: false, msg: "Erro no servidor ao abrir o WhatsApp." });
+    try {
+        if (clientZap && clientZap.info) {
+            console.log("📞 [ZAP] Aviso: O Zap já estava conectado.");
+            return res.json({ success: true, msg: "WhatsApp já está conectado!" });
         }
-    });
+
+        if (clientZap && !clientZap.info) {
+            console.log("📞 [ZAP] Aviso: O Zap já está tentando abrir em segundo plano.");
+            return res.json({ success: false, msg: "O WhatsApp já está abrindo, aguarde..." });
+        }
+
+        console.log("📞 [ZAP] 2. Configurando as peças do WhatsApp...");
+        clientZap = new Client({
+            authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
+            puppeteer: {
+                args: [
+                    '--no-sandbox', 
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--disable-gpu'
+                ],
+                executablePath: process.env.CHROME_PATH || null 
+            }
+        });
+
+        clientZap.once('qr', async (qr) => {
+            console.log("📞 [ZAP] 4. SUCESSO! O WhatsApp gerou a imagem do QR Code!");
+            try {
+                const qrImage = await qrcode.toDataURL(qr);
+                if (!res.headersSent) {
+                    res.json({ success: true, qr: qrImage });
+                }
+            } catch (error) {
+                console.log("📞 [ZAP] Erro ao converter a imagem:", error);
+            }
+        });
+
+        clientZap.once('ready', () => {
+            console.log('✅ WhatsApp Pronto!');
+            if (!res.headersSent) {
+                res.json({ success: true, msg: "WhatsApp reconectado com sucesso!" });
+            }
+        });
+
+        clientZap.on('disconnected', () => {
+            console.log('❌ WhatsApp Desconectado!');
+            clientZap = null;
+        });
+
+        console.log("📞 [ZAP] 3. Tentando dar a partida no Google Chrome (É aqui que o Render costuma sofrer)...");
+        
+        clientZap.initialize().then(() => {
+            console.log("📞 [ZAP] Chrome abriu com sucesso em segundo plano.");
+        }).catch((err) => { 
+            console.error("📞 [ZAP] ❌ ERRO CRÍTICO AO ABRIR O CHROME:", err);
+            clientZap = null; 
+            if (!res.headersSent) {
+                res.status(500).json({ success: false, msg: "Erro no servidor ao abrir o WhatsApp." });
+            }
+        });
+
+    } catch (error) {
+        console.error("📞 [ZAP] Erro geral:", error);
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, msg: error.message });
+        }
+    }
 });
 
 // Função Auxiliar para pausar (Delay de segurança)
