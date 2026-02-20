@@ -455,23 +455,33 @@ app.post('/api/admin/broadcast-zap', (req, res) => {
         for (const client of clients) {
             // 1. Enviar E-mail
             sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
-
-            // 2. Enviar WhatsApp (com limpeza e delay)
+            
+            console.log(`🔎 Testando ${client.name}: Caixinha Marcada? ${sendZap} | Tem Zap logado? ${!!clientZap} | Telefone: ${client.phone}`);
+            
+            // 2. Enviar WhatsApp (com limpeza, conserto do 9º dígito e delay)
             if (sendZap && clientZap && client.phone) {
                 // Limpeza: remove tudo que não é número
                 let num = client.phone.replace(/\D/g, '');
                 
-                // Se não tiver DDI, assume 55 (Brasil). Se for Guiné-Bissau, mude para 245
+                // Se não tiver DDI, assume 55 (Brasil).
                 if (num.length <= 11) num = '55' + num; 
 
                 try {
-                    await clientZap.sendMessage(`${num}@c.us`, `*${subject}*\n\nOlá ${client.name},\n${message}`);
-                    console.log(`✓ Zap enviado: ${num}`);
+                    // NOVO: Pede pro WhatsApp descobrir o ID oficial do contato
+                    const contatoOficial = await clientZap.getNumberId(num);
+
+                    if (contatoOficial) {
+                        // Se achou, envia para o ID oficial (resolve a questão do 9º dígito no Brasil)
+                        await clientZap.sendMessage(contatoOficial._serialized, `*${subject}*\n\nOlá ${client.name},\n${message}`);
+                        console.log(`✓ Zap enviado com sucesso para: ${num}`);
+                    } else {
+                        console.error(`x Número não possui WhatsApp ou formato inválido: ${num}`);
+                    }
                     
-                    // Espera 3 segundos entre cada mensagem para evitar BAN do WhatsApp
+                    // Espera 3 segundos entre cada mensagem para evitar ban
                     await delay(3000); 
                 } catch (e) {
-                    console.error(`x Erro no número ${num}`);
+                    console.error(`x Erro no número ${num} | Motivo:`, e.message || e);
                 }
             }
         }
