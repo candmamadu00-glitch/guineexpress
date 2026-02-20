@@ -427,15 +427,20 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
 
-    // 🔥 NOVO: DESTRÓI O CADEADO ANTIGO DO CHROME (Impede o Erro 21 no Render)
+    // 🔥 O EXTERMINADOR DE ZUMBIS E CADEADOS
     try {
         const { execSync } = require('child_process');
-        // Vasculha a pasta de sessão e apaga qualquer trava (SingletonLock) que ficou pra trás
-        execSync(`find ${SESSION_PATH} -name "SingletonLock" -type f -delete`);
-        console.log("🧹 [ZAP] Cadeado fantasma do Chrome removido com sucesso!");
-    } catch (e) {
-        // Segue o jogo silenciosamente se não tiver cadeado
-    }
+        // 1. Mata qualquer processo Chrome/Chromium fantasma que ficou rodando na memória do Render
+        execSync('pkill -f chrome', { stdio: 'ignore' });
+        execSync('pkill -f chromium', { stdio: 'ignore' });
+    } catch (e) { /* Ignora silenciosamente se não tiver processo pra matar */ }
+
+    try {
+        const { execSync } = require('child_process');
+        // 2. Apaga TODOS os tipos de cadeado (Lock, Cookie, Socket), não apenas o SingletonLock
+        execSync(`find ${SESSION_PATH} -name "Singleton*" -delete`, { stdio: 'ignore' });
+        console.log("🧹 [ZAP] Processos zumbis e TODOS os cadeados removidos com sucesso!");
+    } catch (e) { /* Ignora silenciosamente se falhar */ }
 
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
