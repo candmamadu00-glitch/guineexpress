@@ -417,31 +417,63 @@ app.get('/api/expenses/list', (req, res) => {
 });
 // Rota para iniciar o Zap e gerar QR Code
 app.get('/api/admin/zap-qr', async (req, res) => {
+    // 1. Se já estiver totalmente conectado e pronto:
     if (clientZap && clientZap.info) {
         return res.json({ success: true, msg: "WhatsApp já está conectado!" });
     }
 
+    // 2. Trava de segurança: Se o Chrome já estiver abrindo, não deixa o usuário clicar 10 vezes e travar o PC
+    if (clientZap) {
+        return res.json({ success: false, msg: "O WhatsApp já está ligando. Aguarde uns 15 segundos..." });
+    }
+
+    console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
+
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
         puppeteer: {
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            executablePath: process.env.CHROME_PATH || null 
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Economiza memória RAM
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu' // Tira o peso gráfico e faz o Chrome abrir mais rápido
+            ]
+            // Apaguei o executablePath daqui de novo, para não dar conflito!
         }
     });
 
-    clientZap.on('qr', async (qr) => {
+    // Usamos .once em vez de .on para ele ouvir o evento apenas uma vez e não duplicar
+    clientZap.once('qr', async (qr) => {
+        console.log("📞 [ZAP] QR Code capturado! Mandando para a tela...");
         const qrImage = await qrcode.toDataURL(qr);
-        res.json({ success: true, qr: qrImage });
+        if (!res.headersSent) {
+            res.json({ success: true, qr: qrImage });
+        }
     });
 
-    clientZap.on('ready', () => console.log('✅ WhatsApp Pronto!'));
+    clientZap.once('ready', () => {
+        console.log('✅ WhatsApp Pronto!');
+        // Se conectou sozinho (porque a sessão tava salva) e não pediu QR:
+        if (!res.headersSent) {
+            res.json({ success: true, msg: "Conectado automaticamente pela sessão salva!" });
+        }
+    });
     
-    clientZap.initialize().catch(() => { clientZap = null; });
+    // Tratamento de erro caso o Chrome falhe
+    clientZap.initialize().catch((err) => { 
+        console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err);
+        clientZap = null; 
+        if (!res.headersSent) {
+            res.json({ success: false, msg: "Falha ao iniciar o WhatsApp. Verifique os logs." });
+        }
+    });
 });
 
 // Função Auxiliar para pausar (Delay de segurança)
 const delay = ms => new Promise(res => setTimeout(res, ms));
-
 // Rota de Envio em Massa
 app.post('/api/admin/broadcast-zap', (req, res) => {
     const { subject, message, sendZap } = req.body;
