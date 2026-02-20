@@ -4012,6 +4012,73 @@ async function loadAccessLogs() {
         alert("Erro ao carregar histórico.");
     }
 }
+// ==========================================
+// ABA FINANCEIRO (ENCOMENDAS E FATURAS)
+// ==========================================
+
+async function loadFinances() {
+    try {
+        const res = await fetch('/api/finances/all');
+        const finances = await res.json();
+        const tbody = document.getElementById('finances-list');
+        tbody.innerHTML = '';
+
+        if (finances.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Nenhum registro encontrado.</td></tr>`;
+            return;
+        }
+
+        finances.forEach(item => {
+            // Escolhe a cor da etiqueta dependendo do status
+            let statusBadge = 'bg-warning'; // Padrão (Pendente, etc)
+            if (item.status.toLowerCase().includes('pago')) statusBadge = 'bg-success';
+            if (item.status.toLowerCase().includes('cancelado')) statusBadge = 'bg-danger';
+
+            const tr = document.createElement('tr');
+            // ADICIONAMOS O data-label EM CADA TD PARA O CELULAR LER!
+            tr.innerHTML = `
+                <td data-label="Código" style="font-weight: bold;">${item.id_code || 'N/A'}</td>
+                <td data-label="Tipo"><span class="badge ${item.type === 'Encomenda' ? 'bg-info' : 'bg-primary'}">${item.type}</span></td>
+                <td data-label="Cliente">${item.client_name || 'Desconhecido'}</td>
+                <td data-label="Descrição">${item.description || '-'}</td>
+                <td data-label="Peso">${item.weight ? item.weight + ' kg' : '-'}</td>
+                <td data-label="Status"><span class="badge ${statusBadge}">${item.status}</span></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Erro ao carregar o financeiro", e);
+    }
+}
+
+// Geração de PDF (Requer jspdf e autotable no HTML)
+function exportFinancesPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.text("Relatorio Financeiro - Guineexpress", 14, 22);
+    doc.setFontSize(11);
+    doc.text("Gerado em: " + new Date().toLocaleString(), 14, 30);
+
+    // Pega a tabela HTML pelo ID e converte para PDF automaticamente
+    doc.autoTable({
+        html: '#finances-table',
+        startY: 35,
+        theme: 'grid',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [41, 128, 185] }
+    });
+
+    doc.save('Relatorio_Financeiro.pdf');
+}
+
+// Geração de Excel (Requer xlsx no HTML)
+function exportFinancesExcel() {
+    const table = document.getElementById('finances-table');
+    const workbook = XLSX.utils.table_to_book(table, { sheet: "Financeiro" });
+    XLSX.writeFile(workbook, 'Relatorio_Financeiro.xlsx');
+}
 // ==============================================================
 // GARANTIA DE TELA LIMPA AO CARREGAR A PÁGINA
 // ==============================================================
@@ -4051,7 +4118,6 @@ async function registerPush() {
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted') {
-            // ESSA FUNÇÃO É OBRIGATÓRIA PARA NÃO DAR O ERRO QUE VOCÊ TEVE
             const urlBase64ToUint8Array = (base64String) => {
                 const padding = '='.repeat((4 - base64String.length % 4) % 4);
                 const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -4068,13 +4134,15 @@ async function registerPush() {
 
             const subscription = await register.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: convertedKey // AQUI VAI A CHAVE CONVERTIDA
+                applicationServerKey: convertedKey
             });
 
             await fetch('/api/notifications/subscribe', {
                 method: 'POST',
                 body: JSON.stringify(subscription),
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                // ADICIONEI ESTA LINHA ABAIXO:
+                credentials: 'same-origin' 
             });
             console.log("Push ativado com sucesso!");
         }

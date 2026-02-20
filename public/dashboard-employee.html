@@ -38,6 +38,7 @@
             <span style="font-size:12px; font-weight:normal; opacity:0.8;">| FUNCIONÁRIO</span>
         </div>
         <div class="nav-links">
+            <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn"><i class="fas fa-file-invoice-dollar"></i> 💸Faturas</button>
             <button onclick="showSection('orders-view')"><i class="fas fa-box"></i> Encomendas</button>
             <button onclick="startScanner()" class="btn" style="background: #ffc107; color: #000; margin-right: 10px;"><i class="fas fa-qrcode"></i> Escanear</button>
             <button onclick="showSection('history-view')" class="nav-btn"><i class="fas fa-history"></i> Histórico</button>
@@ -390,6 +391,44 @@
         </div>
     </div>
 </div>
+<section id="finances-view" class="hidden">
+    <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>💰 Faturas Pagas e Pendentes</h2>
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="exportFinancesPDF()" class="btn btn-primary" style="background: #e74c3c;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
+            <button onclick="exportFinancesExcel()" class="btn btn-primary" style="background: #27ae60;"><i class="fas fa-file-excel"></i> Abrir no Excel</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="margin: 15px 0; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+            <input type="text" id="search-finances" onkeyup="searchTable('search-finances', 'finances-list')" 
+                   placeholder="Buscar por código, cliente ou status..." 
+                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table" id="finances-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Tipo</th>
+                        <th>Cliente</th>
+                        <th>Descrição</th>
+                        <th style="text-align: center;">Peso</th>
+                        <th style="text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="finances-list"></tbody>
+            </table>
+        </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { 

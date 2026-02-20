@@ -694,7 +694,44 @@ app.get('/api/orders', (req, res) => {
         res.json(rows);
     });
 });
+// ROTA DO PAINEL FINANCEIRO (Junta Encomendas e Faturas)
+app.get('/api/finances/all', async (req, res) => {
+    // Só admin ou funcionário podem ver o painel geral
+    const isAdminOrEmployee = req.session.role === 'admin' || req.session.role === 'employee';
+    if (!isAdminOrEmployee) return res.json([]);
 
+    try {
+        // 1. Busca Encomendas
+        const orders = await new Promise((resolve, reject) => {
+            const sql = `SELECT o.code as id_code, 'Encomenda' as type, u.name as client_name, 
+                                o.description, o.weight, o.status 
+                         FROM orders o JOIN users u ON o.client_id = u.id ORDER BY o.id DESC`;
+            db.all(sql, [], (err, rows) => {
+                if (err) reject(err); else resolve(rows);
+            });
+        });
+
+        // 2. Busca Faturas do Financeiro (CORRIGIDO AQUI: Removido o b.weight que estava quebrando)
+        const invoices = await new Promise((resolve, reject) => {
+            const sql = `SELECT i.id as id_code, 'Fatura' as type, u.name as client_name, 
+                                'Caixa ' || b.box_code as description, NULL as weight, i.status 
+                         FROM invoices i 
+                         LEFT JOIN users u ON i.client_id = u.id 
+                         LEFT JOIN boxes b ON i.box_id = b.id ORDER BY i.id DESC`;
+            db.all(sql, [], (err, rows) => {
+                if (err) reject(err); else resolve(rows);
+            });
+        });
+
+        // Junta as duas listas e envia
+        const combined = [...orders, ...invoices];
+        res.json(combined);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erro ao gerar relatório financeiro" });
+    }
+});
 app.get('/api/orders/by-client/:id', (req, res) => db.all("SELECT * FROM orders WHERE client_id = ?", [req.params.id], (err, rows) => res.json(rows)));
 // --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CÁLCULO DE PREÇO) ---
 app.post('/api/orders/create', (req, res) => {

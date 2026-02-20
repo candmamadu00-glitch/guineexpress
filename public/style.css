@@ -1500,3 +1500,83 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     opacity: 0.6;
     transform: translate(-50%, -50%) scale(1.05); /* Leve zoom */
 }
+/* ==========================================
+   CSS RESPONSIVO PARA TABELA DO FINANCEIRO
+========================================== */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto; /* Cria a barra de rolagem horizontal no celular */
+    -webkit-overflow-scrolling: touch; /* Deixa a rolagem suave no iPhone */
+    margin-bottom: 15px;
+}
+
+#finances-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px; /* Garante que a tabela não esprema demais no celular */
+}
+
+#finances-table th, 
+#finances-table td {
+    padding: 12px 15px;
+    text-align: left; /* Alinha tudo à esquerda para ficar organizado */
+    border-bottom: 1px solid #ddd;
+    white-space: nowrap; /* Impede que o texto quebre para a linha de baixo, mantendo a coluna firme */
+    vertical-align: middle;
+}
+
+/* Centralizando apenas a coluna de Status e Peso para ficar mais bonito */
+#finances-table th:nth-child(5), #finances-table td:nth-child(5),
+#finances-table th:nth-child(6), #finances-table td:nth-child(6) {
+    text-align: center;
+}
+/* ==========================================
+   MÁGICA RESPONSIVA PARA TABELAS NO CELULAR
+========================================== */
+@media screen and (max-width: 768px) {
+    #finances-table {
+        border: 0;
+        width: 100%;
+        min-width: 100%; /* Força a não flutuar */
+    }
+    
+    /* Esconde os títulos das colunas no topo */
+    #finances-table thead {
+        display: none; 
+    }
+    
+    /* Transforma cada linha em um "Cartão" */
+    #finances-table tr {
+        display: block;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        background: #fff;
+        padding: 8px;
+    }
+    
+    /* Coloca o título na esquerda e o valor na direita */
+    #finances-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        text-align: right;
+        border-bottom: 1px solid #f0f0f0;
+        padding: 10px 5px;
+        white-space: normal; /* Permite que o texto quebre se for grande */
+    }
+    
+    #finances-table td:last-child {
+        border-bottom: 0;
+    }
+    
+    /* Cria o título da coluna dinamicamente usando o 'data-label' */
+    #finances-table td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        text-align: left;
+        color: #555;
+        padding-right: 15px;
+    }
+}
