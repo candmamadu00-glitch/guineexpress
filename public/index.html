@@ -210,7 +210,19 @@
 
 <div id="modal-recover" class="modal-overlay hidden">
     </div>
-
+<div id="install-banner" style="display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: #0a1931; color: white; padding: 15px; justify-content: space-between; align-items: center; z-index: 9999; box-shadow: 0 -4px 10px rgba(0,0,0,0.3); border-top-left-radius: 15px; border-top-right-radius: 15px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <img src="/logo.png" style="width: 45px; height: 45px; border-radius: 10px; border: 2px solid #d4af37;">
+        <div>
+            <h4 style="margin: 0; font-size: 15px; font-weight: bold;">Guineexpress App</h4>
+            <p style="margin: 0; font-size: 12px; color: #ccc;">Instale para acesso rápido</p>
+        </div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <button onclick="hideInstallBanner()" style="background: transparent; border: none; color: #aaa; font-size: 13px;">Agora não</button>
+        <button onclick="installPWA()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold; padding: 8px 16px; border-radius: 20px; font-size: 14px;">Instalar</button>
+    </div>
+</div>
 <script src="cici.js"></script>
 <script src="script.js"></script>
 </body>

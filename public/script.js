@@ -4174,3 +4174,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2000);
     }
 });
+/* ==========================================
+   SISTEMA DE INSTALAÇÃO DO APLICATIVO (PWA)
+========================================== */
+let deferredPrompt;
+
+// 1. O navegador avisa que o App está pronto para instalar
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Impede o aviso padrão (chato) do Google Chrome
+    e.preventDefault();
+    // Salva o evento para usarmos quando o cliente clicar no botão
+    deferredPrompt = e;
+    
+    // Mostra o nosso banner bonitão
+    const installBanner = document.getElementById('install-banner');
+    if (installBanner) {
+        installBanner.style.display = 'flex';
+    }
+});
+
+// 2. O que acontece quando o cliente clica em "Instalar"
+async function installPWA() {
+    if (deferredPrompt) {
+        // Mostra a tela oficial de instalação do Android/iOS
+        deferredPrompt.prompt();
+        
+        // Espera o cliente dizer "Sim" ou "Não"
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('Cliente instalou o App!');
+        }
+        
+        // Limpa a memória e esconde o banner
+        deferredPrompt = null;
+        hideInstallBanner();
+    }
+}
+
+// 3. O que acontece se ele clicar em "Agora não"
+function hideInstallBanner() {
+    const installBanner = document.getElementById('install-banner');
+    if (installBanner) {
+        installBanner.style.display = 'none';
+    }
+}
