@@ -442,8 +442,8 @@ app.get('/api/admin/zap-qr', async (req, res) => {
                     '--no-first-run',
                     '--no-zygote',
                     '--disable-gpu'
-                ],
-                executablePath: process.env.CHROME_PATH || null 
+                ]
+                // ❌ APAGUE A LINHA executablePath QUE FICAVA AQUI!
             }
         });
 
