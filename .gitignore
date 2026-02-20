@@ -1,7 +1,9 @@
-node_modules
+node_modules/
 .env
 .DS_Store
 guineexpress_v4.db
+.wwebjs_auth/
+.wwebjs_cache/
 session/
 session-whatsapp/
 session-cici/
