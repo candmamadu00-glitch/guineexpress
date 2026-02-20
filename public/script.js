@@ -2496,7 +2496,7 @@ function filterLabels() {
     });
 }
 
-// 4. GERAR E IMPRIMIR ETIQUETAS (Tamanho Pequeno 100x150mm)
+// 4. GERAR E IMPRIMIR ETIQUETAS (Com sistema de Volume X/Y)
 function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
@@ -2515,68 +2515,83 @@ function printSelectedLabels() {
     checked.forEach(box => {
         const data = JSON.parse(box.getAttribute('data-obj'));
         
-        // Estrutura HTML Otimizada para Térmica
-        const labelDiv = document.createElement('div');
-        labelDiv.className = 'shipping-label-container'; // Classe conectada ao @page label-page
+        // 1. PERGUNTA QUANTAS SACOLAS TEM ESTA ENCOMENDA
+        let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
         
-        labelDiv.innerHTML = `
-            <div class="lbl-header">
-                <div class="lbl-logo">
-                    <span class="lbl-logo-main">GE</span>
-                    <span class="lbl-logo-sub">Ltda</span>
-                </div>
-                <div style="text-align: right; font-size: 9px; color: #fff; line-height: 1.3;">
-                    <strong style="font-size:11px; color:#d4af37;">${company.name}</strong><br>
-                    ${company.address}<br>
-                    ${company.contact}<br>
-                    CNPJ: ${company.cnpj}
-                </div>
-            </div>
+        // Se o usuário cancelar ou digitar letra, assume 1
+        qtdVolumes = parseInt(qtdVolumes) || 1; 
 
-            <div class="lbl-body">
-                <div class="lbl-box">
-                    <div class="lbl-title">DESTINATÁRIO (GUINÉ-BISSAU)</div>
-                    <div class="lbl-text" style="font-size: 14px;">${data.client_name || 'CLIENTE'}</div>
-                    <div style="font-size: 11px; margin-top: 2px;">
-                        Tel: ${data.client_phone || '-'}<br>
-                        Email: ${data.client_email ? data.client_email.substring(0, 25) : '-'}
+        // 2. LOOP MÁGICO: Gera a quantidade de etiquetas que o usuário pediu
+        for (let i = 1; i <= qtdVolumes; i++) {
+            
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'shipping-label-container'; 
+            
+            labelDiv.innerHTML = `
+                <div class="lbl-header">
+                    <div class="lbl-logo">
+                        <span class="lbl-logo-main">GE</span>
+                        <span class="lbl-logo-sub">Ltda</span>
+                    </div>
+                    <div style="text-align: right; font-size: 9px; color: #fff; line-height: 1.3;">
+                        <strong style="font-size:11px; color:#d4af37;">${company.name}</strong><br>
+                        ${company.address}<br>
+                        ${company.contact}<br>
+                        CNPJ: ${company.cnpj}
                     </div>
                 </div>
 
-                <div style="display:flex; gap: 5px;">
-                    <div class="lbl-box" style="flex: 2;">
-                        <div class="lbl-title">CONTEÚDO</div>
-                        <div class="lbl-text" style="font-size: 12px;">${data.description ? data.description.substring(0, 40) : '-'}</div>
+                <div class="lbl-body">
+                    <div class="lbl-box">
+                        <div class="lbl-title">DESTINATÁRIO (GUINÉ-BISSAU)</div>
+                        <div class="lbl-text" style="font-size: 14px;">${data.client_name || 'CLIENTE'}</div>
+                        <div style="font-size: 11px; margin-top: 2px;">
+                            Tel: ${data.client_phone || '-'}<br>
+                            Email: ${data.client_email ? data.client_email.substring(0, 25) : '-'}
+                        </div>
                     </div>
-                    <div class="lbl-box" style="flex: 1; text-align: center;">
-                        <div class="lbl-title">PESO</div>
-                        <div class="lbl-text" style="font-size: 16px;">${data.weight} kg</div>
+
+                    <div style="display:flex; gap: 5px;">
+                        <div class="lbl-box" style="flex: 2;">
+                            <div class="lbl-title">CONTEÚDO</div>
+                            <div class="lbl-text" style="font-size: 12px;">${data.description ? data.description.substring(0, 40) : '-'}</div>
+                        </div>
+                        <div class="lbl-box" style="flex: 1; text-align: center;">
+                            <div class="lbl-title">PESO TOTAL</div>
+                            <div class="lbl-text" style="font-size: 16px;">${data.weight} kg</div>
+                        </div>
+                    </div>
+                    
+                    <div class="lbl-box">
+                        <div class="lbl-title">OBSERVAÇÕES</div>
+                        <div style="font-size: 10px;">Entrega prevista: </div>
                     </div>
                 </div>
-                
-                <div class="lbl-box">
-                    <div class="lbl-title">OBSERVAÇÕES</div>
-                    <div style="font-size: 10px;">Entrega prevista: </div>
+
+                <div class="lbl-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div class="lbl-title" style="border:none; margin:0;">RASTREIO</div>
+                        <div style="font-size: 22px; font-weight: 900; letter-spacing: 1px;">${data.code}</div>
+                    </div>
+                    
+                    <div style="background: #000; color: #fff; padding: 6px 12px; text-align: center; border-radius: 4px; min-width: 60px;">
+                        <div style="font-size: 9px; letter-spacing: 2px; font-weight:bold;">VOLUME</div>
+                        <div style="font-size: 24px; font-weight: 900;">${i}/${qtdVolumes}</div>
+                    </div>
+
+                    <div id="qr-${data.id}-${i}" style="background:#fff; padding:2px; border:1px solid #ddd;"></div>
                 </div>
-            </div>
+            `;
 
-            <div class="lbl-footer">
-                <div>
-                    <div class="lbl-title" style="border:none; margin:0;">RASTREIO</div>
-                    <div style="font-size: 26px; font-weight: 900; letter-spacing: 2px;">${data.code}</div>
-                </div>
-                <div id="qr-${data.id}" style="background:#fff; padding:2px; border:1px solid #ddd;"></div>
-            </div>
-        `;
+            printArea.appendChild(labelDiv);
 
-        printArea.appendChild(labelDiv);
-
-        // QR Code
-        new QRCode(document.getElementById(`qr-${data.id}`), {
-            text: `CODE:${data.code}|${data.client_name}`,
-            width: 70, height: 70,
-            correctLevel : QRCode.CorrectLevel.L
-        });
+            // Gerar QR Code (Adicionado o número do volume no ID para não dar conflito)
+            new QRCode(document.getElementById(`qr-${data.id}-${i}`), {
+                text: `CODE:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
+                width: 60, height: 60,
+                correctLevel : QRCode.CorrectLevel.L
+            });
+        }
     });
 
     setTimeout(() => { window.print(); }, 500);
