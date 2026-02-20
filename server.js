@@ -415,10 +415,17 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
-// Rota para iniciar o Zap e gerar QR Code
+// Rota para iniciar o Zap e gerar QR Code (Versão Blindada)
 app.get('/api/admin/zap-qr', async (req, res) => {
+    // 1. Se já está conectado, avisa e para aqui
     if (clientZap && clientZap.info) {
         return res.json({ success: true, msg: "WhatsApp já está conectado!" });
+    }
+
+    // 2. Se o cliente já foi criado, mas o QR code ainda não foi lido,
+    // avisa para o usuário aguardar, em vez de criar 2 WhatsApps ao mesmo tempo e bugar.
+    if (clientZap && !clientZap.info) {
+        return res.json({ success: false, msg: "O WhatsApp já está abrindo, aguarde a tela do QR Code." });
     }
 
     clientZap = new Client({
@@ -429,14 +436,40 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         }
     });
 
-    clientZap.on('qr', async (qr) => {
-        const qrImage = await qrcode.toDataURL(qr);
-        res.json({ success: true, qr: qrImage });
+    // MUDANÇA MÁGICA: 'once' em vez de 'on'. Ele manda o QR code uma vez e ignora as atualizações de 20s.
+    clientZap.once('qr', async (qr) => {
+        try {
+            const qrImage = await qrcode.toDataURL(qr);
+            // Trava de Segurança: Só manda se ainda não tiver mandado nada
+            if (!res.headersSent) {
+                res.json({ success: true, qr: qrImage });
+            }
+        } catch (error) {
+            console.log("Erro ao gerar imagem QR:", error);
+        }
     });
 
-    clientZap.on('ready', () => console.log('✅ WhatsApp Pronto!'));
+    // Se a sessão já estava salva e ele conectar direto sem pedir QR Code
+    clientZap.once('ready', () => {
+        console.log('✅ WhatsApp Pronto!');
+        if (!res.headersSent) {
+            res.json({ success: true, msg: "WhatsApp reconectado com sucesso!" });
+        }
+    });
     
-    clientZap.initialize().catch(() => { clientZap = null; });
+    // Se a conexão cair no futuro, limpamos a memória para poder escanear de novo
+    clientZap.on('disconnected', () => {
+        console.log('❌ WhatsApp Desconectado!');
+        clientZap = null;
+    });
+
+    clientZap.initialize().catch((err) => { 
+        console.error("Erro ao iniciar o Zap:", err);
+        clientZap = null; 
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, msg: "Erro no servidor ao abrir o WhatsApp." });
+        }
+    });
 });
 
 // Função Auxiliar para pausar (Delay de segurança)
