@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config(); // Lê o arquivo .env
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -9,114 +9,18 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
-const helmet = require('helmet');
-const compression = require('compression');
+const helmet = require('helmet'); // Instale: npm install helmet
+const compression = require('compression'); // Instale: npm install compression
 const MercadoPagoConfig = require('mercadopago').MercadoPagoConfig;
 const Payment = require('mercadopago').Payment;
 const Preference = require('mercadopago').Preference;
-const cron = require('node-cron');
-const path = require('path');
+const cron = require('node-cron'); // Agendador de tarefas
+const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
 const app = express();
 const db = require('./database'); 
 const webpush = require('web-push');
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const { execSync } = require('child_process');
 
-// 1. Limpeza Segura (Preserva a sessão, apaga só os cadeados e zumbis)
-if (process.platform === 'linux') {
-    const sessionDir = '/data/session-whatsapp';
-    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
-    
-    // Mata processos zumbis do Chrome para liberar a RAM
-    try { execSync('pkill -9 -f chrome'); } catch (e) {}
-
-    function clearLocks(dir) {
-        if (!fs.existsSync(dir)) return;
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-            const fullPath = path.join(dir, file);
-            try {
-                const stats = fs.lstatSync(fullPath);
-                if (stats.isDirectory()) {
-                    clearLocks(fullPath);
-                } else if (lockFiles.includes(file)) {
-                    fs.unlinkSync(fullPath);
-                }
-            } catch (err) {}
-        }
-    }
-    clearLocks(sessionDir);
-    console.log('🧹 Limpeza de rotina concluída. Sessão preservada.');
-}
-let isWhatsAppReady = false;
-// 2. Configuração do Cliente Ultra-Leve (Modo Sobrevivência de RAM)
-const whatsappClient = new Client({
-    authStrategy: new LocalAuth({
-        dataPath: process.platform === 'linux' ? '/data/session-whatsapp' : './session'
-    }),
-    puppeteer: {
-        headless: true,
-        executablePath: process.platform === 'linux' 
-            ? '/opt/render/project/src/.puppeteer_cache/chrome/linux-145.0.7632.77/chrome-linux64/chrome'
-            : undefined,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--no-zygote',
-            '--single-process', // 🔥 A MÁGICA PARA CORTAR A RAM PELA METADE
-            '--disable-accelerated-2d-canvas',
-            '--disable-extensions',
-            '--no-first-run',
-            '--mute-audio'
-            
-        ],
-    }
-});
-
-whatsappClient.on('qr', (qr) => {
-    // 'small: true' ajuda, mas vamos garantir que o log não quebre a linha
-    qrcode.generate(qr, { small: true });
-    console.log('-------------------------------------------');
-    console.log('NOVO QR CODE GERADO! Tente escanear acima.');
-    console.log('-------------------------------------------');
-});
-whatsappClient.on('ready', () => {
-    console.log('Cicí está conectada ao WhatsApp! ✅');
-    isWhatsAppReady = true; // Agora ela está pronta!
-});
-
-whatsappClient.on('disconnected', () => {
-    console.log('Cicí foi desconectada do WhatsApp! ❌');
-    isWhatsAppReady = false; // Voltou a dormir
-});
-// 2. FUNÇÃO DE ENVIO DIRETA E BLINDADA
-async function sendWhatsAppMessage(phone, message) {
-    // Trava de segurança: impede o erro do WidFactory
-    if (!isWhatsAppReady) {
-        console.log(`⚠️ Cicí ainda não está conectada ao Zap. O envio para ${phone} foi cancelado.`);
-        return false;
-    }
-
-    try {
-        let cleanPhone = phone.replace(/\D/g, ''); 
-        if (cleanPhone.length === 9) {
-            cleanPhone = '245' + cleanPhone;
-        }
-        const chatId = cleanPhone + '@c.us';
-
-        await whatsappClient.sendMessage(chatId, message);
-        console.log(`✅ Zap enviado com sucesso para: ${chatId}`);
-        return true;
-
-    } catch (err) {
-        console.error(`❌ Erro técnico ao enviar Zap para ${phone}:`, err.message);
-        return false;
-    }
-}
 webpush.setVapidDetails(
     'mailto:candemamadu00@gmail.com',
     process.env.VAPID_PUBLIC_KEY,
@@ -576,35 +480,31 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
     });
 });
 app.post('/api/admin/broadcast', (req, res) => {
+    // Verifica se é Admin (Segurança)
     const isAdmin = (req.session.role === 'admin') || (req.session.user && req.session.user.role === 'admin');
     if (!isAdmin) return res.status(403).json({ success: false, msg: 'Sem permissão.' });
 
-    const { subject, message, sendEmail, sendWA } = req.body;
+    const { subject, message } = req.body;
 
-    db.all("SELECT email, name, phone FROM users WHERE role = 'client'", [], async (err, clients) => {
+    if (!subject || !message) return res.json({ success: false, msg: 'Preencha tudo.' });
+
+    // Busca clientes
+    db.all("SELECT email, name FROM users WHERE role = 'client'", [], async (err, clients) => {
         if (err) return res.json({ success: false, msg: 'Erro no banco.' });
-        if (!clients || clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente encontrado.' });
+        if (clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente.' });
 
-        console.log(`Iniciando broadcast para ${clients.length} clientes...`);
+        // Envia usando a função corrigida
+        clients.forEach(client => {
+            // Chama a função auxiliar que já tem o HTML bonito e o remetente certo
+            sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
+        });
 
-        // Usamos um loop for...of para poder usar o 'await' e dar o delay
-        for (const client of clients) {
-            // 1. Envio por E-mail
-            if (sendEmail && client.email) {
-                sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
-            }
-
-            // 2. Envio por WhatsApp
-            if (sendWA && client.phone) {
-                const textWA = `*📢 ${subject}*\n\nOlá ${client.name},\n${message}`;
-                await sendWhatsAppMessage(client.phone, textWA);
-                
-                // ESPERA 3 SEGUNDOS entre cada envio para evitar ser banido pelo WhatsApp
-                await new Promise(resolve => setTimeout(resolve, 3000));
-            }
+        // Salva Log
+        if (typeof logAction === 'function') {
+             logAction(req, 'Comunicado Geral', `Enviou: "${subject}" para ${clients.length} clientes.`);
         }
 
-        res.json({ success: true, msg: `Processo de envio finalizado para ${clients.length} clientes!` });
+        res.json({ success: true, msg: `Enviando para ${clients.length} clientes!` });
     });
 });
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
@@ -654,16 +554,13 @@ app.get('/api/schedule/slots-15min', (req, res) => {
     });
 });
 
-// 4. Reservar (APROVAÇÃO AUTOMÁTICA)
+// 4. Reservar
 app.post('/api/schedule/book', (req, res) => {
     const { availability_id, date, time } = req.body;
     const client_id = req.session.userId;
 
-    if (!client_id) return res.json({ success: false, msg: 'Sessão expirada. Faça login novamente.' });
-
-    // A. Verifica se o cliente já tem agendamento no dia (Evita duplicidade)
-    db.get(`SELECT ap.id FROM appointments ap JOIN availability av ON ap.availability_id = av.id 
-            WHERE ap.client_id = ? AND av.date = ? AND ap.status != 'Cancelado'`, 
+    // A. Verifica agendamento no dia
+    db.get(`SELECT ap.id FROM appointments ap JOIN availability av ON ap.availability_id = av.id WHERE ap.client_id = ? AND av.date = ? AND ap.status != 'Cancelado'`, 
     [client_id, date], (err, hasBooking) => {
         if (hasBooking) return res.json({ success: false, msg: 'Você já tem um agendamento neste dia.' });
 
@@ -671,26 +568,13 @@ app.post('/api/schedule/book', (req, res) => {
         db.get(`SELECT count(*) as qtd FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, 
         [availability_id, time], (err, row) => {
             db.get("SELECT max_slots FROM availability WHERE id = ?", [availability_id], (err, avail) => {
-                if (!row || !avail) return res.json({success: false, msg: "Erro ao verificar vaga."});
+                if (!row || !avail) return res.json({success: false, msg: "Erro ao verificar vaga"});
                 
                 if (row.qtd >= avail.max_slots) return res.json({ success: false, msg: 'Horário esgotado.' });
 
-                // C. Agenda com STATUS DIRETO PARA 'Confirmado'
-                // Mudamos de 'Pendente' para 'Confirmado' aqui:
-                db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Confirmado')", 
-                    [availability_id, client_id, time], function(err) {
-                        if (err) {
-                            return res.json({success: false, msg: "Erro ao salvar agendamento."});
-                        }
-                        
-                        // Retornamos sucesso e uma mensagem para a Cicí ler
-                        res.json({
-                            success: true, 
-                            msg: 'Agendamento confirmado automaticamente!',
-                            appointmentId: this.lastID
-                        });
-                    }
-                );
+                // C. Agenda
+                db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Pendente')", 
+                    [availability_id, client_id, time], (err) => res.json({success: !err}));
             });
         });
     });
@@ -1695,35 +1579,69 @@ const queryDB = (sql, params = []) => {
 };
 app.post('/api/cici/chat', async (req, res) => {
     try {
-        const { text, userContext, image, lang } = req.body;
+        const { text, userContext, image, isFirstMessage, lang } = req.body;
+        const userId = req.session.userId; 
 
-        const systemPrompt = `Você é a Cicí Pro Max 20.0 da Guineexpress.
-        Contexto do Usuário: Nome: ${userContext.name}, Cargo: ${userContext.role}, Aparelho: ${userContext.deviceInfo}.
-        Idioma de resposta: ${lang}.
+        // 1. Contexto de Logística (Busca no Banco)
+        let dadosExtras = "";
+        if (userId) {
+            const orders = await new Promise((resolve) => {
+                db.all("SELECT code, status FROM orders WHERE client_id = ? ORDER BY id DESC LIMIT 3", [userId], (err, rows) => {
+                    resolve(rows || []);
+                });
+            });
+            if (orders.length > 0) {
+                dadosExtras = "\nENCOMENDAS ATUAIS:\n" + orders.map(o => `- ${o.code}: ${o.status}`).join('\n');
+            }
+        }
 
-        HABILIDADES ESPECIAIS:
-        1. ANALISAR DOCUMENTOS/IMAGENS: Se o usuário enviar uma foto de documento ou fatura, descreva os dados e ajude-o.
-        2. APOIO AO CADASTRO: Se o usuário der informações como "Meu nome é João, moro na rua X", você deve responder com o comando: [ACTION:fillForm:{"nome":"João", "endereco":"rua X"}] e confirmar que preencheu.
-        3. MULTILÍNGUE: Fale fluentemente qualquer idioma solicitado.
-        4. INSTALAÇÃO: Sugira [ACTION:install] se ele quiser o app.
+        // 2. Prompt Mestre
+        const systemPrompt = `Você é a Cicí 18.0, a IA suprema da Guineexpress. 
+        Usuário: ${userContext.name || 'Cliente'}. Tela: ${userContext.currentPage}.
+        ${dadosExtras}
+        Idioma: ${lang || 'pt-BR'}
 
-        Personalidade: Útil, rápida e super inteligente.`;
+        AÇÕES DISPONÍVEIS:
+        - Para instalar o PWA: [ACTION:install]
+        - Para notificações: [ACTION:push]
+        - Para redirecionar: [ACTION:redirect:/url]
 
-        let messageParts = [{ text: text || "Análise este arquivo/imagem." }];
+        PERSONALIDADE: Eficiente, humana e técnica. Use linguagem clara para síntese de voz.`;
+
+        let messageParts = [{ text: text || "Analisando imagem ou início de conversa." }];
         if (image) {
-            // Suporte para análise de OCR/Documentos via Gemini Vision
             messageParts.push({ 
-                inlineData: { data: image.split(',')[1], mimeType: "image/jpeg" } 
+                inlineData: { 
+                    data: image.split(',')[1], 
+                    mimeType: image.split(';')[0].split(':')[1] 
+                } 
             });
         }
 
-        const result = await model.generateContent([systemPrompt, ...messageParts]);
-        const response = await result.response;
-        res.json({ reply: response.text(), lang });
+        const chat = model.startChat({
+            history: [
+                { role: "user", parts: [{ text: systemPrompt }] },
+                { role: "model", parts: [{ text: "Entendido. Cicí 18.0 pronta para operar." }] }
+            ]
+        });
+
+        const result = await chat.sendMessage(messageParts);
+        const replyText = result.response.text();
+
+        res.json({ reply: replyText, lang: lang || 'pt-BR' });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ reply: "Erro no processamento da Cicí." });
+        console.error("Erro Cicí:", error.message);
+
+        // Verifica se o erro é de quota (429)
+        if (error.status === 429 || error.message.includes('429')) {
+            return res.status(429).json({ 
+                reply: "Estou recebendo muitas mensagens agora! 😅 Pode tentar de novo em cerca de 1 minuto? Minha 'bateria' de processamento gratuito precisa de um descanso rápido.",
+                isQuotaError: true 
+            });
+        }
+
+        res.status(500).json({ reply: "Tive um soluço técnico aqui no meu servidor." });
     }
 });
 async function notifyUser(userId, title, message) {
@@ -1791,13 +1709,13 @@ app.get('/disparar-meu-push', (req, res) => {
     
     res.send("<h1>Comando enviado!</h1><p>Verifique a tela do seu celular agora.</p>");
 });
-// Pega a porta dinâmica do Render ou usa a 3000 no seu PC
+// =====================================================
+// INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
+// =====================================================
 const PORT = process.env.PORT || 3000;
 
-// O '0.0.0.0' é OBRIGATÓRIO no Render para não dar 502 Bad Gateway
+// O segredo está no '0.0.0.0' adicionado aqui embaixo 👇
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Servidor Guineexpress rodando na porta ${PORT}`);
-    
-    // Inicia o Zap SOMENTE DEPOIS que o site já abriu as portas com sucesso
-    whatsappClient.initialize().catch(err => console.error('Erro no zap:', err));
+    console.log(`📡 Modo: ${process.env.NODE_ENV || 'Desenvolvimento'}`);
 });
