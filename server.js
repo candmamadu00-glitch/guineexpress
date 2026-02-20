@@ -417,17 +417,25 @@ app.get('/api/expenses/list', (req, res) => {
 });
 // Rota para iniciar o Zap e gerar QR Code
 app.get('/api/admin/zap-qr', async (req, res) => {
-    // 1. Se já estiver totalmente conectado e pronto:
     if (clientZap && clientZap.info) {
         return res.json({ success: true, msg: "WhatsApp já está conectado!" });
     }
 
-    // 2. Trava de segurança: Se o Chrome já estiver abrindo, não deixa o usuário clicar 10 vezes e travar o PC
     if (clientZap) {
         return res.json({ success: false, msg: "O WhatsApp já está ligando. Aguarde uns 15 segundos..." });
     }
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
+
+    // 🔥 NOVO: DESTRÓI O CADEADO ANTIGO DO CHROME (Impede o Erro 21 no Render)
+    try {
+        const { execSync } = require('child_process');
+        // Vasculha a pasta de sessão e apaga qualquer trava (SingletonLock) que ficou pra trás
+        execSync(`find ${SESSION_PATH} -name "SingletonLock" -type f -delete`);
+        console.log("🧹 [ZAP] Cadeado fantasma do Chrome removido com sucesso!");
+    } catch (e) {
+        // Segue o jogo silenciosamente se não tiver cadeado
+    }
 
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
@@ -435,17 +443,15 @@ app.get('/api/admin/zap-qr', async (req, res) => {
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // Economiza memória RAM
+                '--disable-dev-shm-usage',
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
-                '--disable-gpu' // Tira o peso gráfico e faz o Chrome abrir mais rápido
+                '--disable-gpu'
             ]
-            // Apaguei o executablePath daqui de novo, para não dar conflito!
         }
     });
 
-    // Usamos .once em vez de .on para ele ouvir o evento apenas uma vez e não duplicar
     clientZap.once('qr', async (qr) => {
         console.log("📞 [ZAP] QR Code capturado! Mandando para a tela...");
         const qrImage = await qrcode.toDataURL(qr);
@@ -456,13 +462,11 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
     clientZap.once('ready', () => {
         console.log('✅ WhatsApp Pronto!');
-        // Se conectou sozinho (porque a sessão tava salva) e não pediu QR:
         if (!res.headersSent) {
             res.json({ success: true, msg: "Conectado automaticamente pela sessão salva!" });
         }
     });
     
-    // Tratamento de erro caso o Chrome falhe
     clientZap.initialize().catch((err) => { 
         console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err);
         clientZap = null; 
