@@ -6,7 +6,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
-const fs = require('fs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet'); // Instale: npm install helmet
@@ -20,7 +19,14 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const app = express();
 const db = require('./database'); 
 const webpush = require('web-push');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode');
+const fs = require('fs');
 
+// Configuração do caminho da sessão (usando o seu disco permanente do Render)
+const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
+
+let clientZap = null;
 webpush.setVapidDetails(
     'mailto:candemamadu00@gmail.com',
     process.env.VAPID_PUBLIC_KEY,
@@ -409,7 +415,68 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
+// Rota para iniciar o Zap e gerar QR Code
+app.get('/api/admin/zap-qr', async (req, res) => {
+    if (clientZap && clientZap.info) {
+        return res.json({ success: true, msg: "WhatsApp já está conectado!" });
+    }
 
+    clientZap = new Client({
+        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
+        puppeteer: {
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            executablePath: process.env.CHROME_PATH || null 
+        }
+    });
+
+    clientZap.on('qr', async (qr) => {
+        const qrImage = await qrcode.toDataURL(qr);
+        res.json({ success: true, qr: qrImage });
+    });
+
+    clientZap.on('ready', () => console.log('✅ WhatsApp Pronto!'));
+    
+    clientZap.initialize().catch(() => { clientZap = null; });
+});
+
+// Função Auxiliar para pausar (Delay de segurança)
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+// Rota de Envio em Massa
+app.post('/api/admin/broadcast-zap', (req, res) => {
+    const { subject, message, sendZap } = req.body;
+
+    db.all("SELECT email, name, phone FROM users WHERE role = 'client'", [], async (err, clients) => {
+        if (err) return res.json({ success: false, msg: 'Erro no banco.' });
+
+        // Responde ao admin imediatamente para não travar a tela
+        res.json({ success: true, msg: `Iniciando envio para ${clients.length} clientes...` });
+
+        for (const client of clients) {
+            // 1. Enviar E-mail
+            sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
+
+            // 2. Enviar WhatsApp (com limpeza e delay)
+            if (sendZap && clientZap && client.phone) {
+                // Limpeza: remove tudo que não é número
+                let num = client.phone.replace(/\D/g, '');
+                
+                // Se não tiver DDI, assume 55 (Brasil). Se for Guiné-Bissau, mude para 245
+                if (num.length <= 11) num = '55' + num; 
+
+                try {
+                    await clientZap.sendMessage(`${num}@c.us`, `*${subject}*\n\nOlá ${client.name},\n${message}`);
+                    console.log(`✓ Zap enviado: ${num}`);
+                    
+                    // Espera 3 segundos entre cada mensagem para evitar BAN do WhatsApp
+                    await delay(3000); 
+                } catch (e) {
+                    console.error(`x Erro no número ${num}`);
+                }
+            }
+        }
+    });
+});
 app.post('/api/expenses/delete', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
     
@@ -479,34 +546,8 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
 });
     });
 });
-app.post('/api/admin/broadcast', (req, res) => {
-    // Verifica se é Admin (Segurança)
-    const isAdmin = (req.session.role === 'admin') || (req.session.user && req.session.user.role === 'admin');
-    if (!isAdmin) return res.status(403).json({ success: false, msg: 'Sem permissão.' });
 
-    const { subject, message } = req.body;
 
-    if (!subject || !message) return res.json({ success: false, msg: 'Preencha tudo.' });
-
-    // Busca clientes
-    db.all("SELECT email, name FROM users WHERE role = 'client'", [], async (err, clients) => {
-        if (err) return res.json({ success: false, msg: 'Erro no banco.' });
-        if (clients.length === 0) return res.json({ success: false, msg: 'Nenhum cliente.' });
-
-        // Envia usando a função corrigida
-        clients.forEach(client => {
-            // Chama a função auxiliar que já tem o HTML bonito e o remetente certo
-            sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
-        });
-
-        // Salva Log
-        if (typeof logAction === 'function') {
-             logAction(req, 'Comunicado Geral', `Enviou: "${subject}" para ${clients.length} clientes.`);
-        }
-
-        res.json({ success: true, msg: `Enviando para ${clients.length} clientes!` });
-    });
-});
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
 // 3. Rota INTELIGENTE: Quebra os horários em 15 min (CORREÇÃO DO ERRO AQUI)
 app.get('/api/schedule/slots-15min', (req, res) => {

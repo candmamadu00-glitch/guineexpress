@@ -681,27 +681,24 @@
                 </p>
             </div>
         </section>
- <div id="broadcast-modal" class="modal-overlay hidden">
-    <div class="modal-card">
-        <div class="modal-header">
-            <h3>📢 Enviar para Todos os Clientes</h3>
-            <button class="btn-close" onclick="closeModal('broadcast-modal')">&times;</button>
-        </div>
-        <div class="modal-body">
-            <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                Isso enviará um e-mail para <b>todos</b> os clientes cadastrados. Use com sabedoria!
-            </p>
-            <div class="form-group">
-                <label>Assunto</label>
-                <input type="text" id="broadcast-subject" class="form-control" placeholder="Ex: Atraso no voo TP-202">
-            </div>
-            <div class="form-group">
-                <label>Mensagem</label>
-                <textarea id="broadcast-message" class="form-control" rows="5" placeholder="Escreva o comunicado aqui..."></textarea>
-            </div>
-            <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
-        </div>
+ <div class="modal-body">
+    <div id="qr-container" style="text-align: center; display: none; margin-bottom: 15px;">
+        <img id="zap-qr-img" style="width: 200px; border: 1px solid #ddd;">
+        <p style="font-size: 12px;">Escaneie para conectar o WhatsApp</p>
     </div>
+
+    <div class="form-group" style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <button onclick="getZapQR()" class="btn btn-secondary" style="font-size: 12px;">🔗 Conectar WhatsApp</button>
+        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+            <input type="checkbox" id="check-send-zap"> Enviar também pelo WhatsApp
+        </label>
+    </div>
+
+    <div class="form-group">
+        <label>Assunto (E-mail e Título Zap)</label>
+        <input type="text" id="broadcast-subject" class="form-control">
+    </div>
+    <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
 </div>
         <section id="history-view" class="hidden">
             <div class="header-flex">

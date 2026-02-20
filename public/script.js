@@ -3736,10 +3736,14 @@ function openBroadcastModal() {
 async function sendBroadcast() {
     const subject = document.getElementById('broadcast-subject').value;
     const message = document.getElementById('broadcast-message').value;
+    
+    // NOVO: Verifica se o botão do WhatsApp está marcado
+    const checkboxZap = document.getElementById('check-send-zap');
+    const sendZap = checkboxZap ? checkboxZap.checked : false;
 
     if (!subject || !message) return alert("❌ Preencha o assunto e a mensagem.");
 
-    if (!confirm("⚠️ Tem a certeza? Isso enviará e-mails para TODOS os clientes.")) return;
+    if (!confirm("⚠️ Tem a certeza? Isso enviará mensagens para TODOS os clientes.")) return;
 
     const btn = document.querySelector('#broadcast-modal .btn-primary');
     const oldText = btn.innerText;
@@ -3747,10 +3751,13 @@ async function sendBroadcast() {
     btn.disabled = true;
 
     try {
-        const res = await fetch('/api/admin/broadcast', {
+        // ATENÇÃO: Mudei a rota para '/api/admin/broadcast-zap' (se você for usar aquela que criamos antes)
+        // Se você atualizou a sua rota antiga mesmo, pode manter '/api/admin/broadcast'
+        const res = await fetch('/api/admin/broadcast-zap', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subject, message })
+            // NOVO: Enviando a variável sendZap para o backend saber se deve acionar o robô do WhatsApp
+            body: JSON.stringify({ subject, message, sendZap }) 
         });
         
         const data = await res.json();
@@ -3760,6 +3767,7 @@ async function sendBroadcast() {
             closeModal('broadcast-modal');
             document.getElementById('broadcast-subject').value = '';
             document.getElementById('broadcast-message').value = '';
+            if (checkboxZap) checkboxZap.checked = false; // Desmarca a caixinha ao terminar
         } else {
             alert("Erro: " + data.msg);
         }
@@ -3769,6 +3777,21 @@ async function sendBroadcast() {
     } finally {
         btn.innerText = oldText;
         btn.disabled = false;
+    }
+}
+async function getZapQR() {
+    const btn = event.target;
+    btn.innerText = "Gerando QR...";
+    const response = await fetch('/api/admin/zap-qr');
+    const data = await response.json();
+    
+    if (data.qr) {
+        document.getElementById('qr-container').style.display = 'block';
+        document.getElementById('zap-qr-img').src = data.qr;
+        btn.innerText = "Aguardando Leitura...";
+    } else {
+        alert(data.msg || "Zap já está ativo!");
+        btn.innerText = "WhatsApp Ativo ✅";
     }
 }
 // ==========================================
