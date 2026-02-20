@@ -331,32 +331,7 @@
     </div>
 </div>
 
-<div id="delivery-photo-modal" class="modal-overlay hidden">
-    <div class="modal-content" style="text-align:center; max-width: 400px;">
-        <h3>📸 Comprovante de Entrega</h3>
-        <p>Tire uma foto do pacote com o cliente.</p>
-        
-        <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
-            <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
-            <canvas id="delivery-canvas" style="display:none;"></canvas>
-            <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
-        </div>
 
-        <div class="modal-actions" style="justify-content: center; gap: 10px;">
-            <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
-            <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
-            <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar Entrega</button>
-        </div>
-    </div>
-</div>
-
-<div id="view-proof-modal" class="modal-overlay hidden" onclick="this.classList.add('hidden')">
-    <div class="modal-content" style="background: transparent; box-shadow: none; text-align: center;">
-        <img id="proof-image-full" src="" style="max-width: 100%; border-radius: 10px; border: 4px solid white;">
-        <br>
-        <button class="btn btn-secondary" style="margin-top: 10px;">Fechar</button>
-    </div>
-</div>
 <div id="broadcast-modal" class="modal-overlay hidden">
     <div class="modal-card">
         <div class="modal-header">
@@ -425,7 +400,31 @@
             </table>
         </div>
 </section>
+<div id="delivery-photo-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="text-align:center; max-width: 400px; max-height: 90vh; overflow-y: auto;">
+        <h3>📸 Comprovante de Entrega</h3>
+        <p style="font-size: 14px;">Tire uma foto do pacote e colha a assinatura.</p>
+        
+        <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
+            <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+            <canvas id="delivery-canvas" style="display:none;"></canvas>
+            <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+        </div>
 
+        <div id="signature-area" style="display: none; margin-bottom: 15px;">
+            <p style="margin-bottom: 5px; font-weight: bold; color: #333;">Assinatura do Recebedor:</p>
+            <canvas id="signature-pad" width="300" height="150" style="background: #f8f9fa; border-radius: 8px; border: 2px dashed #ccc; touch-action: none; width: 100%; max-width: 300px;"></canvas>
+            <br>
+            <button class="btn btn-secondary" onclick="clearSignature()" style="padding: 5px 10px; font-size: 12px; margin-top: 5px; background: #eee; color: #333; border: none;">Limpar Assinatura</button>
+        </div>
+
+        <div class="modal-actions" style="justify-content: center; gap: 10px;">
+            <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
+            <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
+            <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar Entrega</button>
+        </div>
+    </div>
+</div>
 <div id="print-area"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

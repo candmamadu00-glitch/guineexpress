@@ -2496,7 +2496,7 @@ function filterLabels() {
     });
 }
 
-// 4. GERAR E IMPRIMIR ETIQUETAS (Com sistema de Volume X/Y)
+// 4. GERAR E IMPRIMIR ETIQUETAS (Com sistema de Volume X/Y e Logo Oficial)
 function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
@@ -2528,11 +2528,9 @@ function printSelectedLabels() {
             labelDiv.className = 'shipping-label-container'; 
             
             labelDiv.innerHTML = `
-                <div class="lbl-header">
-                    <div class="lbl-logo">
-                        <span class="lbl-logo-main">GE</span>
-                        <span class="lbl-logo-sub">Ltda</span>
-                    </div>
+                <div class="lbl-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <img src="/logo.png" style="width: 60px; height: 60px; object-fit: contain;">
+                    
                     <div style="text-align: right; font-size: 9px; color: #fff; line-height: 1.3;">
                         <strong style="font-size:11px; color:#d4af37;">${company.name}</strong><br>
                         ${company.address}<br>
@@ -2670,7 +2668,7 @@ async function loadReceipts() {
     }
 }
 
-// 5. GERAR RECIBO A4 (Tamanho Normal - CORRIGIDO)
+// 5. GERAR RECIBO A4 (Tamanho Normal - Com Logo Oficial e Retirada)
 async function printReceipt(boxId) {
     const printArea = document.getElementById('print-area');
     
@@ -2707,10 +2705,8 @@ async function printReceipt(boxId) {
 
             <div class="rec-header">
                 <div style="display:flex; align-items:center; gap:15px;">
-                    <div style="width:70px; height:70px; border:3px solid #d4af37; border-radius:50%; background:#000; color:#d4af37; display:flex; flex-direction:column; align-items:center; justify-content:center; -webkit-print-color-adjust: exact;">
-                        <b style="font-size:24px; line-height:1;">GE</b>
-                        <span style="font-size:9px; color:#fff;">LTDA</span>
-                    </div>
+                    <img src="/logo.png" style="width:70px; height:70px; object-fit:contain;">
+                    
                     <div>
                         <h1 style="margin:0; font-size:22px; color:#0a1931;">GUINEEXPRESS</h1>
                         <p style="margin:0; font-size:10px; font-weight:bold;">LOGÍSTICA INTERNACIONAL</p>
@@ -2731,7 +2727,7 @@ async function printReceipt(boxId) {
                 <span>Emissão: ${dataHoje}</span>
             </div>
 
-            <div class="rec-grid">
+            <div class="rec-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                 <div class="rec-box">
                     <h3>DADOS DO CLIENTE</h3>
                     <div class="rec-line"><strong>Nome:</strong> ${d.client_name}</div>
@@ -2743,8 +2739,14 @@ async function printReceipt(boxId) {
                     <h3>DADOS DO ENVIO</h3>
                     <div class="rec-line"><strong>Destino:</strong> Guiné-Bissau</div>
                     <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code || '-'}</div>
-                    <div class="rec-line"><strong>Peso Registrado:</strong> ${d.weight} kg</div>
+                    <div class="rec-line"><strong>Peso:</strong> ${d.weight} kg</div>
                     <div class="rec-line"><strong>Status:</strong> ${d.order_status || 'Processando'}</div>
+                </div>
+                <div class="rec-box">
+                    <h3>RETIRADA EM GUINÉ-BISSAU</h3>
+                    <div class="rec-line"><strong>Local:</strong> Rotunda de Nhonho</div>
+                    <div class="rec-line"><strong>Bairro:</strong> Belem</div>
+                    <div class="rec-line"><strong>Contato:</strong> +245 956604423</div>
                 </div>
             </div>
 
