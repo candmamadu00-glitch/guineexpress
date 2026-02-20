@@ -997,12 +997,11 @@ app.post('/api/invoices/create', async (req, res) => {
                     if(err) return res.json({success: false, msg: 'Erro ao salvar fatura'});
 
                     // C. BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO
-                    // (Assumindo que a coluna de telefone na sua tabela users se chama "phone")
                     db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (e, u) => {
                         const name = u ? u.name : 'Cliente';
                         const phone = u ? u.phone : null;
                         
-                        // 1. ENVIA O EMAIL (Seu código original mantido)
+                        // 1. ENVIA O EMAIL
                         if (email) {
                             const subject = `Fatura Disponível: R$ ${amount}`;
                             const title = "Pagamento Pendente";
@@ -1016,24 +1015,29 @@ app.post('/api/invoices/create', async (req, res) => {
                         }
 
                         // 2. ENVIA O WHATSAPP COM O PIX COPIA E COLA
-                        // Verifica se o cliente tem telefone e se o Zap está conectado
                         if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                             try {
-                                // Limpa o telefone (deixa apenas números, tira parênteses e traços)
+                                // Limpa o telefone (deixa apenas números)
                                 let cleanPhone = phone.replace(/\D/g, '');
                                 
-                                // Se o número tiver 10 ou 11 dígitos, assumimos que é Brasil e botamos o 55 na frente
+                                // Adiciona 55 se for Brasil e estiver sem
                                 if(cleanPhone.length === 10 || cleanPhone.length === 11) {
                                     cleanPhone = '55' + cleanPhone;
                                 }
 
-                                const chatId = cleanPhone + '@c.us'; // Formato que o WhatsApp exige
+                                // 🔥 A MÁGICA ACONTECE AQUI: Pede pro WhatsApp validar o número
+                                const numberId = await clientZap.getNumberId(cleanPhone);
                                 
-                                // Montando a mensagem bonita pro cliente
-                                const zapMsg = `Olá, *${name}*! 📦\n\nUma nova fatura foi gerada para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\n💳 *Pague com Pix Copia e Cola:* \n\n${qr_code}\n\n👆 _Basta copiar o código acima e colar no aplicativo do seu banco. O pagamento é aprovado na hora!_`;
+                                if (numberId) {
+                                    // Se o número é válido no WhatsApp, usa o ID oficial retornado por eles (_serialized)
+                                    const zapMsg = `Olá, *${name}*! 📦\n\nUma nova fatura foi gerada para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\n💳 *Pague com Pix Copia e Cola:* \n\n${qr_code}\n\n👆 _Basta copiar o código acima e colar no aplicativo do seu banco. O pagamento é aprovado na hora!_`;
 
-                                await clientZap.sendMessage(chatId, zapMsg);
-                                console.log(`✅ Fatura enviada por Zap para ${cleanPhone}`);
+                                    await clientZap.sendMessage(numberId._serialized, zapMsg);
+                                    console.log(`✅ Fatura enviada por Zap para ${cleanPhone}`);
+                                } else {
+                                    console.log(`⚠️ Zap não enviado. O número ${cleanPhone} não está registrado no WhatsApp.`);
+                                }
+
                             } catch (zapErr) {
                                 console.log("❌ Erro ao enviar Zap da fatura:", zapErr);
                             }
