@@ -415,80 +415,28 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
-// Rota para iniciar o Zap e gerar QR Code (Versão com Rastreador)
+// Rota para iniciar o Zap e gerar QR Code
 app.get('/api/admin/zap-qr', async (req, res) => {
-    console.log("📞 [ZAP] 1. Recebi o clique para gerar o QR Code...");
-    
-    try {
-        if (clientZap && clientZap.info) {
-            console.log("📞 [ZAP] Aviso: O Zap já estava conectado.");
-            return res.json({ success: true, msg: "WhatsApp já está conectado!" });
-        }
-
-        if (clientZap && !clientZap.info) {
-            console.log("📞 [ZAP] Aviso: O Zap já está tentando abrir em segundo plano.");
-            return res.json({ success: false, msg: "O WhatsApp já está abrindo, aguarde..." });
-        }
-
-        console.log("📞 [ZAP] 2. Configurando as peças do WhatsApp...");
-        clientZap = new Client({
-            authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
-            puppeteer: {
-                args: [
-                    '--no-sandbox', 
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--disable-gpu'
-                ]
-                // ❌ APAGUE A LINHA executablePath QUE FICAVA AQUI!
-            }
-        });
-
-        clientZap.once('qr', async (qr) => {
-            console.log("📞 [ZAP] 4. SUCESSO! O WhatsApp gerou a imagem do QR Code!");
-            try {
-                const qrImage = await qrcode.toDataURL(qr);
-                if (!res.headersSent) {
-                    res.json({ success: true, qr: qrImage });
-                }
-            } catch (error) {
-                console.log("📞 [ZAP] Erro ao converter a imagem:", error);
-            }
-        });
-
-        clientZap.once('ready', () => {
-            console.log('✅ WhatsApp Pronto!');
-            if (!res.headersSent) {
-                res.json({ success: true, msg: "WhatsApp reconectado com sucesso!" });
-            }
-        });
-
-        clientZap.on('disconnected', () => {
-            console.log('❌ WhatsApp Desconectado!');
-            clientZap = null;
-        });
-
-        console.log("📞 [ZAP] 3. Tentando dar a partida no Google Chrome (É aqui que o Render costuma sofrer)...");
-        
-        clientZap.initialize().then(() => {
-            console.log("📞 [ZAP] Chrome abriu com sucesso em segundo plano.");
-        }).catch((err) => { 
-            console.error("📞 [ZAP] ❌ ERRO CRÍTICO AO ABRIR O CHROME:", err);
-            clientZap = null; 
-            if (!res.headersSent) {
-                res.status(500).json({ success: false, msg: "Erro no servidor ao abrir o WhatsApp." });
-            }
-        });
-
-    } catch (error) {
-        console.error("📞 [ZAP] Erro geral:", error);
-        if (!res.headersSent) {
-            res.status(500).json({ success: false, msg: error.message });
-        }
+    if (clientZap && clientZap.info) {
+        return res.json({ success: true, msg: "WhatsApp já está conectado!" });
     }
+
+    clientZap = new Client({
+        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
+        puppeteer: {
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            executablePath: process.env.CHROME_PATH || null 
+        }
+    });
+
+    clientZap.on('qr', async (qr) => {
+        const qrImage = await qrcode.toDataURL(qr);
+        res.json({ success: true, qr: qrImage });
+    });
+
+    clientZap.on('ready', () => console.log('✅ WhatsApp Pronto!'));
+    
+    clientZap.initialize().catch(() => { clientZap = null; });
 });
 
 // Função Auxiliar para pausar (Delay de segurança)
@@ -989,14 +937,14 @@ app.post('/api/videos/delete', (req, res) => {
         res.json({success: !err});
     });
 });
-// CRIAR FATURA E ENVIAR EMAIL DE COBRANÇA
+// CRIAR FATURA E ENVIAR EMAIL DE COBRANÇA + WHATSAPP
 app.post('/api/invoices/create', async (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
 
     const { client_id, box_id, amount, description, email } = req.body; // O email vem do front
 
     try {
-        // A. Mercado Pago (Mantém igual)
+        // A. Mercado Pago
         const paymentData = {
             transaction_amount: parseFloat(amount),
             description: description,
@@ -1005,7 +953,7 @@ app.post('/api/invoices/create', async (req, res) => {
         };
         const result = await payment.create({ body: paymentData });
         const mp_id = result.id;
-        const qr_code = result.point_of_interaction.transaction_data.qr_code;
+        const qr_code = result.point_of_interaction.transaction_data.qr_code; // Esse é o Pix Copia e Cola
         const qr_base64 = result.point_of_interaction.transaction_data.qr_code_base64;
         const ticket_url = result.point_of_interaction.transaction_data.ticket_url;
 
@@ -1016,12 +964,14 @@ app.post('/api/invoices/create', async (req, res) => {
                 function(err) {
                     if(err) return res.json({success: false, msg: 'Erro ao salvar fatura'});
 
-                    // C. ENVIA O EMAIL AUTOMÁTICO
-                    if (email) {
-                        // Busca nome do cliente rapidinho
-                        db.get("SELECT name FROM users WHERE id = ?", [client_id], (e, u) => {
-                            const name = u ? u.name : 'Cliente';
-                            
+                    // C. BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO
+                    // (Assumindo que a coluna de telefone na sua tabela users se chama "phone")
+                    db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (e, u) => {
+                        const name = u ? u.name : 'Cliente';
+                        const phone = u ? u.phone : null;
+                        
+                        // 1. ENVIA O EMAIL (Seu código original mantido)
+                        if (email) {
                             const subject = `Fatura Disponível: R$ ${amount}`;
                             const title = "Pagamento Pendente";
                             const msg = `Olá, <strong>${name}</strong>.<br><br>
@@ -1031,8 +981,34 @@ app.post('/api/invoices/create', async (req, res) => {
                                          <a href="${ticket_url}" style="background:#d4af37; color:#000; padding:12px 25px; text-decoration:none; font-weight:bold; font-size:16px; border-radius:5px;">PAGAR AGORA</a>`;
                             
                             sendEmailHtml(email, subject, title, msg);
-                        });
-                    }
+                        }
+
+                        // 2. ENVIA O WHATSAPP COM O PIX COPIA E COLA
+                        // Verifica se o cliente tem telefone e se o Zap está conectado
+                        if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                            try {
+                                // Limpa o telefone (deixa apenas números, tira parênteses e traços)
+                                let cleanPhone = phone.replace(/\D/g, '');
+                                
+                                // Se o número tiver 10 ou 11 dígitos, assumimos que é Brasil e botamos o 55 na frente
+                                if(cleanPhone.length === 10 || cleanPhone.length === 11) {
+                                    cleanPhone = '55' + cleanPhone;
+                                }
+
+                                const chatId = cleanPhone + '@c.us'; // Formato que o WhatsApp exige
+                                
+                                // Montando a mensagem bonita pro cliente
+                                const zapMsg = `Olá, *${name}*! 📦\n\nUma nova fatura foi gerada para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\n💳 *Pague com Pix Copia e Cola:* \n\n${qr_code}\n\n👆 _Basta copiar o código acima e colar no aplicativo do seu banco. O pagamento é aprovado na hora!_`;
+
+                                await clientZap.sendMessage(chatId, zapMsg);
+                                console.log(`✅ Fatura enviada por Zap para ${cleanPhone}`);
+                            } catch (zapErr) {
+                                console.log("❌ Erro ao enviar Zap da fatura:", zapErr);
+                            }
+                        } else {
+                            console.log("⚠️ Zap não enviado. Motivo: Sem telefone cadastrado ou Zap desconectado.");
+                        }
+                    });
 
                     res.json({success: true});
                 });
