@@ -154,7 +154,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
 app.use(session({
-    store: new SQLiteStore({ db: 'sessions.db', dir: '.' }), 
+store: new SQLiteStore({ db: 'sessions.db', dir: baseStorageFolder }),
     secret: process.env.SESSION_SECRET || 'segredo_padrao',
     resave: false,
     saveUninitialized: false,
@@ -344,12 +344,12 @@ app.get('/api/full-receipt/:orderId', (req, res) => {
         });
     });
 });
-// --- ROTA DE CADASTRO (COM VALIDAÇÃO DE SEGURANÇA) ---
+// --- ROTA DE CADASTRO (COM VALIDAÇÃO DE SEGURANÇA CORRIGIDA) ---
 app.post('/api/register', (req, res) => {
     const {name, email, phone, country, document, password} = req.body;
 
     // 1. Validação de Campos Vazios
-    if (!name || !email || !password || !phone || !document) {
+    if (!name || !email || !password || !phone || !document || !country) {
         return res.json({success: false, msg: 'Preencha todos os campos obrigatórios.'});
     }
 
@@ -358,19 +358,26 @@ app.post('/api/register', (req, res) => {
         return res.json({success: false, msg: 'A senha deve ter no mínimo 6 caracteres.'});
     }
 
-    // 3. Validação e Limpeza do Documento (CPF/CNPJ)
-    // Remove tudo que não for número (pontos, traços)
-    const cleanDoc = document.replace(/\D/g, '');
-    
-    // Verifica se tem 11 dígitos (CPF) ou 14 (CNPJ)
-    if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
-        return res.json({success: false, msg: 'Documento inválido. Digite um CPF (11) ou CNPJ (14) válido.'});
+    // 3. Validação e Limpeza do Documento (A Mágica para Estrangeiros)
+    let finalDoc = document.trim(); // Pega o documento do jeito que a pessoa digitou
+
+    // SE FOR BRASIL: Aplica a regra rigorosa (apenas números e valida tamanho 11 ou 14)
+    if (country === 'BR') {
+        finalDoc = document.replace(/\D/g, ''); // Tira pontos e traços
+        if (finalDoc.length !== 11 && finalDoc.length !== 14) {
+            return res.json({success: false, msg: 'Documento brasileiro inválido. Digite um CPF (11) ou CNPJ (14) válido.'});
+        }
+    } else {
+        // SE FOR OUTRO PAÍS: Deixa passar do jeito que está, apenas verifica se não é muito curto
+        if (finalDoc.length < 4) {
+            return res.json({success: false, msg: 'Documento internacional muito curto. Verifique o número digitado.'});
+        }
     }
 
-    // 4. Validação de Telefone (Mínimo 10 dígitos com DDD)
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.length < 10) {
-        return res.json({success: false, msg: 'Telefone inválido. Inclua o DDD.'});
+    // 4. Validação de Telefone (Apenas tira os caracteres especiais)
+    const cleanPhone = phone.replace(/[^\d+]/g, ''); // Mantém apenas números e o sinal de '+' se houver
+    if (cleanPhone.length < 8) {
+        return res.json({success: false, msg: 'Telefone inválido. Verifique o número digitado.'});
     }
 
     // 5. Validação de Email (Formato básico)
@@ -379,13 +386,14 @@ app.post('/api/register', (req, res) => {
     }
 
     // 6. Se passou por tudo, criptografa e salva
+    const bcrypt = require('bcrypt');
+    // 6. Se passou por tudo, criptografa e salva
     const hash = bcrypt.hashSync(password, 10);
     
-    // Salvamos 'cleanDoc' e 'cleanPhone' para manter o banco limpo (opcional, mas recomendado)
+    // Salva no banco (usando finalDoc para respeitar a regra do país)
     db.run(`INSERT INTO users (role, name, email, phone, country, document, password) VALUES ('client', ?, ?, ?, ?, ?, ?)`, 
-        [name, email, phone, country, document, hash], (err) => {
+        [name, email, cleanPhone, country, finalDoc, hash], (err) => {
             if (err) {
-                // Se der erro, geralmente é porque o email ou CPF já existe (UNIQUE no banco)
                 console.error(err);
                 return res.json({success: false, msg: 'Erro: E-mail ou Documento já cadastrados.'});
             }
@@ -973,7 +981,7 @@ app.post('/api/videos/delete', (req, res) => {
     db.run("DELETE FROM videos WHERE id = ?", [id], (err) => {
         if(!err) {
             // Tenta apagar o arquivo físico
-            try { fs.unlinkSync(`uploads/videos/${filename}`); } catch(e){}
+            try { fs.unlinkSync(path.join(videosFolder, filename)); } catch(e){ console.log("Erro ao apagar arquivo:", e.message) }
         }
         res.json({success: !err});
     });

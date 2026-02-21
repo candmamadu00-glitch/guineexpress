@@ -213,46 +213,61 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const country = document.getElementById('reg-country').value;
+    
+    // Pega o valor do documento direto do input (com ou sem máscara)
+    const docInput = document.getElementById('reg-doc').value.trim();
 
     // --- A. Validação de Senha ---
     if (pass !== pass2) return alert('❌ As senhas não coincidem!');
     if (pass.length < 6) return alert('❌ A senha deve ter no mínimo 6 caracteres.');
 
-    // --- B. Validação de Telefone (RIGOROSA) ---
-    if (!phoneMaskInstance || !phoneMaskInstance.masked.isComplete) {
-        return alert('❌ Telefone incompleto! Digite o número com DDD/Código correto.');
+    // --- B. Validação de Telefone ---
+    // Pega o valor do telefone. Se tiver máscara do iMask, pega o valor sem máscara. Se não tiver, pega o valor direto.
+    const finalPhone = typeof phoneMaskInstance !== 'undefined' && phoneMaskInstance ? phoneMaskInstance.unmaskedValue : document.getElementById('reg-phone').value;
+
+    if (!finalPhone || finalPhone.length < 8) {
+         return alert('❌ Telefone incompleto ou inválido!');
     }
 
-    // --- C. Validação de Documento (INTELIGENTE) ---
-    // 1. Verifica se preencheu a máscara toda (tamanho)
-    if (!docMaskInstance || !docMaskInstance.masked.isComplete) {
-        return alert(`❌ O documento está incompleto para o país selecionado (${country}).`);
-    }
+    // --- C. Validação de Documento (A flexibilidade para estrangeiros) ---
+    let finalDoc = docInput;
 
-    // 2. Validações matemáticas específicas
-    const cleanDoc = docMaskInstance.unmaskedValue; // Pega só os números/letras
-
+    // Se o país for Brasil e a máscara estiver ativa, aplica validação estrita
     if (country === 'BR') {
-        if (!isValidCPF(cleanDoc)) {
+        if (typeof docMaskInstance !== 'undefined' && docMaskInstance) {
+             if (!docMaskInstance.masked.isComplete) {
+                 return alert('❌ O CPF/CNPJ está incompleto.');
+             }
+             finalDoc = docMaskInstance.unmaskedValue; // Pega só os números
+        } else {
+             finalDoc = docInput.replace(/\D/g, ''); // Segurança caso a máscara falhe
+        }
+        
+        // Aqui você pode manter sua função isValidCPF se ela existir no seu código
+        if (typeof isValidCPF === 'function' && finalDoc.length === 11 && !isValidCPF(finalDoc)) {
             return alert('❌ CPF Inválido! Verifique os números digitados.');
         }
-    }
-    
-    if (country === 'PT') {
-        if (!isValidPT_NIF(cleanDoc)) {
-            return alert('❌ NIF de Portugal inválido!');
+    } 
+    // Se o país for Portugal, aplica validação estrita (se a função existir)
+    else if (country === 'PT' && typeof isValidPT_NIF === 'function') {
+         if (!isValidPT_NIF(docInput)) {
+             return alert('❌ NIF de Portugal inválido!');
+         }
+    } 
+    // SE FOR OUTRO PAÍS: Verifica apenas se não está vazio ou muito curto
+    else {
+        if (finalDoc.length < 4) {
+            return alert(`❌ O documento digitado para ${country} é muito curto ou inválido.`);
         }
     }
 
     // --- D. Envio dos Dados ---
-    const cleanPhone = phoneMaskInstance.unmaskedValue; // Envia só os números (ex: 558599999999)
-
     const formData = {
         name: name,
         email: email,
-        phone: cleanPhone, 
+        phone: finalPhone, 
         country: country,
-        document: cleanDoc.toUpperCase(),
+        document: country === 'BR' ? finalDoc : finalDoc.toUpperCase(), // Maiúsculo para passaportes
         password: pass
     };
 
@@ -272,9 +287,9 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
         
         if(data.success) { 
             alert('✅ Cadastro realizado com sucesso!\nFaça login para continuar.'); 
-            showLogin(); // Sua função que volta pra tela de login
+            if (typeof showLogin === 'function') showLogin(); 
             document.getElementById('register-form').reset();
-            updateMasks(); 
+            if (typeof updateMasks === 'function') updateMasks(); 
         } else { 
             alert('Erro: ' + data.msg); 
         }
