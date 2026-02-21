@@ -704,12 +704,25 @@ function renderAdminSchedule(appointments) {
     const tbody = document.getElementById('admin-schedule-list');
     if(!tbody) return;
     tbody.innerHTML = '';
+    
     appointments.forEach(app => {
-        let actions = '-';
-        if(app.status === 'Pendente') {
-            actions = `<button onclick="updateScheduleStatus(${app.id}, 'Aprovado')" style="color:green; cursor:pointer;">✔</button> <button onclick="updateScheduleStatus(${app.id}, 'Recusado')" style="color:red; cursor:pointer;">✖</button>`;
-        }
-        tbody.innerHTML += `<tr><td>${formatDate(app.date)}</td><td>${app.time_slot}</td><td>${app.client_name}<br><small>${app.client_phone}</small></td><td>${app.status}</td><td>${actions}</td></tr>`;
+        // Escolhe uma cor bonitinha para o status (opcional)
+        let badgeClass = 'bg-success'; // Padrão Verde (Aprovado/Automático)
+        if (app.status === 'Pendente') badgeClass = 'bg-warning'; // Amarelo se ainda estiver processando
+        if (app.status === 'Recusado' || app.status === 'Cancelado') badgeClass = 'bg-danger';
+
+        // Cria a linha com EXATAS 5 colunas para bater com o HTML perfeito
+        tbody.innerHTML += `
+            <tr>
+                <td data-label="Data">${formatDate(app.date)}</td>
+                <td data-label="Horário">${app.time_slot}</td>
+                <td data-label="Cliente" style="font-weight: bold;">${app.client_name}</td>
+                <td data-label="Tel">${app.client_phone || '-'}</td>
+                <td data-label="Status">
+                    <span class="badge ${badgeClass}">${app.status}</span>
+                </td>
+            </tr>
+        `;
     });
 }
 
@@ -4330,5 +4343,65 @@ function hideInstallBanner() {
     const installBanner = document.getElementById('install-banner');
     if (installBanner) {
         installBanner.style.display = 'none';
+    }
+}
+async function registerNotificationSystem() {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+            const swReg = await navigator.serviceWorker.ready;
+            const permission = await Notification.requestPermission();
+            
+            if (permission === 'granted') {
+                // SUA CHAVE PÚBLICA QUE ESTÁ NO .ENV
+                const publicKey = 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY';
+                
+                let subscription = await swReg.pushManager.getSubscription();
+
+                if (!subscription) {
+                    subscription = await swReg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: publicKey
+                    });
+                }
+
+                // Salva no seu banco de dados
+                await fetch('/api/notifications/subscribe', {
+                    method: 'POST',
+                    body: JSON.stringify(subscription),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                console.log("✅ Dispositivo pronto para notificações!");
+            }
+        } catch (e) {
+            console.error("Erro ao registrar notificações:", e);
+        }
+    }
+}
+
+// Rodar ao carregar a página
+document.addEventListener('DOMContentLoaded', registerNotificationSystem);
+
+// Chama a função assim que o site carregar
+document.addEventListener('DOMContentLoaded', registerNotificationSystem);
+async function subscribeUser() {
+    if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Verifica se já tem permissão
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+
+        // Cria a assinatura para enviar ao seu banco de dados
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: 'SUA_CHAVE_VAPID_PUBLICA_AQUI'
+        });
+
+        // ENVIA PARA O SERVIDOR SALVAR
+        await fetch('/api/notifications/subscribe', {
+            method: 'POST',
+            body: JSON.stringify(subscription),
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }

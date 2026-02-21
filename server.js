@@ -18,14 +18,12 @@ const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
 const app = express();
 const db = require('./database'); 
-const webpush = require('web-push');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const fs = require('fs');
-
 // Configuração do caminho da sessão (usando o seu disco permanente do Render)
 const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
-
+const webpush = require('web-push');
 let clientZap = null;
 webpush.setVapidDetails(
     'mailto:candemamadu00@gmail.com',
