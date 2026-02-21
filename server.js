@@ -758,16 +758,14 @@ app.get('/api/finances/all', async (req, res) => {
             });
         });
 
-        // 2. Busca Faturas do Financeiro (CORRIGIDO: Agora puxa o código da ENCOMENDA que está na Caixa)
+        // 2. Busca Faturas do Financeiro (CORRIGIDO: Faz a ponte Fatura -> Caixa -> Encomenda)
         const invoices = await new Promise((resolve, reject) => {
-            // Adicionamos um LEFT JOIN orders o ON o.box_id = b.id para descobrir a encomenda
             const sql = `SELECT o.code as id_code, 'Fatura' as type, u.name as client_name, 
                                 'Caixa ' || b.box_code as description, NULL as weight, i.status 
                          FROM invoices i 
                          LEFT JOIN users u ON i.client_id = u.id 
                          LEFT JOIN boxes b ON i.box_id = b.id 
-                         LEFT JOIN orders o ON o.box_id = b.id
-                         GROUP BY i.id
+                         LEFT JOIN orders o ON b.order_id = o.id
                          ORDER BY i.id DESC`;
             db.all(sql, [], (err, rows) => {
                 if (err) reject(err); else resolve(rows);
@@ -1076,10 +1074,16 @@ app.post('/api/invoices/create', async (req, res) => {
 
 // 2. Listar Faturas
 app.get('/api/invoices/list', (req, res) => {
-    let sql = `SELECT invoices.*, users.name as client_name, boxes.box_code 
+    // Busca avançada: cruza os dados pelo ID ou pelo Código caso o banco tenha salvo como texto
+    let sql = `SELECT invoices.*, 
+                      users.name as client_name, 
+                      boxes.box_code, 
+                      orders.code as order_code,
+                      boxes.order_id as raw_order
                FROM invoices 
                LEFT JOIN users ON invoices.client_id = users.id 
-               LEFT JOIN boxes ON invoices.box_id = boxes.id`;
+               LEFT JOIN boxes ON invoices.box_id = boxes.id
+               LEFT JOIN orders ON (boxes.order_id = orders.id OR boxes.order_id = orders.code)`;
     
     let params = [];
 
@@ -1088,7 +1092,6 @@ app.get('/api/invoices/list', (req, res) => {
         sql += " WHERE invoices.client_id = ?";
         params.push(req.session.userId);
     } 
-    // Se for funcionário ou admin, vê tudo (pode adicionar filtros se quiser)
 
     sql += " ORDER BY invoices.id DESC";
     

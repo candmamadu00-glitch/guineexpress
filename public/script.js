@@ -1938,6 +1938,7 @@ async function loadInvoices() {
         else statusHtml = '<span style="color:red;">Cancelado</span>';
 
         // Botão de Excluir (SÓ ADMIN VÊ)
+        // NOTA: Mantemos o inv.id aqui dentro para o sistema não apagar a fatura errada!
         let deleteBtn = '';
         if(currentUser && currentUser.role === 'admin') {
             deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
@@ -1945,22 +1946,26 @@ async function loadInvoices() {
 
         const checkBtn = `<button onclick="checkInvoiceStatus('${inv.mp_payment_id}', ${inv.id})" style="font-size:12px; cursor:pointer;" title="Verificar">🔄</button>`;
 
+        // AQUI ESTÁ A MÁGICA: Puxa a Ref. Encomenda (Ex: A21A). Se por acaso não tiver, mostra 'Sem Ref.'
+        const refCode = inv.order_code || inv.raw_order || 'Sem Ref.';
+
         // AQUI ESTÁ O TRUQUE:
         if (currentUser && currentUser.role === 'admin') {
             // ADMIN: Vê coluna de VALOR e AÇÕES completas
             tbody.innerHTML += `
             <tr>
-                <td>#${inv.id}</td>
+                <td style="font-weight:bold; color:#0a1931;">${refCode}</td>
                 <td>${inv.client_name}</td>
                 <td>${inv.box_code || '-'}</td>
-                <td>R$ ${inv.amount}</td> <td>${statusHtml}</td>
+                <td>R$ ${inv.amount}</td> 
+                <td>${statusHtml}</td>
                 <td>${checkBtn} ${deleteBtn}</td>
             </tr>`;
         } else {
             // FUNCIONÁRIO: Não tem a coluna de valor
             tbody.innerHTML += `
             <tr>
-                <td>#${inv.id}</td>
+                <td style="font-weight:bold; color:#0a1931;">${refCode}</td>
                 <td>${inv.client_name}</td>
                 <td>${inv.box_code || '-'}</td>
                 <td>${statusHtml}</td>
