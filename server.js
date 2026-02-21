@@ -758,13 +758,17 @@ app.get('/api/finances/all', async (req, res) => {
             });
         });
 
-        // 2. Busca Faturas do Financeiro (CORRIGIDO AQUI: Removido o b.weight que estava quebrando)
+        // 2. Busca Faturas do Financeiro (CORRIGIDO: Agora puxa o código da ENCOMENDA que está na Caixa)
         const invoices = await new Promise((resolve, reject) => {
-            const sql = `SELECT i.id as id_code, 'Fatura' as type, u.name as client_name, 
+            // Adicionamos um LEFT JOIN orders o ON o.box_id = b.id para descobrir a encomenda
+            const sql = `SELECT o.code as id_code, 'Fatura' as type, u.name as client_name, 
                                 'Caixa ' || b.box_code as description, NULL as weight, i.status 
                          FROM invoices i 
                          LEFT JOIN users u ON i.client_id = u.id 
-                         LEFT JOIN boxes b ON i.box_id = b.id ORDER BY i.id DESC`;
+                         LEFT JOIN boxes b ON i.box_id = b.id 
+                         LEFT JOIN orders o ON o.box_id = b.id
+                         GROUP BY i.id
+                         ORDER BY i.id DESC`;
             db.all(sql, [], (err, rows) => {
                 if (err) reject(err); else resolve(rows);
             });

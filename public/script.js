@@ -4069,16 +4069,19 @@ async function loadFinances() {
         tbody.innerHTML = '';
 
         if (finances.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Nenhum registro encontrado.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Nenhum registo encontrado.</td></tr>`;
             return;
         }
 
         finances.forEach(item => {
-            // 1. TRADUÇÃO AUTOMÁTICA DO STATUS
+            // 1. TRADUÇÃO AUTOMÁTICA DO STATUS (AGORA COM 'APPROVED')
             let statusPt = item.status;
-            if (statusPt.toLowerCase() === 'pending') statusPt = 'Pendente';
-            if (statusPt.toLowerCase() === 'paid') statusPt = 'Pago';
-            if (statusPt.toLowerCase() === 'cancelled') statusPt = 'Cancelado';
+            const statusLower = statusPt.toLowerCase();
+
+            if (statusLower === 'pending') statusPt = 'Pendente';
+            // Adicionamos o 'approved' aqui juntamente com o 'paid'
+            if (statusLower === 'paid' || statusLower === 'approved') statusPt = 'Pago'; 
+            if (statusLower === 'cancelled' || statusLower === 'rejected') statusPt = 'Cancelado';
 
             // 2. Escolhe a cor da etiqueta dependendo do status traduzido
             let statusBadge = 'bg-warning'; // Padrão (Pendente)
@@ -4086,7 +4089,7 @@ async function loadFinances() {
             if (statusPt.toLowerCase().includes('cancelado')) statusBadge = 'bg-danger'; // Vermelho
 
             const tr = document.createElement('tr');
-            // ADICIONAMOS O data-label EM CADA TD PARA O CELULAR LER!
+            // ADICIONAMOS O data-label EM CADA TD PARA O TELEMÓVEL LER!
             tr.innerHTML = `
                 <td data-label="Código" style="font-weight: bold;">${item.id_code || 'N/A'}</td>
                 <td data-label="Tipo"><span class="badge ${item.type === 'Encomenda' ? 'bg-info' : 'bg-primary'}">${item.type}</span></td>
