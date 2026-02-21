@@ -77,7 +77,55 @@ const CiciAI = {
             }
         }
     },
+     // 🌟 NOVA FUNÇÃO: Tornar o ícone arrastável
+    makeDraggable: function() {
+        const avatar = document.getElementById('cici-avatar');
+        if (!avatar) return;
 
+        let isDragging = false;
+        let currentX, currentY, initialX, initialY;
+        let xOffset = 0, yOffset = 0;
+
+        const dragStart = (e) => {
+            if (e.type === "touchstart") {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+            if (e.target === avatar || avatar.contains(e.target)) isDragging = true;
+        };
+
+        const dragEnd = () => {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        };
+
+        const drag = (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                if (e.type === "touchmove") {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+                xOffset = currentX;
+                yOffset = currentY;
+                avatar.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+            }
+        };
+
+        avatar.addEventListener("touchstart", dragStart, { passive: false });
+        avatar.addEventListener("mousedown", dragStart, false);
+        document.addEventListener("touchend", dragEnd, false);
+        document.addEventListener("mouseup", dragEnd, false);
+        document.addEventListener("touchmove", drag, { passive: false });
+        document.addEventListener("mousemove", drag, false);
+    },
     // 🌟 Tutorial de Instalação (PWA Dinâmico)
     showInstallGuide: function() {
         const isMobile = this.deviceInfo.includes("Telemóvel");
@@ -269,6 +317,10 @@ const CiciAI = {
     init: function() {
         this.detectContext();
         this.renderWidget();
+        
+        // Chamada para ativar o movimento
+        setTimeout(() => this.makeDraggable(), 500); 
+
         window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
         setTimeout(() => {
             const badge = document.getElementById('cici-badge');
