@@ -65,7 +65,16 @@ db.serialize(() => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(client_id) REFERENCES users(id)
     )`);
-
+     // Tabela de Notificações do Cliente
+    db.run(`CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER,
+        title TEXT,
+        message TEXT,
+        is_read INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(client_id) REFERENCES users(id)
+    )`);
     // Tabela de Box
     db.run(`CREATE TABLE IF NOT EXISTS boxes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

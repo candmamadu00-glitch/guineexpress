@@ -4061,10 +4061,16 @@ async function loadFinances() {
         }
 
         finances.forEach(item => {
-            // Escolhe a cor da etiqueta dependendo do status
-            let statusBadge = 'bg-warning'; // Padrão (Pendente, etc)
-            if (item.status.toLowerCase().includes('pago')) statusBadge = 'bg-success';
-            if (item.status.toLowerCase().includes('cancelado')) statusBadge = 'bg-danger';
+            // 1. TRADUÇÃO AUTOMÁTICA DO STATUS
+            let statusPt = item.status;
+            if (statusPt.toLowerCase() === 'pending') statusPt = 'Pendente';
+            if (statusPt.toLowerCase() === 'paid') statusPt = 'Pago';
+            if (statusPt.toLowerCase() === 'cancelled') statusPt = 'Cancelado';
+
+            // 2. Escolhe a cor da etiqueta dependendo do status traduzido
+            let statusBadge = 'bg-warning'; // Padrão (Pendente)
+            if (statusPt.toLowerCase().includes('pago')) statusBadge = 'bg-success'; // Verde
+            if (statusPt.toLowerCase().includes('cancelado')) statusBadge = 'bg-danger'; // Vermelho
 
             const tr = document.createElement('tr');
             // ADICIONAMOS O data-label EM CADA TD PARA O CELULAR LER!
@@ -4074,7 +4080,7 @@ async function loadFinances() {
                 <td data-label="Cliente">${item.client_name || 'Desconhecido'}</td>
                 <td data-label="Descrição">${item.description || '-'}</td>
                 <td data-label="Peso">${item.weight ? item.weight + ' kg' : '-'}</td>
-                <td data-label="Status"><span class="badge ${statusBadge}">${item.status}</span></td>
+                <td data-label="Status"><span class="badge ${statusBadge}">${statusPt}</span></td>
             `;
             tbody.appendChild(tr);
         });
@@ -4089,7 +4095,7 @@ function exportFinancesPDF() {
     const doc = new jsPDF();
 
     doc.setFontSize(18);
-    doc.text("Relatorio Financeiro - Guineexpress", 14, 22);
+    doc.text("Relatório Financeiro - GuineExpress", 14, 22);
     doc.setFontSize(11);
     doc.text("Gerado em: " + new Date().toLocaleString(), 14, 30);
 
@@ -4099,17 +4105,108 @@ function exportFinancesPDF() {
         startY: 35,
         theme: 'grid',
         styles: { fontSize: 9 },
-        headStyles: { fillColor: [41, 128, 185] }
+        headStyles: { fillColor: [10, 25, 49] }, // Cor ajustada para o azul escuro da sua marca (opcional)
+        
+        // MÁGICA ACONTECE AQUI: Hook para alterar estilos das células dinamicamente
+        didParseCell: function(data) {
+            // Verifica se estamos no corpo da tabela (body) e na coluna 5 (que é a de Status)
+            // Índices: 0=Código, 1=Tipo, 2=Cliente, 3=Descrição, 4=Peso, 5=Status
+            if (data.section === 'body' && data.column.index === 5) {
+                
+                // Pega o texto da célula e converte para minúsculo para facilitar a comparação
+                const statusText = data.cell.text.join('').toLowerCase();
+
+                if (statusText.includes('pago')) {
+                    // Fundo Verde claro e Texto Verde Escuro
+                    data.cell.styles.fillColor = [212, 237, 218]; 
+                    data.cell.styles.textColor = [21, 87, 36];
+                    data.cell.styles.fontStyle = 'bold';
+                } 
+                else if (statusText.includes('pendente')) {
+                    // Fundo Vermelho claro e Texto Vermelho Escuro
+                    data.cell.styles.fillColor = [248, 215, 218];
+                    data.cell.styles.textColor = [114, 28, 36];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+                else if (statusText.includes('cancelado')) {
+                    // Fundo Cinza/Vermelho (pode ajustar como quiser)
+                    data.cell.styles.fillColor = [255, 235, 238];
+                    data.cell.styles.textColor = [211, 47, 47];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        }
     });
 
     doc.save('Relatorio_Financeiro.pdf');
 }
 
-// Geração de Excel (Requer xlsx no HTML)
-function exportFinancesExcel() {
-    const table = document.getElementById('finances-table');
-    const workbook = XLSX.utils.table_to_book(table, { sheet: "Financeiro" });
-    XLSX.writeFile(workbook, 'Relatorio_Financeiro.xlsx');
+// Geração de Excel Colorido (Requer ExcelJS e FileSaver)
+async function exportFinancesExcel() {
+    // 1. Cria a planilha
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Financeiro');
+
+    // 2. Define as colunas e as larguras
+    sheet.columns = [
+        { header: 'Código', key: 'code', width: 15 },
+        { header: 'Tipo', key: 'type', width: 15 },
+        { header: 'Cliente', key: 'client', width: 25 },
+        { header: 'Descrição', key: 'desc', width: 30 },
+        { header: 'Peso', key: 'weight', width: 15 },
+        { header: 'Status', key: 'status', width: 20 }
+    ];
+
+    // 3. Pinta o cabeçalho de Azul Escuro (padrão GuineExpress) com letra branca
+    sheet.getRow(1).eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1931' } };
+        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+    });
+
+    // 4. Puxa as linhas da sua tabela HTML
+    const rows = document.querySelectorAll('#finances-list tr');
+    
+    rows.forEach(tr => {
+        // Ignora a linha de "Nenhum registro encontrado"
+        if(tr.cells.length === 1) return;
+
+        // Pega os textos de cada coluna
+        const rowData = {
+            code: tr.cells[0].innerText,
+            type: tr.cells[1].innerText,
+            client: tr.cells[2].innerText,
+            desc: tr.cells[3].innerText,
+            weight: tr.cells[4].innerText,
+            status: tr.cells[5].innerText
+        };
+
+        const excelRow = sheet.addRow(rowData);
+
+        // 5. Aplica as cores na coluna de Status (Coluna 6)
+        const statusCell = excelRow.getCell(6);
+        const statusText = rowData.status.toLowerCase();
+
+        if (statusText.includes('pago')) {
+            // Fundo Verde (FF + Hex da cor)
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } }; 
+            statusCell.font = { color: { argb: 'FF155724' }, bold: true };
+        } 
+        else if (statusText.includes('pendente')) {
+            // Fundo Vermelho
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8D7DA' } }; 
+            statusCell.font = { color: { argb: 'FF721C24' }, bold: true };
+        }
+        else if (statusText.includes('cancelado')) {
+            // Fundo Cinza/Vermelho claro
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEE' } }; 
+            statusCell.font = { color: { argb: 'FFD32F2F' }, bold: true };
+        }
+    });
+
+    // 6. Gera o arquivo e faz o download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, 'Relatorio_Financeiro.xlsx');
 }
 // ==============================================================
 // GARANTIA DE TELA LIMPA AO CARREGAR A PÁGINA
