@@ -1989,10 +1989,10 @@ async function loadClientInvoices() {
                 actionHtml = `
                 <div style="display:flex; justify-content:center; gap:8px;">
                     <button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        💸 Pix / QR Code
+                        💸 Pix / QR Code do Brasil
                     </button>
                     <button onclick="openEcobankModal(${inv.id})" style="background:#0a1931; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        🏦 Pagar c/ Banco
+                        🏦 Pagar no Banco da Guine Bissau
                     </button>
                 </div>`;
             } else {
@@ -4595,55 +4595,123 @@ async function approveInvoice(invoiceId) {
     }
 }
 // ==========================================
-// EXPORTAÇÃO DE BOXES (PDF E EXCEL)
+// EXPORTAÇÃO DE BOXES (PDF E EXCEL DIRETOS)
 // ==========================================
 
 function exportBoxExcel() {
-    // Pega as linhas da tabela ignorando a última coluna (Ações)
-    const rows = [["N° Box", "Cliente", "Ref. Encomenda", "Peso (Kg)", "Valor Estimado", "Produtos"]];
+    // Cria a estrutura de um ficheiro Excel real (.xls) com cores e bordas
+    let tableHTML = `
+        <html xmlns:x="urn:schemas-microsoft-com:office:excel">
+        <head><meta charset="utf-8"></head>
+        <body>
+            <table border="1" cellpadding="5">
+                <thead>
+                    <tr><th colspan="6" style="font-size: 18px; font-weight: bold; background-color: #f4f9ff; text-align: center; height: 40px;">📦 Relatório de Boxes - Guineexpress</th></tr>
+                    <tr style="background-color: #0a1931; color: #ffffff; font-weight: bold;">
+                        <th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso (Kg)</th><th>Valor Estimado</th><th>Produtos</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    // Pega os dados da tabela
     const trs = document.querySelectorAll("#box-table-body tr");
-    
     trs.forEach(tr => {
         const tds = tr.querySelectorAll("td");
         if (tds.length > 0) {
-            rows.push([
-                tds[0].innerText, tds[1].innerText, tds[2].innerText,
-                tds[3].innerText.replace(' Kg', ''), tds[4].innerText, tds[5].innerText
-            ]);
+            tableHTML += `<tr>
+                <td>${tds[0].innerText}</td>
+                <td>${tds[1].innerText}</td>
+                <td>${tds[2].innerText}</td>
+                <td>${tds[3].innerText.replace(' Kg', '')}</td>
+                <td>${tds[4].innerText}</td>
+                <td>${tds[5].innerText}</td>
+            </tr>`;
         }
     });
-    
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(";")).join("\n");
-    const encodedUri = encodeURI(csvContent);
+
+    tableHTML += `</tbody></table></body></html>`;
+
+    // Força o download como ficheiro .xls
+    const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel' });
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "Guineexpress_Relatorio_Boxes.csv");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Guineexpress_Relatorio_Boxes.xls";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
 
 function exportBoxPDF() {
-    const printWindow = window.open('', '_blank', 'height=600,width=800');
-    printWindow.document.write(`
-        <html><head><title>Relatório de Boxes</title>
-        <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; color: #0a1931; }
-            h2 { color: #0a1931; }
-        </style>
-        </head><body>
-        <h2>📦 Relatório de Boxes - Guineexpress</h2>
-        <table>
-            <thead><tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th></tr></thead>
-            <tbody>
-                ${document.getElementById('box-table-body').innerHTML.replace(/<td><button.*?<\/button><\/td>/g, '<td>-</td>')}
-            </tbody>
-        </table>
-        <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
-        </body></html>
-    `);
-    printWindow.document.close();
+    // Muda o botão para mostrar que está a carregar (Opcional)
+    const btn = event.currentTarget;
+    const textoOriginal = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Baixando...';
+
+    // Se a biblioteca de PDF ainda não existir, o sistema baixa ela automaticamente
+    if (typeof html2pdf === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        script.onload = () => gerarPDF(btn, textoOriginal);
+        document.head.appendChild(script);
+    } else {
+        gerarPDF(btn, textoOriginal);
+    }
+
+    function gerarPDF(btn, textoOriginal) {
+        // Pega os dados da tabela limpos
+        let rowsHtml = '';
+        const trs = document.querySelectorAll("#box-table-body tr");
+        trs.forEach(tr => {
+            const tds = tr.querySelectorAll("td");
+            if (tds.length > 0) {
+                rowsHtml += `
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${tds[0].innerText}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${tds[1].innerText}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${tds[2].innerText}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${tds[3].innerText}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${tds[4].innerText}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${tds[5].innerText}</td>
+                </tr>`;
+            }
+        });
+
+        // Monta o visual do PDF
+        const divTemp = document.createElement('div');
+        divTemp.innerHTML = `
+            <div style="font-family: Arial, sans-serif; padding: 20px; background: white;">
+                <h2 style="color: #0a1931; text-align: center; border-bottom: 2px solid #0a1931; padding-bottom: 10px;">📦 Relatório de Boxes - Guineexpress</h2>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px;">
+                    <thead>
+                        <tr>
+                            <th style="border: 1px solid #ddd; padding: 10px; background-color: #0a1931; color: white;">N° Box</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; background-color: #0a1931; color: white;">Cliente</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; background-color: #0a1931; color: white;">Ref. Encomenda</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; background-color: #0a1931; color: white;">Peso</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; background-color: #0a1931; color: white;">Valor Estimado</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; background-color: #0a1931; color: white;">Produtos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        // Configurações do Ficheiro PDF
+        const opt = {
+            margin:       10,
+            filename:     'Guineexpress_Relatorio_Boxes.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        };
+
+        // Manda baixar automaticamente e depois volta o botão ao normal
+        html2pdf().set(opt).from(divTemp).save().then(() => {
+            btn.innerHTML = textoOriginal;
+        });
+    }
 }
