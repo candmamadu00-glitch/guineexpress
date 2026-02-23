@@ -359,146 +359,109 @@ app.post('/api/webauthn/login-request', async (req, res) => {
     });
 });
 
-// 4. Confirmar o Login
-app.post('/api/webauthn/login-verify', async (req, res) => {
-    const origin = req.get('origin') || `https://${req.get('host')}`;
-    const rpID = new URL(origin).hostname;
-    
-    const userId = req.session.loginAttemptUserId;
-    const expectedChallenge = req.session.currentChallenge;
 
-    db.get("SELECT * FROM users WHERE id = ?", [userId], async (err, user) => {
-        try {
-            const verification = await verifyAuthenticationResponse({
-                response: req.body,
-                expectedChallenge,
-                expectedOrigin: origin,
-                expectedRPID: rpID,
-                authenticator: {
-                    // 🌟 VERSÃO NOVA: O credentialID usa o texto direto!
-                    credentialID: user.webauthn_id, 
-                    credentialPublicKey: Buffer.from(user.webauthn_public_key, 'base64'),
-                    counter: user.webauthn_counter
-                }
-            });
-
-            if (verification.verified) {
-                // Atualiza o contador de segurança (versão nova guarda no authenticationInfo)
-                const { authenticationInfo } = verification;
-                db.run("UPDATE users SET webauthn_counter = ? WHERE id = ?", [authenticationInfo.newCounter, user.id]);
-                
-                // Cria a sessão de login
-                req.session.userId = user.id;
-                req.session.role = user.role;
-                req.session.user = user;
-                
-                res.json({ success: true, role: user.role, name: user.name });
-            } else {
-                res.status(400).json({ error: 'Impressão digital inválida.' });
-            }
-        } catch (error) {
-            console.error("Erro no login verify:", error.message);
-            res.status(400).json({ error: error.message });
-        }
-    });
-});
-
-// 4. Confirmar o Login
-app.post('/api/webauthn/login-verify', async (req, res) => {
-    const origin = req.get('origin') || `https://${req.get('host')}`;
-    const rpID = new URL(origin).hostname;
-    
-    const userId = req.session.loginAttemptUserId;
-    const expectedChallenge = req.session.currentChallenge;
-
-    db.get("SELECT * FROM users WHERE id = ?", [userId], async (err, user) => {
-        try {
-            const verification = await verifyAuthenticationResponse({
-                response: req.body,
-                expectedChallenge,
-                expectedOrigin: origin,
-                expectedRPID: rpID,
-                authenticator: {
-                    credentialID: Buffer.from(user.webauthn_id, 'base64'),
-                    credentialPublicKey: Buffer.from(user.webauthn_public_key, 'base64'),
-                    counter: user.webauthn_counter
-                }
-            });
-
-            if (verification.verified) {
-                db.run("UPDATE users SET webauthn_counter = ? WHERE id = ?", [verification.authenticationInfo.newCounter, user.id]);
-                req.session.userId = user.id;
-                req.session.role = user.role;
-                req.session.user = user;
-                
-                res.json({ success: true, role: user.role, name: user.name });
-            } else {
-                res.status(400).json({ error: 'Impressão digital inválida.' });
-            }
-        } catch (error) {
-            console.error("Erro no login verify:", error.message);
-            res.status(400).json({ error: error.message });
-        }
-    });
-});
-
-// 3. Iniciar o Login com Impressão Digital
+// ==================================================================
+// 3. Rota: Pedir para fazer Login com Biometria
+// ==================================================================
 app.post('/api/webauthn/login-request', (req, res) => {
-    const { login } = req.body;
-    db.get("SELECT * FROM users WHERE email = ? OR phone = ?", [login, login], (err, user) => {
-        if (!user || !user.webauthn_id) {
+    const { login } = req.body; // Pega o email digitado
+    
+    // Procura o utilizador no banco de dados pelo email
+    db.get("SELECT * FROM users WHERE email = ?", [login], async (err, user) => {
+        if (err || !user) {
+            return res.status(400).json({ error: 'Conta não encontrada com este e-mail.' });
+        }
+        if (!user.webauthn_id) {
             return res.status(400).json({ error: 'Nenhuma impressão digital registada para esta conta.' });
         }
 
-        const options = generateAuthenticationOptions({
-            rpID,
-            allowCredentials: [{
-                id: Buffer.from(user.webauthn_id, 'base64'),
-                type: 'public-key'
-            }],
-            userVerification: 'preferred'
-        });
+        try {
+            const options = await generateAuthenticationOptions({
+                rpID: new URL(req.get('origin') || `http://${req.get('host')}`).hostname,
+                allowCredentials: [{
+                    id: user.webauthn_id,
+                    type: 'public-key',
+                }],
+                userVerification: 'preferred',
+            });
 
-        req.session.currentChallenge = options.challenge;
-        req.session.loginAttemptUserId = user.id; // Lembra quem está a tentar entrar
-        res.json(options);
+            // 🌟 O SEGREDO ESTÁ AQUI: Guardar na sessão temporária quem está a tentar entrar!
+            req.session.loginUserId = user.id; 
+            req.session.currentChallenge = options.challenge;
+
+            res.json(options);
+        } catch (error) {
+            res.status(500).json({ error: 'Erro ao gerar o desafio biométrico.' });
+        }
     });
 });
 
-// 4. Confirmar o Login com a Impressão Digital
-app.post('/api/webauthn/login-verify', async (req, res) => {
-    const userId = req.session.loginAttemptUserId;
+// ==================================================================
+// 4. Rota: Validar a Impressão Digital no Login (VERSÃO ÚNICA E BLINDADA)
+// ==================================================================
+app.post('/api/webauthn/login-verify', (req, res) => {
+    console.log("🔥 CHEGOU NA ROTA BLINDADA DO LOGIN!"); 
+    
+    // Suporta tanto o nome da sessão antigo como o novo
+    const userId = req.session.loginUserId || req.session.loginAttemptUserId;
     const expectedChallenge = req.session.currentChallenge;
 
+    if (!userId || !expectedChallenge) {
+        return res.status(400).json({ error: 'Sessão expirada. Tente de novo.' });
+    }
+
     db.get("SELECT * FROM users WHERE id = ?", [userId], async (err, user) => {
+        if (err || !user) return res.status(400).json({ error: 'Erro ao recuperar conta.' });
+
         try {
+            console.log(`🔥 Lendo credenciais do utilizador: ${user.name}`);
+            const publicKeyBytes = new Uint8Array(Buffer.from(user.webauthn_public_key, 'base64'));
+            
+            const origin = req.get('origin') || `https://${req.get('host')}`;
+            const rpID = new URL(origin).hostname;
+
             const verification = await verifyAuthenticationResponse({
                 response: req.body,
                 expectedChallenge,
                 expectedOrigin: origin,
                 expectedRPID: rpID,
+                
+                // 🛡️ MODO BLINDADO: Para versões v9 ou mais antigas
                 authenticator: {
-                    credentialID: Buffer.from(user.webauthn_id, 'base64'),
-                    credentialPublicKey: Buffer.from(user.webauthn_public_key, 'base64'),
-                    counter: user.webauthn_counter
+                    credentialID: new Uint8Array(Buffer.from(user.webauthn_id, 'base64')),
+                    credentialPublicKey: publicKeyBytes,
+                    counter: user.webauthn_counter || 0
+                },
+                
+                // 🛡️ MODO BLINDADO: Para versões v10 ou mais novas
+                credential: {
+                    id: user.webauthn_id,
+                    publicKey: publicKeyBytes,
+                    counter: user.webauthn_counter || 0
                 }
             });
 
-            if (verification.verified) {
-                // Atualiza o contador de segurança
-                db.run("UPDATE users SET webauthn_counter = ? WHERE id = ?", [verification.authenticationInfo.newCounter, user.id]);
+            console.log("🔥 Biblioteca validou com sucesso? ", verification.verified);
 
-                // Faz o Login (Igual à sua rota normal)
-                req.session.userId = user.id;
+            if (verification.verified) {
+                const newCounter = verification.authenticationInfo?.newCounter || 0;
+                db.run("UPDATE users SET webauthn_counter = ? WHERE id = ?", [newCounter, user.id]);
+                
+                req.session.userId = user.id; 
                 req.session.role = user.role;
                 req.session.user = user;
                 
+                delete req.session.loginUserId;
+                delete req.session.loginAttemptUserId;
+                delete req.session.currentChallenge;
+                
                 res.json({ success: true, role: user.role, name: user.name });
             } else {
-                res.status(400).json({ error: 'Impressão digital inválida.' });
+                res.status(400).json({ error: 'Falha na verificação da biometria.' });
             }
         } catch (error) {
-            res.status(400).json({ error: error.message });
+            console.error("❌ ERRO REAL DENTRO DA BIBLIOTECA:", error.message);
+            res.status(400).json({ error: 'Erro de segurança: ' + error.message });
         }
     });
 });

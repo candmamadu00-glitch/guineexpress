@@ -4810,7 +4810,7 @@ function exportBoxPDF() {
     }
 }
 // ==================================================================
-// FUNÇÃO PARA FAZER LOGIN COM A BIOMETRIA
+// FUNÇÃO PARA FAZER LOGIN COM A BIOMETRIA (VERSÃO ÚNICA)
 // ==================================================================
 async function loginComBiometria() {
     const campoLogin = document.getElementById('login-user') || document.getElementById('email') || document.getElementById('login');
@@ -4826,7 +4826,7 @@ async function loginComBiometria() {
         const resposta = await fetch('/api/webauthn/login-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include', // 🌟 CORREÇÃO 1: Garante que a sessão vai junto!
+            credentials: 'include', // 🌟 OBRIGATÓRIO: Garante que a sessão vai junto!
             body: JSON.stringify({ login: loginValue })
         });
 
@@ -4842,7 +4842,7 @@ async function loginComBiometria() {
         const verificacao = await fetch('/api/webauthn/login-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include', // 🌟 CORREÇÃO 2: Aqui também!
+            credentials: 'include', // 🌟 OBRIGATÓRIO: Garante que a sessão vai junto!
             body: JSON.stringify(credencial)
         });
 
@@ -4867,70 +4867,6 @@ async function loginComBiometria() {
     }
 }
 
-window.loginComBiometria = loginComBiometria;
-// ==================================================================
-// FUNÇÃO PARA FAZER LOGIN COM A BIOMETRIA
-// ==================================================================
-async function loginComBiometria() {
-    // 1. Tenta encontrar o campo onde a pessoa digita o email/telefone (ajustado para qualquer ID)
-    const campoLogin = document.getElementById('login-user') || document.getElementById('email') || document.getElementById('login');
-    const loginValue = campoLogin ? campoLogin.value.trim() : '';
-
-    // 2. Se a pessoa não digitou o email, o sistema avisa!
-    if (!loginValue) {
-        alert("⚠️ Por favor, digite o seu Email ou Telefone primeiro, e depois clique no botão de Impressão Digital!");
-        if (campoLogin) campoLogin.focus();
-        return;
-    }
-
-    try {
-        // 3. Pede ao servidor a chave da biometria daquele email específico
-        const resposta = await fetch('/api/webauthn/login-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: loginValue })
-        });
-
-        const opcoes = await resposta.json();
-
-        if (opcoes.error) {
-            alert("⚠️ " + opcoes.error);
-            return;
-        }
-
-        // 4. Chama o sensor do telemóvel
-        const credencial = await SimpleWebAuthnBrowser.startAuthentication(opcoes);
-
-        // 5. Envia o dedo lido para o servidor validar
-        const verificacao = await fetch('/api/webauthn/login-verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(credencial)
-        });
-
-        const resultado = await verificacao.json();
-
-        if (resultado.success) {
-            // Sucesso Total! Redireciona para o painel correto
-            localStorage.setItem('userRole', resultado.role);
-            if (resultado.role === 'client') window.location.href = 'dashboard-client.html';
-            else if (resultado.role === 'employee') window.location.href = 'dashboard-employee.html';
-            else window.location.href = 'dashboard-admin.html';
-        } else {
-            alert("❌ Impressão digital incorreta. " + (resultado.error || "Tente novamente."));
-        }
-
-    } catch (erro) {
-        console.error("Erro no login:", erro);
-        if (erro.name === 'NotAllowedError') {
-            alert("⚠️ Login cancelado ou tempo esgotado.");
-        } else {
-            alert("❌ Erro ao reconhecer o seu dedo/rosto. Tente limpar o sensor.");
-        }
-    }
-}
-
-// Torna a função visível para o seu HTML
 window.loginComBiometria = loginComBiometria;
 // ==================================================================
 // FUNÇÃO DA CICI EXPLICANDO A BIOMETRIA (TEXTO E VOZ)
