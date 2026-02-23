@@ -329,11 +329,11 @@ app.post('/api/webauthn/login-request', async (req, res) => {
         }
 
         try {
-            // 🌟 A CORREÇÃO TAMBÉM ESTÁ AQUI NO LOGIN!
             const options = await generateAuthenticationOptions({
                 rpID,
                 allowCredentials: [{
-                    id: Buffer.from(user.webauthn_id, 'base64'),
+                    // 🌟 VERSÃO NOVA: O 'id' agora usa o texto diretamente, sem precisar de Buffer!
+                    id: user.webauthn_id, 
                     type: 'public-key'
                 }],
                 userVerification: 'preferred'
@@ -344,7 +344,51 @@ app.post('/api/webauthn/login-request', async (req, res) => {
             res.json(options);
         } catch (error) {
             console.error("Erro no login request:", error);
-            res.status(500).json({ error: 'Erro ao gerar login.' });
+            res.status(500).json({ error: 'Erro ao gerar pedido de login.' });
+        }
+    });
+});
+
+// 4. Confirmar o Login
+app.post('/api/webauthn/login-verify', async (req, res) => {
+    const origin = req.get('origin') || `https://${req.get('host')}`;
+    const rpID = new URL(origin).hostname;
+    
+    const userId = req.session.loginAttemptUserId;
+    const expectedChallenge = req.session.currentChallenge;
+
+    db.get("SELECT * FROM users WHERE id = ?", [userId], async (err, user) => {
+        try {
+            const verification = await verifyAuthenticationResponse({
+                response: req.body,
+                expectedChallenge,
+                expectedOrigin: origin,
+                expectedRPID: rpID,
+                authenticator: {
+                    // 🌟 VERSÃO NOVA: O credentialID usa o texto direto!
+                    credentialID: user.webauthn_id, 
+                    credentialPublicKey: Buffer.from(user.webauthn_public_key, 'base64'),
+                    counter: user.webauthn_counter
+                }
+            });
+
+            if (verification.verified) {
+                // Atualiza o contador de segurança (versão nova guarda no authenticationInfo)
+                const { authenticationInfo } = verification;
+                db.run("UPDATE users SET webauthn_counter = ? WHERE id = ?", [authenticationInfo.newCounter, user.id]);
+                
+                // Cria a sessão de login
+                req.session.userId = user.id;
+                req.session.role = user.role;
+                req.session.user = user;
+                
+                res.json({ success: true, role: user.role, name: user.name });
+            } else {
+                res.status(400).json({ error: 'Impressão digital inválida.' });
+            }
+        } catch (error) {
+            console.error("Erro no login verify:", error.message);
+            res.status(400).json({ error: error.message });
         }
     });
 });
