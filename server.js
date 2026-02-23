@@ -233,7 +233,7 @@ app.post('/api/login', (req, res) => {
     });
 });
 // ==================================================================
-// BIOMETRIA: WEB-AUTHN (IMPRESSÃO DIGITAL E FACE ID) - BLINDADO
+// BIOMETRIA: WEB-AUTHN (IMPRESSÃO DIGITAL E FACE ID) - 100% CORRIGIDO
 // ==================================================================
 const { 
     generateRegistrationOptions, verifyRegistrationResponse, 
@@ -243,28 +243,28 @@ const {
 const rpName = 'Guineexpress Logística';
 
 // 1. Pedir para Registar a Impressão Digital
-app.post('/api/webauthn/register-request', (req, res) => {
-    // 🌟 INTELIGÊNCIA: Pega o domínio exato do navegador (ex: https://guineexpress.onrender.com)
+app.post('/api/webauthn/register-request', async (req, res) => {
     const origin = req.get('origin') || `https://${req.get('host')}`;
     const rpID = new URL(origin).hostname; 
 
     const userId = req.session.userId;
     if (!userId) return res.status(401).json({ error: 'Precisa estar logado.' });
 
-    db.get("SELECT * FROM users WHERE id = ?", [userId], (err, user) => {
+    db.get("SELECT * FROM users WHERE id = ?", [userId], async (err, user) => {
         if (err || !user) return res.status(400).json({ error: 'Utilizador não encontrado.' });
 
         const userUint8Array = new Uint8Array(Buffer.from(user.id.toString()));
 
         try {
-            const options = generateRegistrationOptions({
+            // 🌟 A CORREÇÃO ESTÁ AQUI: Adicionamos o "await" para esperar a criptografia!
+            const options = await generateRegistrationOptions({
                 rpName, 
                 rpID,
                 userID: userUint8Array,
                 userName: user.email,
                 attestationType: 'none',
                 authenticatorSelection: { 
-                    authenticatorAttachment: 'platform', // 🌟 FORÇA o uso do sensor do próprio telemóvel
+                    authenticatorAttachment: 'platform', 
                     residentKey: 'required', 
                     userVerification: 'preferred' 
                 }
@@ -314,28 +314,34 @@ app.post('/api/webauthn/register-verify', async (req, res) => {
 });
 
 // 3. Iniciar o Login com Impressão Digital
-app.post('/api/webauthn/login-request', (req, res) => {
+app.post('/api/webauthn/login-request', async (req, res) => {
     const origin = req.get('origin') || `https://${req.get('host')}`;
     const rpID = new URL(origin).hostname;
 
     const { login } = req.body;
-    db.get("SELECT * FROM users WHERE email = ? OR phone = ?", [login, login], (err, user) => {
+    db.get("SELECT * FROM users WHERE email = ? OR phone = ?", [login, login], async (err, user) => {
         if (!user || !user.webauthn_id) {
             return res.status(400).json({ error: 'Nenhuma impressão digital registada para esta conta.' });
         }
 
-        const options = generateAuthenticationOptions({
-            rpID,
-            allowCredentials: [{
-                id: Buffer.from(user.webauthn_id, 'base64'),
-                type: 'public-key'
-            }],
-            userVerification: 'preferred'
-        });
+        try {
+            // 🌟 A CORREÇÃO TAMBÉM ESTÁ AQUI NO LOGIN!
+            const options = await generateAuthenticationOptions({
+                rpID,
+                allowCredentials: [{
+                    id: Buffer.from(user.webauthn_id, 'base64'),
+                    type: 'public-key'
+                }],
+                userVerification: 'preferred'
+            });
 
-        req.session.currentChallenge = options.challenge;
-        req.session.loginAttemptUserId = user.id;
-        res.json(options);
+            req.session.currentChallenge = options.challenge;
+            req.session.loginAttemptUserId = user.id;
+            res.json(options);
+        } catch (error) {
+            console.error("Erro no login request:", error);
+            res.status(500).json({ error: 'Erro ao gerar login.' });
+        }
     });
 });
 
