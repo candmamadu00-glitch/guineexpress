@@ -4813,6 +4813,65 @@ function exportBoxPDF() {
 // FUNÇÃO PARA FAZER LOGIN COM A BIOMETRIA
 // ==================================================================
 async function loginComBiometria() {
+    const campoLogin = document.getElementById('login-user') || document.getElementById('email') || document.getElementById('login');
+    const loginValue = campoLogin ? campoLogin.value.trim() : '';
+
+    if (!loginValue) {
+        alert("⚠️ Por favor, digite o seu Email ou Telefone primeiro, e depois clique no botão de Impressão Digital!");
+        if (campoLogin) campoLogin.focus();
+        return;
+    }
+
+    try {
+        const resposta = await fetch('/api/webauthn/login-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // 🌟 CORREÇÃO 1: Garante que a sessão vai junto!
+            body: JSON.stringify({ login: loginValue })
+        });
+
+        const opcoes = await resposta.json();
+
+        if (opcoes.error) {
+            alert("⚠️ " + opcoes.error);
+            return;
+        }
+
+        const credencial = await SimpleWebAuthnBrowser.startAuthentication(opcoes);
+
+        const verificacao = await fetch('/api/webauthn/login-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // 🌟 CORREÇÃO 2: Aqui também!
+            body: JSON.stringify(credencial)
+        });
+
+        const resultado = await verificacao.json();
+
+        if (resultado.success) {
+            localStorage.setItem('userRole', resultado.role);
+            if (resultado.role === 'client') window.location.href = 'dashboard-client.html';
+            else if (resultado.role === 'employee') window.location.href = 'dashboard-employee.html';
+            else window.location.href = 'dashboard-admin.html';
+        } else {
+            alert("❌ Impressão digital incorreta. " + (resultado.error || "Tente novamente."));
+        }
+
+    } catch (erro) {
+        console.error("Erro no login:", erro);
+        if (erro.name === 'NotAllowedError') {
+            alert("⚠️ Login cancelado ou tempo esgotado.");
+        } else {
+            alert("❌ Erro ao reconhecer o seu dedo/rosto. Tente limpar o sensor.");
+        }
+    }
+}
+
+window.loginComBiometria = loginComBiometria;
+// ==================================================================
+// FUNÇÃO PARA FAZER LOGIN COM A BIOMETRIA
+// ==================================================================
+async function loginComBiometria() {
     // 1. Tenta encontrar o campo onde a pessoa digita o email/telefone (ajustado para qualquer ID)
     const campoLogin = document.getElementById('login-user') || document.getElementById('email') || document.getElementById('login');
     const loginValue = campoLogin ? campoLogin.value.trim() : '';
