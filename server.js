@@ -296,18 +296,28 @@ app.post('/api/webauthn/register-verify', async (req, res) => {
         });
 
         if (verification.verified) {
-            // 🌟 A CORREÇÃO ESTÁ AQUI: Adaptado para a versão mais recente da biblioteca!
             const { credential } = verification.registrationInfo;
             
-            // Na versão nova, o 'id' já vem pronto como texto, e a chave pública precisa ser convertida
             const credIdStr = credential.id; 
             const pubKeyStr = Buffer.from(credential.publicKey).toString('base64');
             const counter = credential.counter;
 
+            // 🌟 CORREÇÃO: Agora o servidor escuta a resposta do Banco de Dados!
             db.run("UPDATE users SET webauthn_id = ?, webauthn_public_key = ?, webauthn_counter = ? WHERE id = ?", 
-                [credIdStr, pubKeyStr, counter, userId]);
-
-            res.json({ success: true, msg: 'Impressão Digital ativada com sucesso!' });
+                [credIdStr, pubKeyStr, counter, userId], 
+                function(err) {
+                    if (err) {
+                        console.error("Erro do SQLite:", err.message);
+                        return res.status(500).json({ error: 'Erro interno ao guardar no banco de dados.' });
+                    }
+                    if (this.changes === 0) {
+                        console.error("Erro: Nenhum utilizador atualizado. userId:", userId);
+                        return res.status(400).json({ error: 'Sessão perdida. Por favor, faça login novamente e tente ativar.' });
+                    }
+                    // Se chegou aqui, o banco guardou de verdade!
+                    res.json({ success: true, msg: 'Impressão Digital ativada com sucesso!' });
+                }
+            );
         } else {
             res.status(400).json({ error: 'Falha ao verificar a biometria.' });
         }

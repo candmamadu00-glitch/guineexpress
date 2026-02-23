@@ -5049,11 +5049,10 @@ function ciciAvisa(mensagemTexto, tipo = 'info') {
 // ==================================================================
 async function registarBiometria() {
     try {
-        // 1. Pede ao servidor as opções para criar a chave biométrica
         const resp = await fetch('/api/webauthn/register-request', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-            // O servidor deve saber quem é o usuário pela sessão (cookies/token)
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include' // 🌟 CORREÇÃO: Garante que o servidor sabe quem você é!
         });
 
         const options = await resp.json();
@@ -5063,14 +5062,13 @@ async function registarBiometria() {
             return;
         }
 
-        // 2. Chama o sensor do telemóvel (FaceID ou Dedo)
         ciciAvisa("Por favor, toque no sensor de impressão digital do seu telemóvel.", "info");
         const credencial = await SimpleWebAuthnBrowser.startRegistration(options);
 
-        // 3. Envia a "assinatura" do dedo para guardar no banco de dados
         const verifyResp = await fetch('/api/webauthn/register-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // 🌟 CORREÇÃO AQUI TAMBÉM!
             body: JSON.stringify(credencial)
         });
 
@@ -5082,14 +5080,9 @@ async function registarBiometria() {
             ciciAvisa("Ops! " + (result.error || "A digital não foi guardada. Tente novamente."), "erro");
         }
     } catch (error) {
-        console.error("Erro no registo da biometria:", error);
-        if (error.name === 'NotAllowedError') {
-            ciciAvisa("Você cancelou a leitura da impressão digital.", "erro");
-        } else {
-            ciciAvisa("Ocorreu um erro. O seu aparelho suporta leitura biométrica?", "erro");
-        }
+        console.error("Erro no registo:", error);
+        ciciAvisa("Ocorreu um erro ou você cancelou a leitura.", "erro");
     }
 }
 
-// 🔥 ISSO É OBRIGATÓRIO: Torna a função visível para o seu botão HTML!
 window.registarBiometria = registarBiometria;
