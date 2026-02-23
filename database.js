@@ -190,7 +190,8 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN webauthn_public_key TEXT", () => {});
     db.run("ALTER TABLE users ADD COLUMN webauthn_counter INTEGER DEFAULT 0", () => {});
     db.run("ALTER TABLE users ADD COLUMN express_points INTEGER DEFAULT 0", () => {});
-
+     // 🛂 A LINHA NOVA PARA O PASSAPORTE:
+db.run("ALTER TABLE users ADD COLUMN passport_stamps TEXT DEFAULT ''", () => {});
     console.log("✅ Tabelas sincronizadas e colunas verificadas.");
 
     // =======================================================

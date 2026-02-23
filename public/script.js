@@ -5351,3 +5351,77 @@ function ganhouPremioJogo() {
     .then(() => console.log("Prémio do jogo guardado!"))
     .catch(err => console.error("Erro ao guardar pontos do jogo"));
 }
+// ==================================================================
+// LÓGICA DO PASSAPORTE DE VIAGENS (VERSÃO REAL)
+// ==================================================================
+
+// Abrir Passaporte com Efeito Sonoro
+const btnAbrirPassaporte = document.getElementById('btn-abrir-passaporte');
+const modalPassaporte = document.getElementById('modal-passaporte');
+const btnFecharPassaporte = document.getElementById('fechar-passaporte');
+
+if (btnAbrirPassaporte) {
+    btnAbrirPassaporte.onclick = () => {
+        modalPassaporte.style.display = 'flex';
+        
+        // Efeito sonoro de carimbo (opcional, mas muito fixe!)
+        try {
+            let audio = new Audio('https://www.soundjay.com/office/sounds/stapler-01.mp3');
+            audio.volume = 0.4;
+            audio.play();
+        } catch (e) { console.log("Som bloqueado pelo navegador"); }
+
+        // Chama a função que vai buscar os dados reais ao servidor
+        carregarCarimbos();
+    };
+}
+
+if (btnFecharPassaporte) {
+    btnFecharPassaporte.onclick = () => {
+        modalPassaporte.style.display = 'none';
+    };
+}
+
+// Fecha o modal se o utilizador clicar fora da caixa do passaporte
+window.onclick = (event) => {
+    if (event.target == modalPassaporte) {
+        modalPassaporte.style.display = "none";
+    }
+};
+
+function carregarCarimbos() {
+    fetch('/api/get-passport')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // 1. Coloca o nome do cliente no passaporte
+                document.getElementById('pass-user-name').innerText = data.nome;
+
+                // 2. Mapeamento de Destinos para os IDs dos carimbos (ajuste os nomes se precisar)
+                // Se no banco estiver "Bissau", ele desbloqueia "stamp-BIS"
+                const mapaCidades = {
+                    "Bissau": "stamp-BIS",
+                    "Lisboa": "stamp-LIS",
+                    "Paris": "stamp-PAR",
+                    "Dakar": "stamp-DAK"
+                };
+
+                // 3. Limpa carimbos antes de marcar (para não duplicar)
+                document.querySelectorAll('.stamp-item').forEach(s => s.classList.add('locked'));
+                document.querySelectorAll('.stamp-item').forEach(s => s.classList.remove('unlocked'));
+
+                // 4. Desbloqueia os carimbos que o cliente já ganhou
+                data.destinos.forEach(destinoReal => {
+                    const idCarimbo = mapaCidades[destinoReal];
+                    if (idCarimbo) {
+                        const el = document.getElementById(idCarimbo);
+                        if (el) {
+                            el.classList.remove('locked');
+                            el.classList.add('unlocked');
+                        }
+                    }
+                });
+            }
+        })
+        .catch(err => console.error("Erro ao carregar passaporte:", err));
+}
