@@ -232,7 +232,132 @@ app.post('/api/login', (req, res) => {
         res.json({ success: true, role: user.role, name: user.name });
     });
 });
+// ==================================================================
+// BIOMETRIA: WEB-AUTHN (IMPRESSÃO DIGITAL E FACE ID)
+// ==================================================================
+const { 
+    generateRegistrationOptions, verifyRegistrationResponse, 
+    generateAuthenticationOptions, verifyAuthenticationResponse 
+} = require('@simplewebauthn/server');
 
+// ⚠️ ATENÇÃO: Quando colocar o site online, mude "localhost" para o seu domínio (ex: "guineexpress.com")
+const rpName = 'Guineexpress Logística';
+const rpID = 'localhost'; 
+const origin = `http://${rpID}:3000`; 
+
+// 1. Pedir para Registar a Impressão Digital (O cliente já tem de estar logado)
+app.post('/api/webauthn/register-request', (req, res) => {
+    const userId = req.session.userId;
+    if (!userId) return res.status(401).json({ error: 'Precisa estar logado para ativar a biometria.' });
+
+    db.get("SELECT * FROM users WHERE id = ?", [userId], (err, user) => {
+        if (err || !user) return res.status(400).json({ error: 'Utilizador não encontrado.' });
+
+        const options = generateRegistrationOptions({
+            rpName, rpID,
+            userID: user.id.toString(),
+            userName: user.email,
+            attestationType: 'none',
+            authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' }
+        });
+
+        req.session.currentChallenge = options.challenge; // Guarda o desafio na sessão
+        res.json(options);
+    });
+});
+
+// 2. Guardar a Impressão Digital no Banco de Dados
+app.post('/api/webauthn/register-verify', async (req, res) => {
+    const userId = req.session.userId;
+    const expectedChallenge = req.session.currentChallenge;
+
+    try {
+        const verification = await verifyRegistrationResponse({
+            response: req.body,
+            expectedChallenge,
+            expectedOrigin: origin,
+            expectedRPID: rpID
+        });
+
+        if (verification.verified) {
+            const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
+            
+            // Converte a chave para texto (Base64) para guardar no SQLite
+            const credIdStr = Buffer.from(credentialID).toString('base64');
+            const pubKeyStr = Buffer.from(credentialPublicKey).toString('base64');
+
+            db.run("UPDATE users SET webauthn_id = ?, webauthn_public_key = ?, webauthn_counter = ? WHERE id = ?", 
+                [credIdStr, pubKeyStr, counter, userId]);
+
+            res.json({ success: true, msg: 'Impressão Digital ativada com sucesso!' });
+        } else {
+            res.status(400).json({ error: 'Falha ao verificar a biometria.' });
+        }
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// 3. Iniciar o Login com Impressão Digital
+app.post('/api/webauthn/login-request', (req, res) => {
+    const { login } = req.body;
+    db.get("SELECT * FROM users WHERE email = ? OR phone = ?", [login, login], (err, user) => {
+        if (!user || !user.webauthn_id) {
+            return res.status(400).json({ error: 'Nenhuma impressão digital registada para esta conta.' });
+        }
+
+        const options = generateAuthenticationOptions({
+            rpID,
+            allowCredentials: [{
+                id: Buffer.from(user.webauthn_id, 'base64'),
+                type: 'public-key'
+            }],
+            userVerification: 'preferred'
+        });
+
+        req.session.currentChallenge = options.challenge;
+        req.session.loginAttemptUserId = user.id; // Lembra quem está a tentar entrar
+        res.json(options);
+    });
+});
+
+// 4. Confirmar o Login com a Impressão Digital
+app.post('/api/webauthn/login-verify', async (req, res) => {
+    const userId = req.session.loginAttemptUserId;
+    const expectedChallenge = req.session.currentChallenge;
+
+    db.get("SELECT * FROM users WHERE id = ?", [userId], async (err, user) => {
+        try {
+            const verification = await verifyAuthenticationResponse({
+                response: req.body,
+                expectedChallenge,
+                expectedOrigin: origin,
+                expectedRPID: rpID,
+                authenticator: {
+                    credentialID: Buffer.from(user.webauthn_id, 'base64'),
+                    credentialPublicKey: Buffer.from(user.webauthn_public_key, 'base64'),
+                    counter: user.webauthn_counter
+                }
+            });
+
+            if (verification.verified) {
+                // Atualiza o contador de segurança
+                db.run("UPDATE users SET webauthn_counter = ? WHERE id = ?", [verification.authenticationInfo.newCounter, user.id]);
+
+                // Faz o Login (Igual à sua rota normal)
+                req.session.userId = user.id;
+                req.session.role = user.role;
+                req.session.user = user;
+                
+                res.json({ success: true, role: user.role, name: user.name });
+            } else {
+                res.status(400).json({ error: 'Impressão digital inválida.' });
+            }
+        } catch (error) {
+            res.status(400).json({ error: error.message });
+        }
+    });
+});
 // --- ROTA EXTRA: Para o Admin ver os Logs ---
 app.get('/api/admin/logs', (req, res) => {
     if (!req.session.role || req.session.role !== 'admin') {

@@ -179,10 +179,17 @@ db.serialize(() => {
     db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
     db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
     db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
-    // 🌟 ADICIONE ESTA LINHA ABAIXO PARA CORRIGIR O ERRO:
+    
+    // Patch de Notificações Push
     db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
         if (!err) console.log("✅ Coluna push_subscription adicionada com sucesso!");
     });
+    
+    // 🌟 AS 3 LINHAS NOVAS PARA A IMPRESSÃO DIGITAL:
+    db.run("ALTER TABLE users ADD COLUMN webauthn_id TEXT", () => {});
+    db.run("ALTER TABLE users ADD COLUMN webauthn_public_key TEXT", () => {});
+    db.run("ALTER TABLE users ADD COLUMN webauthn_counter INTEGER DEFAULT 0", () => {});
+
     console.log("✅ Tabelas sincronizadas e colunas verificadas.");
 
     // =======================================================

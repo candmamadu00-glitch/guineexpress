@@ -171,36 +171,130 @@ document.addEventListener('DOMContentLoaded', () => {
     if(document.getElementById('reg-country')) updateMasks();
     checkAutoLogin(); // Sua função de login existente
 });
-// --- LOGIN & CADASTRO (CORRIGIDO) ---
+// --- LOGIN COM A INTERVENÇÃO DA CICI ---
 document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const login = document.getElementById('login-user').value;
-    const pass = document.getElementById('login-pass').value;
+    const loginInput = document.getElementById('login-user').value;
+    const passInput = document.getElementById('login-pass').value;
     
-    // Envia a role atual (que vem dos botões "Sou Cliente", "Funcionário", etc)
-    const res = await fetch('/api/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login, password: pass, role: currentRole })
-    });
-    
-    const data = await res.json();
-    
-    if(data.success) {
-        localStorage.setItem('userRole', data.role);
+    // Tenta fazer o login
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: loginInput, password: passInput, role: currentRole })
+        });
         
-        // --- AQUI ESTÁ A CORREÇÃO DO REDIRECIONAMENTO ---
-        if (data.role === 'client') {
-            window.location.href = 'dashboard-client.html';
-        } else if (data.role === 'employee') {
-            window.location.href = 'dashboard-employee.html'; // <--- O NOVO ARQUIVO
+        const data = await res.json();
+        
+        if(data.success) {
+            localStorage.setItem('userRole', data.role);
+            
+            // Sucesso! Vai para o painel
+            if (data.role === 'client') {
+                window.location.href = 'dashboard-client.html';
+            } else if (data.role === 'employee') {
+                window.location.href = 'dashboard-employee.html';
+            } else {
+                window.location.href = 'dashboard-admin.html';
+            }
         } else {
-            window.location.href = 'dashboard-admin.html';
+            // ===============================================
+            // A MÁGICA DA CICI ACONTECE AQUI SE DER ERRO!
+            // ===============================================
+            if (currentRole === 'client') {
+                // Chama a Cici para ajudar o cliente
+                acionarAjudaDaCici(loginInput);
+            } else {
+                // Se for Admin/Staff, só dá o erro normal
+                alert("Erro de acesso: " + data.msg);
+            }
         }
-        // ------------------------------------------------
-    } else {
-        alert(data.msg);
+    } catch (err) {
+        console.error(err);
+        alert("Erro de conexão ao tentar fazer login.");
     }
 });
+
+// FUNÇÃO QUE CRIA O BALÃO DA CICI, FAZ PISCAR E FALA EM VOZ ALTA!
+function acionarAjudaDaCici(emailDigitado) {
+    // 1. Cria o balão visual da Cici
+    let ciciMsg = document.getElementById('cici-login-msg');
+    if (!ciciMsg) {
+        ciciMsg = document.createElement('div');
+        ciciMsg.id = 'cici-login-msg';
+        ciciMsg.innerHTML = `
+            <div style="display:flex; align-items:center; gap:15px; background:rgba(10, 25, 49, 0.95); padding:15px 20px; border-radius:15px; border:2px solid #009ee3; box-shadow:0 10px 30px rgba(0,158,227,0.4); color:#fff; max-width:350px;">
+                <div style="font-size:35px; animation: bounce 2s infinite;">👩‍💻</div>
+                <div>
+                    <strong style="color:#009ee3; font-size:16px;">Assistente Cici diz:</strong><br>
+                    <span style="font-size:14px; line-height:1.4;">Oi! 🙋‍♀️ Não encontrei essa conta. Você é novo por aqui? Clique em <b>Criar Conta</b> e faça seu cadastro rapidinho!</span>
+                </div>
+            </div>
+        `;
+        ciciMsg.style.position = 'fixed';
+        ciciMsg.style.bottom = '30px';
+        ciciMsg.style.right = '20px';
+        ciciMsg.style.zIndex = '9999';
+        ciciMsg.style.transform = 'translateY(150px)';
+        ciciMsg.style.opacity = '0';
+        ciciMsg.style.transition = 'all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        document.body.appendChild(ciciMsg);
+    }
+
+    // Faz a Cici subir na tela
+    setTimeout(() => {
+        ciciMsg.style.transform = 'translateY(0)';
+        ciciMsg.style.opacity = '1';
+    }, 100);
+
+    // ==========================================
+    // 🎙️ A MÁGICA DA VOZ DA CICI ACONTECE AQUI
+    // ==========================================
+    const textoFalado = "Oi! Não encontrei essa conta. Você é novo por aqui? Clique em Criar Conta e faça seu cadastro rapidinho!";
+    const vozCici = new SpeechSynthesisUtterance(textoFalado);
+    vozCici.lang = 'pt-BR'; // Idioma (Português do Brasil é bem natural)
+    vozCici.rate = 1.0; // Velocidade normal da fala
+    vozCici.pitch = 1.2; // Deixa a voz um pouco mais fina/feminina para combinar com a Cici
+    
+    // Cancela qualquer fala anterior para não sobrepor e fala a nova
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(vozCici);
+    // ==========================================
+
+    // 2. Faz o botão "Criar Conta" piscar e brilhar
+    const regLink = document.getElementById('register-link');
+    regLink.style.transition = 'all 0.3s';
+    regLink.style.background = 'rgba(0, 158, 227, 0.3)';
+    regLink.style.padding = '5px 15px';
+    regLink.style.borderRadius = '20px';
+    regLink.style.border = '1px solid #009ee3';
+    regLink.style.boxShadow = '0 0 15px #009ee3';
+    regLink.style.color = '#fff';
+
+    // 3. Preenche automaticamente o e-mail no formulário
+    if (emailDigitado && emailDigitado.includes('@')) {
+        const regEmailInput = document.getElementById('reg-email');
+        if(regEmailInput) regEmailInput.value = emailDigitado;
+    }
+
+    // Tira o brilho do botão depois de 6 segundos
+    setTimeout(() => {
+        regLink.style.background = 'transparent';
+        regLink.style.border = 'none';
+        regLink.style.boxShadow = 'none';
+        regLink.style.padding = '0';
+        regLink.style.color = '#d4af37';
+    }, 6000);
+    
+    // A Cici vai embora da tela depois de 9 segundos
+    setTimeout(() => {
+        if (ciciMsg) {
+            ciciMsg.style.transform = 'translateY(150px)';
+            ciciMsg.style.opacity = '0';
+            setTimeout(() => ciciMsg.remove(), 600);
+        }
+    }, 9000);
+}
 // ==========================================
 // 3. LÓGICA DE CADASTRO RIGOROSA
 // ==========================================
@@ -4713,5 +4807,84 @@ function exportBoxPDF() {
         html2pdf().set(opt).from(divTemp).save().then(() => {
             btn.innerHTML = textoOriginal;
         });
+    }
+}
+// ==================================================================
+// FUNÇÕES DE BIOMETRIA (FRONTEND)
+// ==================================================================
+
+// 1. Função para Fazer Login com o Dedo
+async function loginComBiometria() {
+    const loginInput = document.getElementById('login-user').value;
+    
+    if (!loginInput) {
+        alert("Por favor, digite o seu Email ou Celular primeiro, e depois clique na impressão digital!");
+        return;
+    }
+
+    try {
+        // Pede as opções ao servidor
+        const respOptions = await fetch('/api/webauthn/login-request', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: loginInput })
+        });
+        
+        const options = await respOptions.json();
+        
+        if (options.error) {
+            return alert(options.error);
+        }
+
+        // O telemóvel abre a janela de pedir o Dedo ou FaceID
+        const authResp = await SimpleWebAuthnBrowser.startAuthentication(options);
+
+        // Envia a assinatura do dedo para o servidor validar
+        const respVerify = await fetch('/api/webauthn/login-verify', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(authResp)
+        });
+
+        const result = await respVerify.json();
+
+        if (result.success) {
+            localStorage.setItem('userRole', result.role);
+            if (result.role === 'client') window.location.href = 'dashboard-client.html';
+            else if (result.role === 'employee') window.location.href = 'dashboard-employee.html';
+            else window.location.href = 'dashboard-admin.html';
+        } else {
+            alert(result.error || "Erro ao validar a impressão digital.");
+        }
+    } catch (error) {
+        console.error(error);
+        if(error.name === 'NotAllowedError') {
+            alert("Login cancelado ou impressão digital não reconhecida.");
+        }
+    }
+}
+
+// 2. Função para o cliente Registar a Digital (Pode usar isto num botão no Dashboard dele)
+async function registarBiometria() {
+    try {
+        const respOptions = await fetch('/api/webauthn/register-request', { method: 'POST' });
+        const options = await respOptions.json();
+
+        if (options.error) return alert(options.error);
+
+        // O telemóvel lê a impressão digital nova
+        const attResp = await SimpleWebAuthnBrowser.startRegistration(options);
+
+        // Guarda no servidor
+        const respVerify = await fetch('/api/webauthn/register-verify', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(attResp)
+        });
+
+        const result = await respVerify.json();
+        if (result.success) {
+            alert("✨ " + result.msg);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao registar a biometria. O seu dispositivo pode não ser compatível.");
     }
 }

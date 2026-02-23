@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+    <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css"/>
     <link rel="stylesheet" href="cici.css">
     <meta charset="UTF-8">
@@ -150,20 +151,19 @@
                 <label>Senha</label>
                 <input type="password" id="login-pass" class="form-control" required autocomplete="current-password">
             </div>
-            <div style="text-align: center; margin-top: 20px;">
-    <p style="color: #fff; font-size: 14px; margin-bottom: 10px;">
-        📺 Tem dúvidas? Veja como é fácil se cadastrar:
-    </p>
-    <video controls style="border-radius: 10px; width: 100%; max-width: 260px; height: auto; border: 2px solid #ccc; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-        <source src="/tutorial.mp4" type="video/mp4">
-        Seu navegador não suporta a exibição deste vídeo.
-    </video>
-</div>
+
             <button type="submit" class="btn btn-accent" style="width: 100%; font-weight: bold; background: #009ee3; color: white; margin-top: 10px; font-size: 16px;">ENTRAR</button>
-            
-            <div id="client-links" style="margin-top: 20px;">
-                <p id="forgot-pass" onclick="openRecoverModal()" style="text-align:center; font-size:14px; cursor:pointer;">Esqueci minha senha</p>
-                <p onclick="showRegister()" id="register-link" style="text-align:center; margin-top:15px; font-size:14px; cursor:pointer;">Não tem conta? <strong>Cadastre-se</strong></p>
+            <button type="button" onclick="loginComBiometria()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: bold; background: #0f4e1f; border: 1px solid #d4af37; color: #d4af37; margin-top: 10px; font-size: 15px; padding: 10px; border-radius: 8px; cursor: pointer;"><i class="fas fa-fingerprint" style="font-size: 20px;"></i> Entrar com Impressão Digital</button>
+            <div id="client-links" style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 8px;">
+                <p id="forgot-pass" onclick="openRecoverModal()" style="margin:0; font-size:13px; cursor:pointer;">Esqueci a senha</p>
+                <p onclick="showRegister()" id="register-link" style="margin:0; font-size:14px; cursor:pointer; color: #d4af37;"><strong>Criar Conta &rarr;</strong></p>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px;">
+                <p style="color: #fff; font-size: 14px; margin-bottom: 10px;">📺 Primeira vez aqui? Veja o tutorial:</p>
+                <video controls style="border-radius: 10px; width: 100%; max-width: 260px; height: auto; border: 2px solid #ccc; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+                    <source src="/tutorial.mp4" type="video/mp4">
+                </video>
             </div>
         </form>
 
