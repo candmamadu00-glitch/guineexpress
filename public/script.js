@@ -4862,30 +4862,53 @@ async function loginComBiometria() {
     }
 }
 
-// 2. Função para o cliente Registar a Digital (Pode usar isto num botão no Dashboard dele)
+// ==================================================================
+// FUNÇÃO PARA REGISTAR BIOMETRIA (FRONTEND)
+// ==================================================================
 async function registarBiometria() {
     try {
-        const respOptions = await fetch('/api/webauthn/register-request', { method: 'POST' });
-        const options = await respOptions.json();
-
-        if (options.error) return alert(options.error);
-
-        // O telemóvel lê a impressão digital nova
-        const attResp = await SimpleWebAuthnBrowser.startRegistration(options);
-
-        // Guarda no servidor
-        const respVerify = await fetch('/api/webauthn/register-verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(attResp)
+        // 1. Pede as opções ao servidor
+        const resposta = await fetch('/api/webauthn/register-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
         });
 
-        const result = await respVerify.json();
-        if (result.success) {
-            alert("✨ " + result.msg);
+        const opcoes = await resposta.json();
+
+        // 🌟 A CORREÇÃO ESTÁ AQUI: Se o servidor devolver um erro, nós mostramos qual é!
+        if (opcoes.error) {
+            alert("⚠️ Erro do Servidor: " + opcoes.error);
+            console.error("Erro do Servidor:", opcoes.error);
+            return; // Pára tudo aqui
         }
-    } catch (error) {
-        console.error(error);
-        alert("Erro ao registar a biometria. O seu dispositivo pode não ser compatível.");
+
+        if (!opcoes.challenge) {
+            alert("⚠️ Erro: O servidor não enviou o desafio (challenge).");
+            console.error("Opções recebidas:", opcoes);
+            return;
+        }
+
+        // 2. Chama a janelinha do dedo/rosto no telemóvel
+        const credencial = await SimpleWebAuthnBrowser.startRegistration(opcoes);
+
+        // 3. Envia a impressão digital lida de volta para o servidor guardar
+        const verificacao = await fetch('/api/webauthn/register-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(credencial)
+        });
+
+        const resultado = await verificacao.json();
+
+        if (resultado.success) {
+            alert("✨ Uau! Impressão Digital ativada com sucesso!");
+        } else {
+            alert("⚠️ Erro ao guardar biometria: " + resultado.error);
+        }
+
+    } catch (erro) {
+        console.error("Erro no processo de biometria:", erro);
+        alert("⚠️ O processo foi cancelado ou o seu telemóvel bloqueou a leitura.");
     }
 }
 // ==================================================================
