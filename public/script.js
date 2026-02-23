@@ -5391,14 +5391,13 @@ window.onclick = (event) => {
 
 function carregarCarimbos() {
     fetch('/api/get-passport')
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('Página não encontrada no servidor (404)');
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
-                // 1. Coloca o nome do cliente no passaporte
                 document.getElementById('pass-user-name').innerText = data.nome;
-
-                // 2. Mapeamento de Destinos para os IDs dos carimbos (ajuste os nomes se precisar)
-                // Se no banco estiver "Bissau", ele desbloqueia "stamp-BIS"
                 const mapaCidades = {
                     "Bissau": "stamp-BIS",
                     "Lisboa": "stamp-LIS",
@@ -5406,22 +5405,31 @@ function carregarCarimbos() {
                     "Dakar": "stamp-DAK"
                 };
 
-                // 3. Limpa carimbos antes de marcar (para não duplicar)
-                document.querySelectorAll('.stamp-item').forEach(s => s.classList.add('locked'));
-                document.querySelectorAll('.stamp-item').forEach(s => s.classList.remove('unlocked'));
+                document.querySelectorAll('.stamp-item').forEach(s => {
+                    s.classList.add('locked');
+                    s.classList.remove('unlocked');
+                });
 
-                // 4. Desbloqueia os carimbos que o cliente já ganhou
                 data.destinos.forEach(destinoReal => {
                     const idCarimbo = mapaCidades[destinoReal];
-                    if (idCarimbo) {
-                        const el = document.getElementById(idCarimbo);
-                        if (el) {
-                            el.classList.remove('locked');
-                            el.classList.add('unlocked');
-                        }
+                    if (idCarimbo && document.getElementById(idCarimbo)) {
+                        document.getElementById(idCarimbo).classList.remove('locked');
+                        document.getElementById(idCarimbo).classList.add('unlocked');
                     }
                 });
             }
         })
-        .catch(err => console.error("Erro ao carregar passaporte:", err));
+        .catch(err => console.error("Aviso: O passaporte ainda não tem dados para mostrar. ", err));
+}
+
+// Clique do botão com som corrigido (link estável)
+if (btnAbrirPassaporte) {
+    btnAbrirPassaporte.onclick = () => {
+        modalPassaporte.style.display = 'flex';
+        // Novo link de som mais confiável
+        let audio = new Audio('https://assets.mixkit.co/active_storage/sfx/201/201-preview.mp3');
+        audio.volume = 0.3;
+        audio.play().catch(() => {}); // Ignora erro se o som falhar
+        carregarCarimbos();
+    };
 }

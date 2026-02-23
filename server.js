@@ -2221,6 +2221,27 @@ app.post('/api/save-game-points', (req, res) => {
         res.json({ success: true });
     });
 });
+// VERIFIQUE SE ESTE BLOCO ESTÁ NO SEU server.js
+app.get('/api/get-passport', (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ success: false });
+
+    const userId = req.session.userId;
+    // Query para buscar destinos de encomendas que já foram entregues
+    const query = "SELECT DISTINCT destino FROM orders WHERE user_id = ? AND status = 'Entregue'";
+
+    db.all(query, [userId], (err, rows) => {
+        if (err) return res.status(500).json({ success: false });
+        
+        const destinos = rows.map(row => row.destino);
+        db.get("SELECT nome FROM users WHERE id = ?", [userId], (err, user) => {
+            res.json({
+                success: true,
+                nome: user ? user.nome : "Explorador",
+                destinos: destinos
+            });
+        });
+    });
+});
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================
