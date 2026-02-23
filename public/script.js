@@ -4810,77 +4810,39 @@ function exportBoxPDF() {
     }
 }
 // ==================================================================
-// FUNÇÕES DE BIOMETRIA (FRONTEND)
+// FUNÇÃO PARA FAZER LOGIN COM A BIOMETRIA
 // ==================================================================
-
-// 1. Função para Fazer Login com o Dedo
 async function loginComBiometria() {
-    const loginInput = document.getElementById('login-user').value;
-    
-    if (!loginInput) {
-        alert("Por favor, digite o seu Email ou Celular primeiro, e depois clique na impressão digital!");
+    // 1. Tenta encontrar o campo onde a pessoa digita o email/telefone (ajustado para qualquer ID)
+    const campoLogin = document.getElementById('login-user') || document.getElementById('email') || document.getElementById('login');
+    const loginValue = campoLogin ? campoLogin.value.trim() : '';
+
+    // 2. Se a pessoa não digitou o email, o sistema avisa!
+    if (!loginValue) {
+        alert("⚠️ Por favor, digite o seu Email ou Telefone primeiro, e depois clique no botão de Impressão Digital!");
+        if (campoLogin) campoLogin.focus();
         return;
     }
 
     try {
-        // Pede as opções ao servidor
-        const respOptions = await fetch('/api/webauthn/login-request', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: loginInput })
-        });
-        
-        const options = await respOptions.json();
-        
-        if (options.error) {
-            return alert(options.error);
-        }
-
-        // O telemóvel abre a janela de pedir o Dedo ou FaceID
-        const authResp = await SimpleWebAuthnBrowser.startAuthentication(options);
-
-        // Envia a assinatura do dedo para o servidor validar
-        const respVerify = await fetch('/api/webauthn/login-verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(authResp)
-        });
-
-        const result = await respVerify.json();
-
-        if (result.success) {
-            localStorage.setItem('userRole', result.role);
-            if (result.role === 'client') window.location.href = 'dashboard-client.html';
-            else if (result.role === 'employee') window.location.href = 'dashboard-employee.html';
-            else window.location.href = 'dashboard-admin.html';
-        } else {
-            alert(result.error || "Erro ao validar a impressão digital.");
-        }
-    } catch (error) {
-        console.error(error);
-        if(error.name === 'NotAllowedError') {
-            alert("Login cancelado ou impressão digital não reconhecida.");
-        }
-    }
-}
-
-async function loginComBiometria(emailOuTelefone) {
-    try {
+        // 3. Pede ao servidor a chave da biometria daquele email específico
         const resposta = await fetch('/api/webauthn/login-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: emailOuTelefone })
+            body: JSON.stringify({ login: loginValue })
         });
 
         const opcoes = await resposta.json();
 
         if (opcoes.error) {
-            alert("⚠️ Aviso: " + opcoes.error);
+            alert("⚠️ " + opcoes.error);
             return;
         }
 
-        // Chama o sensor do telemóvel
+        // 4. Chama o sensor do telemóvel
         const credencial = await SimpleWebAuthnBrowser.startAuthentication(opcoes);
 
-        // Envia para o servidor verificar se o dedo é o correto
+        // 5. Envia o dedo lido para o servidor validar
         const verificacao = await fetch('/api/webauthn/login-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -4890,23 +4852,27 @@ async function loginComBiometria(emailOuTelefone) {
         const resultado = await verificacao.json();
 
         if (resultado.success) {
-            // Sucesso! Redireciona para o painel
-            window.location.href = '/dashboard'; 
+            // Sucesso Total! Redireciona para o painel correto
+            localStorage.setItem('userRole', resultado.role);
+            if (resultado.role === 'client') window.location.href = 'dashboard-client.html';
+            else if (resultado.role === 'employee') window.location.href = 'dashboard-employee.html';
+            else window.location.href = 'dashboard-admin.html';
         } else {
-            // Se a digital não bater com a guardada no banco de dados
-            alert("❌ Impressão digital incorreta. Tente novamente.");
+            alert("❌ Impressão digital incorreta. " + (resultado.error || "Tente novamente."));
         }
 
     } catch (erro) {
         console.error("Erro no login:", erro);
-        
         if (erro.name === 'NotAllowedError') {
-            alert("⚠️ Login cancelado. Você fechou a janela ou o tempo esgotou.");
+            alert("⚠️ Login cancelado ou tempo esgotado.");
         } else {
-            alert("❌ Erro ao reconhecer o seu dedo/rosto. Tente limpar o sensor ou use a sua senha.");
+            alert("❌ Erro ao reconhecer o seu dedo/rosto. Tente limpar o sensor.");
         }
     }
 }
+
+// Torna a função visível para o seu HTML
+window.loginComBiometria = loginComBiometria;
 // ==================================================================
 // FUNÇÃO DA CICI EXPLICANDO A BIOMETRIA (TEXTO E VOZ)
 // ==================================================================
