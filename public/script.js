@@ -5044,3 +5044,52 @@ function ciciAvisa(mensagemTexto, tipo = 'info') {
         }
     }, 8000);
 }
+// ==================================================================
+// FUNÇÃO PARA CADASTRAR A BIOMETRIA NO PAINEL DO CLIENTE
+// ==================================================================
+async function registarBiometria() {
+    try {
+        // 1. Pede ao servidor as opções para criar a chave biométrica
+        const resp = await fetch('/api/webauthn/register-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+            // O servidor deve saber quem é o usuário pela sessão (cookies/token)
+        });
+
+        const options = await resp.json();
+
+        if (options.error) {
+            ciciAvisa("Não foi possível iniciar a biometria: " + options.error, "erro");
+            return;
+        }
+
+        // 2. Chama o sensor do telemóvel (FaceID ou Dedo)
+        ciciAvisa("Por favor, toque no sensor de impressão digital do seu telemóvel.", "info");
+        const credencial = await SimpleWebAuthnBrowser.startRegistration(options);
+
+        // 3. Envia a "assinatura" do dedo para guardar no banco de dados
+        const verifyResp = await fetch('/api/webauthn/register-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(credencial)
+        });
+
+        const result = await verifyResp.json();
+
+        if (result.success) {
+            ciciAvisa("Que máximo! A sua impressão digital foi salva com sucesso. No próximo login, já não precisará de senha!", "sucesso");
+        } else {
+            ciciAvisa("Ops! " + (result.error || "A digital não foi guardada. Tente novamente."), "erro");
+        }
+    } catch (error) {
+        console.error("Erro no registo da biometria:", error);
+        if (error.name === 'NotAllowedError') {
+            ciciAvisa("Você cancelou a leitura da impressão digital.", "erro");
+        } else {
+            ciciAvisa("Ocorreu um erro. O seu aparelho suporta leitura biométrica?", "erro");
+        }
+    }
+}
+
+// 🔥 ISSO É OBRIGATÓRIO: Torna a função visível para o seu botão HTML!
+window.registarBiometria = registarBiometria;
