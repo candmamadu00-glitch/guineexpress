@@ -4888,3 +4888,75 @@ async function registarBiometria() {
         alert("Erro ao registar a biometria. O seu dispositivo pode não ser compatível.");
     }
 }
+// ==================================================================
+// FUNÇÃO DA CICI EXPLICANDO A BIOMETRIA (TEXTO E VOZ)
+// ==================================================================
+function explicarBiometriaCici() {
+    // 1. Cria o balão visual da Cici
+    let ciciMsg = document.getElementById('cici-bio-msg');
+    if (!ciciMsg) {
+        ciciMsg = document.createElement('div');
+        ciciMsg.id = 'cici-bio-msg';
+        ciciMsg.innerHTML = `
+            <div style="display:flex; align-items:center; gap:15px; background:rgba(10, 25, 49, 0.95); padding:15px 20px; border-radius:15px; border:2px solid #009ee3; box-shadow:0 10px 30px rgba(0,158,227,0.4); color:#fff; max-width:350px;">
+                <div style="font-size:35px; animation: bounce 2s infinite;">👩‍💻</div>
+                <div>
+                    <strong style="color:#009ee3; font-size:16px;">Assistente Cici diz:</strong><br>
+                    <span style="font-size:14px; line-height:1.4;">Oi! Sabia que você pode entrar na sua conta sem precisar digitar a senha? É só clicar no botão escuro "Ativar Impressão Digital Agora", e seguir as instruções na tela do seu celular! É super seguro!</span>
+                </div>
+            </div>
+        `;
+        ciciMsg.style.position = 'fixed';
+        ciciMsg.style.bottom = '30px';
+        ciciMsg.style.right = '20px';
+        ciciMsg.style.zIndex = '9999';
+        ciciMsg.style.transform = 'translateY(150px)';
+        ciciMsg.style.opacity = '0';
+        ciciMsg.style.transition = 'all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+        document.body.appendChild(ciciMsg);
+    }
+
+    // Faz a Cici subir na tela
+    setTimeout(() => {
+        ciciMsg.style.transform = 'translateY(0)';
+        ciciMsg.style.opacity = '1';
+    }, 100);
+
+    // 2. A MÁGICA DA VOZ DA CICI 🎙️
+    const textoFalado = "Oi! Sabia que você pode entrar na sua conta sem precisar digitar a senha? É só clicar no botão escuro: Ativar Impressão Digital Agora, e seguir as instruções na tela do seu celular! É super seguro!";
+    const vozCici = new SpeechSynthesisUtterance(textoFalado);
+    vozCici.lang = 'pt-BR'; // Sotaque em português do Brasil
+    vozCici.rate = 1.05; // Velocidade um pouquinho mais rápida e dinâmica
+    vozCici.pitch = 1.2; // Voz mais feminina e simpática
+    
+    // Cancela falas anteriores e começa a falar
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(vozCici);
+
+    // 3. Faz o botão de Ativar a Biometria piscar e brilhar
+    const btnBio = document.getElementById('btn-ativar-bio');
+    if (btnBio) {
+        btnBio.style.transition = 'all 0.3s';
+        btnBio.style.background = '#009ee3';
+        btnBio.style.color = '#fff';
+        btnBio.style.boxShadow = '0 0 20px #009ee3';
+        btnBio.style.transform = 'scale(1.05)';
+        
+        // Tira o brilho depois de 10 segundos
+        setTimeout(() => {
+            btnBio.style.background = '#0a1931';
+            btnBio.style.color = '#d4af37';
+            btnBio.style.boxShadow = 'none';
+            btnBio.style.transform = 'scale(1)';
+        }, 10000);
+    }
+    
+    // 4. A Cici vai embora da tela depois de 12 segundos (tempo suficiente para ela terminar de falar)
+    setTimeout(() => {
+        if (ciciMsg) {
+            ciciMsg.style.transform = 'translateY(150px)';
+            ciciMsg.style.opacity = '0';
+            setTimeout(() => ciciMsg.remove(), 600);
+        }
+    }, 12000);
+}

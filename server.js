@@ -253,16 +253,25 @@ app.post('/api/webauthn/register-request', (req, res) => {
     db.get("SELECT * FROM users WHERE id = ?", [userId], (err, user) => {
         if (err || !user) return res.status(400).json({ error: 'Utilizador não encontrado.' });
 
-        const options = generateRegistrationOptions({
-            rpName, rpID,
-            userID: user.id.toString(),
-            userName: user.email,
-            attestationType: 'none',
-            authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' }
-        });
+        // 🌟 A CORREÇÃO ESTÁ AQUI: Convertendo o ID para Uint8Array como a nova versão exige
+        const userUint8Array = new Uint8Array(Buffer.from(user.id.toString()));
 
-        req.session.currentChallenge = options.challenge; // Guarda o desafio na sessão
-        res.json(options);
+        try {
+            const options = generateRegistrationOptions({
+                rpName, 
+                rpID,
+                userID: userUint8Array, // Usando o formato novo aqui!
+                userName: user.email,
+                attestationType: 'none',
+                authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' }
+            });
+
+            req.session.currentChallenge = options.challenge; // Guarda o desafio na sessão
+            res.json(options);
+        } catch (error) {
+            console.error("Erro ao gerar opções de biometria:", error);
+            res.status(500).json({ error: 'Erro interno ao gerar biometria.' });
+        }
     });
 });
 

@@ -29,7 +29,6 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            /* Imagem premium de logística */
             background-image: linear-gradient(rgba(10, 25, 49, 0.7), rgba(10, 25, 49, 0.7)), url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=2070&auto=format&fit=crop');
             background-size: cover;
             background-position: center;
@@ -37,10 +36,10 @@
             padding: 20px;
         }
 
-        /* Efeito Glassmorphism (Vidro Fosco) no Cartão */
+        /* Efeito Glassmorphism no Cartão */
         .login-card {
-            background: rgba(255, 255, 255, 0.15); /* Transparente */
-            backdrop-filter: blur(12px); /* O desfoque mágico */
+            background: rgba(255, 255, 255, 0.15); 
+            backdrop-filter: blur(12px); 
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 20px;
@@ -48,10 +47,9 @@
             width: 100%;
             max-width: 400px;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-            color: #fff; /* Muda os textos base para branco */
+            color: #fff; 
         }
 
-        /* Ajustes de cores para combinar com o vidro escuro */
         .company-header h1 {
             color: #fff;
             margin-bottom: 5px;
@@ -65,7 +63,7 @@
         }
         
         .login-card h3 {
-            color: #009ee3; /* Azul do Mercado Pago/Accent para destacar */
+            color: #009ee3; 
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
 
@@ -74,7 +72,6 @@
             font-weight: 500;
         }
 
-        /* Inputs ligeiramente transparentes */
         .form-control {
             background: rgba(255, 255, 255, 0.9);
             border: none;
@@ -85,7 +82,6 @@
             box-shadow: 0 0 8px rgba(0, 158, 227, 0.6);
         }
 
-        /* Ajuste dos botões de Cargo */
         #role-selector .btn {
             border: 1px solid rgba(255,255,255,0.4);
             backdrop-filter: blur(5px);
@@ -98,7 +94,6 @@
             background: rgba(255, 255, 255, 0.4) !important;
         }
 
-        /* Links do rodapé */
         #forgot-pass, #register-link {
             color: #fff !important;
             text-decoration: underline;
@@ -108,7 +103,6 @@
             color: #009ee3 !important;
         }
         
-        /* Ajuste para o formulário de registro ficar legível no vidro */
         #register-form p { color: #fff; }
     </style>
 
@@ -153,17 +147,14 @@
             </div>
 
             <button type="submit" class="btn btn-accent" style="width: 100%; font-weight: bold; background: #009ee3; color: white; margin-top: 10px; font-size: 16px;">ENTRAR</button>
-            <button type="button" onclick="loginComBiometria()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: bold; background: #0f4e1f; border: 1px solid #d4af37; color: #d4af37; margin-top: 10px; font-size: 15px; padding: 10px; border-radius: 8px; cursor: pointer;"><i class="fas fa-fingerprint" style="font-size: 20px;"></i> Entrar com Impressão Digital</button>
+            
+            <button type="button" onclick="loginComBiometria()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: bold; background: #0a1931; border: 1px solid #d4af37; color: #d4af37; margin-top: 10px; font-size: 15px; padding: 10px; border-radius: 8px; cursor: pointer;">
+                <i class="fas fa-fingerprint" style="font-size: 20px;"></i> Entrar com Impressão Digital
+            </button>
+
             <div id="client-links" style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 8px;">
                 <p id="forgot-pass" onclick="openRecoverModal()" style="margin:0; font-size:13px; cursor:pointer;">Esqueci a senha</p>
                 <p onclick="showRegister()" id="register-link" style="margin:0; font-size:14px; cursor:pointer; color: #d4af37;"><strong>Criar Conta &rarr;</strong></p>
-            </div>
-
-            <div style="text-align: center; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px;">
-                <p style="color: #fff; font-size: 14px; margin-bottom: 10px;">📺 Primeira vez aqui? Veja o tutorial:</p>
-                <video controls style="border-radius: 10px; width: 100%; max-width: 260px; height: auto; border: 2px solid #ccc; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                    <source src="/tutorial.mp4" type="video/mp4">
-                </video>
             </div>
         </form>
 
@@ -174,7 +165,6 @@
                 <label>País</label>
                <select id="reg-country" class="form-control" onchange="updateMasks()" required>
     <option value="" disabled selected>Selecione um país...</option>
-    
     <option value="GW">Guiné-Bissau</option>
     <option value="BR">Brasil</option>
     <option value="PT">Portugal</option>
@@ -216,8 +206,8 @@
     </div>
 </div>
 
-<div id="modal-recover" class="modal-overlay hidden">
-    </div>
+<div id="modal-recover" class="modal-overlay hidden"></div>
+
 <div id="install-banner" style="display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: #0a1931; color: white; padding: 15px; justify-content: space-between; align-items: center; z-index: 9999; box-shadow: 0 -4px 10px rgba(0,0,0,0.3); border-top-left-radius: 15px; border-top-right-radius: 15px;">
     <div style="display: flex; align-items: center; gap: 12px;">
         <img src="/logo.png" style="width: 45px; height: 45px; border-radius: 10px; border: 2px solid #d4af37;">
@@ -231,6 +221,7 @@
         <button onclick="installPWA()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold; padding: 8px 16px; border-radius: 20px; font-size: 14px;">Instalar</button>
     </div>
 </div>
+
 <script src="cici.js"></script>
 <script src="script.js"></script>
 </body>
