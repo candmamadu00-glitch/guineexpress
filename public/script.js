@@ -4862,37 +4862,26 @@ async function loginComBiometria() {
     }
 }
 
-// ==================================================================
-// FUNÇÃO PARA REGISTAR BIOMETRIA (FRONTEND)
-// ==================================================================
-async function registarBiometria() {
+async function loginComBiometria(emailOuTelefone) {
     try {
-        // 1. Pede as opções ao servidor
-        const resposta = await fetch('/api/webauthn/register-request', {
+        const resposta = await fetch('/api/webauthn/login-request', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: emailOuTelefone })
         });
 
         const opcoes = await resposta.json();
 
-        // 🌟 A CORREÇÃO ESTÁ AQUI: Se o servidor devolver um erro, nós mostramos qual é!
         if (opcoes.error) {
-            alert("⚠️ Erro do Servidor: " + opcoes.error);
-            console.error("Erro do Servidor:", opcoes.error);
-            return; // Pára tudo aqui
-        }
-
-        if (!opcoes.challenge) {
-            alert("⚠️ Erro: O servidor não enviou o desafio (challenge).");
-            console.error("Opções recebidas:", opcoes);
+            alert("⚠️ Aviso: " + opcoes.error);
             return;
         }
 
-        // 2. Chama a janelinha do dedo/rosto no telemóvel
-        const credencial = await SimpleWebAuthnBrowser.startRegistration(opcoes);
+        // Chama o sensor do telemóvel
+        const credencial = await SimpleWebAuthnBrowser.startAuthentication(opcoes);
 
-        // 3. Envia a impressão digital lida de volta para o servidor guardar
-        const verificacao = await fetch('/api/webauthn/register-verify', {
+        // Envia para o servidor verificar se o dedo é o correto
+        const verificacao = await fetch('/api/webauthn/login-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(credencial)
@@ -4901,14 +4890,21 @@ async function registarBiometria() {
         const resultado = await verificacao.json();
 
         if (resultado.success) {
-            alert("✨ Uau! Impressão Digital ativada com sucesso!");
+            // Sucesso! Redireciona para o painel
+            window.location.href = '/dashboard'; 
         } else {
-            alert("⚠️ Erro ao guardar biometria: " + resultado.error);
+            // Se a digital não bater com a guardada no banco de dados
+            alert("❌ Impressão digital incorreta. Tente novamente.");
         }
 
     } catch (erro) {
-        console.error("Erro no processo de biometria:", erro);
-        alert("⚠️ O processo foi cancelado ou o seu telemóvel bloqueou a leitura.");
+        console.error("Erro no login:", erro);
+        
+        if (erro.name === 'NotAllowedError') {
+            alert("⚠️ Login cancelado. Você fechou a janela ou o tempo esgotou.");
+        } else {
+            alert("❌ Erro ao reconhecer o seu dedo/rosto. Tente limpar o sensor ou use a sua senha.");
+        }
     }
 }
 // ==================================================================
@@ -4982,4 +4978,69 @@ function explicarBiometriaCici() {
             setTimeout(() => ciciMsg.remove(), 600);
         }
     }, 12000);
+}
+// ==================================================================
+// FUNÇÃO UNIVERSAL DA CICI (FALA ERROS E SUCESSOS)
+// ==================================================================
+function ciciAvisa(mensagemTexto, tipo = 'info') {
+    // Define as cores e o rostinho dependendo se é erro ou sucesso
+    let cor = '#009ee3'; // Azul por padrão
+    let emoji = '👩‍💻';
+    
+    if (tipo === 'erro') {
+        cor = '#ff4d4d'; // Vermelho para erros
+        emoji = '😟';
+    } else if (tipo === 'sucesso') {
+        cor = '#4CAF50'; // Verde para sucesso
+        emoji = '🎉';
+    }
+
+    // Se já tiver uma mensagem da Cici na tela, remove para colocar a nova
+    let msgAntiga = document.getElementById('cici-bio-msg');
+    if (msgAntiga) msgAntiga.remove();
+
+    // 1. Cria o balão visual da Cici
+    let ciciMsg = document.createElement('div');
+    ciciMsg.id = 'cici-bio-msg';
+    ciciMsg.innerHTML = `
+        <div style="display:flex; align-items:center; gap:15px; background:rgba(10, 25, 49, 0.95); padding:15px 20px; border-radius:15px; border:2px solid ${cor}; box-shadow:0 10px 30px rgba(0,0,0,0.4); color:#fff; max-width:350px;">
+            <div style="font-size:35px; animation: bounce 2s infinite;">${emoji}</div>
+            <div>
+                <strong style="color:${cor}; font-size:16px;">Assistente Cici diz:</strong><br>
+                <span style="font-size:14px; line-height:1.4;">${mensagemTexto}</span>
+            </div>
+        </div>
+    `;
+    ciciMsg.style.position = 'fixed';
+    ciciMsg.style.bottom = '30px';
+    ciciMsg.style.right = '20px';
+    ciciMsg.style.zIndex = '9999';
+    ciciMsg.style.transform = 'translateY(150px)';
+    ciciMsg.style.opacity = '0';
+    ciciMsg.style.transition = 'all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+    document.body.appendChild(ciciMsg);
+
+    // Faz a Cici subir na tela
+    setTimeout(() => {
+        ciciMsg.style.transform = 'translateY(0)';
+        ciciMsg.style.opacity = '1';
+    }, 100);
+
+    // 2. A MÁGICA DA VOZ DA CICI 🎙️
+    const vozCici = new SpeechSynthesisUtterance(mensagemTexto);
+    vozCici.lang = 'pt-BR'; 
+    vozCici.rate = 1.05; 
+    vozCici.pitch = 1.2; 
+    
+    window.speechSynthesis.cancel(); // Para de falar se já estiver falando
+    window.speechSynthesis.speak(vozCici);
+    
+    // 3. A Cici vai embora da tela depois de 8 segundos
+    setTimeout(() => {
+        if (ciciMsg) {
+            ciciMsg.style.transform = 'translateY(150px)';
+            ciciMsg.style.opacity = '0';
+            setTimeout(() => ciciMsg.remove(), 600);
+        }
+    }, 8000);
 }

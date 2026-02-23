@@ -296,9 +296,13 @@ app.post('/api/webauthn/register-verify', async (req, res) => {
         });
 
         if (verification.verified) {
-            const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
-            const credIdStr = Buffer.from(credentialID).toString('base64');
-            const pubKeyStr = Buffer.from(credentialPublicKey).toString('base64');
+            // 🌟 A CORREÇÃO ESTÁ AQUI: Adaptado para a versão mais recente da biblioteca!
+            const { credential } = verification.registrationInfo;
+            
+            // Na versão nova, o 'id' já vem pronto como texto, e a chave pública precisa ser convertida
+            const credIdStr = credential.id; 
+            const pubKeyStr = Buffer.from(credential.publicKey).toString('base64');
+            const counter = credential.counter;
 
             db.run("UPDATE users SET webauthn_id = ?, webauthn_public_key = ?, webauthn_counter = ? WHERE id = ?", 
                 [credIdStr, pubKeyStr, counter, userId]);
