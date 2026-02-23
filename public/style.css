@@ -1639,3 +1639,245 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
         margin-bottom: 20px;
     }
 }
+/* ========================================== */
+/* ESTILOS DO BOTÃO DA ROLETA                 */
+/* ========================================== */
+.roleta-flutuante {
+    position: fixed;
+    bottom: 80px; /* Fica no canto inferior direito por padrão */
+    right: 20px;
+    width: 65px;
+    height: 65px;
+    background: linear-gradient(135deg, #009ee3, #0a1931);
+    border: 3px solid #d4af37; /* Borda dourada da Guineexpress */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 35px;
+    box-shadow: 0 5px 20px rgba(0, 158, 227, 0.6);
+    cursor: grab;
+    z-index: 9999;
+    touch-action: none; /* Impede a tela de rolar enquanto arrasta */
+    transition: transform 0.2s;
+}
+
+.roleta-flutuante:active {
+    cursor: grabbing;
+    transform: scale(0.90); /* Dá um efeitinho de afundar quando clica */
+}
+
+/* O balãozinho que diz "Gira por Diversão!" */
+.roleta-tooltip {
+    position: absolute;
+    top: -45px;
+    background: #d4af37; /* Fundo dourado */
+    color: #0a1931; /* Texto escuro */
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    white-space: nowrap;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    pointer-events: none;
+}
+
+/* Triângulo do balãozinho */
+.roleta-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px 6px 0;
+    border-style: solid;
+    border-color: #d4af37 transparent transparent transparent;
+}
+
+/* Classe que o JavaScript usa para mostrar o texto */
+.roleta-flutuante.mostrar-texto .roleta-tooltip {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+/* ========================================== */
+/* ESTILOS DO MODAL E DA ROLETA GIGANTE       */
+/* ========================================== */
+.roleta-modal {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(10, 25, 49, 0.9); /* Fundo escuro semi-transparente */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none; /* Escondido por padrão */
+    transition: opacity 0.3s;
+}
+
+.roleta-modal.ativo {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.roleta-box {
+    background: #0a1931;
+    border: 3px solid #009ee3;
+    border-radius: 20px;
+    padding: 30px 20px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 15px 40px rgba(0, 158, 227, 0.4);
+    max-width: 90%;
+    width: 350px;
+    transform: scale(0.8);
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.roleta-modal.ativo .roleta-box {
+    transform: scale(1);
+}
+
+.roleta-fechar {
+    position: absolute;
+    top: 10px; right: 15px;
+    background: none; border: none;
+    color: #ff4d4d; font-size: 24px;
+    cursor: pointer;
+}
+
+/* O Recipiente do Disco */
+.wheel-container {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    margin: 0 auto 20px auto;
+}
+
+/* O Ponteiro (Triângulo Dourado) */
+.wheel-pointer {
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 15px solid transparent;
+    border-right: 15px solid transparent;
+    border-top: 30px solid #d4af37;
+    z-index: 2;
+    filter: drop-shadow(0 3px 5px rgba(0,0,0,0.5));
+}
+
+/* O Disco da Roleta */
+.wheel {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 5px solid #d4af37;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+    /* Desenha 6 fatias usando conic-gradient */
+    background: conic-gradient(
+        #009ee3 0deg 60deg,
+        #0a1931 60deg 120deg,
+        #009ee3 120deg 180deg,
+        #0a1931 180deg 240deg,
+        #009ee3 240deg 300deg,
+        #0a1931 300deg 360deg
+    );
+    transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99); /* A mágica de parar devagar */
+}
+
+/* Botão de Girar */
+.btn-girar-agora {
+    background: #d4af37;
+    color: #0a1931;
+    border: none;
+    padding: 15px 30px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 30px;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+.btn-girar-agora:active { transform: scale(0.95); }
+.btn-girar-agora:disabled { background: #555; color: #aaa; cursor: not-allowed; box-shadow: none; }
+/* ========================================== */
+/* TEXTO DAS FATIAS DA ROLETA                 */
+/* ========================================== */
+.fatia {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    /* Roda cada fatia 60 graus para a sua posição exata */
+    transform: rotate(calc(60deg * var(--i))); 
+}
+
+.fatia span {
+    position: absolute;
+    top: 15px; /* Empurra o texto para a borda superior */
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    text-align: center;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+}
+/* Estilo do Modal do Jogo */
+.jogo-modal {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: none; /* Escondido por padrão */
+    align-items: center; justify-content: center; z-index: 10001;
+}
+
+.jogo-box {
+    background: #0a1931; border: 2px solid #d4af37;
+    padding: 20px; border-radius: 15px; text-align: center; width: 95%; max-width: 400px;
+}
+
+/* O Contentor do Jogo */
+#game-container {
+    width: 100%; height: 200px;
+    border-bottom: 4px solid #fff;
+    background: linear-gradient(to bottom, #0a1931, #1a2a44);
+    position: relative; overflow: hidden;
+    cursor: pointer;
+}
+
+/* O Camião */
+#truck {
+    width: 50px; height: 50px; font-size: 40px;
+    position: absolute; bottom: 0; left: 20px;
+}
+
+/* A Caixa (Obstáculo) */
+.box-obstacle {
+    width: 30px; height: 30px; font-size: 25px;
+    position: absolute; bottom: 0; right: -50px;
+}
+
+/* Animação de Salto */
+.animate-jump { animation: jump 0.5s linear; }
+@keyframes jump {
+    0% { bottom: 0; }
+    30% { bottom: 100px; }
+    70% { bottom: 100px; }
+    100% { bottom: 0; }
+}
+
+#score { position: absolute; top: 10px; right: 10px; color: #d4af37; font-weight: bold; }
+#game-over-text { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-weight: bold; }
+
+/* Botão de abrir jogo no painel */
+.btn-abrir-jogo {
+    background: #009ee3; color: white; padding: 10px 20px; border-radius: 10px;
+    text-align: center; cursor: pointer; margin: 10px auto; width: 80%; font-weight: bold;
+}

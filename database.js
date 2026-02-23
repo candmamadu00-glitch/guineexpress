@@ -189,6 +189,7 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN webauthn_id TEXT", () => {});
     db.run("ALTER TABLE users ADD COLUMN webauthn_public_key TEXT", () => {});
     db.run("ALTER TABLE users ADD COLUMN webauthn_counter INTEGER DEFAULT 0", () => {});
+    db.run("ALTER TABLE users ADD COLUMN express_points INTEGER DEFAULT 0", () => {});
 
     console.log("✅ Tabelas sincronizadas e colunas verificadas.");
 

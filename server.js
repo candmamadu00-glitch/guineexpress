@@ -2181,6 +2181,46 @@ app.get('/disparar-meu-push', (req, res) => {
     
     res.send("<h1>Comando enviado!</h1><p>Verifique a tela do seu celular agora.</p>");
 });
+// ==================================================================
+// ROTA DA ROLETA: SALVAR PONTOS GANHOS
+// ==================================================================
+app.post('/api/save-points', (req, res) => {
+    // Verifica se o utilizador está logado na sessão
+    if (!req.session.userId) {
+        return res.status(401).json({ success: false, message: "Não autorizado" });
+    }
+
+    const userId = req.session.userId;
+    const pontosGanhos = 1; // Por enquanto a roleta dá sempre 1 ponto
+
+    const query = "UPDATE users SET express_points = express_points + ? WHERE id = ?";
+    
+    db.run(query, [pontosGanhos, userId], function(err) {
+        if (err) {
+            console.error("❌ Erro ao salvar pontos:", err.message);
+            return res.status(500).json({ success: false });
+        }
+        console.log(`🎁 Pontos adicionados ao utilizador ${userId}`);
+        res.json({ success: true, newTotal: "Atualizado" });
+    });
+});
+// ==================================================================
+// ROTA DO JOGO: SALVAR PONTOS POR RECORDE (50 PONTOS)
+// ==================================================================
+app.post('/api/save-game-points', (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ success: false });
+
+    const userId = req.session.userId;
+    const pontosPremio = 5; // Prémio por ser um craque no jogo!
+
+    const query = "UPDATE users SET express_points = express_points + ? WHERE id = ?";
+    
+    db.run(query, [pontosPremio, userId], function(err) {
+        if (err) return res.status(500).json({ success: false });
+        console.log(`🎮 Recorde batido! 5 pontos para o utilizador ${userId}`);
+        res.json({ success: true });
+    });
+});
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================

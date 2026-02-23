@@ -658,6 +658,54 @@
         <button onclick="submitEcobankReceipt()"> 📤 Enviar para Aprovação </button>
     </div>
 </div>
+<div id="btn-roleta-flutuante" class="roleta-flutuante">
+        <div class="roleta-icon">🎡</div>
+        <span id="roleta-tooltip" class="roleta-tooltip">Gira por Diversão! 🎁</span>
+    </div>
+<div id="modal-roleta" class="roleta-modal">
+        <div class="roleta-box">
+            <button id="fechar-roleta" class="roleta-fechar"><i class="fas fa-times"></i></button>
+            <h2 style="color: #d4af37; margin-bottom: 5px;">Roleta da Sorte 🎡</h2>
+            <p style="color: #fff; font-size: 14px; margin-bottom: 20px;">Gire uma vez por dia e ganhe prémios!</p>
+            
+            <div class="wheel-container">
+                <div class="wheel-pointer"></div>
+                <div id="wheel" class="wheel">
+                    <div class="wheel-container">
+                <div class="wheel-pointer"></div>
+                <div id="wheel" class="wheel">
+                    <div class="fatia" style="--i:0;"><span>10% OFF</span></div>
+                    <div class="fatia" style="--i:1;"><span>Tente<br>Amanhã</span></div>
+                    <div class="fatia" style="--i:2;"><span>1 Ponto</span></div>
+                    <div class="fatia" style="--i:3;"><span>Tente<br>Amanhã</span></div>
+                    <div class="fatia" style="--i:4;"><span>5% OFF</span></div>
+                    <div class="fatia" style="--i:5;"><span>Tente<br>Amanhã</span></div>
+                </div>
+            </div>
+                    </div>
+            </div>
+            
+            <button id="btn-girar" class="btn-girar-agora">GIRAR AGORA!</button>
+        </div>
+    </div>
+    <div id="modal-jogo" class="jogo-modal">
+    <div class="jogo-box">
+        <button id="fechar-jogo" class="jogo-fechar"><i class="fas fa-times"></i></button>
+        <h2 style="color: #009ee3; margin-bottom: 10px;">Express Runner 🚚💨</h2>
+        
+        <div id="game-container">
+            <div id="truck">🚚</div>
+            <div id="score">Pontos: 0</div>
+            <div id="game-over-text">BATEU! 💥<br><button onclick="resetJogo()" class="btn-girar-agora">Tentar de Novo</button></div>
+        </div>
+        
+        <p style="color: #fff; margin-top: 15px; font-size: 14px;">Toque na tela para SALTAR as caixas!</p>
+    </div>
+</div>
+
+<div id="btn-abrir-jogo" class="btn-abrir-jogo">
+    🎮 Jogar Express Runner
+</div>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>
     // --- INTERAÇÃO UAU: EXPLOSÃO DE CONFETES PREMIUM ---
@@ -1007,7 +1055,7 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         }
     });
 </script>
-
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="cici.js"></script>
 </body>
 </html>

@@ -5047,3 +5047,307 @@ async function registarBiometria() {
 }
 
 window.registarBiometria = registarBiometria;
+// ==================================================================
+// LÓGICA DO BOTÃO FLUTUANTE DA ROLETA (ARRASTAR E CLICAR)
+// ==================================================================
+const roletaBtn = document.getElementById('btn-roleta-flutuante');
+
+if (roletaBtn) {
+    let isDragging = false;
+    let startX, startY, initialLeft, initialTop;
+
+    // Quando o utilizador toca no botão (Telemóvel)
+    roletaBtn.addEventListener('touchstart', (e) => {
+        isDragging = false;
+        const touch = e.touches[0];
+        startX = touch.clientX;
+        startY = touch.clientY;
+        
+        const rect = roletaBtn.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+        
+        roletaBtn.style.transition = 'none'; // Tira a animação para arrastar suavemente
+    });
+
+    // Quando o utilizador arrasta o dedo
+    roletaBtn.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        
+        // Se ele moveu o dedo mais de 5 pixels, consideramos que está a arrastar (e não a clicar)
+        if (Math.abs(touch.clientX - startX) > 5 || Math.abs(touch.clientY - startY) > 5) {
+            isDragging = true;
+            e.preventDefault(); // Impede que a página role para baixo
+            
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
+            
+            // Move o botão para a nova posição
+            roletaBtn.style.left = `${initialLeft + dx}px`;
+            roletaBtn.style.top = `${initialTop + dy}px`;
+            roletaBtn.style.bottom = 'auto'; 
+            roletaBtn.style.right = 'auto';
+        }
+    }, { passive: false });
+
+    // Quando o utilizador levanta o dedo
+    roletaBtn.addEventListener('touchend', () => {
+        roletaBtn.style.transition = 'transform 0.2s'; // Devolve a animação de clique
+        
+        // Se ele não arrastou, então foi um CLIQUE!
+        if (!isDragging) {
+            abrirRoleta();
+        }
+    });
+
+    // Mesma lógica para testes com o Rato no Computador
+    roletaBtn.addEventListener('mousedown', (e) => {
+        isDragging = false;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = roletaBtn.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+        roletaBtn.style.transition = 'none';
+        
+        const onMouseMove = (moveEvent) => {
+            if (Math.abs(moveEvent.clientX - startX) > 5 || Math.abs(moveEvent.clientY - startY) > 5) {
+                isDragging = true;
+                const dx = moveEvent.clientX - startX;
+                const dy = moveEvent.clientY - startY;
+                roletaBtn.style.left = `${initialLeft + dx}px`;
+                roletaBtn.style.top = `${initialTop + dy}px`;
+                roletaBtn.style.bottom = 'auto'; 
+                roletaBtn.style.right = 'auto';
+            }
+        };
+        
+        const onMouseUp = () => {
+            roletaBtn.style.transition = 'transform 0.2s';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            if (!isDragging) abrirRoleta();
+        };
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+}
+
+// ==================================================================
+// LÓGICA DO JOGO DA ROLETA DA SORTE 🎡
+// ==================================================================
+
+// Variáveis do Modal
+const modalRoleta = document.getElementById('modal-roleta');
+const btnFecharRoleta = document.getElementById('fechar-roleta');
+const btnGirar = document.getElementById('btn-girar');
+const wheel = document.getElementById('wheel');
+
+// Modificamos a função que o botão flutuante chama para abrir a tela
+function abrirRoleta() {
+    if(modalRoleta) {
+        modalRoleta.classList.add('ativo');
+    }
+}
+
+// Fechar a Roleta
+if(btnFecharRoleta) {
+    btnFecharRoleta.addEventListener('click', () => {
+        modalRoleta.classList.remove('ativo');
+    });
+}
+
+// ==================================================================
+// LÓGICA DO JOGO DA ROLETA (VERSÃO FINAL COM PRÉMIOS)
+// ==================================================================
+const listaPremios = [
+    "Parabéns! Ganhou 10% de desconto! (Código: GUINE10)", // Fatia 0
+    "Ah não... Não foi desta vez. Tente amanhã!",         // Fatia 1
+    "Boa! Ganhou 1 Ponto Express para a sua conta!",       // Fatia 2
+    "Puxa vida... Tente amanhã!",                          // Fatia 3
+    "Legal! Ganhou 5% de desconto! (Código: GUINE5)",      // Fatia 4
+    "Quase... Volte a tentar amanhã!"                      // Fatia 5
+];
+
+let grausAtuais = 0;
+
+if(btnGirar) {
+    btnGirar.addEventListener('click', () => {
+        // 1. VERIFICA SE JÁ JOGOU HOJE (Proteção anti-vício!)
+        const ultimoJogo = localStorage.getItem('dataUltimaRoleta');
+        const dataHoje = new Date().toDateString();
+
+        if (ultimoJogo === dataHoje) {
+            if (typeof ciciAvisa === "function") {
+                ciciAvisa("Você já girou a roleta hoje! Volte amanhã para tentar a sorte de novo. ", "erro");
+            } else {
+                alert("Você já girou a roleta hoje! Volte amanhã.");
+            }
+            return; // Bloqueia e não deixa girar
+        }
+
+        // 2. PREPARA PARA GIRAR
+        btnGirar.disabled = true;
+        btnGirar.innerText = "A GIRAR... 🌀";
+
+        // 3. SORTEIA O PRÉMIO (0 a 5)
+        const fatiaSorteada = Math.floor(Math.random() * 6); 
+
+        // 4. MATEMÁTICA PARA PARAR NA FATIA CERTA
+        // Cada fatia tem 60 graus. O meio da fatia é 30.
+        const centroDaFatia = (fatiaSorteada * 60) + 30;
+        
+        // Quantos graus temos de rodar para o centro da fatia ficar no ponteiro (no topo, que é 0)
+        const grausParaGirar = 1800 + (360 - centroDaFatia);
+        
+        grausAtuais += grausParaGirar;
+
+        // Roda o CSS!
+        wheel.style.transform = `rotate(${grausAtuais}deg)`;
+
+        // 5. DEPOIS DE PARAR (Espera 4 segundos da animação)
+        setTimeout(() => {
+            // Regista que o utilizador já jogou hoje
+            localStorage.setItem('dataUltimaRoleta', dataHoje);
+
+            // Verifica se ganhou algo ou se foi "Tente Amanhã"
+            // Fatias pares (0, 2, 4) são os prémios!
+            if (fatiaSorteada === 0 || fatiaSorteada === 2 || fatiaSorteada === 4) {
+                
+                // 💥 DISPARA OS CONFETTIS! 💥
+                if (typeof confetti === "function") {
+                    confetti({
+                        particleCount: 150,
+                        spread: 80,
+                        origin: { y: 0.6 },
+                        colors: ['#009ee3', '#d4af37', '#ffffff'] // As cores da Guineexpress!
+                    });
+                }
+                   // Se a fatia for a de "1 Ponto" (Fatia 2), avisa o servidor
+                if (fatiaSorteada === 2) {
+                    fetch('/api/save-points', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("Ponto guardado com sucesso no banco de dados!");
+                    })
+                    .catch(err => console.error("Erro ao comunicar com o servidor"));
+                }
+                if (typeof ciciAvisa === "function") {
+                    ciciAvisa(listaPremios[fatiaSorteada], "sucesso");
+                } else {
+                    alert(listaPremios[fatiaSorteada]);
+                }
+
+                // DICA PARA O FUTURO: Aqui nós avisaremos o servidor para guardar o prémio no Banco de Dados!
+
+            } else {
+                // Se perdeu (Fatias 1, 3, 5)
+                if (typeof ciciAvisa === "function") {
+                    ciciAvisa(listaPremios[fatiaSorteada], "info");
+                } else {
+                    alert(listaPremios[fatiaSorteada]);
+                }
+            }
+            
+            btnGirar.innerText = "VOLTE AMANHÃ";
+            
+        }, 4000);
+    });
+}
+const truck = document.getElementById("truck");
+const gameContainer = document.getElementById("game-container");
+const scoreElement = document.getElementById("score");
+const modalJogo = document.getElementById("modal-jogo");
+let score = 0;
+let isGameOver = false;
+
+// Abrir e Fechar o Jogo
+document.getElementById("btn-abrir-jogo").onclick = () => { modalJogo.style.display = 'flex'; resetJogo(); };
+document.getElementById("fechar-jogo").onclick = () => { modalJogo.style.display = 'none'; isGameOver = true; };
+
+// Função de Saltar
+function jump() {
+    if (!truck.classList.contains("animate-jump")) {
+        truck.classList.add("animate-jump");
+        setTimeout(() => truck.classList.remove("animate-jump"), 500);
+    }
+}
+
+// Detetar clique/toque para saltar
+gameContainer.addEventListener("mousedown", jump);
+gameContainer.addEventListener("touchstart", (e) => { e.preventDefault(); jump(); });
+
+// Criar Obstáculos (Caixas)
+function createObstacle() {
+    if (isGameOver) return;
+
+    const obstacle = document.createElement("div");
+    obstacle.classList.add("box-obstacle");
+    obstacle.innerHTML = "📦";
+    gameContainer.appendChild(obstacle);
+
+    let obstaclePosition = 400; // Começa fora da tela à direita
+    let randomSpeed = 3 + Math.random() * 5; // Velocidade aleatória
+
+    let timer = setInterval(() => {
+        // Colisão
+        let truckTop = parseInt(window.getComputedStyle(truck).getPropertyValue("bottom"));
+        
+        if (obstaclePosition > 20 && obstaclePosition < 60 && truckTop < 30) {
+            clearInterval(timer);
+            isGameOver = true;
+            document.getElementById("game-over-text").style.display = "block";
+            return;
+        }
+
+        obstaclePosition -= randomSpeed;
+        obstacle.style.left = obstaclePosition + "px";
+
+        if (obstaclePosition < -50) {
+            clearInterval(timer);
+            gameContainer.removeChild(obstacle);
+            
+            if (!isGameOver) {
+                score++;
+                scoreElement.innerHTML = "Pontos: " + score;
+
+                // --- VERIFICAÇÃO DE RECORDE ---
+                // Se chegar exatamente a 50, dispara o prémio!
+                if (score === 50) {
+                    ganhouPremioJogo();
+                }
+            }
+        }
+    }, 20);
+
+    // Cria a próxima caixa num tempo aleatório
+    if (!isGameOver) setTimeout(createObstacle, 1500 + Math.random() * 2000);
+}
+
+function resetJogo() {
+    isGameOver = false;
+    score = 0;
+    scoreElement.innerHTML = "Pontos: 0";
+    document.getElementById("game-over-text").style.display = "none";
+    // Limpar caixas antigas
+    document.querySelectorAll('.box-obstacle').forEach(box => box.remove());
+    createObstacle();
+}
+function ganhouPremioJogo() {
+    // 💥 Confettis de Elite!
+    if (typeof confetti === "function") {
+        confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 } });
+    }
+
+    // Avisa a Cici para gritar a vitória
+    if (typeof ciciAvisa === "function") {
+        ciciAvisa("INCRÍVEL! Chegou aos 50 pontos e ganhou 5 Pontos Express! 🏆", "sucesso");
+    }
+
+    // Guarda no Banco de Dados
+    fetch('/api/save-game-points', { method: 'POST' })
+    .then(res => res.json())
+    .then(() => console.log("Prémio do jogo guardado!"))
+    .catch(err => console.error("Erro ao guardar pontos do jogo"));
+}
