@@ -446,29 +446,38 @@ function savePrice() {
 // --- SISTEMA DE ENCOMENDAS E CAIXAS ---
 async function loadBoxes() {
     const res = await fetch('/api/boxes');
-    const list = await res.json();
+    let list = await res.json(); // Mudei de const para let para podermos ordenar
     const tbody = document.getElementById('box-table-body');
     
     if(tbody) {
         tbody.innerHTML = '';
+
+        // MÁGICA DE ORDENAÇÃO: Organiza do menor para o maior (Box 1, Box 2, Box 3...)
+        list.sort((a, b) => {
+            const boxA = a.box_code || '';
+            const boxB = b.box_code || '';
+            // localeCompare com 'numeric: true' faz a ordenação inteligente de números
+            return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
+        });
+
         list.forEach(b => {
             const act = (currentUser.role !== 'client') ? 
-                `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer;">Excluir</button>` : '-';
+                `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>` : '-';
             
             const weight = parseFloat(b.order_weight) || 0;
             const totalValue = (weight * globalPricePerKg).toFixed(2);
 
             tbody.innerHTML += `
             <tr>
-                <td>${b.box_code}</td>
+                <td style="font-weight:bold; color:#0a1931;">${b.box_code}</td>
                 <td>${b.client_name || '-'}</td>
                 <td>${b.order_code || '-'}</td>
                 <td>${weight} Kg</td>
-                <td style="font-weight:bold; color:green;">${totalValue}</td> <td>${b.products || '-'}</td>
+                <td style="font-weight:bold; color:green;">${totalValue}</td> 
+                <td>${b.products || '-'}</td>
                 <td>${act}</td>
             </tr>`; 
         });
-        // CORREÇÃO 1: Adicionado para funcionar no mobile
         makeTablesResponsive();
     }
 }
@@ -1921,59 +1930,6 @@ async function createInvoice(e) {
     btn.disabled = false;
 }
 
-// Função INTELIGENTE: Esconde o valor se for funcionário
-async function loadInvoices() {
-    const tbody = document.getElementById('invoices-list');
-    if(!tbody) return;
-
-    const res = await fetch('/api/invoices/list');
-    const list = await res.json();
-
-    tbody.innerHTML = '';
-    
-    list.forEach(inv => {
-        let statusHtml = '';
-        if(inv.status === 'approved') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
-        else if(inv.status === 'pending') statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
-        else statusHtml = '<span style="color:red;">Cancelado</span>';
-
-        // Botão de Excluir (SÓ ADMIN VÊ)
-        // NOTA: Mantemos o inv.id aqui dentro para o sistema não apagar a fatura errada!
-        let deleteBtn = '';
-        if(currentUser && currentUser.role === 'admin') {
-            deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
-        }
-
-        const checkBtn = `<button onclick="checkInvoiceStatus('${inv.mp_payment_id}', ${inv.id})" style="font-size:12px; cursor:pointer;" title="Verificar">🔄</button>`;
-
-        // AQUI ESTÁ A MÁGICA: Puxa a Ref. Encomenda (Ex: A21A). Se por acaso não tiver, mostra 'Sem Ref.'
-        const refCode = inv.order_code || inv.raw_order || 'Sem Ref.';
-
-        // AQUI ESTÁ O TRUQUE:
-        if (currentUser && currentUser.role === 'admin') {
-            // ADMIN: Vê coluna de VALOR e AÇÕES completas
-            tbody.innerHTML += `
-            <tr>
-                <td style="font-weight:bold; color:#0a1931;">${refCode}</td>
-                <td>${inv.client_name}</td>
-                <td>${inv.box_code || '-'}</td>
-                <td>R$ ${inv.amount}</td> 
-                <td>${statusHtml}</td>
-                <td>${checkBtn} ${deleteBtn}</td>
-            </tr>`;
-        } else {
-            // FUNCIONÁRIO: Não tem a coluna de valor
-            tbody.innerHTML += `
-            <tr>
-                <td style="font-weight:bold; color:#0a1931;">${refCode}</td>
-                <td>${inv.client_name}</td>
-                <td>${inv.box_code || '-'}</td>
-                <td>${statusHtml}</td>
-                <td>${checkBtn}</td>
-            </tr>`;
-        }
-    });
-}
 // 6. Verificar Status no Mercado Pago (Sincronização)
 async function checkInvoiceStatus(mpId, localId) {
     const res = await fetch('/api/invoices/check-status', {
@@ -1993,8 +1949,10 @@ async function deleteInvoice(id) {
     await fetch('/api/invoices/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
     loadInvoices();
 }
-// --- FUNÇÕES DE FATURA DO CLIENTE ---
 
+// ==========================================
+// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE
+// ==========================================
 async function loadClientInvoices() {
     const tbody = document.getElementById('client-invoices-list');
     if(!tbody) return; 
@@ -2015,20 +1973,28 @@ async function loadClientInvoices() {
             let statusHtml = '';
             let actionHtml = '';
 
-            // Sanitiza a descrição (Troca aspas simples por código HTML)
             let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
             let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
 
             if(inv.status === 'approved') {
                 statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
                 actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
+            } else if(inv.status === 'in_review') {
+                statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
+                actionHtml = '<span style="color:#ccc; font-size:12px;">Aguardando o Admin</span>';
             } else if(inv.status === 'pending') {
                 statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
                 
-                // CORREÇÃO: Usamos safeDesc para não quebrar o onclick
-                actionHtml = `<button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" class="btn-primary" style="padding:5px 15px; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                    💸 Pagar
-                </button>`;
+                // OS DOIS BOTÕES APARECEM AQUI PARA O CLIENTE
+                actionHtml = `
+                <div style="display:flex; justify-content:center; gap:8px;">
+                    <button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                        💸 Pix / QR Code
+                    </button>
+                    <button onclick="openEcobankModal(${inv.id})" style="background:#0a1931; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                        🏦 Pagar c/ Banco
+                    </button>
+                </div>`;
             } else {
                 statusHtml = '<span style="color:red;">Cancelado</span>';
                 actionHtml = '-';
@@ -2036,7 +2002,7 @@ async function loadClientInvoices() {
 
             tbody.innerHTML += `
             <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding:12px;">#${inv.id}</td>
+                <td style="padding:12px; font-weight:bold; color:#0a1931;">#${inv.id}</td>
                 <td>${rawDesc}</td>
                 <td style="font-weight:bold; color:#0a1931;">R$ ${parseFloat(inv.amount).toFixed(2)}</td>
                 <td>${statusHtml}</td>
@@ -2463,10 +2429,11 @@ async function loadHistory() {
 function filterHistory() {
     searchTable('history-search', 'history-list');
 }
-// --- SISTEMA DE ETIQUETAS ---
-
+// ==========================================
+// CARREGAR LISTA PARA IMPRIMIR ETIQUETAS
+// ==========================================
 async function loadLabels() {
-    // CORREÇÃO: Permite Admin e Employee (Funcionário)
+    // Permite Admin e Employee (Funcionário)
     if (currentUser.role === 'client') {
         alert("Acesso restrito.");
         showSection('orders-view');
@@ -2476,35 +2443,98 @@ async function loadLabels() {
     const tbody = document.getElementById('labels-list');
     if(!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="6" align="center">Carregando encomendas...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" align="center">Carregando etiquetas...</td></tr>';
 
     try {
-        const res = await fetch('/api/orders'); 
-        const orders = await res.json();
+        // MÁGICA 1: Busca as Encomendas E as Boxes ao mesmo tempo!
+        const [resOrders, resBoxes] = await Promise.all([
+            fetch('/api/orders'),
+            fetch('/api/boxes')
+        ]);
+        
+        const orders = await resOrders.json();
+        const boxes = await resBoxes.json();
         
         tbody.innerHTML = '';
 
-        if (!orders || orders.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" align="center">Nenhuma encomenda encontrada.</td></tr>';
+        if ((!orders || orders.length === 0) && (!boxes || boxes.length === 0)) {
+            tbody.innerHTML = '<tr><td colspan="6" align="center">Nenhuma etiqueta encontrada.</td></tr>';
             return;
         }
 
-        // Ordena por data (mais recente primeiro)
-        orders.sort((a, b) => b.id - a.id);
+        // MÁGICA 2: Organiza as Boxes do menor para o maior (Box 1, Box 2, Box 3...)
+        boxes.sort((a, b) => {
+            const boxA = a.box_code || '';
+            const boxB = b.box_code || '';
+            return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
+        });
 
-        orders.forEach(order => {
+        // ----------------------------------------------------
+        // PARTE 1: MOSTRAR AS CAIXAS (BOXES) PRIMEIRO
+        // ----------------------------------------------------
+        boxes.forEach(box => {
+            // Procura a encomenda original para "roubar" o telefone e o email do cliente
+            const orderOriginal = orders.find(o => o.code === box.order_code) || {};
+            
+            // Monta o pacote perfeito com NÚMERO DA BOX, TELEFONE e EMAIL!
+            const labelData = {
+                id: box.id,
+                box_code: box.box_code, // Garante que a etiqueta imprima o número da Box
+                code: box.order_code || 'SEM-REF',
+                client_name: box.client_name || orderOriginal.client_name || 'Desconhecido',
+                client_phone: orderOriginal.client_phone || 'Não informado',
+                client_email: orderOriginal.client_email || 'Não informado',
+                description: box.products || orderOriginal.description || 'Diversos',
+                weight: box.order_weight || orderOriginal.weight || 0
+            };
+
+            // Sanitiza para não quebrar o HTML
+            const jsonStr = JSON.stringify(labelData).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+            
+            let row = `
+                <tr style="background-color: #f4f9ff; border-left: 4px solid #00b1ea;">
+                    <td><input type="checkbox" class="label-check" value="box-${box.id}" data-obj='${jsonStr}'></td>
+                    <td><span style="background:#0a1931; color:#fff; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">📦 BOX</span></td>
+                    <td style="font-weight:bold; color:#d4af37;">${box.box_code}</td>
+                    <td>${labelData.client_name} <br> <span style="font-size:11px; color:#666;">📞 ${labelData.client_phone} | ✉️ ${labelData.client_email}</span></td>
+                    <td>${labelData.description}</td>
+                    <td>${labelData.weight} kg</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+
+        // ----------------------------------------------------
+        // PARTE 2: MOSTRAR AS ENCOMENDAS SOLTAS DEPOIS
+        // ----------------------------------------------------
+        // Filtra para não mostrar encomendas que já estão dentro de alguma Box
+        const ordersWithoutBox = orders.filter(o => !boxes.some(b => b.order_code === o.code));
+        ordersWithoutBox.sort((a, b) => b.id - a.id); // Mais recentes primeiro
+
+        ordersWithoutBox.forEach(order => {
             const date = new Date(order.created_at).toLocaleDateString('pt-BR');
-            // Sanitiza o JSON para o atributo data-obj não quebrar o HTML
-            const orderJson = JSON.stringify(order).replace(/'/g, "&#39;");
+            
+            const labelData = {
+                id: order.id,
+                code: order.code,
+                box_code: '', // Vazio porque não é box
+                client_name: order.client_name || 'Desconhecido',
+                client_phone: order.client_phone || 'Não informado',
+                client_email: order.client_email || 'Não informado',
+                description: order.description || '---',
+                weight: order.weight || 0
+            };
+
+            const orderJson = JSON.stringify(labelData).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
             
             let row = `
                 <tr>
-                    <td><input type="checkbox" class="label-check" value="${order.id}" data-obj='${orderJson}'></td>
+                    <td><input type="checkbox" class="label-check" value="ord-${order.id}" data-obj='${orderJson}'></td>
                     <td>${date}</td>
                     <td style="font-weight:bold;">${order.code}</td>
-                    <td>${order.client_name || 'Desconhecido'} <br> <span style="font-size:11px; color:#666;">${order.client_phone || ''}</span></td>
-                    <td>${order.description || '---'}</td>
-                    <td>${order.weight || 0} kg</td>
+                    <td>${labelData.client_name} <br> <span style="font-size:11px; color:#666;">📞 ${labelData.client_phone} | ✉️ ${labelData.client_email}</span></td>
+                    <td>${labelData.description}</td>
+                    <td>${labelData.weight} kg</td>
                 </tr>
             `;
             tbody.innerHTML += row;
@@ -2512,7 +2542,7 @@ async function loadLabels() {
 
     } catch (err) {
         console.error("Erro ao carregar etiquetas:", err);
-        tbody.innerHTML = '<tr><td colspan="6" align="center">Erro ao carregar dados.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" align="center">Erro ao carregar dados. Tente novamente.</td></tr>';
     }
 }
 
@@ -2601,8 +2631,8 @@ function printSelectedLabels() {
 
                 <div class="lbl-footer" style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <div class="lbl-title" style="border:none; margin:0;">RASTREIO</div>
-                        <div style="font-size: 22px; font-weight: 900; letter-spacing: 1px;">${data.code}</div>
+                        <div class="lbl-title" style="border:none; margin:0;">NÚMERO DA BOX</div>
+                         <div style="font-size: 22px; font-weight: 900; letter-spacing: 1px;">${data.box_code || data.code}</div>
                     </div>
                     
                     <div style="background: #000; color: #fff; padding: 6px 12px; text-align: center; border-radius: 4px; min-width: 60px;">
@@ -2618,7 +2648,7 @@ function printSelectedLabels() {
 
             // Gerar QR Code (Adicionado o número do volume no ID para não dar conflito)
             new QRCode(document.getElementById(`qr-${data.id}-${i}`), {
-                text: `CODE:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
+                text: `BOX:${data.box_code || data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
                 width: 60, height: 60,
                 correctLevel : QRCode.CorrectLevel.L
             });
@@ -4412,4 +4442,208 @@ async function subscribeUser() {
             headers: { 'Content-Type': 'application/json' }
         });
     }
+}
+// ==========================================
+// FUNÇÃO EXCLUSIVA DO PAINEL DO ADMINISTRADOR
+// ==========================================
+async function loadInvoices() {
+    const tbody = document.getElementById('invoices-list');
+    if(!tbody) return;
+
+    try {
+        const res = await fetch('/api/invoices/list');
+        const list = await res.json();
+
+        tbody.innerHTML = '';
+        
+        list.forEach(inv => {
+            let statusHtml = '';
+            if(inv.status === 'approved') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+            else if(inv.status === 'in_review') statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
+            else if(inv.status === 'pending') statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
+            else statusHtml = '<span style="color:red;">Cancelado</span>';
+
+            let deleteBtn = '';
+            let actionButtons = '';
+
+            // BOTÕES DO ADMIN
+            if(currentUser && currentUser.role === 'admin') {
+                deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
+                
+                if (inv.status === 'pending') {
+                    actionButtons = `<span style="font-size:12px; color:gray;">Aguardando Cliente...</span>`;
+                } else if (inv.status === 'in_review') {
+                    actionButtons = `
+                        <button onclick="viewReceipt(${inv.id}, '${inv.receipt_url}')" style="background:#17a2b8; color:white; border:none; padding:5px 8px; border-radius:3px; cursor:pointer; font-size:12px; margin-right:5px;">
+                            👁️ Ver
+                        </button>
+                        <button onclick="approveInvoice(${inv.id})" style="background:#28a745; color:white; border:none; padding:5px 8px; border-radius:3px; cursor:pointer; font-size:12px; font-weight:bold;">
+                            ✅ Aprovar
+                        </button>
+                    `;
+                }
+                actionButtons += ` <button onclick="checkInvoiceStatus('${inv.mp_payment_id}', ${inv.id})" style="font-size:12px; cursor:pointer; background:none; border:none;" title="Forçar Verificação Pix">🔄</button>`;
+            } else {
+                actionButtons = '-'; // Funcionários comuns não aprovam
+            }
+
+            const refCode = inv.order_code || inv.raw_order || inv.box_code || 'Sem Ref.';
+
+            if (currentUser && currentUser.role === 'admin') {
+                tbody.innerHTML += `
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="font-weight:bold; color:#0a1931; padding:12px;">${refCode}</td>
+                    <td>${inv.client_name}</td>
+                    <td>${inv.box_code || '-'}</td>
+                    <td style="font-weight:bold;">R$ ${inv.amount}</td> 
+                    <td>${statusHtml}</td>
+                    <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
+                </tr>`;
+            } else {
+                // Tabela para funcionário comum ver
+                tbody.innerHTML += `
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="font-weight:bold; color:#0a1931; padding:12px;">${refCode}</td>
+                    <td>${inv.client_name}</td>
+                    <td>${inv.box_code || '-'}</td>
+                    <td>${statusHtml}</td>
+                    <td>-</td>
+                </tr>`;
+            }
+        });
+    } catch (err) {
+        console.error("Erro ao carregar faturas:", err);
+    }
+}
+
+// O Administrador clica para abrir a foto do comprovante e aprovar
+function viewReceipt(invoiceId, receiptUrl) {
+    if(!receiptUrl) return alert("Erro: Link do talão não encontrado.");
+
+    // ISTO FAZ A FOTO ABRIR NUMA NOVA ABA PARA VOCÊ BAIXAR/VER:
+    window.open(receiptUrl, '_blank');
+    
+    // Pergunta se você quer aprovar
+    setTimeout(async () => {
+        const confirmar = confirm("Você abriu o comprovativo na outra aba.\n\nO dinheiro já caiu na sua conta?\nDeseja APROVAR este pagamento agora?");
+        
+        if(confirmar) {
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/approve-receipt`, { method: 'POST' });
+                const data = await res.json();
+                if(data.success) {
+                    alert("✅ Pagamento Aprovado com sucesso!");
+                    loadInvoices(); // Fica verdinho como PAGO
+                } else {
+                    alert("Erro ao aprovar: " + data.message);
+                }
+            } catch(err) { alert("Erro de conexão."); }
+        }
+    }, 1500);
+}
+
+// Abre a janela para o cliente ver o número da conta e anexar
+function openEcobankModal(invoiceId) {
+    document.getElementById('ecobank-invoice-id').value = invoiceId;
+    document.getElementById('ecobank-receipt-file').value = ''; 
+    document.getElementById('modal-ecobank').style.display = 'block';
+}
+
+// O Cliente clica para enviar a foto do comprovante para o servidor
+async function submitEcobankReceipt() {
+    const invoiceId = document.getElementById('ecobank-invoice-id').value;
+    const fileInput = document.getElementById('ecobank-receipt-file');
+    
+    if (fileInput.files.length === 0) return alert("Anexe a foto do comprovativo primeiro!");
+
+    const formData = new FormData();
+    formData.append('receipt', fileInput.files[0]);
+
+    alert("A enviar o comprovativo... Aguarde.");
+    try {
+        const res = await fetch(`/api/invoices/${invoiceId}/upload-receipt`, { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        if(data.success) {
+            alert("✅ Comprovativo enviado! Aguarde a aprovação da GuineExpress.");
+            document.getElementById('modal-ecobank').style.display = 'none';
+            loadClientInvoices(); // Atualiza a tabela dele para Em Análise
+        } else {
+            alert("Erro: " + data.message);
+        }
+    } catch(err) { alert("Erro ao enviar a imagem."); }
+}
+async function approveInvoice(invoiceId) {
+    if(!confirm("Tem certeza que deseja APROVAR e marcar esta fatura como PAGA?")) return;
+
+    try {
+        // CORREÇÃO AQUI: Usando a rota exata que nós criamos no seu server.js
+        const res = await fetch(`/api/invoices/${invoiceId}/approve-receipt`, {
+            method: 'POST'
+        });
+        
+        const data = await res.json();
+        if(data.success) {
+            alert("✅ Pagamento aprovado com sucesso!");
+            loadInvoices(); // Atualiza a tabela na hora
+        } else {
+            alert("Erro ao aprovar: " + data.message);
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erro de conexão ao tentar aprovar a fatura.");
+    }
+}
+// ==========================================
+// EXPORTAÇÃO DE BOXES (PDF E EXCEL)
+// ==========================================
+
+function exportBoxExcel() {
+    // Pega as linhas da tabela ignorando a última coluna (Ações)
+    const rows = [["N° Box", "Cliente", "Ref. Encomenda", "Peso (Kg)", "Valor Estimado", "Produtos"]];
+    const trs = document.querySelectorAll("#box-table-body tr");
+    
+    trs.forEach(tr => {
+        const tds = tr.querySelectorAll("td");
+        if (tds.length > 0) {
+            rows.push([
+                tds[0].innerText, tds[1].innerText, tds[2].innerText,
+                tds[3].innerText.replace(' Kg', ''), tds[4].innerText, tds[5].innerText
+            ]);
+        }
+    });
+    
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(";")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Guineexpress_Relatorio_Boxes.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function exportBoxPDF() {
+    const printWindow = window.open('', '_blank', 'height=600,width=800');
+    printWindow.document.write(`
+        <html><head><title>Relatório de Boxes</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; color: #0a1931; }
+            h2 { color: #0a1931; }
+        </style>
+        </head><body>
+        <h2>📦 Relatório de Boxes - Guineexpress</h2>
+        <table>
+            <thead><tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th></tr></thead>
+            <tbody>
+                ${document.getElementById('box-table-body').innerHTML.replace(/<td><button.*?<\/button><\/td>/g, '<td>-</td>')}
+            </tbody>
+        </table>
+        <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
+        </body></html>
+    `);
+    printWindow.document.close();
 }

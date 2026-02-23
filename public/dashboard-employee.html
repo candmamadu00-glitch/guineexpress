@@ -78,15 +78,16 @@
             </div>
         </section>
 
-         <section id="orders-view">
+         <section id="box-view" class="hidden">
     <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>Gestão de Encomendas</h3>
-            <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
-                + Nova Encomenda
-            </button>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
+            <h3>Gestão de Box</h3>
+            <div style="display:flex; gap: 10px;">
+                <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
+                <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
+                <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
+            </div>
         </div>
-
         <div style="margin: 15px 0; position: relative;">
             <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
             <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 

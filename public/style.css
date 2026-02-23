@@ -1601,3 +1601,41 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     color: #721c24;            /* Texto vermelho escuro */
     border: 1px solid #f5c6cb;
 }
+@media print {
+    /* Remove a data, URL e numeração automáticas do navegador */
+    @page {
+        margin: 0; 
+    }
+    
+    /* Dá um pequeno respiro à volta da etiqueta sem criar páginas extra */
+    body {
+        margin: 0;
+        padding: 10px;
+    }
+
+    /* Evita que a etiqueta seja cortada a meio e impede páginas em branco no final */
+    .shipping-label-container {
+        page-break-inside: avoid;
+        page-break-after: auto;
+        margin-bottom: 20px;
+    }
+}
+@media print {
+    /* Remove a data, URL e numeração automáticas do navegador */
+    @page {
+        margin: 0; 
+    }
+    
+    /* Dá um pequeno respiro à volta da etiqueta sem criar páginas extra */
+    body {
+        margin: 0;
+        padding: 10px;
+    }
+
+    /* Evita que a etiqueta seja cortada a meio e impede páginas em branco no final */
+    .shipping-label-container {
+        page-break-inside: avoid;
+        page-break-after: auto;
+        margin-bottom: 20px;
+    }
+}

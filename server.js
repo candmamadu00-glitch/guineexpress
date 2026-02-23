@@ -1100,7 +1100,57 @@ app.get('/api/invoices/list', (req, res) => {
         res.json(rows);
     });
 });
+// ==================================================================
+// SISTEMA DE PAGAMENTO ECOBANK (COMPROVATIVOS)
+// ==================================================================
 
+// 1. Atualiza a tabela de faturas para suportar a foto do comprovativo
+// Ele tenta adicionar a coluna. Se já existir, ele ignora silenciosamente.
+db.run("ALTER TABLE invoices ADD COLUMN receipt_url TEXT", (err) => { /* ignora erro se já existir */ });
+
+
+// 2. Rota para o CLIENTE enviar a foto do comprovante
+// Usamos o upload.single('receipt') do seu Multer para salvar a foto na pasta /uploads
+app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), (req, res) => {
+    // Verifica se a imagem realmente chegou
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Nenhuma imagem foi enviada.' });
+    }
+
+    const invoiceId = req.params.id;
+    // Pega o nome do arquivo que o Multer acabou de salvar
+    const receiptPath = '/uploads/' + req.file.filename; 
+
+    // Muda o status da fatura para 'in_review' (Em Análise) e salva o link da imagem
+    const sql = "UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?";
+    
+    db.run(sql, [receiptPath, invoiceId], function(err) {
+        if (err) {
+            console.error(err);
+            return res.json({ success: false, message: 'Erro ao salvar no banco.' });
+        }
+        res.json({ success: true, message: 'Comprovativo enviado com sucesso!' });
+    });
+});
+
+
+// 3. Rota para o ADMIN aprovar o comprovante
+app.post('/api/invoices/:id/approve-receipt', (req, res) => {
+    // Segurança: Apenas administradores podem aprovar
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Sem permissão.' });
+    }
+
+    const invoiceId = req.params.id;
+
+    // Muda o status para 'approved' (Pago)
+    db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], function(err) {
+        if (err) return res.json({ success: false });
+        
+        // Aqui o pagamento está aprovado! O sistema já vai ler como ✅ PAGO
+        res.json({ success: true, message: 'Pagamento aprovado com sucesso!' });
+    });
+});
 // 3. Excluir Cobrança (Admin)
 app.post('/api/invoices/delete', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});

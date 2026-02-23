@@ -453,7 +453,7 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>#ID</th>
+                                <th>Codigo</th>
                                 <th>Referência (Box)</th>
                                 <th>Valor</th>
                                 <th>Status</th>
@@ -623,6 +623,27 @@
         <img id="proof-image-full" src="" style="max-width: 100%; border-radius: 10px; border: 4px solid white;">
         <br>
         <button class="btn btn-secondary" style="margin-top: 10px;">Fechar</button>
+    </div>
+</div>
+<div id="modal-ecobank" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
+    <div class="modal-content" style="background:#fff; margin:10% auto; padding:20px; width:90%; max-width:400px; border-radius:8px; position:relative;">
+        <span onclick="document.getElementById('modal-ecobank').style.display='none'" style="position:absolute; right:15px; top:10px; font-size:24px; cursor:pointer;">&times;</span>
+        
+        <h2 style="color:#0a1931; margin-bottom:10px;">Transferência Bancária</h2>
+        <p style="font-size:14px; color:#555;">Faça o depósito na conta abaixo e envie o comprovativo.</p>
+        
+        <div style="background:#f4f9ff; padding:15px; border-radius:5px; margin-bottom:15px; border:1px solid #d0e1f9; font-size:14px;">
+            <strong>Banco:</strong> EcoBank Guiné-Bissau<br>
+            <strong>Titular:</strong> Gomes Lelo Jose<br>
+            <strong>Conta:</strong> 180026416001 <span style="color:red; font-size:11px;"></span><br>
+            <strong>IBAN:</strong> 
+        </div>
+
+        <input type="hidden" id="ecobank-invoice-id">
+        
+        <label style="font-weight:bold; font-size:14px;">Anexar Comprovativo (Foto/Print):</label>
+        <input type="file" id="ecobank-receipt-file" accept="image/*,application/pdf" style="margin-top:5px; margin-bottom:15px; width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+        <button onclick="submitEcobankReceipt()"> 📤 Enviar para Aprovação </button>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
