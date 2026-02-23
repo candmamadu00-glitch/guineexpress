@@ -233,7 +233,7 @@ app.post('/api/login', (req, res) => {
     });
 });
 // ==================================================================
-// BIOMETRIA: WEB-AUTHN (IMPRESSÃO DIGITAL E FACE ID)
+// BIOMETRIA: WEB-AUTHN (IMPRESSÃO DIGITAL E FACE ID) - BLINDADO
 // ==================================================================
 const { 
     generateRegistrationOptions, verifyRegistrationResponse, 
@@ -244,7 +244,10 @@ const rpName = 'Guineexpress Logística';
 
 // 1. Pedir para Registar a Impressão Digital
 app.post('/api/webauthn/register-request', (req, res) => {
-    const rpID = req.hostname; // Inteligência: Descobre o domínio sozinho
+    // 🌟 INTELIGÊNCIA: Pega o domínio exato do navegador (ex: https://guineexpress.onrender.com)
+    const origin = req.get('origin') || `https://${req.get('host')}`;
+    const rpID = new URL(origin).hostname; 
+
     const userId = req.session.userId;
     if (!userId) return res.status(401).json({ error: 'Precisa estar logado.' });
 
@@ -260,22 +263,27 @@ app.post('/api/webauthn/register-request', (req, res) => {
                 userID: userUint8Array,
                 userName: user.email,
                 attestationType: 'none',
-                authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' }
+                authenticatorSelection: { 
+                    authenticatorAttachment: 'platform', // 🌟 FORÇA o uso do sensor do próprio telemóvel
+                    residentKey: 'required', 
+                    userVerification: 'preferred' 
+                }
             });
 
             req.session.currentChallenge = options.challenge;
             res.json(options);
         } catch (error) {
             console.error("Erro no request:", error);
-            res.status(500).json({ error: 'Erro interno ao gerar biometria.' });
+            res.status(500).json({ error: 'Erro ao gerar biometria.' });
         }
     });
 });
 
-// 2. Guardar a Impressão Digital no Banco de Dados
+// 2. Guardar a Impressão Digital
 app.post('/api/webauthn/register-verify', async (req, res) => {
-    const rpID = req.hostname;
-    const expectedOrigin = req.get('origin'); // Pega o link exato (com http ou https)
+    const origin = req.get('origin') || `https://${req.get('host')}`;
+    const rpID = new URL(origin).hostname;
+
     const userId = req.session.userId;
     const expectedChallenge = req.session.currentChallenge;
 
@@ -283,7 +291,7 @@ app.post('/api/webauthn/register-verify', async (req, res) => {
         const verification = await verifyRegistrationResponse({
             response: req.body,
             expectedChallenge,
-            expectedOrigin,
+            expectedOrigin: origin,
             expectedRPID: rpID
         });
 
@@ -307,7 +315,9 @@ app.post('/api/webauthn/register-verify', async (req, res) => {
 
 // 3. Iniciar o Login com Impressão Digital
 app.post('/api/webauthn/login-request', (req, res) => {
-    const rpID = req.hostname;
+    const origin = req.get('origin') || `https://${req.get('host')}`;
+    const rpID = new URL(origin).hostname;
+
     const { login } = req.body;
     db.get("SELECT * FROM users WHERE email = ? OR phone = ?", [login, login], (err, user) => {
         if (!user || !user.webauthn_id) {
@@ -329,10 +339,11 @@ app.post('/api/webauthn/login-request', (req, res) => {
     });
 });
 
-// 4. Confirmar o Login com a Impressão Digital
+// 4. Confirmar o Login
 app.post('/api/webauthn/login-verify', async (req, res) => {
-    const rpID = req.hostname;
-    const expectedOrigin = req.get('origin');
+    const origin = req.get('origin') || `https://${req.get('host')}`;
+    const rpID = new URL(origin).hostname;
+    
     const userId = req.session.loginAttemptUserId;
     const expectedChallenge = req.session.currentChallenge;
 
@@ -341,7 +352,7 @@ app.post('/api/webauthn/login-verify', async (req, res) => {
             const verification = await verifyAuthenticationResponse({
                 response: req.body,
                 expectedChallenge,
-                expectedOrigin,
+                expectedOrigin: origin,
                 expectedRPID: rpID,
                 authenticator: {
                     credentialID: Buffer.from(user.webauthn_id, 'base64'),
