@@ -846,48 +846,54 @@ function formatDate(dateStr) { if(!dateStr) return ''; const [y, m, d] = dateStr
 // Função atualizada para o novo design Dark/Gold
 function setRole(role) {
     currentRole = role;
-    
-    // 1. Seleciona todos os botões dentro da div correta (#role-selector)
+
+    // 1. Seleciona todos os botões dentro do seletor de cargos
     const buttons = document.querySelectorAll('#role-selector button');
-    
-    // 2. Reseta TODOS os botões para Cinza (Inativo)
+
+    // 2. Reseta TODOS os botões para o estado inativo (Cinza)
     buttons.forEach(b => {
         b.style.background = '#eee';
         b.style.color = '#333';
-        // Remove a classe btn-primary se ela estiver atrapalhando a cor
         b.classList.remove('btn-primary'); 
-        b.classList.add('btn'); // Garante a formatação básica
+        b.classList.add('btn'); 
     });
-    
-    // 3. Pinta APENAS o botão clicado de Azul Escuro (Ativo)
+
+    // 3. Ativa o estilo apenas no botão do cargo selecionado (Azul/Gold)
     const activeBtn = document.getElementById(`btn-${role}`);
     if(activeBtn) {
-        activeBtn.style.background = '#0a1931'; // Cor Azul do seu tema
-        activeBtn.style.color = '#fff';         // Texto Branco
+        activeBtn.style.background = '#0a1931'; // Azul do seu tema
+        activeBtn.style.color = '#fff';         // Texto branco
     }
 
-    // 4. Controla visibilidade dos links (Esqueci a senha / Cadastro)
-    // Tenta pegar a div que agrupa os links, ou os links individuais
+    // 4. Lógica de visibilidade dos links (Esqueci senha / Cadastro)
     const linksContainer = document.getElementById('client-links');
-    
     if (linksContainer) {
-        // Se você tem a div agrupando (como no código anterior)
         if (role !== 'client') {
             linksContainer.classList.add('hidden');
         } else {
             linksContainer.classList.remove('hidden');
         }
     } else {
-        // Caso não tenha a div, esconde item por item
         const r = document.getElementById('register-link');
         const f = document.getElementById('forgot-pass');
-        
         if (role !== 'client') {
             if(r) r.style.display = 'none'; 
             if(f) f.style.display = 'none';
         } else {
             if(r) r.style.display = 'block'; 
             if(f) f.style.display = 'block';
+        }
+    }
+
+    // 5. --- NOVA LÓGICA: OCULTAR BIOMETRIA PARA ADMIN/EMPLOYEE ---
+    const btnBio = document.getElementById('btn-biometria-login');
+    if (btnBio) {
+        if (role !== 'client') {
+            // Se for Admin ou Funcionário, o botão desaparece completamente
+            btnBio.style.display = 'none';
+        } else {
+            // Se for Cliente, o botão volta a aparecer (formato flex para ícone+texto)
+            btnBio.style.display = 'flex';
         }
     }
 }
