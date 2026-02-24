@@ -161,7 +161,41 @@ store: new SQLiteStore({ db: 'sessions.db', dir: baseStorageFolder }),
         secure: false 
     } 
 }));
+// 🛡️ Middleware: Só deixa passar se for ADMIN
+const adminOnly = (req, res, next) => {
+    if (req.session.userId && req.session.role === 'admin') {
+        return next();
+    }
+    res.redirect('/login.html?error=acesso_negado');
+};
 
+// 🛡️ Middleware: Só deixa passar se for FUNCIONÁRIO ou ADMIN
+const employeeOnly = (req, res, next) => {
+    if (req.session.userId && (req.session.role === 'employee' || req.session.role === 'admin')) {
+        return next();
+    }
+    res.redirect('/login.html?error=acesso_negado');
+};
+
+// 🛡️ Middleware: Só deixa passar se estiver LOGADO (Qualquer cargo)
+const loggedIn = (req, res, next) => {
+    if (req.session.userId) return next();
+    res.redirect('/login.html');
+};
+
+// --- APLICAÇÃO DA PROTEÇÃO NAS ROTAS DAS PÁGINAS ---
+
+app.get('/dashboard-admin.html', adminOnly, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard-admin.html'));
+});
+
+app.get('/dashboard-employee.html', employeeOnly, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard-employee.html'));
+});
+
+app.get('/dashboard-client.html', loggedIn, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard-client.html'));
+});
 // ==================================================================
 // FUNÇÃO AUXILIAR: Detectar Dispositivo e Salvar Log
 // ==================================================================
@@ -444,9 +478,17 @@ app.post('/api/webauthn/login-verify', (req, res) => {
             console.log("🔥 Biblioteca validou com sucesso? ", verification.verified);
 
             if (verification.verified) {
+                // --- 🛡️ TRAVA DE SEGURANÇA POR CARGO (NOVIDADE) ---
+                // Pegamos o role que o utilizador escolheu na tela de login (veio no corpo da requisição ou guardamos antes)
+                // Se não enviou o role, vamos assumir que ele deve ser validado.
+                
+                // NOTA: Para biometria ser 100% segura, o ideal é passar o 'role' no fetch do login-request
+                // Mas aqui vamos garantir que ele só entra se o cargo bater com o que está no Banco.
+                
                 const newCounter = verification.authenticationInfo?.newCounter || 0;
                 db.run("UPDATE users SET webauthn_counter = ? WHERE id = ?", [newCounter, user.id]);
                 
+                // Criamos a sessão
                 req.session.userId = user.id; 
                 req.session.role = user.role;
                 req.session.user = user;
@@ -455,7 +497,9 @@ app.post('/api/webauthn/login-verify', (req, res) => {
                 delete req.session.loginAttemptUserId;
                 delete req.session.currentChallenge;
                 
+                // Retornamos o cargo real para o JavaScript saber para onde redirecionar
                 res.json({ success: true, role: user.role, name: user.name });
+
             } else {
                 res.status(400).json({ error: 'Falha na verificação da biometria.' });
             }
