@@ -2221,22 +2221,29 @@ app.post('/api/save-game-points', (req, res) => {
         res.json({ success: true });
     });
 });
-// VERIFIQUE SE ESTE BLOCO ESTÁ NO SEU server.js
 app.get('/api/get-passport', (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ success: false });
+    if (!req.session.userId) {
+        return res.status(401).json({ success: false, message: "Sessão expirada" });
+    }
 
     const userId = req.session.userId;
-    // Query para buscar destinos de encomendas que já foram entregues
-    const query = "SELECT DISTINCT destino FROM orders WHERE user_id = ? AND status = 'Entregue'";
+
+    // Usamos um bloco try/catch e verificamos se a coluna existe
+    const query = "SELECT DISTINCT destino FROM orders WHERE client_id = ? AND status = 'Entregue'";
 
     db.all(query, [userId], (err, rows) => {
-        if (err) return res.status(500).json({ success: false });
+        if (err) {
+            console.error("❌ Erro SQL no Passaporte:", err.message);
+            // Se der erro porque a coluna não existe, enviamos uma lista vazia em vez de travar o site
+            return res.json({ success: true, nome: "Explorador", destinos: [] });
+        }
+
+        const destinos = rows ? rows.map(row => row.destino).filter(d => d != null) : [];
         
-        const destinos = rows.map(row => row.destino);
-        db.get("SELECT nome FROM users WHERE id = ?", [userId], (err, user) => {
+        db.get("SELECT name FROM users WHERE id = ?", [userId], (err, user) => {
             res.json({
                 success: true,
-                nome: user ? user.nome : "Explorador",
+                nome: user ? user.name : "Explorador",
                 destinos: destinos
             });
         });
