@@ -78,75 +78,78 @@
             </div>
         </section>
 
-         <section id="box-view" class="hidden">
+    <section id="orders-view">
     <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
-            <h3>Gestão de Box</h3>
-            <div style="display:flex; gap: 10px;">
-                <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
-                <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
-                <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
-            </div>
-        </div>
-        <div style="margin: 15px 0; position: relative;">
-            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-            <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
-                   placeholder="Buscar por código, cliente ou status..." 
-                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-        </div>
-
-        <table class="data-table">
-            <thead>
-                <tr><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th><th>Ações</th></tr>
-            </thead>
-            <tbody id="orders-list"></tbody>
-        </table>
-    </div>
-
-    <div id="modal-order" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modal-order-title">📦 Nova Encomenda</h3>
-                <button class="btn-close" onclick="closeModal('modal-order')">&times;</button>
-            </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+            <h3>Gestão de Encomendas</h3>
             
-            <form id="new-order-form" onsubmit="handleOrderSubmit(event)">
-                <input type="hidden" id="editing-order-id">
+            <div style="display:flex; gap: 10px;">
 
-                <div class="form-group">
-                    <label>Cliente</label>
-                    <select id="order-client-select" class="form-control" required></select>
-                </div>
-                <div class="form-group">
-                    <label>Código</label>
-                    <input type="text" id="order-code" class="form-control" placeholder="Ex: ENC-1234" required>
-                </div>
-                <div class="form-group">
-                    <label>Descrição</label>
-                    <input type="text" id="order-desc" class="form-control" placeholder="Ex: Roupas">
-                </div>
-                <div class="form-group">
-                    <label>Peso (Kg)</label>
-                    <input type="number" id="order-weight" class="form-control" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label>Status</label>
-                    <select id="order-status" class="form-control">
-                        <option value="Processando">Processando</option>
-                        <option value="Pendente Pagamento">Pendente Pagamento</option>
-                        <option value="Pago">Pago</option>
-                        <option value="Enviado">Enviado</option>
-                        <option value="Entregue">Entregue</option>
-                    </select>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn" onclick="closeModal('modal-order')" style="background:#ccc; width:auto;">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
-                </div>
-            </form>
+                <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
+                    + Nova Encomenda
+                </button>
+            </div>
         </div>
-    </div>
-</section>
+
+                <div style="margin: 15px 0; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+                    <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
+                           placeholder="Buscar por código, cliente ou status..." 
+                           style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody id="orders-list"></tbody>
+                </table>
+            </div>
+
+            <div id="modal-order" class="modal-overlay" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modal-order-title">📦 Nova Encomenda</h3>
+                        <button class="btn-close" onclick="closeModal('modal-order')">&times;</button>
+                    </div>
+                    
+                    <form id="new-order-form" onsubmit="handleOrderSubmit(event)">
+                        <input type="hidden" id="editing-order-id">
+
+                        <div class="form-group">
+                            <label>Cliente</label>
+                            <select id="order-client-select" class="form-control" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Código</label>
+                            <input type="text" id="order-code" class="form-control" placeholder="Ex: ENC-1234" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Descrição</label>
+                            <input type="text" id="order-desc" class="form-control" placeholder="Ex: Roupas">
+                        </div>
+                        <div class="form-group">
+                            <label>Peso (Kg)</label>
+                            <input type="number" id="order-weight" class="form-control" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="order-status" class="form-control">
+                                <option value="Processando">Processando</option>
+                                <option value="Pendente Pagamento">Pendente Pagamento</option>
+                                <option value="Pago">Pago</option>
+                                <option value="Enviado">Enviado</option>
+                                <option value="Entregue">Entregue</option>
+                            </select>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn" onclick="closeModal('modal-order')" style="background:#ccc; width:auto;">Cancelar</button>
+                            <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
 
         <section id="clients-view" class="hidden">
             <div class="card">
@@ -158,19 +161,26 @@
             </div>
         </section>
 
-        <section id="box-view" class="hidden">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3>Gestão de Box</h3>
-              <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
-                </div>
-                <div style="margin: 15px 0; position: relative;">
+<section id="box-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
+            <h3>Gestão de Box</h3>
+            <div style="display:flex; gap: 10px;">
+                <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
+                <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
+                <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
+            </div>
+        </div>
+        <div style="margin: 15px 0; position: relative;">
                     <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-                    <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px;">
+                    <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" 
+                           placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                 </div>
                 <div style="overflow-x:auto;">
                     <table class="data-table">
-                        <thead><tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Status</th><th>Produtos</th><th>Ações</th></tr></thead>
+                        <thead>
+                            <tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th><th>Ações</th></tr>
+                        </thead>
                         <tbody id="box-table-body"></tbody>
                     </table>
                 </div>
