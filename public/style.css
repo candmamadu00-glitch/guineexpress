@@ -36,7 +36,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 .btn-secondary { background: var(--gray); color: var(--white); }
 
 .form-group { margin-bottom: 15px; text-align: left; }
-.form-group label { display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 600; }
+.form-group label { display: block; margin-bottom: 5px; color: #635555; font-size: 13px; font-weight: 600; }
 .form-control {
     width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
     font-size: 15px; transition: border-color 0.3s;
@@ -1940,3 +1940,10 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     margin: 10px auto; width: 80%; text-align: center;
     cursor: pointer; border: 2px solid #d4af37; font-weight: bold;
 }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+.summary-card { background: #fff; padding: 20px; border-radius: 8px; display: flex; align-items: center; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.summary-card i { font-size: 2rem; opacity: 0.3; }
+.summary-card span { font-size: 1.5rem; font-weight: bold; display: block; }
+.summary-card.warning { border-bottom: 4px solid #ffc107; }
+.summary-card.danger { border-bottom: 4px solid #e74c3c; }
+.summary-card.info-blue { border-bottom: 4px solid #3498db; }

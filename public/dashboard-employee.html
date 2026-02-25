@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
-    
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="stylesheet" href="cici.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -12,27 +11,34 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0a1931">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Guineexpress">
+    <meta name="theme-color" content="#0a1931">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Guineexpress">
 
-<link rel="icon" type="image/png" href="/logo.png">
-<link rel="apple-touch-icon" href="/logo.png">
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="apple-touch-icon" href="/logo.png">
 
-<script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('App registrado'))
-                .catch(err => console.log('Erro PWA', err));
-        });
-    }
-</script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('App registrado'))
+                    .catch(err => console.log('Erro PWA', err));
+            });
+        }
+
+        // Item 3: Função de Notificação Push (Adicionada conforme solicitado)
+        function requestNotificationPermission() {
+            if ("Notification" in window) {
+                Notification.requestPermission();
+            }
+        }
+    </script>
 </head>
-<body>
+<body onload="requestNotificationPermission()">
 
-    <nav class="dashboard-nav" style="background: #2c3e50;">
+    <nav class="dashboard-nav" style="background: #052f58;">
         <div style="font-weight:bold; font-size:18px;">
             GUINEEXPRESS 
             <span style="font-size:12px; font-weight:normal; opacity:0.8;">| FUNCIONÁRIO</span>
@@ -40,11 +46,11 @@
         <div class="nav-links">
             <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn"><i class="fas fa-file-invoice-dollar"></i> 💸Faturas</button>
             <button onclick="showSection('orders-view')"><i class="fas fa-box"></i> Encomendas</button>
+            <button onclick="showSection('box-view')">📦 Box</button>
+            <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn"><i class="fas fa-tags"></i> Etiquetas</button>
             <button onclick="startScanner()" class="btn" style="background: #ffc107; color: #000; margin-right: 10px;"><i class="fas fa-qrcode"></i> Escanear</button>
             <button onclick="showSection('history-view')" class="nav-btn"><i class="fas fa-history"></i> Histórico</button>
-            <button onclick="showSection('box-view')">📦 Box</button>
             <button onclick="openBroadcastModal()" class="btn" style="background-color: #6f42c1; color: white; margin-right: 10px;">📢 Novo Comunicado</button>
-            <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn"><i class="fas fa-tags"></i> Etiquetas</button>
             <button onclick="showSection('billing-view')">💲 Status Pagto</button> 
             <button onclick="showSection('schedule-view')">📅 Agendamentos</button>
             <button onclick="showSection('videos-section')">🎥 Vídeos</button>
@@ -54,7 +60,6 @@
     </nav>
 
     <div class="container">
-        
         <section id="schedule-view" class="hidden">
             <div class="card" style="margin-bottom: 20px;">
                 <h3>Criar Vagas de Atendimento</h3>
@@ -66,38 +71,29 @@
                     <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
                 </form>
             </div>
-
             <div class="card">
                 <h3>Agendamentos do Dia</h3>
                 <table class="data-table">
                     <thead>
-                        <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th><th></tr>
+                        <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th></tr>
                     </thead>
                     <tbody id="admin-schedule-list"></tbody>
                 </table>
             </div>
         </section>
 
-    <section id="orders-view">
-    <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-            <h3>Gestão de Encomendas</h3>
-            
-            <div style="display:flex; gap: 10px;">
-
-                <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
-                    + Nova Encomenda
-                </button>
-            </div>
-        </div>
-
+        <section id="orders-view">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                    <h3>Gestão de Encomendas</h3>
+                    <div style="display:flex; gap: 10px;">
+                        <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">+ Nova Encomenda</button>
+                    </div>
+                </div>
                 <div style="margin: 15px 0; position: relative;">
                     <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-                    <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
-                           placeholder="Buscar por código, cliente ou status..." 
-                           style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" placeholder="Buscar por código, cliente ou status..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                 </div>
-
                 <table class="data-table">
                     <thead>
                         <tr><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th><th>Ações</th></tr>
@@ -112,10 +108,8 @@
                         <h3 id="modal-order-title">📦 Nova Encomenda</h3>
                         <button class="btn-close" onclick="closeModal('modal-order')">&times;</button>
                     </div>
-                    
                     <form id="new-order-form" onsubmit="handleOrderSubmit(event)">
                         <input type="hidden" id="editing-order-id">
-
                         <div class="form-group">
                             <label>Cliente</label>
                             <select id="order-client-select" class="form-control" required></select>
@@ -161,20 +155,19 @@
             </div>
         </section>
 
-<section id="box-view" class="hidden">
-    <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
-            <h3>Gestão de Box</h3>
-            <div style="display:flex; gap: 10px;">
-                <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
-                <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
-                <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
-            </div>
-        </div>
-        <div style="margin: 15px 0; position: relative;">
+        <section id="box-view" class="hidden">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
+                    <h3>Gestão de Box</h3>
+                    <div style="display:flex; gap: 10px;">
+                        <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
+                        <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
+                        <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
+                    </div>
+                </div>
+                <div style="margin: 15px 0; position: relative;">
                     <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-                    <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" 
-                           placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                 </div>
                 <div style="overflow-x:auto;">
                     <table class="data-table">
@@ -210,68 +203,53 @@
                     <button onclick="loadInvoices()" class="btn-secondary" style="width:auto;">🔄 Atualizar Lista</button>
                 </div>
                 <table class="data-table">
-    <thead>
-        <tr>
-            <th>Ref. Encomenda</th> <th>Cliente</th>
-            <th>Box Ref</th>
-            <th>Valor</th>
-            <th>Status</th>
-            <th>Ações</th>
-        </tr>
-    </thead>
-    <tbody id="invoices-list"></tbody>
-</table>
+                    <thead>
+                        <tr><th>Ref. Encomenda</th><th>Cliente</th><th>Box Ref</th><th>Valor</th><th>Status</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody id="invoices-list"></tbody>
+                </table>
             </div>
         </section>
-<section id="labels-view" class="hidden">
-    <div class="header-flex">
-        <h2>🏷️ Gerador de Etiquetas</h2>
-        <div>
-            <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold;">
-                <i class="fas fa-print"></i> Imprimir Selecionadas
-            </button>
-        </div>
-    </div>
 
-    <div class="card" style="margin-bottom: 20px;">
-        <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control">
-    </div>
+        <section id="labels-view" class="hidden">
+            <div class="header-flex">
+                <h2>🏷️ Gerador de Etiquetas</h2>
+                <div>
+                    <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold;">
+                        <i class="fas fa-print"></i> Imprimir Selecionadas
+                    </button>
+                </div>
+            </div>
+            <div class="card" style="margin-bottom: 20px;">
+                <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control">
+            </div>
+            <div class="card">
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" onclick="toggleAllLabels(this)"></th>
+                                <th>Data</th><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th>
+                            </tr>
+                        </thead>
+                        <tbody id="labels-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
-    <div class="card">
-        <div style="overflow-x:auto;">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;"><input type="checkbox" onclick="toggleAllLabels(this)"></th>
-                        <th>Data</th>
-                        <th>Código</th>
-                        <th>Cliente</th>
-                        <th>Descrição</th>
-                        <th>Peso</th>
-                    </tr>
-                </thead>
-                <tbody id="labels-list">
-                    </tbody>
-            </table>
-        </div>
-    </div>
-
-</section>
         <section id="videos-section" class="hidden">
             <div class="card">
                 <h3>🎥 Nova Gravação</h3>
-                
                 <div class="form-group">
                     <label>1. Selecione a Encomenda para vincular:</label>
                     <select id="video-client-select" class="form-control" onchange="checkVideoPermission()">
                         <option value="">Carregando lista...</option>
                     </select>
                 </div>
-
                 <div id="video-order-info" style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
                     <small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>
                 </div>
-
                 <button id="btn-open-fullscreen" onclick="openFullscreenCamera()" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px; background: #2c3e50;" disabled>
                     <i class="fas fa-camera"></i> ABRIR CÂMERA
                 </button>
@@ -279,23 +257,18 @@
 
             <div id="fullscreen-camera-overlay" class="hidden">
                 <button onclick="closeFullscreenCamera()" style="position: absolute; top: 20px; right: 20px; z-index: 10001; background: none; border: none; color: white; font-size: 30px;">&times;</button>
-                
                 <video id="camera-feed" autoplay playsinline muted></video>
                 <video id="video-preview" controls style="display: none;"></video>
-
                 <div class="camera-floating-controls">
                     <div id="record-ui">
                         <p id="recording-timer" class="hidden">00:00</p>
                         <div style="display: flex; align-items: center; gap: 30px;">
-                            <button onclick="switchCamera()" class="btn-icon">
-                                <i class="fas fa-sync-alt"></i>
-                            </button>
+                            <button onclick="switchCamera()" class="btn-icon"><i class="fas fa-sync-alt"></i></button>
                             <button id="btn-start-rec" onclick="startRecording()" class="btn-record-circle"></button>
                             <button id="btn-stop-rec" onclick="stopRecording()" class="btn-stop-square hidden"></button>
                             <div style="width: 40px;"></div> 
                         </div>
                     </div>
-
                     <div id="upload-ui" class="hidden" style="width: 100%; padding: 20px;">
                         <div style="display: flex; gap: 10px; justify-content: center;">
                             <button onclick="retakeVideo()" class="btn-secondary" style="background: white; color: black; border: none;">Descartar</button>
@@ -304,7 +277,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="card" style="margin-top: 20px;">
                 <h3>Histórico de Vídeos</h3>
                 <table class="data-table">
@@ -319,143 +291,113 @@
                 <h2>📜 Histórico de Envios</h2>
                 <input type="text" id="history-search" onkeyup="filterHistory()" placeholder="Filtrar por código ou nome..." class="form-control" style="max-width: 300px; display: none;"> 
             </div>
-
             <div class="card-table">
                 <table class="data-table">
                     <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Código</th>
-                            <th id="hist-col-client">Cliente</th> <th>Descrição</th>
-                            <th>Status</th>
-                        </tr>
+                        <tr><th>Data</th><th>Código</th><th id="hist-col-client">Cliente</th><th>Descrição</th><th>Status</th></tr>
                     </thead>
                     <tbody id="history-list"></tbody>
                 </table>
             </div>
         </section>
 
-   <div id="scanner-modal" class="modal-overlay hidden">
-    <div class="modal-content" style="max-width: 500px; text-align: center;">
-        <h3>📱 Leitor de Encomendas</h3>
-        <p>Aponte a câmera para o QR Code da etiqueta</p>
-        
-        <div id="reader" class="qr-scanner-container" style="width: 100%; border-radius: 8px; overflow: hidden; position: relative;">
-            <div class="scanner-laser"></div>
-        </div>
-
-        <div class="modal-actions" style="justify-content: center; margin-top: 15px;">
-            <button class="btn btn-secondary" onclick="stopScanner()">Fechar Leitor</button>
-        </div>
-    </div>
-</div>
-
-
-<div id="broadcast-modal" class="modal-overlay hidden">
-    <div class="modal-card">
-        <div class="modal-header">
-            <h3>📢 Enviar Comunicado em Massa</h3>
-            <button class="btn-close" onclick="closeModal('broadcast-modal')">&times;</button>
-        </div>
-        <div class="modal-body">
-            
-            <div id="qr-container" style="text-align: center; display: none; margin-bottom: 15px;">
-                <img id="zap-qr-img" style="width: 200px; border: 1px solid #ddd; border-radius: 8px;">
-                <p style="font-size: 12px; color: #666; margin-top: 5px;">Escaneie para conectar o WhatsApp</p>
+        <div id="scanner-modal" class="modal-overlay hidden">
+            <div class="modal-content" style="max-width: 500px; text-align: center;">
+                <h3>📱 Leitor de Encomendas</h3>
+                <div id="reader" class="qr-scanner-container" style="width: 100%; border-radius: 8px; overflow: hidden; position: relative;">
+                    <div class="scanner-laser"></div>
+                </div>
+                <div class="modal-actions" style="justify-content: center; margin-top: 15px;">
+                    <button class="btn btn-secondary" onclick="stopScanner()">Fechar Leitor</button>
+                </div>
             </div>
+        </div>
 
-            <div class="form-group" style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
-                <button onclick="getZapQR()" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">🔗 Conectar WhatsApp</button>
-                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 14px;">
-                    <input type="checkbox" id="check-send-zap"> Enviar também pelo Zap
-                </label>
+        <div id="broadcast-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>📢 Enviar Comunicado em Massa</h3>
+                    <button class="btn-close" onclick="closeModal('broadcast-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="qr-container" style="text-align: center; display: none; margin-bottom: 15px;">
+                        <img id="zap-qr-img" style="width: 200px; border: 1px solid #ddd; border-radius: 8px;">
+                    </div>
+                    <div class="form-group" style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                        <button onclick="getZapQR()" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">🔗 Conectar WhatsApp</button>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 14px;">
+                            <input type="checkbox" id="check-send-zap"> Enviar também pelo Zap
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Assunto</label>
+                        <input type="text" id="broadcast-subject" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Mensagem</label>
+                        <textarea id="broadcast-message" class="form-control" rows="5"></textarea>
+                    </div>
+                    <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
+                </div>
             </div>
+        </div>
 
-            <div class="form-group">
-                <label>Assunto (E-mail e Título Zap)</label>
-                <input type="text" id="broadcast-subject" class="form-control" placeholder="Ex: Aviso de Voo">
+        <section id="finances-view" class="hidden">
+            <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>💰 Faturas Pagas e Pendentes</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="exportFinancesPDF()" class="btn btn-primary" style="background: #e74c3c;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
+                    <button onclick="exportFinancesExcel()" class="btn btn-primary" style="background: #27ae60;"><i class="fas fa-file-excel"></i> Abrir no Excel</button>
+                </div>
             </div>
-            
-            <div class="form-group">
-                <label>Mensagem</label>
-                <textarea id="broadcast-message" class="form-control" rows="5" placeholder="Escreva o comunicado aqui..."></textarea>
+            <div class="card">
+                <div style="margin: 15px 0; position: relative;">
+                    <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+                    <input type="text" id="search-finances" onkeyup="searchTable('search-finances', 'finances-list')" placeholder="Buscar faturas..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table" id="finances-table">
+                        <thead>
+                            <tr><th>Código</th><th>Tipo</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="finances-list"></tbody>
+                    </table>
+                </div>
             </div>
-            
-            <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
-        </div>
-    </div>
-</div>
-<section id="finances-view" class="hidden">
-    <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>💰 Faturas Pagas e Pendentes</h2>
-        
-        <div style="display: flex; gap: 10px;">
-            <button onclick="exportFinancesPDF()" class="btn btn-primary" style="background: #e74c3c;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
-            <button onclick="exportFinancesExcel()" class="btn btn-primary" style="background: #27ae60;"><i class="fas fa-file-excel"></i> Abrir no Excel</button>
-        </div>
-    </div>
+        </section>
 
-    <div class="card">
-        <div style="margin: 15px 0; position: relative;">
-            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-            <input type="text" id="search-finances" onkeyup="searchTable('search-finances', 'finances-list')" 
-                   placeholder="Buscar por código, cliente ou status..." 
-                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        <div id="delivery-photo-modal" class="modal-overlay hidden">
+            <div class="modal-content" style="text-align:center; max-width: 400px;">
+                <h3>📸 Comprovante de Entrega</h3>
+                <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
+                    <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+                </div>
+                <div id="signature-area" style="display: none; margin-bottom: 15px;">
+                    <canvas id="signature-pad" width="300" height="150" style="background: #f8f9fa; border: 2px dashed #ccc; width: 100%;"></canvas>
+                    <button class="btn btn-secondary" onclick="clearSignature()">Limpar</button>
+                </div>
+                <div class="modal-actions" style="justify-content: center; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
+                    <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
+                    <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar</button>
+                </div>
+            </div>
         </div>
+    </div> <div id="print-area"></div>
 
-        <div class="table-responsive">
-            <table class="data-table" id="finances-table">
-                <thead>
-                    <tr>
-                        <th>Código</th>
-                        <th>Tipo</th>
-                        <th>Cliente</th>
-                        <th>Descrição</th>
-                        <th style="text-align: center;">Peso</th>
-                        <th style="text-align: center;">Status</th>
-                    </tr>
-                </thead>
-                <tbody id="finances-list"></tbody>
-            </table>
-        </div>
-</section>
-<div id="delivery-photo-modal" class="modal-overlay hidden">
-    <div class="modal-content" style="text-align:center; max-width: 400px; max-height: 90vh; overflow-y: auto;">
-        <h3>📸 Comprovante de Entrega</h3>
-        <p style="font-size: 14px;">Tire uma foto do pacote e colha a assinatura.</p>
-        
-        <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
-            <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
-            <canvas id="delivery-canvas" style="display:none;"></canvas>
-            <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
-        </div>
-
-        <div id="signature-area" style="display: none; margin-bottom: 15px;">
-            <p style="margin-bottom: 5px; font-weight: bold; color: #333;">Assinatura do Recebedor:</p>
-            <canvas id="signature-pad" width="300" height="150" style="background: #f8f9fa; border-radius: 8px; border: 2px dashed #ccc; touch-action: none; width: 100%; max-width: 300px;"></canvas>
-            <br>
-            <button class="btn btn-secondary" onclick="clearSignature()" style="padding: 5px 10px; font-size: 12px; margin-top: 5px; background: #eee; color: #333; border: none;">Limpar Assinatura</button>
-        </div>
-
-        <div class="modal-actions" style="justify-content: center; gap: 10px;">
-            <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
-            <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
-            <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar Entrega</button>
-        </div>
-    </div>
-</div>
-<div id="print-area"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="script.js"></script>
+    <script src="cici.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { 
             initDashboard(); 
+            // Inicia os contadores do Dashboard (Item 1)
+            if(typeof updateDashboardCounters === 'function') updateDashboardCounters();
         });
     </script>
-    <script src="cici.js"></script>
 </body>
 </html>

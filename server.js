@@ -1205,31 +1205,48 @@ app.post('/api/config/price', (req, res) => {
         res.json({ success: !err });
     });
 });
-// --- CORREÇÃO DA ROTA DE UPLOAD DE VÍDEO ---
 app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
-    // 1. Verifica se o arquivo chegou
     if(!req.file) {
-        console.error("❌ Upload falhou: Nenhum arquivo recebido.");
         return res.status(400).json({success: false, msg: "Nenhum vídeo enviado."});
     }
     
-    // 2. Verifica dados do corpo
     const { client_id, description } = req.body;
     if(!client_id) {
-        console.error("❌ Upload falhou: ID do cliente faltando.");
         return res.status(400).json({success: false, msg: "Cliente não identificado."});
     }
 
-    // 3. Salva no Banco
+    // 1. Salva o vídeo no Banco
     db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", 
-    [client_id, req.file.filename, description], (err) => {
+    [client_id, req.file.filename, description], function(err) {
         if(err) {
-            console.error("❌ Erro no Banco ao salvar vídeo:", err.message);
-            return res.status(500).json({success: false, msg: "Erro ao salvar no banco.", err: err.message});
+            return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
         }
         
-        console.log(`✅ Vídeo salvo com sucesso! Arquivo: ${req.file.filename}`);
-        res.json({success: true});
+        console.log(`✅ Vídeo salvo com sucesso!`);
+
+        // 2. BUSCA DADOS DO CLIENTE PARA NOTIFICAR
+        db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], (err, user) => {
+            if (err || !user || !user.phone) {
+                console.log("⚠️ Vídeo salvo, mas não conseguimos localizar o telefone do cliente.");
+                return res.json({success: true, msg: "Vídeo salvo, mas cliente sem WhatsApp."});
+            }
+
+            // 3. DISPARA O ZAP SE ESTIVER CONECTADO
+            if (clientZap && clientZap.info) {
+                const message = `Olá *${user.name}*! 📦🎬\n\nUm novo vídeo da sua encomenda acaba de ser enviado no seu painel da *Guineexpress*!\n\nAcesse agora para conferir os detalhes.`;
+                
+                // Formata o número (remove espaços/traços e garante o formato internacional)
+                let number = user.phone.replace(/\D/g, "");
+                // Se não começar com código do país, você pode concatenar aqui (ex: "245" + number)
+                let chatId = number.includes("@c.us") ? number : `${number}@c.us`;
+
+                clientZap.sendMessage(chatId, message)
+                    .then(() => console.log(`📲 Notificação de vídeo enviada para: ${user.phone}`))
+                    .catch(e => console.error("❌ Falha ao enviar Zap:", e));
+            }
+            
+            res.json({success: true});
+        });
     });
 });
 
@@ -2290,6 +2307,28 @@ app.get('/api/get-passport', (req, res) => {
                 nome: user ? user.name : "Explorador",
                 destinos: destinos
             });
+        });
+    });
+});
+// Rota para marcar a encomenda como impressa no banco de dados
+app.post('/api/orders/mark-printed', (req, res) => {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+        return res.status(400).json({ error: "ID da encomenda não fornecido." });
+    }
+
+    const query = "UPDATE orders SET is_printed = 1 WHERE id = ?";
+
+    db.run(query, [orderId], function(err) {
+        if (err) {
+            console.error("❌ Erro ao atualizar status de impressão:", err.message);
+            return res.status(500).json({ error: "Erro interno ao atualizar banco." });
+        }
+        
+        res.json({ 
+            success: true, 
+            message: `Encomenda ${orderId} marcada como impressa.` 
         });
     });
 });
