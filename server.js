@@ -1237,13 +1237,14 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                         // C. Se o arquivo existir, envia a mídia
                         if (fs.existsSync(videoPath)) {
                             const media = MessageMedia.fromFilePath(videoPath);
+                            
+                            // 🔥 A MÁGICA: Como o vídeo é .webm, forçamos o envio como "Documento"
                             await clientZap.sendMessage(numberId._serialized, media, { 
-                                sendVideoAsGif: false,
+                                sendMediaAsDocument: true, 
                                 caption: `Vídeo: ${description || 'Sua encomenda'}` 
                             });
                             console.log(`✅ Arquivo de vídeo enviado com sucesso para ${cleanPhone}`);
                         } else {
-                            // Se der erro, avisa no log
                             console.error("❌ Arquivo de vídeo não encontrado. O sistema procurou em:", videoPath);
                         }
                     } catch (err) {
