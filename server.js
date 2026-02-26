@@ -1226,14 +1226,20 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                     const numberId = await clientZap.getNumberId(cleanPhone);
                     
                     if (numberId) {
+                    try {
                         // A. Envia a mensagem de texto primeiro
                         const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
                         await clientZap.sendMessage(numberId._serialized, message);
 
-                        // B. Envia o ARQUIVO de vídeo logo em seguida
-                        // Verifique se o caminho da pasta está correto ('public/uploads/videos')
-                        const videoPath = path.join(__dirname, 'public/uploads/videos', req.file.filename);
+                        // B. BUSCA O CAMINHO CORRETO (Tenta os dois caminhos mais prováveis)
+                        let videoPath = path.join(__dirname, 'public/uploads/videos', req.file.filename);
                         
+                        // Se não encontrar no primeiro, tenta o caminho alternativo sem o 'public'
+                        if (!fs.existsSync(videoPath)) {
+                            videoPath = path.join(__dirname, 'uploads/videos', req.file.filename);
+                        }
+
+                        // C. Se o arquivo existir, envia a mídia
                         if (fs.existsSync(videoPath)) {
                             const media = MessageMedia.fromFilePath(videoPath);
                             await clientZap.sendMessage(numberId._serialized, media, { 
@@ -1242,12 +1248,15 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                             });
                             console.log(`✅ Arquivo de vídeo enviado com sucesso para ${cleanPhone}`);
                         } else {
-                            console.error("❌ Erro: Arquivo de vídeo não encontrado no caminho:", videoPath);
+                            // Se mesmo assim não achar, avisa no log qual foi o caminho final tentado
+                            console.error("❌ Arquivo de vídeo ainda não encontrado. Local procurado:", videoPath);
                         }
-
-                    } else {
-                        console.log(`⚠️ Número ${cleanPhone} não reconhecido pelo WhatsApp.`);
+                    } catch (err) {
+                        console.error("❌ Erro interno no envio da mídia:", err.message);
                     }
+                } else {
+                    console.log(`⚠️ Número ${cleanPhone} não reconhecido pelo WhatsApp.`);
+                }
                 } catch (zapErr) {
                     console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
                 }
