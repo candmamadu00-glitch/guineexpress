@@ -1231,13 +1231,8 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                         const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
                         await clientZap.sendMessage(numberId._serialized, message);
 
-                        // B. BUSCA O CAMINHO CORRETO (Tenta os dois caminhos mais prováveis)
-                        let videoPath = path.join(__dirname, 'public/uploads/videos', req.file.filename);
-                        
-                        // Se não encontrar no primeiro, tenta o caminho alternativo sem o 'public'
-                        if (!fs.existsSync(videoPath)) {
-                            videoPath = path.join(__dirname, 'uploads/videos', req.file.filename);
-                        }
+                        // B. BUSCA O CAMINHO CORRETO (Usando a sua variável inteligente videosFolder)
+                        const videoPath = path.join(videosFolder, req.file.filename);
 
                         // C. Se o arquivo existir, envia a mídia
                         if (fs.existsSync(videoPath)) {
@@ -1248,8 +1243,8 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                             });
                             console.log(`✅ Arquivo de vídeo enviado com sucesso para ${cleanPhone}`);
                         } else {
-                            // Se mesmo assim não achar, avisa no log qual foi o caminho final tentado
-                            console.error("❌ Arquivo de vídeo ainda não encontrado. Local procurado:", videoPath);
+                            // Se der erro, avisa no log
+                            console.error("❌ Arquivo de vídeo não encontrado. O sistema procurou em:", videoPath);
                         }
                     } catch (err) {
                         console.error("❌ Erro interno no envio da mídia:", err.message);
