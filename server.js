@@ -18,7 +18,7 @@ const path = require('path');      // Para lidar com caminhos de pastas
 const SQLiteStore = require('connect-sqlite3')(session);
 const app = express();
 const db = require('./database'); 
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const fs = require('fs');
 // Configuração do caminho da sessão (usando o seu disco permanente do Render)
@@ -772,39 +772,33 @@ app.post('/api/admin/broadcast-zap', (req, res) => {
     db.all("SELECT email, name, phone FROM users WHERE role = 'client'", [], async (err, clients) => {
         if (err) return res.json({ success: false, msg: 'Erro no banco.' });
 
-        // Responde ao admin imediatamente para não travar a tela
         res.json({ success: true, msg: `Iniciando envio para ${clients.length} clientes...` });
 
         for (const client of clients) {
-            // 1. Enviar E-mail
+            // 1. Enviar E-mail (Normal)
             sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
             
-            console.log(`🔎 Testando ${client.name}: Caixinha Marcada? ${sendZap} | Tem Zap logado? ${!!clientZap} | Telefone: ${client.phone}`);
-            
-            // 2. Enviar WhatsApp (com limpeza, conserto do 9º dígito e delay)
-            if (sendZap && clientZap && client.phone) {
-                // Limpeza: remove tudo que não é número
+            // 2. Enviar WhatsApp Global
+            if (sendZap && typeof clientZap !== 'undefined' && clientZap && clientZap.info && client.phone) {
+                // Limpeza: Deixa APENAS números. O número deve estar com DDI no banco (ex: 245..., 55..., 351...)
                 let num = client.phone.replace(/\D/g, '');
-                
-                // Se não tiver DDI, assume 55 (Brasil).
-                if (num.length <= 11) num = '55' + num; 
 
                 try {
-                    // NOVO: Pede pro WhatsApp descobrir o ID oficial do contato
+                    // Busca o ID oficial no servidor do WhatsApp (Resolve o erro No LID e 9º dígito)
                     const contatoOficial = await clientZap.getNumberId(num);
 
                     if (contatoOficial) {
-                        // Se achou, envia para o ID oficial (resolve a questão do 9º dígito no Brasil)
-                        await clientZap.sendMessage(contatoOficial._serialized, `*${subject}*\n\nOlá ${client.name},\n${message}`);
-                        console.log(`✓ Zap enviado com sucesso para: ${num}`);
+                        const textoZap = `*${subject}*\n\nOlá ${client.name},\n${message}`;
+                        await clientZap.sendMessage(contatoOficial._serialized, textoZap);
+                        console.log(`✓ Zap Global enviado para: ${num}`);
                     } else {
-                        console.error(`x Número não possui WhatsApp ou formato inválido: ${num}`);
+                        console.error(`x Número não encontrado no WhatsApp: ${num}`);
                     }
                     
-                    // Espera 3 segundos entre cada mensagem para evitar ban
-                    await delay(3000); 
+                    // Delay de 3 segundos para evitar bloqueios por spam
+                    await new Promise(resolve => setTimeout(resolve, 3000)); 
                 } catch (e) {
-                    console.error(`x Erro no número ${num} | Motivo:`, e.message || e);
+                    console.error(`x Erro no número ${num}:`, e.message);
                 }
             }
         }
@@ -1225,28 +1219,43 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
             // Verifica se o Zap está conectado
             if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                 try {
-                    // Limpa o telefone: deixa APENAS números (Importante para qualquer país)
+                    // Limpeza Global do número
                     let cleanPhone = user.phone.replace(/\D/g, '');
                     
-                    // Valida o número no WhatsApp (isso resolve o erro No LID)
+                    // Valida o número no WhatsApp para evitar erro No LID
                     const numberId = await clientZap.getNumberId(cleanPhone);
                     
                     if (numberId) {
-                        const message = `Olá *${user.name}*! 📦🎬\n\nUm novo vídeo da sua encomenda acaba de ser enviado no seu painel da *Guineexpress*!\n\nAcesse agora para conferir os detalhes.`;
-                        
-                        // Envia usando o ID oficial retornado pelo WhatsApp
+                        // A. Envia a mensagem de texto primeiro
+                        const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
                         await clientZap.sendMessage(numberId._serialized, message);
-                        console.log(`✅ Zap de vídeo enviado com sucesso para ${cleanPhone}`);
+
+                        // B. Envia o ARQUIVO de vídeo logo em seguida
+                        // Verifique se o caminho da pasta está correto ('public/uploads/videos')
+                        const videoPath = path.join(__dirname, 'public/uploads/videos', req.file.filename);
+                        
+                        if (fs.existsSync(videoPath)) {
+                            const media = MessageMedia.fromFilePath(videoPath);
+                            await clientZap.sendMessage(numberId._serialized, media, { 
+                                sendVideoAsGif: false,
+                                caption: `Vídeo: ${description || 'Sua encomenda'}` 
+                            });
+                            console.log(`✅ Arquivo de vídeo enviado com sucesso para ${cleanPhone}`);
+                        } else {
+                            console.error("❌ Erro: Arquivo de vídeo não encontrado no caminho:", videoPath);
+                        }
+
                     } else {
-                        console.log(`⚠️ O número ${cleanPhone} não foi encontrado no WhatsApp.`);
+                        console.log(`⚠️ Número ${cleanPhone} não reconhecido pelo WhatsApp.`);
                     }
                 } catch (zapErr) {
-                    console.error("❌ Erro ao processar envio de Zap de vídeo:", zapErr);
+                    console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
                 }
             } else {
-                console.log("❌ Zap desconectado. Não foi possível enviar a notificação.");
+                console.log("❌ Zap desconectado. Notificação não enviada.");
             }
             
+            // Retorna sucesso para o Front-end independente do Zap ter ido ou não
             res.json({success: true});
         });
     });
