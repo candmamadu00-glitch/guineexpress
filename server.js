@@ -1217,40 +1217,34 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
         
         console.log(`✅ Vídeo salvo no banco!`);
 
-        // 2. BUSCA DADOS DO CLIENTE
-        db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], (err, user) => {
+        db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
             if (err || !user || !user.phone) {
-                console.log("⚠️ Cliente não encontrado ou sem telefone.");
                 return res.json({success: true, msg: "Vídeo salvo, mas sem contato."});
             }
 
-            // 3. DISPARA O ZAP
             if (clientZap && clientZap.info) {
                 const message = `Olá *${user.name}*! 📦🎬\n\nUm novo vídeo da sua encomenda acaba de ser enviado no seu painel da *Guineexpress*!\n\nAcesse agora para conferir os detalhes.`;
                 
-                // --- LIMPEZA TOTAL DO NÚMERO ---
-                let rawNumber = user.phone.replace(/\D/g, ""); // Remove tudo que não for número
-                
-                // Se o número for de Guiné-Bissau e o usuário não digitou 245
-                if (rawNumber.length === 7 || rawNumber.length === 9) {
-                    if (!rawNumber.startsWith("245")) {
-                        rawNumber = "245" + rawNumber;
-                    }
+                let rawNumber = user.phone.replace(/\D/g, "");
+                if ((rawNumber.length === 7 || rawNumber.length === 9) && !rawNumber.startsWith("245")) {
+                    rawNumber = "245" + rawNumber;
                 }
-                
-                const chatId = `${rawNumber}@c.us`;
 
-                console.log(`Attempting to send WhatsApp to: ${chatId}`);
-
-                clientZap.sendMessage(chatId, message)
-                    .then(() => {
-                        console.log(`📲 Notificação enviada com sucesso para ${chatId}`);
-                    })
-                    .catch(e => {
-                        console.error("❌ Erro ao enviar mensagem no WhatsApp:", e.message);
-                    });
-            } else {
-                console.log("❌ WhatsApp não está conectado (clientZap não está Ready)");
+                try {
+                    // --- O PULO DO GATO: Validar o número antes de enviar ---
+                    const contactId = await clientZap.getNumberId(rawNumber);
+                    
+                    if (contactId) {
+                        await clientZap.sendMessage(contactId._serialized, message);
+                        console.log(`📲 Notificação enviada para: ${contactId._serialized}`);
+                    } else {
+                        // Se não encontrar o ID, tenta o método forçado (como na cobrança)
+                        console.log("⚠️ ID não encontrado, tentando envio direto...");
+                        await clientZap.sendMessage(`${rawNumber}@c.us`, message);
+                    }
+                } catch (e) {
+                    console.error("❌ Falha crítica no envio do Zap de vídeo:", e.message);
+                }
             }
             
             res.json({success: true});
