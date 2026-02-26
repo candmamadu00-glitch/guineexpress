@@ -1219,39 +1219,38 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
 
         db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
             if (err || !user || !user.phone) {
-                return res.json({success: true, msg: "Vídeo salvo, mas sem contato."});
+                return res.json({success: true, msg: "Vídeo salvo, mas cliente sem telefone."});
             }
 
-            if (clientZap && clientZap.info) {
-                const message = `Olá *${user.name}*! 📦🎬\n\nUm novo vídeo da sua encomenda acaba de ser enviado no seu painel da *Guineexpress*!\n\nAcesse agora para conferir os detalhes.`;
-                
-                let rawNumber = user.phone.replace(/\D/g, "");
-                if ((rawNumber.length === 7 || rawNumber.length === 9) && !rawNumber.startsWith("245")) {
-                    rawNumber = "245" + rawNumber;
-                }
-
+            // Verifica se o Zap está conectado
+            if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                 try {
-                    // --- O PULO DO GATO: Validar o número antes de enviar ---
-                    const contactId = await clientZap.getNumberId(rawNumber);
+                    // Limpa o telefone: deixa APENAS números (Importante para qualquer país)
+                    let cleanPhone = user.phone.replace(/\D/g, '');
                     
-                    if (contactId) {
-                        await clientZap.sendMessage(contactId._serialized, message);
-                        console.log(`📲 Notificação enviada para: ${contactId._serialized}`);
+                    // Valida o número no WhatsApp (isso resolve o erro No LID)
+                    const numberId = await clientZap.getNumberId(cleanPhone);
+                    
+                    if (numberId) {
+                        const message = `Olá *${user.name}*! 📦🎬\n\nUm novo vídeo da sua encomenda acaba de ser enviado no seu painel da *Guineexpress*!\n\nAcesse agora para conferir os detalhes.`;
+                        
+                        // Envia usando o ID oficial retornado pelo WhatsApp
+                        await clientZap.sendMessage(numberId._serialized, message);
+                        console.log(`✅ Zap de vídeo enviado com sucesso para ${cleanPhone}`);
                     } else {
-                        // Se não encontrar o ID, tenta o método forçado (como na cobrança)
-                        console.log("⚠️ ID não encontrado, tentando envio direto...");
-                        await clientZap.sendMessage(`${rawNumber}@c.us`, message);
+                        console.log(`⚠️ O número ${cleanPhone} não foi encontrado no WhatsApp.`);
                     }
-                } catch (e) {
-                    console.error("❌ Falha crítica no envio do Zap de vídeo:", e.message);
+                } catch (zapErr) {
+                    console.error("❌ Erro ao processar envio de Zap de vídeo:", zapErr);
                 }
+            } else {
+                console.log("❌ Zap desconectado. Não foi possível enviar a notificação.");
             }
             
             res.json({success: true});
         });
     });
 });
-
 // 2. Listar Vídeos
 app.get('/api/videos/list', (req, res) => {
     // Se for admin, vê tudo (ou filtra por cliente se quiser). Se for cliente, vê só os dele.
@@ -1326,34 +1325,27 @@ app.post('/api/invoices/create', async (req, res) => {
                             sendEmailHtml(email, subject, title, msg);
                         }
 
-                        // 2. ENVIA O WHATSAPP COM O PIX COPIA E COLA
-                        if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                            try {
-                                // Limpa o telefone (deixa apenas números)
-                                let cleanPhone = phone.replace(/\D/g, '');
-                                
-                                // Adiciona 55 se for Brasil e estiver sem
-                                if(cleanPhone.length === 10 || cleanPhone.length === 11) {
-                                    cleanPhone = '55' + cleanPhone;
-                                }
+                        // 2. ENVIA O WHATSAPP (DENTRO DA ROTA DE FATURA)
+if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+    try {
+        // Limpa o telefone: mantém apenas os números digitados
+        let cleanPhone = phone.replace(/\D/g, '');
 
-                                // 🔥 A MÁGICA ACONTECE AQUI: Pede pro WhatsApp validar o número
-                                const numberId = await clientZap.getNumberId(cleanPhone);
-                                
-                                if (numberId) {
-                                    // Se o número é válido no WhatsApp, usa o ID oficial retornado por eles (_serialized)
-                                    const zapMsg = `Olá, *${name}*! 📦\n\nUma nova fatura foi gerada para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\n💳 *Pague com Pix Copia e Cola:* \n\n${qr_code}\n\n👆 _Basta copiar o código acima e colar no aplicativo do seu banco. O pagamento é aprovado na hora!_`;
+        // Pede pro WhatsApp validar o número (Independente do país)
+        const numberId = await clientZap.getNumberId(cleanPhone);
+        
+        if (numberId) {
+            const zapMsg = `Olá, *${name}*! 📦\n\nUma nova fatura foi gerada para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\n💳 *Pague com Pix Copia e Cola:* \n\n${qr_code}\n\n👆 _Basta copiar o código acima e colar no aplicativo do seu banco._`;
 
-                                    await clientZap.sendMessage(numberId._serialized, zapMsg);
-                                    console.log(`✅ Fatura enviada por Zap para ${cleanPhone}`);
-                                } else {
-                                    console.log(`⚠️ Zap não enviado. O número ${cleanPhone} não está registrado no WhatsApp.`);
-                                }
-
-                            } catch (zapErr) {
-                                console.log("❌ Erro ao enviar Zap da fatura:", zapErr);
-                            }
-                        } else {
+            await clientZap.sendMessage(numberId._serialized, zapMsg);
+            console.log(`✅ Fatura enviada por Zap para ${cleanPhone}`);
+        } else {
+            console.log(`⚠️ Número ${cleanPhone} inválido para o WhatsApp.`);
+        }
+    } catch (zapErr) {
+        console.log("❌ Erro ao enviar Zap da fatura:", zapErr);
+    }
+} else {
                             console.log("⚠️ Zap não enviado. Motivo: Sem telefone cadastrado ou Zap desconectado.");
                         }
                     });
