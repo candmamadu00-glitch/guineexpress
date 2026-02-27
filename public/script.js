@@ -227,7 +227,7 @@ function acionarAjudaDaCici(emailDigitado) {
                 <div style="font-size:35px; animation: bounce 2s infinite;">👩‍💻</div>
                 <div>
                     <strong style="color:#009ee3; font-size:16px;">Assistente Cici diz:</strong><br>
-                    <span style="font-size:14px; line-height:1.4;">Oi! 🙋‍♀️ Não encontrei essa conta. Você é novo por aqui? Clique em <b>Criar Conta</b> e faça seu cadastro rapidinho!</span>
+                    <span style="font-size:14px; line-height:1.4;">Oi! 🙋‍♀️ Não encontrei essa conta. Você é novo por aqui? Clique em <b>Criar Conta Agora</b> e faça seu cadastro rapidinho!</span>
                 </div>
             </div>
         `;
@@ -252,39 +252,41 @@ function acionarAjudaDaCici(emailDigitado) {
     // ==========================================
     const textoFalado = "Oi! Não encontrei essa conta. Você é novo por aqui? Clique em Criar Conta e faça seu cadastro rapidinho!";
     const vozCici = new SpeechSynthesisUtterance(textoFalado);
-    vozCici.lang = 'pt-BR'; // Idioma (Português do Brasil é bem natural)
-    vozCici.rate = 1.0; // Velocidade normal da fala
-    vozCici.pitch = 1.2; // Deixa a voz um pouco mais fina/feminina para combinar com a Cici
+    vozCici.lang = 'pt-BR'; // Idioma
+    vozCici.rate = 1.0; // Velocidade
+    vozCici.pitch = 1.2; // Voz mais fina/feminina
     
-    // Cancela qualquer fala anterior para não sobrepor e fala a nova
+    // Cancela e fala
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(vozCici);
     // ==========================================
 
-    // 2. Faz o botão "Criar Conta" piscar e brilhar
-    const regLink = document.getElementById('register-link');
-    regLink.style.transition = 'all 0.3s';
-    regLink.style.background = 'rgba(0, 158, 227, 0.3)';
-    regLink.style.padding = '5px 15px';
-    regLink.style.borderRadius = '20px';
-    regLink.style.border = '1px solid #009ee3';
-    regLink.style.boxShadow = '0 0 15px #009ee3';
-    regLink.style.color = '#fff';
+    // 2. Faz o NOVO BOTÃO DOURADO "Criar Conta Agora" piscar intensamente
+    const btnCadastro = document.getElementById('btn-cadastro');
+    if (btnCadastro) {
+        // Guarda o estilo original
+        const boxSOriginal = btnCadastro.style.boxShadow;
+        const transOriginal = btnCadastro.style.transform;
+
+        // Aplica o super brilho azul e aumenta o botão
+        btnCadastro.style.transition = 'all 0.3s';
+        btnCadastro.style.boxShadow = '0 0 30px #009ee3, 0 0 10px #fff';
+        btnCadastro.style.transform = 'scale(1.05)';
+        btnCadastro.style.border = '2px solid #fff';
+
+        // Volta ao normal depois de 6 segundos
+        setTimeout(() => {
+            btnCadastro.style.boxShadow = boxSOriginal;
+            btnCadastro.style.transform = transOriginal;
+            btnCadastro.style.border = 'none';
+        }, 6000);
+    }
 
     // 3. Preenche automaticamente o e-mail no formulário
     if (emailDigitado && emailDigitado.includes('@')) {
         const regEmailInput = document.getElementById('reg-email');
         if(regEmailInput) regEmailInput.value = emailDigitado;
     }
-
-    // Tira o brilho do botão depois de 6 segundos
-    setTimeout(() => {
-        regLink.style.background = 'transparent';
-        regLink.style.border = 'none';
-        regLink.style.boxShadow = 'none';
-        regLink.style.padding = '0';
-        regLink.style.color = '#d4af37';
-    }, 6000);
     
     // A Cici vai embora da tela depois de 9 segundos
     setTimeout(() => {

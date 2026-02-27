@@ -362,7 +362,56 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     }
     .company-header h1 { font-size: 26px !important; }
 }
+/* =========================================
+   NOVOS BOTÕES CHAMATIVOS (CADASTRO E SENHA)
+   ========================================= */
+.links-inferiores {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 15px;
+    align-items: center;
+}
 
+.btn-cadastro-destaque {
+    background: linear-gradient(45deg, #d4af37, #f1db8a) !important;
+    color: #000000 !important;
+    font-weight: 900 !important;
+    text-align: center;
+    padding: 12px 20px;
+    border-radius: 12px;
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+    animation: pulsaDourado 2s infinite;
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    border: none;
+}
+
+.btn-cadastro-destaque:hover { transform: scale(1.02); }
+
+.btn-senha-destaque {
+    color: #009ee3 !important;
+    font-weight: 700 !important;
+    text-align: center;
+    text-decoration: none;
+    font-size: 14px;
+    display: block;
+    cursor: pointer;
+    background: none;
+    border: none;
+}
+
+.btn-senha-destaque:hover { color: #ffffff !important; text-decoration: underline; }
+
+@keyframes pulsaDourado {
+    0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(212, 175, 55, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
 /* =========================================
    7. IMPRESSÃO INTELIGENTE (Etiqueta + A4)
    ========================================= */

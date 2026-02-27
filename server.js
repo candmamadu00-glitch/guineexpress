@@ -226,10 +226,14 @@ app.post('/api/login', (req, res) => {
             return res.status(500).json({ success: false, msg: 'Erro interno.' });
         }
 
-        // 2. Se não achou o usuário
+        // 2. Se não achou o usuário (A Cici entra em ação)
         if (!user) {
             logAccess(req, login, 'Falha', 'Usuário não encontrado');
-            return res.status(400).json({ success: false, msg: 'Usuário não encontrado.' });
+            return res.status(400).json({ 
+                success: false, 
+                msg: '🙋‍♀️ Oi, Cici aqui! Ainda não encontrei o seu número no nosso sistema. Por favor, clique no botão dourado "CRIAR CONTA" logo abaixo para se cadastrar primeiro!',
+                falaCici: true // <-- SINAL PARA O NAVEGADOR FALAR
+            });
         }
 
         // 3. Verifica se a conta está ativa

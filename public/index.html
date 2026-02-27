@@ -152,10 +152,10 @@
     <i class="fas fa-fingerprint" style="font-size: 20px;"></i> Entrar com Impressão Digital
 </button>
 
-            <div id="client-links" style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 8px;">
-                <p id="forgot-pass" onclick="openRecoverModal()" style="margin:0; font-size:13px; cursor:pointer;">Esqueci a senha</p>
-                <p onclick="showRegister()" id="register-link" style="margin:0; font-size:14px; cursor:pointer; color: #d4af37;"><strong>Criar Conta &rarr;</strong></p>
-            </div>
+            <div id="client-links" class="links-inferiores">
+    <button type="button" id="btn-cadastro" onclick="showRegister()" class="btn-cadastro-destaque">Criar Conta Agora</button>
+    <button type="button" onclick="openRecoverModal()" class="btn-senha-destaque">Esqueci minha senha</button>
+</div>
         </form>
 
         <form id="register-form" class="hidden">
