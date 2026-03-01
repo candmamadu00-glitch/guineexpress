@@ -1234,16 +1234,19 @@ async function loadOrders() {
                 }
                 
                 // --- RENDERIZAÇÃO DA LINHA ---
-                tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding:12px;"><strong>${o.code}</strong></td>
-                        <td>${name}</td>
-                        <td>${o.description||'-'}</td>
-                        <td>${o.weight} Kg</td>
-                        <td>R$ ${parseFloat(price).toFixed(2)}</td> 
-                        <td style="min-width: 250px;">${statusDisplay}</td>
-                        <td>${actions}</td>
-                    </tr>`; 
+tbody.innerHTML += `
+    <tr style="border-bottom: 1px solid #eee;">
+        <td style="text-align: center;">
+            <input type="checkbox" class="order-checkbox" value="${o.id}" onclick="updateBulkCounter()">
+        </td>
+        <td style="padding:12px;"><strong>${o.code}</strong></td>
+        <td>${name}</td>
+        <td>${o.description||'-'}</td>
+        <td>${o.weight} Kg</td>
+        <td>R$ ${parseFloat(price).toFixed(2)}</td> 
+        <td style="min-width: 250px;">${statusDisplay}</td>
+        <td>${actions}</td>
+    </tr>`; 
             });
             
             if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
@@ -5440,4 +5443,77 @@ if (btnAbrirPassaporte) {
         audio.play().catch(() => {}); // Ignora erro se o som falhar
         carregarCarimbos();
     };
+}
+// ==============================================================
+// FUNÇÕES DE AÇÃO EM MASSA (ENCOMENDAS)
+// ==============================================================
+
+// Selecionar/Deselecionar Todos
+function toggleAllOrderCheckboxes(source) {
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    checkboxes.forEach(cb => cb.checked = source.checked);
+    updateBulkCounter();
+}
+
+// Atualizar o contador visual de itens selecionados
+function updateBulkCounter() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    const count = checkboxes.length;
+    const container = document.getElementById('bulk-action-container');
+    const countSpan = document.getElementById('bulk-count');
+    const mestreCheckbox = document.getElementById('selectAllOrders');
+    
+    // Atualiza o número
+    if (countSpan) countSpan.innerText = count;
+    
+    // Mostra ou esconde o menu de ação em massa
+    if (container) {
+        container.style.display = count > 0 ? 'flex' : 'none';
+    }
+
+    // Desmarca o master se nem todos estiverem marcados
+    const allCheckboxes = document.querySelectorAll('.order-checkbox');
+    if (mestreCheckbox && allCheckboxes.length > 0) {
+        mestreCheckbox.checked = count === allCheckboxes.length;
+    }
+}
+
+// Disparar a atualização para o servidor
+async function applyBulkStatus() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    const newStatus = document.getElementById('bulk-status-select').value;
+    
+    if (checkboxes.length === 0) return alert("Selecione pelo menos uma encomenda.");
+    if (!newStatus) return alert("Selecione o novo status que deseja aplicar.");
+    
+    if (!confirm(`Tem certeza que deseja alterar o status de ${checkboxes.length} encomendas para "${newStatus}"?`)) return;
+
+    // Pega os IDs selecionados
+    const orderIds = Array.from(checkboxes).map(cb => cb.value);
+
+    try {
+        const response = await fetch('/api/orders/bulk-status', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: orderIds, status: newStatus })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            alert(`✅ ${data.updated} encomendas atualizadas com sucesso!`);
+            
+            // Reseta a interface
+            document.getElementById('selectAllOrders').checked = false;
+            document.getElementById('bulk-status-select').value = "";
+            document.getElementById('bulk-action-container').style.display = 'none';
+            
+            // Recarrega a tabela
+            loadOrders(); 
+        } else {
+            alert("Erro: " + data.message);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão ao tentar atualizar em massa.");
+    }
 }

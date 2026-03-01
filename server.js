@@ -2001,34 +2001,89 @@ app.get('/api/orders/:id', (req, res) => {
     });
 });
 
-// --- ROTA: Atualizar Encomenda (CORRIGIDA) ---
-app.put('/api/orders/:id', (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ success: false });
+// --- ROTA: Atualizar Encomendas EM MASSA E ENVIAR WHATSAPP ---
+app.put('/api/orders/bulk-status', (req, res) => {
+    // Verifica segurança
+    if (!req.session.userId || req.session.role === 'client') {
+        return res.status(403).json({ success: false, message: "Acesso Negado." });
+    }
 
-    const { client_id, code, description, weight, status } = req.body;
-    const id = req.params.id;
+    const { ids, status } = req.body;
 
-    // 1. Busca o preço atual no banco para recalcular
-    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-        // Se não achar, usa 0
-        const pricePerKg = row ? parseFloat(row.value) : 0;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ success: false, message: "Nenhum ID fornecido." });
+    }
+    if (!status) {
+        return res.status(400).json({ success: false, message: "Status não fornecido." });
+    }
+
+    // 1. Atualiza no banco de dados
+    const placeholders = ids.map(() => '?').join(',');
+    const sqlUpdate = `UPDATE orders SET status = ? WHERE id IN (${placeholders})`;
+    
+    db.run(sqlUpdate, [status, ...ids], function(err) {
+        if (err) {
+            console.error("Erro no Bulk Update:", err);
+            return res.status(500).json({ success: false, message: "Erro interno no banco de dados." });
+        }
         
-        // 2. Recalcula o preço novo (Peso Editado * Preço Atual)
-        const newPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
+        const updatedCount = this.changes;
+        console.log(`✅ [AÇÃO EM MASSA] Status de ${updatedCount} encomendas alterado para '${status}'`);
 
-        const sql = `
-            UPDATE orders 
-            SET client_id = ?, code = ?, description = ?, weight = ?, status = ?, price = ?
-            WHERE id = ?
+        // 2. Responde rápido para a tela do painel não travar
+        res.json({ success: true, updated: updatedCount });
+
+        // ==========================================================
+        // 3. O MOTO DO WHATSAPP (Roda nos bastidores)
+        // ==========================================================
+        // Busca os dados (Nome, Telefone, Codigo) cruzando a tabela orders com a tabela users
+        const sqlSelect = `
+            SELECT o.code, u.name, u.phone 
+            FROM orders o
+            JOIN users u ON o.client_id = u.id
+            WHERE o.id IN (${placeholders})
         `;
 
-        // 3. Salva com o preço correto
-        db.run(sql, [client_id, code, description, weight, status, newPrice, id], function(err) {
-            if (err) {
-                console.error(err);
-                return res.json({ success: false, message: "Erro ao atualizar no banco." });
+        db.all(sqlSelect, ids, async (err, rows) => {
+            if (err) return console.error("Erro ao buscar contatos para disparo em massa:", err);
+            
+            // Verifica se tem clientes na lista e se o Zap está conectado
+            if (rows && rows.length > 0 && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                console.log(`📡 Iniciando disparo de WhatsApp em massa para ${rows.length} clientes...`);
+
+                // Loop para enviar um por um
+                for (const row of rows) {
+                    if (row.phone) {
+                        try {
+                            // Limpa o número
+                            let cleanPhone = row.phone.replace(/\D/g, '');
+                            
+                            // Valida no WhatsApp
+                            const numberId = await clientZap.getNumberId(cleanPhone);
+                            
+                            if (numberId) {
+                                // Monta a mensagem
+                                const message = `Olá *${row.name}*! 📦\n\nSua encomenda *${row.code}* na Guineexpress acabou de ser atualizada!\n\nNovo Status: *${status}*\n\nAcesse seu painel para ver mais detalhes.`;
+                                
+                                // Envia
+                                await clientZap.sendMessage(numberId._serialized, message);
+                                console.log(`   -> 🟢 Zap enviado para: ${row.name}`);
+
+                                // 🔥 TRAVA DE SEGURANÇA (Anti-Ban do WhatsApp) 🔥
+                                // Pausa de 1.5 segundos entre cada mensagem para simular um humano digitando
+                                await new Promise(resolve => setTimeout(resolve, 1500));
+                            } else {
+                                console.log(`   -> 🔴 Número inválido no Zap: ${cleanPhone}`);
+                            }
+                        } catch (zapErr) {
+                            console.error(`   -> ❌ Erro ao enviar para ${row.name}:`, zapErr.message);
+                        }
+                    }
+                }
+                console.log(`✅ Disparo em massa finalizado!`);
+            } else {
+                console.log(`⚠️ Não enviou os Zaps: O WhatsApp está desconectado ou a lista está vazia.`);
             }
-            res.json({ success: true });
         });
     });
 });
