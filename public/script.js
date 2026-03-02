@@ -4507,7 +4507,9 @@ function openEcobankModal(invoiceId) {
     document.getElementById('modal-ecobank').style.display = 'block';
 }
 
-// O Cliente clica para enviar a foto do comprovante para o servidor
+// ==========================================
+// CLIENTE ENVIA COMPROVANTE ECOBANK
+// ==========================================
 async function submitEcobankReceipt() {
     const invoiceId = document.getElementById('ecobank-invoice-id').value;
     const fileInput = document.getElementById('ecobank-receipt-file');
@@ -4519,17 +4521,23 @@ async function submitEcobankReceipt() {
 
     alert("A enviar o comprovativo... Aguarde.");
     try {
-        const res = await fetch(`/api/invoices/${invoiceId}/upload-receipt`, { method: 'POST', body: formData });
+        const res = await fetch(`/api/invoices/${invoiceId}/upload-receipt`, { 
+            method: 'POST', 
+            body: formData 
+        });
         const data = await res.json();
         
         if(data.success) {
             alert("✅ Comprovativo enviado! Aguarde a aprovação da GuineExpress.");
             document.getElementById('modal-ecobank').style.display = 'none';
-            loadClientInvoices(); // Atualiza a tabela dele para Em Análise
+            if(typeof loadClientInvoices === 'function') loadClientInvoices();
         } else {
             alert("Erro: " + data.message);
         }
-    } catch(err) { alert("Erro ao enviar a imagem."); }
+    } catch(err) { 
+        console.error(err);
+        alert("Erro ao enviar a imagem."); 
+    }
 }
 async function approveInvoice(invoiceId) {
     if(!confirm("Tem certeza que deseja APROVAR e marcar esta fatura como PAGA?")) return;
@@ -5397,7 +5405,9 @@ function copyManualPix() {
     alert("Chave PIX copiada! Agora pague no seu banco e volte para enviar o comprovante.");
 }
 
-// Enviar o comprovante para o servidor
+// ==========================================
+// CLIENTE ENVIA COMPROVANTE PIX
+// ==========================================
 async function submitPixReceipt() {
     const orderId = document.getElementById('pay-order-id').value;
     const fileInput = document.getElementById('pix-file-input');
@@ -5421,14 +5431,15 @@ async function submitPixReceipt() {
         const data = await res.json();
 
         if (data.success) {
-            alert("✅ Comprovante enviado! O administrador foi notificado e fará a conferência.");
+            alert("✅ Comprovante enviado! O administrador foi notificado no WhatsApp e fará a conferência.");
             closePaymentModal();
-            loadClientInvoices(); // Atualiza a tabela
+            if(typeof loadClientInvoices === 'function') loadClientInvoices(); // Atualiza a tabela
         } else {
             alert("Erro: " + data.message);
         }
     } catch (err) {
-        alert("Erro na conexão com o servidor.");
+        console.error(err);
+        alert("Erro na conexão com o servidor. Tente novamente.");
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';

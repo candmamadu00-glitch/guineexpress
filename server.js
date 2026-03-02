@@ -1298,82 +1298,77 @@ app.post('/api/videos/delete', (req, res) => {
         res.json({success: !err});
     });
 });
-// CRIAR FATURA E ENVIAR EMAIL DE COBRANÇA + WHATSAPP
+// ==========================================
+// ROTA: CRIAR FATURA (PIX MANUAL) E AVISAR CLIENTE
+// ==========================================
 app.post('/api/invoices/create', async (req, res) => {
+    // 1. Segurança: Só o Admin pode criar
     if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
 
-    const { client_id, box_id, amount, description, email } = req.body; // O email vem do front
+    const { client_id, box_id, amount, description, email } = req.body; 
 
     try {
-        // A. Mercado Pago
-        const paymentData = {
-            transaction_amount: parseFloat(amount),
-            description: description,
-            payment_method_id: 'pix',
-            payer: { email: email || 'cliente@guineexpress.com' }
-        };
-        const result = await payment.create({ body: paymentData });
-        const mp_id = result.id;
-        const qr_code = result.point_of_interaction.transaction_data.qr_code; // Esse é o Pix Copia e Cola
-        const qr_base64 = result.point_of_interaction.transaction_data.qr_code_base64;
-        const ticket_url = result.point_of_interaction.transaction_data.ticket_url;
-
-        // B. Salva no Banco
-        db.run(`INSERT INTO invoices (client_id, box_id, amount, description, status, mp_payment_id, qr_code, qr_code_base64, payment_link) 
-                VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
-                [client_id, box_id, amount, description, mp_id, qr_code, qr_base64, ticket_url],
+        // A. Salva direto no Banco (Não chama Mercado Pago)
+        // Deixamos mp_payment_id, qr_code, etc, vazios porque agora o PIX é manual
+        db.run(`INSERT INTO invoices (client_id, box_id, amount, description, status) 
+                VALUES (?, ?, ?, ?, 'pending')`,
+                [client_id, box_id, amount, description],
                 function(err) {
-                    if(err) return res.json({success: false, msg: 'Erro ao salvar fatura'});
+                    if(err) {
+                        console.error("Erro SQL ao criar fatura:", err);
+                        return res.json({success: false, msg: 'Erro ao salvar fatura'});
+                    }
 
-                    // C. BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO
+                    const novaFaturaId = this.lastID;
+
+                    // B. BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO PARA AVISAR
                     db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (e, u) => {
                         const name = u ? u.name : 'Cliente';
                         const phone = u ? u.phone : null;
                         
-                        // 1. ENVIA O EMAIL
+                        // 1. ENVIA O EMAIL (Simplificado para PIX Manual)
                         if (email) {
-                            const subject = `Fatura Disponível: R$ ${amount}`;
+                            const subject = `Nova Fatura Pendente: R$ ${amount}`;
                             const title = "Pagamento Pendente";
                             const msg = `Olá, <strong>${name}</strong>.<br><br>
-                                         Uma nova fatura foi gerada para o envio <strong>${description}</strong>.<br>
-                                         Valor: <strong>R$ ${amount}</strong><br><br>
-                                         Clique abaixo para pagar via Pix ou Cartão:<br><br>
-                                         <a href="${ticket_url}" style="background:#d4af37; color:#000; padding:12px 25px; text-decoration:none; font-weight:bold; font-size:16px; border-radius:5px;">PAGAR AGORA</a>`;
+                                         Uma nova fatura foi gerada para o seu envio: <strong>${description}</strong>.<br>
+                                         Valor a pagar: <strong>R$ ${amount}</strong><br><br>
+                                         Acesse o seu painel de cliente na Guineexpress para ver as opções de pagamento (PIX ou EcoBank) e anexar o seu comprovante.<br><br>
+                                         <a href="https://guineexpress-f6ab.onrender.com/" style="background:#0a1931; color:#fff; padding:12px 25px; text-decoration:none; font-weight:bold; font-size:16px; border-radius:5px;">ACESSAR PAINEL</a>`;
                             
                             sendEmailHtml(email, subject, title, msg);
                         }
 
-                        // 2. ENVIA O WHATSAPP (DENTRO DA ROTA DE FATURA)
-if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-    try {
-        // Limpa o telefone: mantém apenas os números digitados
-        let cleanPhone = phone.replace(/\D/g, '');
+                        // 2. ENVIA O WHATSAPP (Avisando para acessar o painel)
+                        if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                            try {
+                                let cleanPhone = phone.replace(/\D/g, '');
+                                const numberId = await clientZap.getNumberId(cleanPhone);
+                                
+                                if (numberId) {
+                                    const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
 
-        // Pede pro WhatsApp validar o número (Independente do país)
-        const numberId = await clientZap.getNumberId(cleanPhone);
-        
-        if (numberId) {
-            const zapMsg = `Olá, *${name}*! 📦\n\nUma nova fatura foi gerada para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\n💳 *Pague com Pix Copia e Cola:* \n\n${qr_code}\n\n👆 _Basta copiar o código acima e colar no aplicativo do seu banco._`;
-
-            await clientZap.sendMessage(numberId._serialized, zapMsg);
-            console.log(`✅ Fatura enviada por Zap para ${cleanPhone}`);
-        } else {
-            console.log(`⚠️ Número ${cleanPhone} inválido para o WhatsApp.`);
-        }
-    } catch (zapErr) {
-        console.log("❌ Erro ao enviar Zap da fatura:", zapErr);
-    }
-} else {
-                            console.log("⚠️ Zap não enviado. Motivo: Sem telefone cadastrado ou Zap desconectado.");
+                                    await clientZap.sendMessage(numberId._serialized, zapMsg);
+                                    console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
+                                } else {
+                                    console.log(`⚠️ [ZAP] Número ${cleanPhone} inválido. Tentando forçar...`);
+                                    await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg);
+                                }
+                            } catch (zapErr) {
+                                console.error("❌ Erro ao enviar Zap da fatura:", zapErr.message);
+                            }
+                        } else {
+                            console.log("⚠️ [ZAP] Cliente não notificado: Sem telefone cadastrado ou Robô do WhatsApp desconectado.");
                         }
                     });
 
+                    // Retorna sucesso rápido para o painel do Admin não travar
                     res.json({success: true});
                 });
 
     } catch (error) {
-        console.error(error);
-        res.json({success: false, msg: 'Erro na comunicação com Mercado Pago'});
+        console.error("Erro interno ao criar fatura:", error);
+        res.status(500).json({success: false, msg: 'Erro interno no servidor'});
     }
 });
 
@@ -1414,7 +1409,9 @@ app.get('/api/invoices/list', (req, res) => {
 db.run("ALTER TABLE invoices ADD COLUMN receipt_url TEXT", (err) => { /* ignora erro se já existir */ });
 
 
-// ROTA PARA O CLIENTE ENVIAR A FOTO DO COMPROVANTE (PIX OU ECOBANK)
+// ==========================================
+// ROTA: UPLOAD DE COMPROVANTE (PIX/ECOBANK)
+// ==========================================
 app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'Nenhuma imagem foi enviada.' });
@@ -1423,7 +1420,7 @@ app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (re
     const invoiceId = req.params.id;
     const receiptPath = '/uploads/' + req.file.filename; 
 
-    // 1. Atualiza o banco de dados
+    // Atualiza o banco de dados
     const sql = "UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?";
     
     db.run(sql, [receiptPath, invoiceId], async function(err) {
@@ -1432,21 +1429,33 @@ app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (re
             return res.json({ success: false, message: 'Erro ao salvar no banco.' });
         }
 
-        // 2. NOTIFICAÇÃO PARA O ADMINISTRADOR (WHATSAPP)
+        // ---------------------------------------------------------
+        // NOTIFICAÇÃO PARA O ADMINISTRADOR (WHATSAPP)
+        // ---------------------------------------------------------
         if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
             try {
-                // Coloque o SEU número de administrador abaixo (com DDI, ex: 55 para Brasil ou 245 para Guiné)
-                const meuNumeroAdmin = "5585998239207"; // <--- COLOQUE SEU NÚMERO AQUI
+                // Seu número com o DDI (55) e o DDD (85). 
+                const meuNumeroAdmin = "5585998239207"; 
+                
+                // Formata a mensagem
+                const msgAdmin = `🔔 *NOVO PAGAMENTO RECEBIDO*\n\nUm cliente acabou de enviar o comprovante para a *Fatura #${invoiceId}*.\n\nAcesse o painel administrativo para visualizar a foto e aprovar o pagamento.`;
+                
+                // Tenta pegar o ID oficial do WhatsApp (corrige a questão do 9º dígito)
                 const idOficial = await clientZap.getNumberId(meuNumeroAdmin);
                 
                 if (idOficial) {
-                    const msgAdmin = `🔔 *NOVO PAGAMENTO RECEBIDO*\n\nO cliente enviou um comprovante para a *Fatura #${invoiceId}*.\n\nVerifique o painel administrativo para aprovar.`;
                     await clientZap.sendMessage(idOficial._serialized, msgAdmin);
-                    console.log("✅ Zap de notificação enviado ao Admin.");
+                    console.log(`✅ [ZAP] Notificação enviada ao Admin para a fatura #${invoiceId}`);
+                } else {
+                    // Se falhar a busca do ID, tenta mandar direto com @c.us
+                    await clientZap.sendMessage(`${meuNumeroAdmin}@c.us`, msgAdmin);
+                    console.log(`✅ [ZAP] Notificação enviada ao Admin (Forçado) para a fatura #${invoiceId}`);
                 }
             } catch (zapErr) {
-                console.error("Erro ao notificar admin via Zap:", zapErr.message);
+                console.error("❌ Erro ao notificar admin via Zap:", zapErr.message);
             }
+        } else {
+            console.log("⚠️ [ZAP] Admin não notificado: O Robô do WhatsApp está desconectado ou reiniciando.");
         }
 
         res.json({ success: true, message: 'Comprovativo enviado com sucesso!' });
