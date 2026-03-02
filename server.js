@@ -1414,30 +1414,44 @@ app.get('/api/invoices/list', (req, res) => {
 db.run("ALTER TABLE invoices ADD COLUMN receipt_url TEXT", (err) => { /* ignora erro se já existir */ });
 
 
-// 2. Rota para o CLIENTE enviar a foto do comprovante
-// Usamos o upload.single('receipt') do seu Multer para salvar a foto na pasta /uploads
-app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), (req, res) => {
-    // Verifica se a imagem realmente chegou
+// ROTA PARA O CLIENTE ENVIAR A FOTO DO COMPROVANTE (PIX OU ECOBANK)
+app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'Nenhuma imagem foi enviada.' });
     }
 
     const invoiceId = req.params.id;
-    // Pega o nome do arquivo que o Multer acabou de salvar
     const receiptPath = '/uploads/' + req.file.filename; 
 
-    // Muda o status da fatura para 'in_review' (Em Análise) e salva o link da imagem
+    // 1. Atualiza o banco de dados
     const sql = "UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?";
     
-    db.run(sql, [receiptPath, invoiceId], function(err) {
+    db.run(sql, [receiptPath, invoiceId], async function(err) {
         if (err) {
             console.error(err);
             return res.json({ success: false, message: 'Erro ao salvar no banco.' });
         }
+
+        // 2. NOTIFICAÇÃO PARA O ADMINISTRADOR (WHATSAPP)
+        if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+            try {
+                // Coloque o SEU número de administrador abaixo (com DDI, ex: 55 para Brasil ou 245 para Guiné)
+                const meuNumeroAdmin = "5585998239207"; // <--- COLOQUE SEU NÚMERO AQUI
+                const idOficial = await clientZap.getNumberId(meuNumeroAdmin);
+                
+                if (idOficial) {
+                    const msgAdmin = `🔔 *NOVO PAGAMENTO RECEBIDO*\n\nO cliente enviou um comprovante para a *Fatura #${invoiceId}*.\n\nVerifique o painel administrativo para aprovar.`;
+                    await clientZap.sendMessage(idOficial._serialized, msgAdmin);
+                    console.log("✅ Zap de notificação enviado ao Admin.");
+                }
+            } catch (zapErr) {
+                console.error("Erro ao notificar admin via Zap:", zapErr.message);
+            }
+        }
+
         res.json({ success: true, message: 'Comprovativo enviado com sucesso!' });
     });
 });
-
 
 // 3. Rota para o ADMIN aprovar o comprovante
 app.post('/api/invoices/:id/approve-receipt', (req, res) => {
@@ -1481,128 +1495,6 @@ app.post('/api/invoices/check-status', async (req, res) => {
         res.json({ success: false });
     }
 });
-// ======================================================
-// 🚀 INÍCIO DAS ROTAS DE PAGAMENTO (PIX E CARTÃO)
-// ======================================================
-
-// ======================================================
-// 1. ROTA DE PIX (ATUALIZADA)
-// ======================================================
-app.post('/api/create-pix', async (req, res) => {
-    try {
-        const { amount, description, email, firstName } = req.body;
-
-        const payment = new Payment(client);
-
-        const body = {
-            transaction_amount: parseFloat(amount),
-            description: description || 'Pagamento Guineexpress',
-            payment_method_id: 'pix',
-            payer: {
-                email: email || 'email@cliente.com',
-                first_name: firstName || 'Cliente'
-            },
-            date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString()
-        };
-
-        const result = await payment.create({ body });
-
-        // RETORNA O ID DO PAGAMENTO PARA O FRONTEND MONITORAR
-        res.json({
-            payment_id: result.id, // O frontend precisa disso para o Robô
-            qr_code: result.point_of_interaction.transaction_data.qr_code,
-            qr_code_base64: result.point_of_interaction.transaction_data.qr_code_base64
-        });
-
-    } catch (error) {
-        console.error("Erro ao gerar Pix:", error);
-        res.status(500).json({ error: 'Erro ao conectar com Mercado Pago' });
-    }
-});
-
-// ======================================================
-// 2. NOVA ROTA: CHECAR STATUS (O ROBÔ USA ESSA)
-// ======================================================
-app.post('/api/check-payment-status', async (req, res) => {
-    try {
-        // Recebe o ID do pagamento (MP) e o ID da fatura (Banco de dados)
-        const { payment_id, invoice_id } = req.body;
-
-        const payment = new Payment(client);
-        
-        // Pergunta ao Mercado Pago: "E aí, esse ID já pagou?"
-        const result = await payment.get({ id: payment_id });
-
-        const status = result.status; // 'pending', 'approved', 'rejected'
-
-        if (status === 'approved') {
-            // SE O DINHEIRO CAIU, ATUALIZA O BANCO SOZINHO!
-            
-            // 1. Atualiza a fatura para 'approved'
-            db.run("UPDATE invoices SET status = 'approved', mp_payment_id = ? WHERE id = ?", 
-                [payment_id, invoice_id], 
-                (err) => {
-                    if (err) console.error("Erro ao atualizar fatura:", err);
-                    else console.log(`✅ Fatura #${invoice_id} paga via PIX Automático!`);
-                }
-            );
-
-            // 2. (Opcional) Se a fatura for de um Box, acha o Box e a Encomenda e marca como Pago
-            // Isso garante que a encomenda mude de cor na tabela
-            db.get("SELECT box_id FROM invoices WHERE id = ?", [invoice_id], (err, row) => {
-                if(row && row.box_id) {
-                    db.run("UPDATE orders SET status = 'Pago' WHERE id IN (SELECT order_id FROM boxes WHERE id = ?)", [row.box_id]);
-                }
-            });
-        }
-
-        // Responde para o frontend (o robô vai ler isso)
-        res.json({ status: status });
-
-    } catch (error) {
-        console.error("Erro ao verificar status:", error);
-        res.status(500).json({ error: "Erro na verificação" });
-    }
-});
-// 2. Rota para gerar Link de Cartão (Checkout Pro)
-app.post('/api/create-preference', async (req, res) => {
-    try {
-        const { title, price, quantity } = req.body;
-
-        const preference = new Preference(client);
-
-        const body = {
-            items: [
-                {
-                    title: title,
-                    quantity: Number(quantity),
-                    unit_price: Number(price),
-                    currency_id: 'BRL',
-                },
-            ],
-            // Configure para onde o cliente volta depois de pagar
-            back_urls: {
-                success: 'https://seusite.com/dashboard-client.html', // Mude para seu domínio real
-                failure: 'https://seusite.com/dashboard-client.html',
-                pending: 'https://seusite.com/dashboard-client.html',
-            },
-            auto_return: 'approved',
-        };
-
-        const result = await preference.create({ body });
-
-        // Devolve o link para redirecionar o cliente
-        res.json({ init_point: result.init_point });
-
-    } catch (error) {
-        console.error("Erro ao criar preferência:", error);
-        res.status(500).json({ error: 'Erro ao criar checkout' });
-    }
-});
-
-// ======================================================
-// 🏁 FIM DAS ROTAS DE PAGAMENTO
-// ======================================================
 // --- ROTA: PEGAR FATURAS DO CLIENTE LOGADO (CORRIGIDA) ---
 app.get('/api/invoices/my_invoices', (req, res) => {
     // 1. Verifica se o ID do usuário está na sessão (Correção aqui)

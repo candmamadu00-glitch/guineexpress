@@ -2166,56 +2166,53 @@ async function goToCardCheckout() {
         btnCard.disabled = false;
     }
 }
+// ==========================================
+// ABRIR MODAL DE PAGAMENTO (PIX MANUAL)
+// ==========================================
 function openPaymentModal(orderId, description, amount) {
-    console.log("Tentando abrir modal:", { orderId, description, amount }); // Debug no Console
-
+    // 1. Mostra o modal na tela
     document.getElementById('modal-payment').style.display = 'block';
 
-    // 1. Limpa o valor recebido
+    // 2. Preenche os valores ocultos
     let valorNumerico = limparValor(amount);
-
-    // 2. Preenche os inputs ocultos (importante para o envio ao backend)
     document.getElementById('pay-order-id').value = orderId;
     document.getElementById('pay-amount').value = valorNumerico; 
 
-    // 3. Formata para exibir bonito no título (Ex: R$ 4,00)
-    let valorParaExibir = valorNumerico.toLocaleString('pt-BR', { 
-        style: 'currency', 
-        currency: 'BRL' 
-    });
-
-    // Atualiza o texto visual
+    // 3. Formata o texto bonito (Ex: Fatura #12 - R$ 50,00)
+    let valorParaExibir = valorNumerico.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     document.getElementById('pay-desc').innerText = `${description} - ${valorParaExibir}`;
     
-    // Reseta visualização do QR Code
-    document.getElementById('qrcode-container').innerHTML = '';
-    document.getElementById('pix-copy-paste').value = '';
+    // 4. Limpa o input de arquivo (caso o cliente tenha aberto antes e fechado)
+    const fileInput = document.getElementById('pix-file-input');
+    if(fileInput) fileInput.value = '';
     
-    showMethod('pix');
+    // 5. Restaura o botão de enviar (caso tenha ficado travado em "Enviando...")
+    const btnSubmit = document.getElementById('btn-submit-receipt');
+    if(btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
+    }
+    
+    // 6. Abre sempre na aba padrão da Chave CNPJ
+    togglePixKey('cnpj');
 }
 
-
-// 2. Alternar Abas (Pix vs Cartão)
-function showMethod(method) {
-    const pixArea = document.getElementById('area-pix');
-    const cardArea = document.getElementById('area-card');
-    const btnPix = document.getElementById('btn-tab-pix');
-    const btnCard = document.getElementById('btn-tab-card');
-
-    if(method === 'pix') {
-        pixArea.style.display = 'block';
-        cardArea.style.display = 'none';
-        btnPix.style.background = '#0a1931';
-        btnPix.style.color = '#fff';
-        btnCard.style.background = '#eee';
-        btnCard.style.color = '#333';
-    } else {
-        pixArea.style.display = 'none';
-        cardArea.style.display = 'block';
-        btnCard.style.background = '#009ee3';
-        btnCard.style.color = '#fff';
-        btnPix.style.background = '#eee';
-        btnPix.style.color = '#333';
+// ==========================================
+// FECHAR MODAL DE PAGAMENTO
+// ==========================================
+function closePaymentModal() {
+    // Esconde o modal
+    document.getElementById('modal-payment').style.display = 'none';
+    
+    // Limpa o campo de arquivo para a próxima vez que abrir
+    const fileInput = document.getElementById('pix-file-input');
+    if(fileInput) fileInput.value = '';
+    
+    // Reseta o botão de enviar
+    const btnSubmit = document.getElementById('btn-submit-receipt');
+    if(btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
     }
 }
 // Função robusta para limpar dinheiro (aceita "R$ 4", "R$ 4,00" e "1.200,50")
@@ -2244,150 +2241,6 @@ function limparValor(valor) {
     return isNaN(numero) ? 0 : numero;
 }
 
-// Variável global para controlar o "robô" que verifica o pagamento
-let pixCheckInterval = null;
-
-// --- 1. GERAR PIX (Modificada para iniciar a verificação) ---
-async function generatePixPayment() {
-    const btn = document.getElementById('btn-gen-pix');
-    const orderId = document.getElementById('pay-order-id').value; // ID da fatura no seu banco
-    
-    let rawAmount = document.getElementById('pay-amount').value; 
-    let amountVal = parseFloat(rawAmount); 
-
-    if (!amountVal || amountVal <= 0) { 
-        alert('Erro: Valor inválido.'); 
-        return; 
-    }
-
-    btn.innerHTML = 'Gerando... <i class="fas fa-spinner fa-spin"></i>';
-    btn.disabled = true;
-
-    try {
-        // Pega o email do usuário logado se existir, senão usa genérico
-        const userEmail = currentUser ? currentUser.email : 'cliente@guineexpress.com';
-        const userName = currentUser ? currentUser.name : 'Cliente';
-
-        const response = await fetch('/api/create-pix', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                amount: amountVal,
-                description: `Fatura #${orderId}`,
-                email: userEmail, 
-                firstName: userName
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.error) throw new Error(data.error);
-
-        // Exibe o QR Code
-        const container = document.getElementById('qrcode-container');
-        container.innerHTML = '';
-
-        if(data.qr_code_base64) {
-            const img = document.createElement('img');
-            img.src = `data:image/png;base64,${data.qr_code_base64}`;
-            img.style.maxWidth = '200px';
-            container.appendChild(img);
-        }
-        
-        document.getElementById('pix-copy-paste').value = data.qr_code;
-        btn.style.display = 'none'; // Esconde o botão de gerar
-        
-        // AVISO VISUAL
-        const containerArea = document.getElementById('area-pix');
-        let statusMsg = document.getElementById('pix-status-msg');
-        if(!statusMsg) {
-            statusMsg = document.createElement('p');
-            statusMsg.id = 'pix-status-msg';
-            statusMsg.style.fontWeight = 'bold';
-            statusMsg.style.color = '#d4af37';
-            statusMsg.style.marginTop = '10px';
-            containerArea.appendChild(statusMsg);
-        }
-        statusMsg.innerHTML = '<i class="fas fa-sync fa-spin"></i> Aguardando pagamento...';
-
-        // === A MÁGICA: INICIA O ROBÔ VIGILANTE ===
-        startPixPolling(data.payment_id, orderId);
-
-    } catch (error) {
-        console.error(error);
-        alert("Erro ao gerar PIX: " + error.message);
-        btn.innerHTML = 'Tentar Novamente';
-        btn.disabled = false;
-    }
-}
-
-// --- 2. ROBÔ VIGILANTE (Verifica a cada 5 segundos) ---
-function startPixPolling(paymentId, invoiceId) {
-    // Limpa qualquer verificação anterior para não acumular
-    if(pixCheckInterval) clearInterval(pixCheckInterval);
-
-    pixCheckInterval = setInterval(async () => {
-        try {
-            const res = await fetch('/api/check-payment-status', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ payment_id: paymentId, invoice_id: invoiceId })
-            });
-            
-            const json = await res.json();
-            
-            if(json.status === 'approved') {
-                // SUCESSO! O DINHEIRO CAIU
-                clearInterval(pixCheckInterval); // Para o robô
-                
-                const statusMsg = document.getElementById('pix-status-msg');
-                if(statusMsg) {
-                    statusMsg.innerHTML = '✅ PAGAMENTO CONFIRMADO!';
-                    statusMsg.style.color = 'green';
-                }
-
-                // Toca um som de sucesso (opcional)
-                // const audio = new Audio('sucesso.mp3'); audio.play();
-
-                setTimeout(() => {
-                    alert("Pagamento Recebido com Sucesso! ✈️");
-                    closePaymentModal();
-                    loadClientInvoices(); // Atualiza a tabela no fundo
-                }, 1000);
-            }
-        } catch (e) {
-            console.error("Erro verificando pix:", e);
-        }
-    }, 5000); // 5000ms = 5 segundos
-}
-
-// --- 3. FECHAR MODAL (Importante parar o robô) ---
-function closePaymentModal() {
-    document.getElementById('modal-payment').style.display = 'none';
-    
-    // Para a verificação para não gastar internet do cliente
-    if(pixCheckInterval) clearInterval(pixCheckInterval);
-    
-    // Reseta visual
-    const btn = document.getElementById('btn-gen-pix');
-    if(btn) {
-        btn.style.display = 'block';
-        btn.innerHTML = 'GERAR QR CODE AGORA';
-        btn.disabled = false;
-    }
-    const statusMsg = document.getElementById('pix-status-msg');
-    if(statusMsg) statusMsg.remove();
-}
-
-
-// Função auxiliar para copiar o código Pix
-function copyPix() {
-    const copyText = document.getElementById("pix-copy-paste");
-    copyText.select();
-    copyText.setSelectionRange(0, 99999); 
-    navigator.clipboard.writeText(copyText.value);
-    alert("Código PIX copiado!");
-}
 async function recoverPassword() {
     // 1. Pergunta o e-mail ao usuário
     const email = prompt("🔒 RECUPERAÇÃO DE SENHA\n\nDigite seu E-mail ou Celular cadastrado:");
@@ -5515,5 +5368,69 @@ async function applyBulkStatus() {
     } catch (error) {
         console.error(error);
         alert("Erro de conexão ao tentar atualizar em massa.");
+    }
+}
+// Alternar entre CNPJ e E-mail
+function togglePixKey(tipo) {
+    const txt = document.getElementById('txt-chave');
+    const label = document.getElementById('tipo-chave');
+    const tabCnpj = document.getElementById('tab-cnpj');
+    const tabEmail = document.getElementById('tab-email');
+
+    if(tipo === 'cnpj') {
+        txt.innerText = '49356085000134';
+        label.innerText = '(Chave CNPJ)';
+        tabCnpj.style.background = '#0a1931'; tabCnpj.style.color = 'white';
+        tabEmail.style.background = '#eee'; tabEmail.style.color = '#333';
+    } else {
+        txt.innerText = 'comercialguineexpress245@gmail.com';
+        label.innerText = '(Chave E-mail)';
+        tabEmail.style.background = '#0a1931'; tabEmail.style.color = 'white';
+        tabCnpj.style.background = '#eee'; tabCnpj.style.color = '#333';
+    }
+}
+
+// Copiar chave manual
+function copyManualPix() {
+    const chave = document.getElementById('txt-chave').innerText;
+    navigator.clipboard.writeText(chave);
+    alert("Chave PIX copiada! Agora pague no seu banco e volte para enviar o comprovante.");
+}
+
+// Enviar o comprovante para o servidor
+async function submitPixReceipt() {
+    const orderId = document.getElementById('pay-order-id').value;
+    const fileInput = document.getElementById('pix-file-input');
+    const btn = document.getElementById('btn-submit-receipt');
+
+    if (!fileInput.files[0]) {
+        return alert("Por favor, selecione a foto do comprovante antes de enviar.");
+    }
+
+    const formData = new FormData();
+    formData.append('receipt', fileInput.files[0]);
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+
+    try {
+        const res = await fetch(`/api/invoices/${orderId}/upload-receipt`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ Comprovante enviado! O administrador foi notificado e fará a conferência.");
+            closePaymentModal();
+            loadClientInvoices(); // Atualiza a tabela
+        } else {
+            alert("Erro: " + data.message);
+        }
+    } catch (err) {
+        alert("Erro na conexão com o servidor.");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
     }
 }
