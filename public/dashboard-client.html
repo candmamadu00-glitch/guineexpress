@@ -564,7 +564,7 @@
     <div class="modal-content" style="background:#fff; margin:10% auto; padding:25px; border-radius:8px; width:90%; max-width:450px; text-align:center; position:relative;">
         <span onclick="closePaymentModal()" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px; color:#999;">&times;</span>
         
-        <h3 style="color:#0a1931; margin-bottom:10px;">Pagamento via PIX (Brasil)</h3>
+        <h3 style="color:#0a1931; margin-bottom:10px;">Pagamento via PIX </h3>
         <p id="pay-desc" style="margin-bottom:20px; font-weight:bold; color:#555;"></p>
 
         <div style="display:flex; border-bottom:1px solid #ddd; margin-bottom:15px;">
@@ -573,7 +573,7 @@
         </div>
 
         <div id="area-pix-manual" style="text-align:center;">
-            <p style="font-size:14px; color:#333; margin-bottom:10px;">Copie a chave abaixo e pague no seu App:</p>
+            <p style="font-size:14px; color:#333; margin-bottom:10px;">Copie a chave abaixo e pague no seu App E Envia o Comprovante:</p>
             
             <div style="background:#f1f1f1; padding:15px; border-radius:8px; border:2px dashed #0a1931; margin-bottom:15px;">
                 <span id="txt-chave" style="font-weight:bold; font-size:18px; color:#0a1931;">49356085000134</span>
@@ -597,30 +597,6 @@
 
         <input type="hidden" id="pay-order-id">
         <input type="hidden" id="pay-amount">
-    </div>
-</div>
-
-<div id="modal-ecobank" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
-    <div class="modal-content" style="background:#fff; margin:10% auto; padding:20px; width:90%; max-width:400px; border-radius:8px; position:relative; text-align:center;">
-        <span onclick="document.getElementById('modal-ecobank').style.display='none'" style="position:absolute; right:15px; top:10px; font-size:24px; cursor:pointer;">&times;</span>
-        
-        <h2 style="color:#0a1931; margin-bottom:10px;">Transferência Bancária</h2>
-        <p style="font-size:14px; color:#555;">Faça o depósito na conta abaixo e envie o comprovativo.</p>
-        
-        <div style="background:#f4f9ff; padding:15px; border-radius:5px; margin-bottom:15px; border:1px solid #d0e1f9; font-size:14px; text-align:left;">
-            <strong>Banco:</strong> EcoBank Guiné-Bissau<br>
-            <strong>Titular:</strong> Gomes Lelo Jose<br>
-            <strong>Conta:</strong> 180026416001<br>
-        </div>
-
-        <input type="hidden" id="ecobank-invoice-id">
-        
-        <label style="font-weight:bold; font-size:14px;">Anexar Comprovativo (Foto/Print):</label>
-        <input type="file" id="ecobank-receipt-file" accept="image/*,application/pdf" style="margin-top:5px; margin-bottom:15px; width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
-        
-        <button onclick="submitEcobankReceipt()" style="background:#28a745; color:white; border:none; padding:12px; border-radius:5px; width:100%; font-weight:bold; cursor:pointer;"> 
-            <i class="fas fa-upload"></i> Enviar para Aprovação 
-        </button>
     </div>
 </div>
 

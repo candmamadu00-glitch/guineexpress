@@ -2094,10 +2094,7 @@ async function loadClientInvoices() {
                 actionHtml = `
                 <div style="display:flex; justify-content:center; gap:8px;">
                     <button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        💸 Pix / QR Code do Brasil
-                    </button>
-                    <button onclick="openEcobankModal(${inv.id})" style="background:#0a1931; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        🏦 Pagar no Banco da Guine Bissau
+                        💸 Pagar pelo Pix e Envia o Comprovante 
                     </button>
                 </div>`;
             } else {
@@ -2117,53 +2114,6 @@ async function loadClientInvoices() {
     } catch (err) {
         console.error(err);
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
-    }
-}
-// ======================================================
-// FUNÇÃO PARA PAGAR COM CARTÃO (CHECKOUT PRO MERCADO PAGO)
-// ======================================================
-async function goToCardCheckout() {
-    // 1. Pega os dados escondidos no modal (ID e Valor)
-    const orderId = document.getElementById('pay-order-id').value;
-    const amount = document.getElementById('pay-amount').value;
-    const description = document.getElementById('pay-desc').innerText;
-
-    // Muda o botão para mostrar que está carregando
-    const btnCard = document.querySelector('#area-card button');
-    const originalText = btnCard.innerHTML;
-    btnCard.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Redirecionando...';
-    btnCard.disabled = true;
-
-    try {
-        // 2. Chama a nossa rota no backend que cria a "Preferência"
-        const response = await fetch('/api/create-preference', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: description || `Fatura #${orderId}`,
-                price: parseFloat(amount),
-                quantity: 1
-            })
-        });
-
-        const data = await response.json();
-
-        // 3. Se o backend devolver o link de pagamento, manda o cliente pra lá!
-        if (data.init_point) {
-            window.location.href = data.init_point;
-        } else {
-            alert('Erro ao gerar o link de pagamento. Tente novamente.');
-            btnCard.innerHTML = originalText;
-            btnCard.disabled = false;
-        }
-
-    } catch (error) {
-        console.error("Erro ao redirecionar para o cartão:", error);
-        alert('Erro de conexão com o servidor.');
-        btnCard.innerHTML = originalText;
-        btnCard.disabled = false;
     }
 }
 // ==========================================
