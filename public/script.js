@@ -542,7 +542,7 @@ function savePrice() {
 // --- SISTEMA DE ENCOMENDAS E CAIXAS ---
 async function loadBoxes() {
     const res = await fetch('/api/boxes');
-    let list = await res.json(); // Mudei de const para let para podermos ordenar
+    let list = await res.json(); 
     const tbody = document.getElementById('box-table-body');
     
     if(tbody) {
@@ -552,7 +552,6 @@ async function loadBoxes() {
         list.sort((a, b) => {
             const boxA = a.box_code || '';
             const boxB = b.box_code || '';
-            // localeCompare com 'numeric: true' faz a ordenação inteligente de números
             return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
         });
 
@@ -561,7 +560,13 @@ async function loadBoxes() {
                 `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>` : '-';
             
             const weight = parseFloat(b.order_weight) || 0;
-            const totalValue = (weight * globalPricePerKg).toFixed(2);
+            const freightValue = weight * globalPricePerKg;
+            
+            // Se já existir uma fatura com Nota Fiscal no banco, pega o valor dela
+            const nfValue = parseFloat(b.nf_amount) || 0;
+            
+            // O Total agora soma o Frete + a Nota Fiscal (ou o valor já fechado da fatura)
+            const finalTotal = parseFloat(b.amount) || (freightValue + nfValue);
 
             tbody.innerHTML += `
             <tr>
@@ -569,12 +574,12 @@ async function loadBoxes() {
                 <td>${b.client_name || '-'}</td>
                 <td>${b.order_code || '-'}</td>
                 <td>${weight} Kg</td>
-                <td style="font-weight:bold; color:green;">${totalValue}</td> 
+                <td style="font-weight:bold; color:green;">R$ ${finalTotal.toFixed(2)}</td> 
                 <td>${b.products || '-'}</td>
                 <td>${act}</td>
             </tr>`; 
         });
-        makeTablesResponsive();
+        if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
     }
 }
 // ==========================================
@@ -724,7 +729,12 @@ async function createAvailability(e) {
 
 async function loadSchedules() {
     const resSlots = await fetch('/api/schedule/slots-15min');
-    const slots15min = await resSlots.json();
+    const responseSlots = await resSlots.json();
+    
+    // Tratamento novo: Se o servidor disser que tá bloqueado
+    const isBloqueado = responseSlots.status === "bloqueado";
+    const slots15min = responseSlots.data || [];
+
     const resAppoint = await fetch('/api/schedule/appointments');
     const appointments = await resAppoint.json();
 
@@ -737,34 +747,47 @@ async function loadSchedules() {
     const container = document.getElementById('available-slots-container');
     if(container) {
         container.innerHTML = '';
-        const bookedDates = appointments.filter(app => app.status !== 'Cancelado').map(app => app.date);
-        const groups = {};
-        slots15min.forEach(slot => { if(!groups[slot.date]) groups[slot.date] = []; groups[slot.date].push(slot); });
 
-        if(Object.keys(groups).length === 0) container.innerHTML = '<p style="text-align:center; color:#666;">Sem horários disponíveis.</p>';
+        // SE O CLIENTE NÃO PAGOU A FATURA AINDA:
+        if (isBloqueado) {
+            container.innerHTML = `
+                <div style="text-align:center; padding: 40px 20px; background: #fff3cd; color: #856404; border-radius: 8px; border: 1px solid #ffeeba;">
+                    <i class="fas fa-lock" style="font-size: 40px; margin-bottom: 15px;"></i>
+                    <h3 style="margin:0 0 10px 0;">Agenda Bloqueada</h3>
+                    <p style="margin:0;">Para liberar o agendamento de recolha ou entrega, é necessário ter pelo menos uma fatura <strong>Paga</strong> no sistema.</p>
+                </div>
+            `;
+        } else {
+            // Lógica normal se estiver pago
+            const bookedDates = appointments.filter(app => app.status !== 'Cancelado').map(app => app.date);
+            const groups = {};
+            slots15min.forEach(slot => { if(!groups[slot.date]) groups[slot.date] = []; groups[slot.date].push(slot); });
 
-        for (const [date, slots] of Object.entries(groups)) {
-            const alreadyBookedThisDay = bookedDates.includes(date);
-            const dateObj = new Date(date + 'T00:00:00');
-            const dateStr = dateObj.toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric', month: 'long'});
-            
-            let html = `<div class="schedule-group" style="margin-bottom: 25px;">
-                <h4 style="border-bottom: 2px solid #0a1931; color: #0a1931; padding-bottom: 5px; margin-bottom: 10px; text-transform: capitalize;">
-                    📅 ${dateStr} ${alreadyBookedThisDay ? '<span style="font-size:12px; color:red;">(Já agendado)</span>' : ''}
-                </h4>
-                <div style="display: flex; flex-wrap: wrap; gap: 10px;">`;
+            if(Object.keys(groups).length === 0) container.innerHTML = '<p style="text-align:center; color:#666;">Sem horários disponíveis no momento.</p>';
 
-            slots.forEach(slot => {
-                const isFull = slot.available <= 0;
-                const isBlocked = isFull || alreadyBookedThisDay;
-                let style = `border: 1px solid ${isBlocked?'#ccc':'#28a745'}; background: ${isBlocked?'#eee':'#fff'}; color: ${isBlocked?'#999':'#28a745'}; padding: 8px 15px; border-radius: 5px; cursor: ${isBlocked?'not-allowed':'pointer'}; font-weight:bold; min-width: 80px; text-align:center;`;
+            for (const [date, slots] of Object.entries(groups)) {
+                const alreadyBookedThisDay = bookedDates.includes(date);
+                const dateObj = new Date(date + 'T00:00:00');
+                const dateStr = dateObj.toLocaleDateString('pt-BR', {weekday: 'long', day: 'numeric', month: 'long'});
                 
-                html += `<div onclick="${isBlocked ? '' : `bookSlot(${slot.availability_id}, '${slot.date}', '${slot.time}')`}" style="${style}">
-                    ${slot.time} ${isFull ? '(Cheio)' : ''}
-                </div>`;
-            });
-            html += `</div></div>`;
-            container.innerHTML += html;
+                let html = `<div class="schedule-group" style="margin-bottom: 25px;">
+                    <h4 style="border-bottom: 2px solid #0a1931; color: #0a1931; padding-bottom: 5px; margin-bottom: 10px; text-transform: capitalize;">
+                        📅 ${dateStr} ${alreadyBookedThisDay ? '<span style="font-size:12px; color:red;">(Já agendado)</span>' : ''}
+                    </h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">`;
+
+                slots.forEach(slot => {
+                    const isFull = slot.available <= 0;
+                    const isBlocked = isFull || alreadyBookedThisDay;
+                    let style = `border: 1px solid ${isBlocked?'#ccc':'#28a745'}; background: ${isBlocked?'#eee':'#fff'}; color: ${isBlocked?'#999':'#28a745'}; padding: 8px 15px; border-radius: 5px; cursor: ${isBlocked?'not-allowed':'pointer'}; font-weight:bold; min-width: 80px; text-align:center;`;
+                    
+                    html += `<div onclick="${isBlocked ? '' : `bookSlot(${slot.availability_id}, '${slot.date}', '${slot.time}')`}" style="${style}">
+                        ${slot.time} ${isFull ? '(Cheio)' : ''}
+                    </div>`;
+                });
+                html += `</div></div>`;
+                container.innerHTML += html;
+            }
         }
     }
 
@@ -776,10 +799,8 @@ async function loadSchedules() {
             const btn = canCancel ? `<button onclick="cancelBooking(${app.id})" style="color:red; border:1px solid red; background:white; padding:2px 5px; cursor:pointer;">Cancelar</button>` : '-';
             tbody.innerHTML += `<tr><td>${formatDate(app.date)}</td><td>${app.time_slot}</td><td>${app.status}</td><td>${btn}</td></tr>`;
         });
-        // Mobile schedule fix could go here if table used
     }
 }
-
 async function bookSlot(availId, date, time) {
     if(!confirm(`Confirmar agendamento dia ${formatDate(date)} às ${time}?`)) return;
     const res = await fetch('/api/schedule/book', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ availability_id: availId, date: date, time: time }) });
@@ -805,18 +826,20 @@ async function deleteAvailability(id) {
     renderAdminAvailabilities();
 }
 
+// ==========================================
+// Tabela de Agendamentos (Admin/Func) COM BOTÃO DE EXCLUIR
+// ==========================================
 function renderAdminSchedule(appointments) {
     const tbody = document.getElementById('admin-schedule-list');
     if(!tbody) return;
     tbody.innerHTML = '';
     
     appointments.forEach(app => {
-        // Escolhe uma cor bonitinha para o status (opcional)
-        let badgeClass = 'bg-success'; // Padrão Verde (Aprovado/Automático)
-        if (app.status === 'Pendente') badgeClass = 'bg-warning'; // Amarelo se ainda estiver processando
+        let badgeClass = 'bg-success'; 
+        if (app.status === 'Pendente') badgeClass = 'bg-warning'; 
         if (app.status === 'Recusado' || app.status === 'Cancelado') badgeClass = 'bg-danger';
 
-        // Cria a linha com EXATAS 5 colunas para bater com o HTML perfeito
+        // Adicionando o botão de excluir histórico na coluna de Status
         tbody.innerHTML += `
             <tr>
                 <td data-label="Data">${formatDate(app.date)}</td>
@@ -824,13 +847,32 @@ function renderAdminSchedule(appointments) {
                 <td data-label="Cliente" style="font-weight: bold;">${app.client_name}</td>
                 <td data-label="Tel">${app.client_phone || '-'}</td>
                 <td data-label="Status">
-                    <span class="badge ${badgeClass}">${app.status}</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="badge ${badgeClass}">${app.status}</span>
+                        <button onclick="deleteAppointmentRecord(${app.id})" style="color:red; background:none; border:none; cursor:pointer; font-size:16px;" title="Apagar Histórico">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
     });
 }
-
+async function deleteAppointmentRecord(id) {
+    if(!confirm("Tem certeza que deseja apagar este registro do histórico permanentemente?")) return;
+    
+    try {
+        const res = await fetch(`/api/schedule/delete-appointment/${id}`, { method: 'DELETE' });
+        const json = await res.json();
+        if(json.success) {
+            loadSchedules(); // recarrega a tabela
+        } else {
+            alert("Erro ao excluir registro.");
+        }
+    } catch(e) {
+        alert("Erro de conexão ao excluir.");
+    }
+}
 async function updateScheduleStatus(id, newStatus) {
     if(!confirm(`Alterar para ${newStatus}?`)) return;
     await fetch('/api/schedule/status', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: id, status: newStatus }) });
@@ -1085,7 +1127,7 @@ function getTimelineHTML(status) {
 }
 
 // ==============================================================
-// 2. FUNÇÃO LOAD ORDERS ATUALIZADA (COM BOTÃO DE AVARIA)
+// 2. FUNÇÃO LOAD ORDERS ATUALIZADA (COM CÁLCULO DE NF E AVARIA)
 // ==============================================================
 async function loadOrders() {
     if (!currentUser) return; 
@@ -1093,13 +1135,12 @@ async function loadOrders() {
     try {
         const res = await fetch('/api/orders');
         const list = await res.json();
-        // --- 🔴 ADICIONE ESTE BLOCO AQUI (CORREÇÃO) 🔴 ---
-        // Isso força o contador do início a mostrar o número real de linhas da tabela
+        
         const dashCount = document.getElementById('dash-orders-count');
         if (dashCount) {
-            dashCount.innerText = list.length; // Se a lista for vazia (0), mostra 0
+            dashCount.innerText = list.length; 
         }
-        // Tenta pegar o tbody correto dependendo da tela
+        
         const tbody = document.getElementById('orders-list') || 
                       document.getElementById('client-orders-list') || 
                       document.querySelector('.data-table tbody');
@@ -1108,7 +1149,7 @@ async function loadOrders() {
             tbody.innerHTML = '';
             
             if(list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada.</td></tr>';
                 return;
             }
 
@@ -1116,16 +1157,20 @@ async function loadOrders() {
                 const phone = o.client_phone || o.phone || o.whatsapp || ''; 
                 const email = o.client_email || o.email || o.mail || ''; 
                 const name = o.client_name || o.name || 'Cliente';
-                const price = o.price || 0; 
+                
+                // MÁGICA DA MATEMÁTICA AQUI:
+                const basePrice = parseFloat(o.price) || 0;
+                const freightValue = parseFloat(o.freight_amount) || basePrice;
+                const nfValue = parseFloat(o.nf_amount) || 0;
+                
+                // O preço final agora soma o Frete com a Nota Fiscal
+                const finalPrice = freightValue + nfValue;
 
-                // --- 1. STATUS (VISUAL OU DROPDOWN) ---
+                // --- 1. STATUS ---
                 let statusDisplay;
-
                 if (currentUser.role === 'client') {
-                    // CLIENTE: Vê a Timeline Visual Bonita
-                    statusDisplay = getTimelineHTML(o.status);
+                    statusDisplay = typeof getTimelineHTML === 'function' ? getTimelineHTML(o.status) : o.status;
                 } else {
-                    // ADMIN/FUNC: Vê o Dropdown para editar rápido
                     statusDisplay = `
                     <select onchange="checkDeliveryStatus(this, ${o.id}, '${name}', '${o.code}', '${phone}')" 
                             style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px; width:100%;">
@@ -1142,119 +1187,56 @@ async function loadOrders() {
 
                 // --- 2. BOTÕES DE AÇÃO ---
                 let actions = '-';
-                
                 if (currentUser.role !== 'client') {
-                    // --- ADMIN / FUNCIONÁRIO ---
                     const whatsappColor = phone ? '#25D366' : '#ccc';
                     const emailColor = email ? '#007bff' : '#ccc';
 
                     actions = `<div style="display:flex; gap:5px; justify-content:center;">`;
 
-                    // WhatsApp
-                    actions += `
-                        <button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" 
-                                title="Enviar WhatsApp"
-                                style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="fab fa-whatsapp"></i>
-                        </button>`;
+                    actions += `<button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" title="WhatsApp" style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fab fa-whatsapp"></i></button>`;
                     
-                    // Email
-                    actions += `
-                        <button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" 
-                                title="Enviar Email"
-                                style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="far fa-envelope"></i>
-                        </button>`;
+                    actions += `<button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" title="Email" style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="far fa-envelope"></i></button>`;
 
-                    // Editar
-                    actions += `
-                        <button onclick="editOrder(${o.id})" 
-                                title="Editar"
-                                style="background:#ffc107; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="fas fa-edit"></i>
-                        </button>`;
+                    actions += `<button onclick="editOrder(${o.id})" title="Editar" style="background:#ffc107; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-edit"></i></button>`;
 
-                    // Excluir
-                    actions += `
-                        <button onclick="deleteOrder(${o.id})" 
-                                title="Excluir"
-                                style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="fas fa-trash"></i>
-                        </button>`;
+                    actions += `<button onclick="deleteOrder(${o.id})" title="Excluir" style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-trash"></i></button>`;
 
-                    // --- [NOVO] BOTÃO DE AVARIA ---
-                    actions += `
-                        <button onclick="DeliveryProof.start(${o.id}, 'damage')" 
-                                title="Relatar Avaria/Dano"
-                                style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </button>`;
-                    // -----------------------------
+                    actions += `<button onclick="DeliveryProof.start(${o.id}, 'damage')" title="Avaria" style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-exclamation-triangle"></i></button>`;
 
-                    // Ver Foto (Se existir)
                     if (o.delivery_proof) {
-                        actions += `
-                        <button onclick='DeliveryProof.view("${o.delivery_proof}")' 
-                                title="Ver Comprovante/Foto"
-                                style="background:#6f42c1; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                            <i class="fas fa-camera"></i>
-                        </button>`;
+                        actions += `<button onclick='DeliveryProof.view("${o.delivery_proof}")' title="Ver Foto" style="background:#6f42c1; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-camera"></i></button>`;
                     }
                     
-                    // Imprimir Etiqueta
-                    actions += `
-                    <button onclick="printLabel('${o.code}', '${name}', '${o.weight}', '${o.description}')" 
-                            title="Imprimir Etiqueta"
-                            style="background:#6c757d; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer;">
-                        <i class="fas fa-print"></i>
-                    </button>`;
-                
-                    actions += `</div>`;
+                    actions += `<button onclick="printLabel('${o.code}', '${name}', '${o.weight}', '${o.description}')" title="Etiqueta" style="background:#6c757d; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer;"><i class="fas fa-print"></i></button></div>`;
 
                 } else {
-                    // --- CLIENTE ---
                     if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
-                        actions = `
-                        <button onclick="openPaymentModal(${o.id}, '${o.description}', ${price})" 
-                            class="btn-pay-pulse"
-                            style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                            <i class="fas fa-dollar-sign"></i> PAGAR
-                        </button>`;
-                    } 
-                    else if (o.status === 'Pago') {
+                        actions = `<button onclick="openPaymentModal(${o.id}, '${o.description}', ${finalPrice})" class="btn-pay-pulse" style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fas fa-dollar-sign"></i> PAGAR</button>`;
+                    } else if (o.status === 'Pago') {
                         actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
-                    } 
-                    // Cliente vê foto se entregue OU se tiver avaria
-                    else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.delivery_proof) {
+                    } else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.delivery_proof) {
                         actions = `<button onclick='DeliveryProof.view("${o.delivery_proof}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer;">Ver Foto 📸</button>`;
-                    }
-                    else {
-                        actions = `<button onclick="alert('Detalhes: ${o.description} | Valor: R$ ${price}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer; border-radius:4px;">Detalhes</button>`;
+                    } else {
+                        actions = `<button onclick="alert('Detalhes: ${o.description} | Valor: R$ ${finalPrice.toFixed(2)}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer; border-radius:4px;">Detalhes</button>`;
                     }
                 }
                 
-                // --- RENDERIZAÇÃO DA LINHA ---
-tbody.innerHTML += `
-    <tr style="border-bottom: 1px solid #eee;">
-        <td style="text-align: center;">
-            <input type="checkbox" class="order-checkbox" value="${o.id}" onclick="updateBulkCounter()">
-        </td>
-        <td style="padding:12px;"><strong>${o.code}</strong></td>
-        <td>${name}</td>
-        <td>${o.description||'-'}</td>
-        <td>${o.weight} Kg</td>
-        <td>R$ ${parseFloat(price).toFixed(2)}</td> 
-        <td style="min-width: 250px;">${statusDisplay}</td>
-        <td>${actions}</td>
-    </tr>`; 
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="text-align: center;"><input type="checkbox" class="order-checkbox" value="${o.id}" onclick="updateBulkCounter()"></td>
+                        <td style="padding:12px;"><strong>${o.code}</strong></td>
+                        <td>${name}</td>
+                        <td>${o.description||'-'}</td>
+                        <td>${o.weight} Kg</td>
+                        <td style="font-weight:bold; color:green;">R$ ${finalPrice.toFixed(2)}</td> 
+                        <td style="min-width: 250px;">${statusDisplay}</td>
+                        <td>${actions}</td>
+                    </tr>`; 
             });
             
             if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
         }
-        // SE FOR CLIENTE, ATUALIZA O SININHO
-        if (currentUser.role === 'client') {
-            updateClientNotifications(list);
-        }
+        if (currentUser.role === 'client') updateClientNotifications(list);
     } catch (error) {
         console.error("Erro ao carregar encomendas:", error);
     }
@@ -1422,6 +1404,10 @@ function switchCamera() {
     startCamera(currentFacingMode);
 }
 
+// Variáveis globais para controlar o tempo
+let recInterval; 
+let recSeconds = 0;
+
 // 5. Gravação
 function startRecording() {
     recordedChunks = [];
@@ -1462,10 +1448,29 @@ function startRecording() {
 
     mediaRecorder.start();
 
+    // ==========================================
+    // MOTOR DO CRONÔMETRO (NOVO)
+    // ==========================================
+    const timerEl = document.getElementById('recording-timer');
+    timerEl.classList.remove('hidden'); // Mostra o relógio
+    recSeconds = 0; // Zera os segundos
+    timerEl.innerText = "00:00"; // Zera o texto na tela
+
+    // Limpa qualquer timer travado antes de começar
+    if(typeof recInterval !== 'undefined') clearInterval(recInterval);
+
+    // Faz o relógio rodar a cada 1 segundo (1000 milissegundos)
+    recInterval = setInterval(() => {
+        recSeconds++; // Soma 1 segundo
+        // Formata para ficar 00:00 (com zero à esquerda)
+        let m = Math.floor(recSeconds / 60).toString().padStart(2, '0');
+        let s = (recSeconds % 60).toString().padStart(2, '0');
+        timerEl.innerText = `${m}:${s}`; // Atualiza a tela
+    }, 1000);
+
     // UI de gravando
     document.getElementById('btn-start-rec').classList.add('hidden');
     document.getElementById('btn-stop-rec').classList.remove('hidden');
-    document.getElementById('recording-timer').classList.remove('hidden');
 }
 
 function stopRecording() {
@@ -1473,8 +1478,14 @@ function stopRecording() {
     document.getElementById('btn-start-rec').classList.remove('hidden');
     document.getElementById('btn-stop-rec').classList.add('hidden');
     document.getElementById('recording-timer').classList.add('hidden');
+    
+    // ==========================================
+    // PARA O MOTOR DO CRONÔMETRO
+    // ==========================================
+    if(typeof recInterval !== 'undefined') {
+        clearInterval(recInterval);
+    }
 }
-
 // 6. Refazer vídeo (Botão Descartar)
 function retakeVideo() {
     currentBlob = null;
@@ -1979,18 +1990,30 @@ async function loadClientBoxesForBilling(clientId) {
     boxSel.disabled = false;
 }
 
-// 3. Calcula o Valor (Peso * Preço Global)
+// 3. Calcula o Valor APENAS DO FRETE (Peso * Preço Global)
 function calculateBillAmount(selectElement) {
     const option = selectElement.options[selectElement.selectedIndex];
     const weight = parseFloat(option.getAttribute('data-weight')) || 0;
     
     // Usa o preço global carregado no inicio do dashboard
-    // Se globalPricePerKg for 0, certifique-se que loadPrice() foi chamado
-    const total = (weight * globalPricePerKg).toFixed(2);
-    document.getElementById('bill-amount').value = total;
+    const totalFrete = (weight * globalPricePerKg).toFixed(2);
+    
+    // ATENÇÃO AQUI: Agora ele preenche o campo de FRETE, e não o total final
+    document.getElementById('bill-freight-amount').value = totalFrete;
+    
+    // Chama a função abaixo para somar o frete com a nota fiscal
+    updateTotalAmount();
 }
 
-// 4. Criar a Fatura no Mercado Pago
+// Função auxiliar nova para atualizar o Total (Frete + NF)
+function updateTotalAmount() {
+    const freightAmount = parseFloat(document.getElementById('bill-freight-amount').value) || 0;
+    const nfAmount = parseFloat(document.getElementById('bill-nf-amount').value) || 0;
+    const total = freightAmount + nfAmount;
+    document.getElementById('bill-amount').value = total.toFixed(2);
+}
+
+// 4. Criar a Fatura
 async function createInvoice(e) {
     e.preventDefault();
     
@@ -2002,14 +2025,16 @@ async function createInvoice(e) {
         email: clientSelect.options[clientSelect.selectedIndex].getAttribute('data-email'),
         box_id: boxSelect.value,
         description: boxSelect.options[boxSelect.selectedIndex].getAttribute('data-desc'),
-        amount: document.getElementById('bill-amount').value
+        amount: document.getElementById('bill-amount').value, // O Total final
+        nf_amount: document.getElementById('bill-nf-amount').value, // O Valor da NF separado
+        freight_amount: document.getElementById('bill-freight-amount').value // O Valor do Frete separado
     };
 
-    if(!confirm(`Gerar cobrança de ${data.amount} para este cliente?`)) return;
+    if(!confirm(`Gerar cobrança de R$ ${data.amount} para este cliente?`)) return;
 
     const btn = e.target.querySelector('button');
-    const originalText = btn.innerText;
-    btn.innerText = "Gerando Pix e Link...";
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "Gerando Pix...";
     btn.disabled = true;
 
     try {
@@ -2031,7 +2056,7 @@ async function createInvoice(e) {
         alert("Erro de conexão.");
     }
     
-    btn.innerText = originalText;
+    btn.innerHTML = originalText;
     btn.disabled = false;
 }
 
@@ -2639,12 +2664,11 @@ async function loadReceipts() {
     }
 }
 
-// 5. GERAR RECIBO A4 (Tamanho Normal - Com Logo Oficial e Retirada)
+// 5. GERAR RECIBO A4 (Com Nota Fiscal e Total Corrigido)
 async function printReceipt(boxId) {
     const printArea = document.getElementById('print-area');
     
     try {
-        // Busca dados reais do banco
         const res = await fetch(`/api/receipt-data/${boxId}`); 
         const response = await res.json();
         
@@ -2652,19 +2676,25 @@ async function printReceipt(boxId) {
             return alert("Erro ao buscar dados do recibo: " + (response.msg || 'Erro desconhecido'));
         }
 
-        const d = response.data; // Dados vindos do backend
+        const d = response.data;
 
-        // Formata valores
-        const valorReais = parseFloat(d.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        const dataHoje = new Date().toLocaleDateString('pt-BR');
+        // MATEMÁTICA CORRIGIDA AQUI:
+        const nfVal = parseFloat(d.nf_amount) || 0;
+        const freteVal = parseFloat(d.freight_amount) || parseFloat(d.amount) || 0; 
         
-        // Define Status baseado no pagamento real
+        // Agora o total OBRIGATORIAMENTE soma o Frete + Nota Fiscal
+        const totalVal = freteVal + nfVal;
+
+        const valorFreteReais = freteVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const valorNfReais = nfVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const valorTotalReais = totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        
+        const dataHoje = new Date().toLocaleDateString('pt-BR');
         const stampStatus = d.is_paid ? 'PAGO' : 'PENDENTE';
-        const stampColor = d.is_paid ? '#28a745' : '#dc3545'; // Verde ou Vermelho
+        const stampColor = d.is_paid ? '#28a745' : '#dc3545';
 
         printArea.innerHTML = '';
         
-        // Estrutura HTML Otimizada para A4
         const receiptDiv = document.createElement('div');
         receiptDiv.className = 'receipt-a4-container'; 
         
@@ -2731,16 +2761,24 @@ async function printReceipt(boxId) {
                 </thead>
                 <tbody>
                     <tr>
-                        <td>
+                        <td style="border-bottom: 1px solid #eee; padding-bottom: 10px;">
                             <strong>Frete Aéreo/Marítimo Internacional</strong><br>
                             <small>Conteúdo: ${d.products || 'Diversos'}</small>
                         </td>
-                        <td style="text-align:center;">${d.weight} kg</td>
-                        <td style="text-align:right;">${valorReais}</td>
+                        <td style="text-align:center; border-bottom: 1px solid #eee;">${d.weight} kg</td>
+                        <td style="text-align:right; border-bottom: 1px solid #eee;">${valorFreteReais}</td>
                     </tr>
                     <tr>
-                        <td colspan="2" style="text-align:right; font-weight:bold; padding-top:15px;">TOTAL LÍQUIDO:</td>
-                        <td style="text-align:right; font-weight:bold; font-size:16px; padding-top:15px;">${valorReais}</td>
+                        <td style="padding-top: 10px;">
+                            <strong>Taxa de Despacho / Nota Fiscal</strong><br>
+                            <small>Impostos e taxas aduaneiras</small>
+                        </td>
+                        <td style="text-align:center;">-</td>
+                        <td style="text-align:right;">${valorNfReais}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="text-align:right; font-weight:bold; padding-top:15px; font-size: 14px;">TOTAL A PAGAR:</td>
+                        <td style="text-align:right; font-weight:bold; font-size:18px; padding-top:15px; color:#d32f2f;">${valorTotalReais}</td>
                     </tr>
                 </tbody>
             </table>
@@ -3783,15 +3821,15 @@ async function getZapQR() {
     }
 }
 // ==========================================
-// EXPORTAÇÃO PARA EXCEL (ADMIN)
+// EXPORTAÇÃO PARA EXCEL (ADMIN E FUNCIONÁRIOS)
 // ==========================================
 async function exportOrdersToExcel() {
-    // Verifica permissão (Só Admin)
-    if (currentUser.role !== 'admin') return alert('Apenas administradores.');
+    // Verifica permissão (Bloqueia apenas clientes, liberando Admin e Funcionários)
+    if (currentUser.role === 'client') return alert('Acesso negado. Apenas administradores e funcionários.');
 
     const btn = document.querySelector('button[onclick="exportOrdersToExcel()"]');
     const oldText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+    if(btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
 
     try {
         // 1. Busca os dados mais recentes do servidor
@@ -3800,36 +3838,48 @@ async function exportOrdersToExcel() {
 
         if (orders.length === 0) {
             alert("Nenhuma encomenda para exportar.");
-            btn.innerHTML = oldText;
+            if(btn) btn.innerHTML = oldText;
             return;
         }
 
-        // 2. Formata os dados para ficarem bonitos no Excel
-        const dataFormatted = orders.map(o => ({
-            "Código": o.code,
-            "Cliente": o.client_name || o.name,
-            "Telefone": o.client_phone || o.phone,
-            "Descrição": o.description,
-            "Peso (kg)": o.weight,
-            "Preço (R$)": parseFloat(o.price || 0).toFixed(2),
-            "Status": o.status,
-            "Data Criação": o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '-',
-            "Local Atual": o.delivery_location || '-'
-        }));
+        // 2. Formata os dados para ficarem bonitos no Excel (AGORA COM NOTA FISCAL SEPARADA!)
+        const dataFormatted = orders.map(o => {
+            // Puxa os valores certinhos que configuramos antes
+            const basePrice = parseFloat(o.price) || 0;
+            const freightValue = parseFloat(o.freight_amount) || basePrice;
+            const nfValue = parseFloat(o.nf_amount) || 0;
+            const finalPrice = freightValue + nfValue;
+
+            return {
+                "Código": o.code,
+                "Cliente": o.client_name || o.name,
+                "Telefone": o.client_phone || o.phone,
+                "Descrição": o.description,
+                "Peso (kg)": o.weight,
+                "Frete (R$)": freightValue.toFixed(2),
+                "Nota Fiscal (R$)": nfValue.toFixed(2),
+                "Total (R$)": finalPrice.toFixed(2),
+                "Status": o.status,
+                "Data Criação": o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '-',
+                "Local Atual": o.delivery_location || '-'
+            };
+        });
 
         // 3. Cria a Planilha
         const worksheet = XLSX.utils.json_to_sheet(dataFormatted);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Encomendas");
 
-        // 4. Ajusta largura das colunas (Opcional, mas fica pro)
+        // 4. Ajusta largura das colunas para a nova estrutura
         const wscols = [
             {wch: 15}, // Código
             {wch: 25}, // Cliente
             {wch: 15}, // Telefone
             {wch: 30}, // Descrição
             {wch: 10}, // Peso
-            {wch: 10}, // Preço
+            {wch: 12}, // Frete
+            {wch: 15}, // Nota Fiscal
+            {wch: 12}, // Total
             {wch: 15}, // Status
             {wch: 15}, // Data
             {wch: 20}  // Local
@@ -3844,7 +3894,7 @@ async function exportOrdersToExcel() {
         console.error("Erro ao exportar:", error);
         alert("Erro ao gerar Excel.");
     } finally {
-        btn.innerHTML = oldText;
+        if(btn) btn.innerHTML = oldText;
     }
 }
 // ==========================================
@@ -4366,7 +4416,7 @@ async function loadInvoices() {
         
         list.forEach(inv => {
             let statusHtml = '';
-            if(inv.status === 'approved') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+            if(inv.status === 'approved' || inv.status === 'paid') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
             else if(inv.status === 'in_review') statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
             else if(inv.status === 'pending') statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
             else statusHtml = '<span style="color:red;">Cancelado</span>';
@@ -4379,7 +4429,12 @@ async function loadInvoices() {
                 deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
                 
                 if (inv.status === 'pending') {
-                    actionButtons = `<span style="font-size:12px; color:gray;">Aguardando Cliente...</span>`;
+                    // NOVO: Botão de Baixa Manual quando está pendente
+                    actionButtons = `
+                        <button onclick="forcePayInvoice(${inv.id})" style="background:#f39c12; color:white; border:none; padding:5px 8px; border-radius:3px; cursor:pointer; font-size:12px; font-weight:bold;" title="Marcar como Pago Manualmente">
+                            💰 Lelo Confirma pagamento Manual
+                        </button>
+                    `;
                 } else if (inv.status === 'in_review') {
                     actionButtons = `
                         <button onclick="viewReceipt(${inv.id}, '${inv.receipt_url}')" style="background:#17a2b8; color:white; border:none; padding:5px 8px; border-radius:3px; cursor:pointer; font-size:12px; margin-right:5px;">
@@ -4390,7 +4445,6 @@ async function loadInvoices() {
                         </button>
                     `;
                 }
-                actionButtons += ` <button onclick="checkInvoiceStatus('${inv.mp_payment_id}', ${inv.id})" style="font-size:12px; cursor:pointer; background:none; border:none;" title="Forçar Verificação Pix">🔄</button>`;
             } else {
                 actionButtons = '-'; // Funcionários comuns não aprovam
             }
@@ -4424,6 +4478,29 @@ async function loadInvoices() {
     }
 }
 
+// ==========================================
+// DAR BAIXA MANUAL (FORÇAR PAGAMENTO)
+// ==========================================
+async function forcePayInvoice(invoiceId) {
+    if(!confirm("Tem certeza que deseja marcar esta fatura como PAGA manualmente? (O cliente não enviou comprovante pelo sistema)")) return;
+
+    try {
+        const res = await fetch(`/api/invoices/${invoiceId}/force-pay`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        
+        if(data.success) {
+            alert("✅ Pagamento confirmado manualmente com sucesso!");
+            loadInvoices(); // Atualiza a tabela
+        } else {
+            alert("Erro: " + data.message);
+        }
+    } catch (err) {
+        alert("Erro de conexão ao forçar o pagamento.");
+    }
+}
 // O Administrador clica para abrir a foto do comprovante e aprovar
 function viewReceipt(invoiceId, receiptUrl) {
     if(!receiptUrl) return alert("Erro: Link do talão não encontrado.");

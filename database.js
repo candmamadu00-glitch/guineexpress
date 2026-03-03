@@ -190,8 +190,13 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN webauthn_public_key TEXT", () => {});
     db.run("ALTER TABLE users ADD COLUMN webauthn_counter INTEGER DEFAULT 0", () => {});
     db.run("ALTER TABLE users ADD COLUMN express_points INTEGER DEFAULT 0", () => {});
-     // 🛂 A LINHA NOVA PARA O PASSAPORTE:
-db.run("ALTER TABLE users ADD COLUMN passport_stamps TEXT DEFAULT ''", () => {});
+    
+    // 🛂 A LINHA NOVA PARA O PASSAPORTE:
+    db.run("ALTER TABLE users ADD COLUMN passport_stamps TEXT DEFAULT ''", () => {});
+
+    // 💰 LINHAS NOVAS PARA SEPARAR FRETE E NOTA FISCAL (ADICIONE AQUI):
+    db.run("ALTER TABLE invoices ADD COLUMN nf_amount REAL DEFAULT 0", () => {});
+    db.run("ALTER TABLE invoices ADD COLUMN freight_amount REAL DEFAULT 0", () => {});
     console.log("✅ Tabelas sincronizadas e colunas verificadas.");
 
     // =======================================================

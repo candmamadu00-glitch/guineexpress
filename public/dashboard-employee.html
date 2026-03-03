@@ -47,13 +47,13 @@
             <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn"><i class="fas fa-file-invoice-dollar"></i> 💸Faturas</button>
             <button onclick="showSection('orders-view')"><i class="fas fa-box"></i> Encomendas</button>
             <button onclick="showSection('box-view')">📦 Box</button>
+            <button onclick="showSection('videos-section')">🎥 Vídeos</button>
+            <button onclick="showSection('billing-view')">💲 Status Pagto</button>
+            <button onclick="showSection('schedule-view')">📅 Agendamentos</button>
+            <button onclick="openBroadcastModal()" class="btn" style="background-color: #6f42c1; color: white; margin-right: 10px;">📢 Novo Comunicado</button>
             <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn"><i class="fas fa-tags"></i> Etiquetas</button>
             <button onclick="startScanner()" class="btn" style="background: #ffc107; color: #000; margin-right: 10px;"><i class="fas fa-qrcode"></i> Escanear</button>
-            <button onclick="showSection('history-view')" class="nav-btn"><i class="fas fa-history"></i> Histórico</button>
-            <button onclick="openBroadcastModal()" class="btn" style="background-color: #6f42c1; color: white; margin-right: 10px;">📢 Novo Comunicado</button>
-            <button onclick="showSection('billing-view')">💲 Status Pagto</button> 
-            <button onclick="showSection('schedule-view')">📅 Agendamentos</button>
-            <button onclick="showSection('videos-section')">🎥 Vídeos</button>
+            <button onclick="showSection('history-view')" class="nav-btn"><i class="fas fa-history"></i> Histórico</button> 
             <button onclick="showSection('clients-view')"><i class="fas fa-users"></i> Clientes</button>
             <button onclick="logout()" style="color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Sair</button>
         </div>
@@ -84,59 +84,67 @@
 
 <section id="orders-view">
     <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-            <h3>Gestão de Encomendas</h3>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Gestão de Encomendas</h3>
             
-            <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: flex-end;">
                 
-                <div id="bulk-action-container" style="display: none; background: #fff3cd; padding: 5px 10px; border-radius: 6px; border: 1px solid #ffe69c; gap: 10px; align-items: center;">
-                    <span style="font-size: 13px; font-weight: bold; color: #664d03;"><span id="bulk-count">0</span> selecionados</span>
-                    <select id="bulk-status-select" style="padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px;">
-                        <option value="">Alterar status para...</option>
-                        <option value="Processando">Processando</option>
-                        <option value="Recebido">Recebido na Origem</option>
-                        <option value="Em Trânsito">Em Trânsito ✈️</option>
-                        <option value="Chegou ao Destino">Chegou ao Destino 🏢</option>
-                        <option value="Entregue">Entregue ✅</option>
-                    </select>
-                    <button onclick="applyBulkStatus()" style="background: #0d6efd; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
-                        Aplicar
-                    </button>
+                <div id="bulk-action-container" style="display: none; background: #fff3cd; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffe69c; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: space-between;">
+                    <span style="font-size: 13px; font-weight: bold; color: #664d03; white-space: nowrap;">
+                        <i class="fas fa-check-square"></i> <span id="bulk-count">0</span> selecionados
+                    </span>
+                    <div style="display:flex; gap: 5px; flex-grow: 1;">
+                        <select id="bulk-status-select" style="padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; flex-grow: 1; min-width: 140px;">
+                            <option value="">Alterar status para...</option>
+                            <option value="Processando">Processando</option>
+                            <option value="Recebido">Recebido na Origem</option>
+                            <option value="Em Trânsito">Em Trânsito ✈️</option>
+                            <option value="Chegou ao Destino">Chegou ao Destino 🏢</option>
+                            <option value="Entregue">Entregue ✅</option>
+                        </select>
+                        <button onclick="applyBulkStatus()" style="background: #0d6efd; color: white; border: none; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+                            Aplicar
+                        </button>
+                    </div>
                 </div>
 
-                <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white;">
+                <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white; flex-grow: 1; text-align: center; justify-content: center; min-width: 140px;">
                     <i class="fas fa-file-excel"></i> Baixar Excel
                 </button>
 
-                <button class="btn btn-accent" onclick="prepareNewOrder()" style="width: auto;">
-                    + Nova Encomenda
+                <button class="btn btn-accent" onclick="prepareNewOrder()" style="flex-grow: 1; text-align: center; justify-content: center; min-width: 160px;">
+                    <i class="fas fa-plus"></i> Nova Encomenda
                 </button>
             </div>
         </div>
 
         <div style="margin: 15px 0; position: relative;">
-            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+            <i class="fas fa-search" style="position: absolute; left: 12px; top: 12px; color: #888;"></i>
             <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
                    placeholder="Buscar por código, cliente ou status..." 
-                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                   style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
         </div>
 
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width: 40px; text-align: center;">
-                        <input type="checkbox" id="selectAllOrders" onclick="toggleAllOrderCheckboxes(this)">
-                    </th>
-                    <th>Código</th>
-                    <th>Cliente</th>
-                    <th>Descrição</th>
-                    <th>Peso</th>
-                    <th>Status</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody id="orders-list"></tbody>
-        </table>
+        <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align: center;">
+                            <input type="checkbox" id="selectAllOrders" onclick="toggleAllOrderCheckboxes(this)">
+                        </th>
+                        <th>Código</th>
+                        <th>Cliente</th>
+                        <th>Descrição</th>
+                        <th>Peso</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="orders-list"></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="modal-order" class="modal-overlay" style="display: none;">
@@ -430,6 +438,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="script.js"></script>
     <script src="cici.js"></script>
     <script>

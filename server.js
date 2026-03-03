@@ -851,13 +851,46 @@ app.get('/api/financial-report', (req, res) => {
         });
     });
 });
-// --- SISTEMA DE AGENDAMENTO (CORRIGIDO) ---
-
-// 1. Admin cria janela de disponibilidade
+// ==========================================
+// 1. Admin cria janela e NOTIFICA CLIENTES PAGOS VIA WHATSAPP
+// ==========================================
 app.post('/api/schedule/create-availability', (req, res) => {
     const { date, start_time, end_time, max_slots } = req.body;
+    
     db.run("INSERT INTO availability (date, start_time, end_time, max_slots) VALUES (?,?,?,?)",
-        [date, start_time, end_time, max_slots], (err) => res.json({ success: !err }));
+        [date, start_time, end_time, max_slots], function(err) {
+            if (err) return res.json({ success: false });
+
+            // Após criar a vaga, busca clientes com faturas pagas (approved ou paid)
+            db.all(`SELECT DISTINCT u.phone, u.name 
+                    FROM users u 
+                    JOIN invoices i ON u.id = i.client_id 
+                    WHERE i.status IN ('approved', 'paid') AND u.phone IS NOT NULL`, [], async (err2, clientesPagos) => {
+                
+                if(!err2 && clientesPagos.length > 0 && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                    // Formata a data para a mensagem
+                    const [ano, mes, dia] = date.split('-');
+                    const dataFormatada = `${dia}/${mes}/${ano}`;
+
+                    for (let cliente of clientesPagos) {
+                        try {
+                            let cleanPhone = cliente.phone.replace(/\D/g, '');
+                            const zapMsg = `Olá, *${cliente.name}*! 📅\n\nA Guineexpress acabou de abrir vagas na agenda para o dia *${dataFormatada}*.\n\nComo o seu pagamento já foi confirmado, acesse o seu painel agora mesmo para garantir o seu horário de agendamento!\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+                            
+                            const numberId = await clientZap.getNumberId(cleanPhone);
+                            if (numberId) {
+                                await clientZap.sendMessage(numberId._serialized, zapMsg);
+                                console.log(`✅ [ZAP] Aviso de agenda enviada para ${cliente.name}`);
+                            }
+                        } catch(e) {
+                            console.log(`⚠️ Erro ao avisar ${cliente.name} sobre a agenda.`);
+                        }
+                    }
+                }
+            });
+
+            res.json({ success: true });
+        });
 });
 // Rota que faltava: Lista as janelas criadas (para o Admin ver e excluir)
 app.get('/api/schedule/availability', (req, res) => {
@@ -880,52 +913,69 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
 
 
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
-// 3. Rota INTELIGENTE: Quebra os horários em 15 min (CORREÇÃO DO ERRO AQUI)
+// ==========================================
+// 3. Rota INTELIGENTE (BLOQUEADA PARA QUEM NÃO PAGOU)
+// ==========================================
 app.get('/api/schedule/slots-15min', (req, res) => {
-    // Busca todas as janelas
-    db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, ranges) => {
-        if(err) return res.json([]);
+    const userId = req.session.userId;
+    const userRole = req.session.role;
 
-        // Busca todos os agendamentos
-        db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
-            
-            // --- PROTEÇÃO CONTRA O ERRO ---
-            // Se der erro no SQL ou bookings for undefined, define como array vazio para não travar
-            if (err2 || !bookings) {
-                console.log("Aviso: Tabela appointments vazia ou com erro de coluna.", err2);
-                bookings = []; 
+    // Apenas clientes precisam da verificação de pagamento. Admin e Func veem tudo.
+    if (userRole === 'client') {
+        db.get(`SELECT count(*) as qtd FROM invoices WHERE client_id = ? AND status IN ('approved', 'paid')`, [userId], (errUser, rowCount) => {
+            if (errUser || !rowCount || rowCount.qtd === 0) {
+                // Se o cliente não tem fatura paga, devolvemos um código especial "BLOQUEADO"
+                return res.json({ status: "bloqueado", data: [] });
             }
-
-            let finalSlots = [];
-
-            ranges.forEach(range => {
-                let current = new Date(`2000-01-01T${range.start_time}`);
-                let end = new Date(`2000-01-01T${range.end_time}`);
-
-                while (current < end) {
-                    let timeStr = current.toTimeString().substring(0,5);
-                    
-                    // Agora é seguro usar .filter porque bookings é garantido ser um array
-                    let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
-                    
-                    finalSlots.push({
-                        availability_id: range.id,
-                        date: range.date,
-                        time: timeStr,
-                        max_slots: range.max_slots,
-                        taken: taken,
-                        available: range.max_slots - taken
-                    });
-
-                    current.setMinutes(current.getMinutes() + 15);
-                }
-            });
-
-            res.json(finalSlots);
+            // Se pagou, segue para carregar as vagas
+            carregarVagas(res);
         });
+    } else {
+        // Se for admin/func, carrega direto
+        carregarVagas(res);
+    }
+
+    function carregarVagas(resposta) {
+        db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, ranges) => {
+            if(err) return resposta.json({ status: "ok", data: [] });
+
+            db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
+                if (err2 || !bookings) bookings = []; 
+
+                let finalSlots = [];
+                ranges.forEach(range => {
+                    let current = new Date(`2000-01-01T${range.start_time}`);
+                    let end = new Date(`2000-01-01T${range.end_time}`);
+
+                    while (current < end) {
+                        let timeStr = current.toTimeString().substring(0,5);
+                        let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
+                        
+                        finalSlots.push({
+                            availability_id: range.id, date: range.date, time: timeStr,
+                            max_slots: range.max_slots, taken: taken, available: range.max_slots - taken
+                        });
+                        current.setMinutes(current.getMinutes() + 15);
+                    }
+                });
+                resposta.json({ status: "ok", data: finalSlots });
+            });
+        });
+    }
+});
+// ==========================================
+// ROTA NOVA: EXCLUIR AGENDAMENTO DO HISTÓRICO
+// ==========================================
+app.delete('/api/schedule/delete-appointment/:id', (req, res) => {
+    if (req.session.role !== 'admin' && req.session.role !== 'funcionario') {
+        return res.status(403).json({ success: false, msg: 'Sem permissão' });
+    }
+    
+    db.run("DELETE FROM appointments WHERE id = ?", [req.params.id], function(err) {
+        if (err) return res.json({ success: false });
+        res.json({ success: true });
     });
 });
-
 // 4. Reservar (APROVAÇÃO AUTOMÁTICA)
 app.post('/api/schedule/book', (req, res) => {
     const { availability_id, date, time } = req.body;
@@ -984,27 +1034,28 @@ app.get('/api/schedule/appointments', (req, res) => {
 app.post('/api/schedule/status', (req, res) => db.run("UPDATE appointments SET status = ? WHERE id = ?", [req.body.status, req.body.id], (err) => res.json({success: !err})));
 app.post('/api/schedule/cancel', (req, res) => db.run("UPDATE appointments SET status = 'Cancelado' WHERE id = ? AND client_id = ?", [req.body.id, req.session.userId], (err) => res.json({success: !err})));
 
-// --- OUTROS (Mantidos) ---
-// Rota de Pedidos (Atualizada para trazer Telefone e Email)
+// Rota de Pedidos (Atualizada para trazer NF, Frete, Telefone e Email)
 app.get('/api/orders', (req, res) => {
-    // AQUI ESTÁ A MUDANÇA: Adicionamos client_phone e client_email no SELECT
+    // Fazemos um LEFT JOIN com boxes e invoices para resgatar os valores das taxas
     let sql = `SELECT 
                 orders.*, 
                 users.name as client_name, 
                 users.phone as client_phone, 
-                users.email as client_email 
+                users.email as client_email,
+                invoices.nf_amount,
+                invoices.freight_amount
                FROM orders 
-               JOIN users ON orders.client_id = users.id`;
+               JOIN users ON orders.client_id = users.id
+               LEFT JOIN boxes ON boxes.order_id = orders.id
+               LEFT JOIN invoices ON invoices.box_id = boxes.id`;
     
     let params = [];
     
-    // Se for cliente, filtra apenas os dele. Se for admin, vê tudo.
     if(req.session.role === 'client') { 
-        sql += " WHERE client_id = ?"; 
+        sql += " WHERE orders.client_id = ?"; 
         params.push(req.session.userId); 
     }
     
-    // Ordenar pelo mais recente fica mais organizado
     sql += " ORDER BY orders.id DESC"; 
 
     db.all(sql, params, (err, rows) => {
@@ -1077,6 +1128,29 @@ app.post('/api/orders/create', (req, res) => {
         });
     });
 });
+// --- ROTA CORRIGIDA: EDITAR ENCOMENDA ---
+app.put('/api/orders/:id', (req, res) => {
+    // Bloqueia se for cliente tentando editar
+    if (req.session.role === 'client') {
+        return res.status(403).json({ success: false, msg: 'Sem permissão' });
+    }
+    
+    const { code, description, weight, status } = req.body;
+    const id = req.params.id;
+
+    // Atualiza o preço automaticamente caso o peso tenha sido editado
+    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+        const pricePerKg = row ? parseFloat(row.value) : 0;
+        const newPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
+
+        const sql = `UPDATE orders SET code = ?, description = ?, weight = ?, status = ?, price = ? WHERE id = ?`;
+        
+        db.run(sql, [code, description, weight, status, newPrice, id], function(err) {
+            if (err) return res.json({ success: false, msg: err.message });
+            res.json({ success: true });
+        });
+    });
+});
 // --- ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO (COM FOTO) ---
 app.post('/api/orders/update', (req, res) => {
     const { id, status, location, delivery_proof } = req.body;
@@ -1125,9 +1199,29 @@ app.post('/api/orders/update', (req, res) => {
     });
 });
 app.get('/api/boxes', (req, res) => {
-    let sql = `SELECT boxes.*, users.name as client_name, orders.code as order_code, orders.status as order_status, orders.weight as order_weight FROM boxes JOIN users ON boxes.client_id = users.id LEFT JOIN orders ON boxes.order_id = orders.id`;
+    // Agora o banco também busca o nf_amount e o freight_amount lá na tabela de faturas (invoices)
+    let sql = `
+        SELECT 
+            boxes.*, 
+            users.name as client_name, 
+            orders.code as order_code, 
+            orders.status as order_status, 
+            orders.weight as order_weight,
+            invoices.nf_amount,
+            invoices.freight_amount
+        FROM boxes 
+        JOIN users ON boxes.client_id = users.id 
+        LEFT JOIN orders ON boxes.order_id = orders.id
+        LEFT JOIN invoices ON boxes.id = invoices.box_id
+    `;
     let params = [];
-    if(req.session.role === 'client') { sql += " WHERE boxes.client_id = ?"; params.push(req.session.userId); }
+    
+    // Mantém a regra de segurança: se for cliente, vê só as caixas dele
+    if(req.session.role === 'client') { 
+        sql += " WHERE boxes.client_id = ?"; 
+        params.push(req.session.userId); 
+    }
+    
     db.all(sql, params, (err, rows) => res.json(rows));
 });
 app.post('/api/boxes/create', (req, res) => {
@@ -1305,14 +1399,14 @@ app.post('/api/invoices/create', async (req, res) => {
     // 1. Segurança: Só o Admin pode criar
     if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
 
-    const { client_id, box_id, amount, description, email } = req.body; 
+    // Adicionamos os novos campos nf_amount e freight_amount aqui
+    const { client_id, box_id, amount, description, email, nf_amount, freight_amount } = req.body; 
 
     try {
-        // A. Salva direto no Banco (Não chama Mercado Pago)
-        // Deixamos mp_payment_id, qr_code, etc, vazios porque agora o PIX é manual
-        db.run(`INSERT INTO invoices (client_id, box_id, amount, description, status) 
-                VALUES (?, ?, ?, ?, 'pending')`,
-                [client_id, box_id, amount, description],
+        // A. Salva direto no Banco, agora com as colunas novas
+        db.run(`INSERT INTO invoices (client_id, box_id, amount, description, status, nf_amount, freight_amount) 
+                VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+                [client_id, box_id, amount, description, nf_amount || 0, freight_amount || amount], // Se não vier frete, assume o total
                 function(err) {
                     if(err) {
                         console.error("Erro SQL ao criar fatura:", err);
@@ -1346,7 +1440,7 @@ app.post('/api/invoices/create', async (req, res) => {
                                 const numberId = await clientZap.getNumberId(cleanPhone);
                                 
                                 if (numberId) {
-                                    const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+                                    const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
 
                                     await clientZap.sendMessage(numberId._serialized, zapMsg);
                                     console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
@@ -1371,7 +1465,25 @@ app.post('/api/invoices/create', async (req, res) => {
         res.status(500).json({success: false, msg: 'Erro interno no servidor'});
     }
 });
+// ==========================================
+// ROTA: DAR BAIXA MANUAL NA FATURA (ADMIN)
+// ==========================================
+app.post('/api/invoices/:id/force-pay', (req, res) => {
+    if(req.session.role !== 'admin') return res.status(403).json({success: false, message: 'Sem permissão'});
 
+    const invoiceId = req.params.id;
+
+    // Atualiza o status para 'approved' e limpa qualquer erro anterior
+    const sql = "UPDATE invoices SET status = 'approved' WHERE id = ?";
+    
+    db.run(sql, [invoiceId], function(err) {
+        if (err) {
+            console.error("Erro ao forçar pagamento:", err);
+            return res.json({ success: false, message: 'Erro ao salvar no banco.' });
+        }
+        res.json({ success: true, message: 'Fatura marcada como paga manualmente.' });
+    });
+});
 // 2. Listar Faturas
 app.get('/api/invoices/list', (req, res) => {
     // Busca avançada: cruza os dados pelo ID ou pelo Código caso o banco tenha salvo como texto
@@ -1727,7 +1839,7 @@ app.get('/api/dashboard-stats', (req, res) => {
     });
 });
 // ==========================================
-// ROTA DO RECIBO PRO (COM STATUS DE PAGAMENTO)
+// ROTA DO RECIBO PRO (COM STATUS DE PAGAMENTO E NOTA FISCAL)
 // ==========================================
 app.get('/api/receipt-data/:boxId', (req, res) => {
     const boxId = req.params.boxId;
@@ -1738,7 +1850,9 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
             orders.weight as weight, 
             orders.code as order_code,
             users.name as client_name, users.phone, users.document, users.country, users.email,
-            invoices.status as payment_status -- Pega o status do pagamento (approved/pending)
+            invoices.status as payment_status, -- Pega o status do pagamento (approved/pending)
+            invoices.nf_amount,                -- NOVA COLUNA: Pega o valor da nota fiscal
+            invoices.freight_amount            -- NOVA COLUNA: Pega o valor do frete separado
         FROM boxes
         LEFT JOIN users ON boxes.client_id = users.id
         LEFT JOIN orders ON boxes.order_id = orders.id
@@ -1761,11 +1875,16 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
                 currentAmount = weight * pricePerKg;
             }
 
+            // Define os valores finais garantindo que são números com 2 casas decimais
             box.amount = currentAmount.toFixed(2);
             box.weight = weight.toFixed(2);
             
-            // Define status legível para o recibo
-            box.is_paid = (box.payment_status === 'approved'); 
+            // Tratamento das colunas novas para evitar erro em faturas antigas
+            box.nf_amount = parseFloat(box.nf_amount || 0).toFixed(2);
+            box.freight_amount = parseFloat(box.freight_amount || currentAmount).toFixed(2);
+            
+            // Define status legível para o recibo (considerei 'paid' também caso você use)
+            box.is_paid = (box.payment_status === 'approved' || box.payment_status === 'paid'); 
 
             res.json({ success: true, data: box });
         });
