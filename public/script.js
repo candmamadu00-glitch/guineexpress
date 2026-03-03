@@ -2618,19 +2618,21 @@ async function loadReceipts() {
         boxes.sort((a, b) => b.id - a.id);
 
         boxes.forEach(box => {
-            // CORREÇÃO: Usa 'box' aqui dentro do loop
-            const peso = parseFloat(box.order_weight || 0).toFixed(2);
+            const peso = parseFloat(box.order_weight || 0);
             
-            // Lógica visual para valor (apenas visualização rápida na tabela)
-            // O valor real calculado vem na hora de imprimir
-            let valorNum = parseFloat(box.amount || 0);
+            // 1. Calcula a estimativa de frete (se for caixa nova)
+            const freteEstimado = peso * globalPricePerKg;
             
-            // Se o valor for 0, tenta estimar visualmente (peso * preço global) para a tabela não ficar zerada
-            if(valorNum === 0 && globalPricePerKg > 0) {
-                valorNum = parseFloat(peso) * globalPricePerKg;
-            }
+            // 2. Pega o valor do frete (do banco de dados) ou usa a estimativa
+            const valorFrete = parseFloat(box.freight_amount) || parseFloat(box.amount) || freteEstimado;
+            
+            // 3. Pega o valor da Nota Fiscal do banco de dados (se existir)
+            const valorNf = parseFloat(box.nf_amount) || 0;
+            
+            // 4. MÁGICA: Soma o Frete com a Nota Fiscal para mostrar o Total Real!
+            const valorTotalCalculado = valorFrete + valorNf;
 
-            const valorReais = valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const valorReais = valorTotalCalculado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             const produtos = box.products || '---';
             
             let clientCol = '';
@@ -2643,7 +2645,7 @@ async function loadReceipts() {
                     <td><strong>#${box.box_code}</strong></td>
                     ${clientCol}
                     <td><small>${produtos.substring(0, 30)}...</small></td>
-                    <td>${peso} kg</td>
+                    <td>${peso.toFixed(2)} kg</td>
                     <td style="font-weight:bold; color:#0a1931;">${valorReais}</td>
                     <td>
                         <button onclick="printReceipt(${box.id})" class="btn" style="background:#000; color:#d4af37; border:1px solid #d4af37; padding:5px 10px; font-size:11px; font-weight:bold;">
