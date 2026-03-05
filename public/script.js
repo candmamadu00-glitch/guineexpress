@@ -4017,7 +4017,7 @@ function updateClientNotifications(orders) {
         badge.classList.remove('pulse-animation');
     }
 }
-// --- FUNÇÃO: CARREGAR LOGS DE ACESSO ---
+// --- FUNÇÃO: CARREGAR LOGS DE ACESSO E AUDITORIA ---
 async function loadAccessLogs() {
     try {
         const response = await fetch('/api/admin/logs');
@@ -4029,20 +4029,25 @@ async function loadAccessLogs() {
         logs.forEach(log => {
             const tr = document.createElement('tr');
             
-            // Define cor baseada no status (Sucesso = Verde, Falha = Vermelho)
-            const statusColor = log.status === 'Sucesso' ? '#28a745' : '#dc3545';
-            const statusBadge = `<span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${log.status}</span>`;
+            // 🎨 MÁGICA DAS CORES: Verde (Sucesso), Vermelho (Exclusão/Falha)
+            let statusColor = '#6c757d'; 
+            if (log.status === 'Sucesso') statusColor = '#28a745';
+            else if (log.status === 'Exclusão') statusColor = '#dc3545'; // Vermelho de Alerta!
+            else statusColor = '#dc3545'; 
+
+            const statusBadge = `<span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">${log.status}</span>`;
 
             // Formata a data
             const date = new Date(log.created_at).toLocaleString('pt-BR');
 
+            // Ajustei as cores do texto para o Nome do Usuário e o Motivo ficarem bem destacados
             tr.innerHTML = `
                 <td style="padding: 10px; border-bottom: 1px solid #eee;">${date}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">${log.user_input}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #003de3;">${log.user_input}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #eee;">${statusBadge}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #eee;">${log.device}</td>
                 <td style="padding: 10px; border-bottom: 1px solid #eee; font-family: monospace;">${log.ip_address}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #eee; color: #666;">${log.reason || '-'}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333; font-weight: bold;">${log.reason || '-'}</td>
             `;
             tbody.appendChild(tr);
         });

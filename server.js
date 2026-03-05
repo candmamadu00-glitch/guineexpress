@@ -1228,7 +1228,36 @@ app.post('/api/boxes/create', (req, res) => {
     const {client_id, order_id, box_code, products, amount} = req.body;
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
 });
-app.post('/api/boxes/delete', (req, res) => db.run("DELETE FROM boxes WHERE id = ?", [req.body.id], (err) => res.json({success: !err})));
+// =========================================================
+// 2. ROTA CORRIGIDA: EXCLUIR BOX (COM AUDITORIA)
+// =========================================================
+app.post('/api/boxes/delete', (req, res) => {
+    // Trava de segurança: Clientes não podem apagar
+    if (!req.session.userId || req.session.role === 'client') {
+        return res.status(403).json({ success: false, message: 'Sem permissão' });
+    }
+
+    const id = req.body.id;
+    const userName = req.session.userName || 'Funcionário Desconhecido';
+    const ip = req.ip || req.connection.remoteAddress || 'Desconhecido';
+
+    // Puxa o código da Box antes de destruí-la
+    db.get("SELECT box_code FROM boxes WHERE id = ?", [id], (err, row) => {
+        const boxCode = row ? row.box_code : 'Desconhecida';
+
+        db.run("DELETE FROM boxes WHERE id = ?", [id], function(err) {
+            if (err) return res.json({ success: false });
+
+            // 🕵️‍♂️ O ESPIÃO: Grava na tabela de Auditoria (access_logs)
+            const reason = `📦 Apagou a Box: ${boxCode} (ID: ${id})`;
+            db.run(`INSERT INTO access_logs (user_input, status, device, ip_address, reason) 
+                    VALUES (?, 'Exclusão', 'Ação do Sistema', ?, ?)`, 
+                [userName, ip, reason]);
+
+            res.json({ success: true });
+        });
+    });
+});
 // --- ROTA: Atualizar Usuário ---
 app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
     if (!req.session.user) {
@@ -2107,33 +2136,31 @@ app.put('/api/orders/bulk-status', (req, res) => {
         });
     });
 });
-// --- ROTA: Excluir Encomenda (CORRIGIDA) ---
+// =========================================================
+// 1. ROTA CORRIGIDA: EXCLUIR ENCOMENDA (COM AUDITORIA)
+// =========================================================
 app.delete('/api/orders/:id', (req, res) => {
+    // Trava de segurança: Clientes não podem apagar
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
     }
 
     const id = req.params.id;
-    const userName = req.session.userName || 'Staff'; // Nome de quem apagou
-    const ip = req.ip || req.connection.remoteAddress;
+    const userName = req.session.userName || 'Funcionário Desconhecido'; 
+    const ip = req.ip || req.connection.remoteAddress || 'Desconhecido';
 
-    // 1. Pega o código da encomenda antes de apagar
+    // Puxa o código da encomenda antes de destruí-la
     db.get("SELECT code FROM orders WHERE id = ?", [id], (err, row) => {
         const orderCode = row ? row.code : 'Desconhecido';
 
-        // 2. Apaga a encomenda
         db.run("DELETE FROM orders WHERE id = ?", [id], function(err) {
             if (err) return res.json({ success: false, message: "Erro ao excluir." });
 
-            // 3. SALVA O LOG NA TABELA CERTA (system_logs)
-            const action = "EXCLUSÃO";
-            const details = `Apagou a encomenda ${orderCode} (ID: ${id})`;
-
-            db.run(`INSERT INTO system_logs (user_name, action, details, ip_address) 
-                    VALUES (?, ?, ?, ?)`, 
-                [userName, action, details, ip], (logErr) => {
-                    if (logErr) console.error("Erro ao gravar log:", logErr.message);
-            });
+            // 🕵️‍♂️ O ESPIÃO: Grava na tabela de Auditoria (access_logs)
+            const reason = `🗑️ Apagou a Encomenda: ${orderCode} (ID: ${id})`;
+            db.run(`INSERT INTO access_logs (user_input, status, device, ip_address, reason) 
+                    VALUES (?, 'Exclusão', 'Ação do Sistema', ?, ?)`, 
+                [userName, ip, reason]);
 
             res.json({ success: true });
         });
