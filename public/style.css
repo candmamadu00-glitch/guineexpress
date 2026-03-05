@@ -413,7 +413,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
 }
 /* =========================================
-   7. IMPRESSÃO INTELIGENTE (Etiqueta + A4)
+   7. IMPRESSÃO INTELIGENTE (Etiqueta Térmica 100x151mm)
    ========================================= */
 .hidden-print-area { display: none; }
 
@@ -422,16 +422,26 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     #print-area, #print-area * { visibility: visible; }
     
     #print-area {
-        position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+        position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0;
         display: block !important; background-color: white; z-index: 9999;
     }
 
-    /* --- DEFINIÇÃO DOS TAMANHOS DE PAPEL --- */
+    /* FORÇA O TAMANHO GLOBAL DA IMPRESSORA PARA 100x151mm */
+    @page { size: 100mm 151mm; margin: 0; padding: 0; }
     
-    /* Configuração para ETIQUETA (Pequena) */
-    @page label-page { size: 100mm 150mm; margin: 0mm; }
-    .shipping-label-container { page: label-page; break-after: page; width: 100mm; height: 149mm; overflow: hidden; }
-
+    /* CONFIGURAÇÃO DA ETIQUETA */
+    .shipping-label-container { 
+        width: 100mm; 
+        height: 151mm; 
+        margin: 0; 
+        padding: 4mm; /* Margem de segurança interna */
+        box-sizing: border-box; 
+        background: white;
+        color: #161515; /* Preto puro para contraste térmico */
+        page-break-after: always; /* Diz à impressora para cortar o papel aqui! */
+        overflow: hidden;
+        font-family: 'Arial', sans-serif;
+    }
     /* Configuração para RECIBO (A4 Normal) */
     @page a4-page { size: A4 portrait; margin: 5mm; }
     .receipt-a4-container { page: a4-page; break-after: page; width: 200mm; min-height: 280mm; }

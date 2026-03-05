@@ -2492,7 +2492,7 @@ function filterLabels() {
     });
 }
 
-// 4. GERAR E IMPRIMIR ETIQUETAS (Com sistema de Volume X/Y e Logo Oficial)
+// 4. GERAR E IMPRIMIR ETIQUETAS TÉRMICAS (100x151mm Clean e Completa)
 function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
@@ -2500,95 +2500,128 @@ function printSelectedLabels() {
     const printArea = document.getElementById('print-area');
     printArea.innerHTML = ''; 
 
-    // Dados Fixos da Empresa
+    // Dados Fixos da Empresa (Organizados)
     const company = {
         name: "Guineexpress Logística",
         address: "Av. Tristão Gonçalves, 1203",
-        contact: "(85) 98239-207",
+        contact: "(85) 98239-207 / (85) 97175-853", 
         cnpj: "49.356.085/0001-34"
     };
 
     checked.forEach(box => {
         const data = JSON.parse(box.getAttribute('data-obj'));
         
-        // 1. PERGUNTA QUANTAS SACOLAS TEM ESTA ENCOMENDA
         let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
-        
-        // Se o usuário cancelar ou digitar letra, assume 1
         qtdVolumes = parseInt(qtdVolumes) || 1; 
 
-        // 2. LOOP MÁGICO: Gera a quantidade de etiquetas que o usuário pediu
         for (let i = 1; i <= qtdVolumes; i++) {
             
             const labelDiv = document.createElement('div');
             labelDiv.className = 'shipping-label-container'; 
             
+            // Layout Transformado em "Grade" Profissional (Linhas conectadas)
             labelDiv.innerHTML = `
-                <div class="lbl-header" style="display:flex; justify-content:space-between; align-items:center;">
-                    <img src="/logo.png" style="width: 60px; height: 60px; object-fit: contain;">
+                <div style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing: border-box; background: #ffffff; border: 2px solid #000; font-family: sans-serif; color: #000;">
                     
-                    <div style="text-align: right; font-size: 9px; color: #fff; line-height: 1.3;">
-                        <strong style="font-size:11px; color:#d4af37;">${company.name}</strong><br>
-                        ${company.address}<br>
-                        ${company.contact}<br>
-                        CNPJ: ${company.cnpj}
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #000; padding: 10px; background: #ffffff;">
+                        <img src="/logo.png" style="width: 55px; height: 55px; object-fit: contain; filter: grayscale(100%) contrast(10000%);">
+                        <div style="text-align: right; font-size: 11px; line-height: 1.4;">
+                            <strong style="font-size:14px; text-transform: uppercase;">${company.name}</strong><br>
+                            ${company.address}<br>
+                            ${company.contact}<br>
+                            CNPJ: ${company.cnpj}
+                        </div>
                     </div>
-                </div>
 
-                <div class="lbl-body">
-                    <div class="lbl-box">
-                        <div class="lbl-title">DESTINATÁRIO (GUINÉ-BISSAU)</div>
-                        <div class="lbl-text" style="font-size: 14px;">${data.client_name || 'CLIENTE'}</div>
-                        <div style="font-size: 11px; margin-top: 2px;">
+                    <div style="border-bottom: 2px solid #000; padding: 10px;">
+                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">DESTINATÁRIO (GUINÉ-BISSAU)</div>
+                        <div style="font-size: 18px; font-weight: 900; line-height: 1.2;">${data.client_name || 'CLIENTE'}</div>
+                        <div style="font-size: 13px; margin-top: 4px; font-weight: 600;">
                             Tel: ${data.client_phone || '-'}<br>
-                            Email: ${data.client_email ? data.client_email.substring(0, 25) : '-'}
+                            Email: ${data.client_email ? data.client_email.substring(0, 30) : '-'}
                         </div>
                     </div>
 
-                    <div style="display:flex; gap: 5px;">
-                        <div class="lbl-box" style="flex: 2;">
-                            <div class="lbl-title">CONTEÚDO</div>
-                            <div class="lbl-text" style="font-size: 12px;">${data.description ? data.description.substring(0, 40) : '-'}</div>
+                    <div style="display:flex; border-bottom: 2px solid #000;">
+                        <div style="flex: 1; padding: 10px; border-right: 2px solid #000; text-align: center;">
+                            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">CÓDIGO DA ENCOMENDA</div>
+                            <div style="font-size: 20px; font-weight: 900; letter-spacing: 1px;">${data.code}</div>
                         </div>
-                        <div class="lbl-box" style="flex: 1; text-align: center;">
-                            <div class="lbl-title">PESO TOTAL</div>
-                            <div class="lbl-text" style="font-size: 16px;">${data.weight} kg</div>
+                        <div style="flex: 1; padding: 10px; text-align: center;">
+                            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">PESO TOTAL</div>
+                            <div style="font-size: 20px; font-weight: 900;">${data.weight} kg</div>
                         </div>
-                    </div>
-                    
-                    <div class="lbl-box">
-                        <div class="lbl-title">OBSERVAÇÕES</div>
-                        <div style="font-size: 10px;">Entrega prevista: </div>
-                    </div>
-                </div>
-
-                <div class="lbl-footer" style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div class="lbl-title" style="border:none; margin:0;">NÚMERO DA BOX</div>
-                         <div style="font-size: 22px; font-weight: 900; letter-spacing: 1px;">${data.box_code || data.code}</div>
-                    </div>
-                    
-                    <div style="background: #000; color: #fff; padding: 6px 12px; text-align: center; border-radius: 4px; min-width: 60px;">
-                        <div style="font-size: 9px; letter-spacing: 2px; font-weight:bold;">VOLUME</div>
-                        <div style="font-size: 24px; font-weight: 900;">${i}/${qtdVolumes}</div>
                     </div>
 
-                    <div id="qr-${data.id}-${i}" style="background:#fff; padding:2px; border:1px solid #ddd;"></div>
+                    <div style="border-bottom: 2px solid #000; padding: 10px; flex: 1; overflow: hidden;">
+                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">CONTEÚDO / DESCRIÇÃO</div>
+                        <div style="font-size: 13px; font-weight: bold; word-wrap: break-word; white-space: normal; line-height: 1.3;">
+                            ${data.description || 'Sem descrição'}
+                        </div>
+                    </div>
+
+                    <div style="padding: 10px; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 12px; font-weight: bold; text-transform: uppercase;">NÚMERO DA BOX</div>
+                            <div style="font-size: 28px; font-weight: 900; letter-spacing: 1px;">${data.box_code || '---'}</div>
+                        </div>
+                        
+                        <div style="border: 2px solid #000; padding: 6px 14px; text-align: center; border-radius: 4px; margin-right: 15px;">
+                            <div style="font-size: 11px; font-weight: bold; letter-spacing: 1px;">VOLUME</div>
+                            <div style="font-size: 26px; font-weight: 900;">${i}/${qtdVolumes}</div>
+                        </div>
+
+                        <div id="qr-${data.id}-${i}" style="width: 75px; height: 75px; display:flex; align-items:center; justify-content:center;"></div>
+                    </div>
                 </div>
             `;
 
             printArea.appendChild(labelDiv);
 
-            // Gerar QR Code (Adicionado o número do volume no ID para não dar conflito)
+            // Gerar QR Code
             new QRCode(document.getElementById(`qr-${data.id}-${i}`), {
-                text: `BOX:${data.box_code || data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
-                width: 60, height: 60,
+                text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
+                width: 75, height: 75,
                 correctLevel : QRCode.CorrectLevel.L
             });
         }
     });
 
-    setTimeout(() => { window.print(); }, 500);
+    // =====================================================================================
+    // MÁGICA DE COMPARTILHAMENTO DIRETO PARA O APP (Print Label)
+    // =====================================================================================
+    setTimeout(() => {
+        // Se a biblioteca de imagem não existir, ele faz a impressão normal
+        if (typeof html2canvas === 'undefined') {
+            window.print();
+            return;
+        }
+
+        const printAreaToImage = document.getElementById('print-area');
+        
+        // Transforma a etiqueta numa imagem de alta qualidade
+        html2canvas(printAreaToImage, { scale: 2, backgroundColor: "#ffffff" }).then(canvas => {
+            canvas.toBlob(blob => {
+                const file = new File([blob], "etiqueta_guineexpress.png", { type: "image/png" });
+                
+                // Verifica se o celular suporta enviar arquivos direto para apps
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        title: 'Etiqueta Guineexpress',
+                        text: 'Imprimir etiqueta',
+                        files: [file]
+                    }).then(() => {
+                        console.log("Enviado para o aplicativo com sucesso!");
+                    }).catch((error) => {
+                        console.log("Compartilhamento cancelado.", error);
+                    });
+                } else {
+                    // Se estiver no computador, abre a tela normal de impressão
+                    window.print();
+                }
+            }, "image/png");
+        });
+    }, 800); // Aguarda 800ms para carregar QR Code e Logo
 }
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)
@@ -2712,7 +2745,7 @@ async function printReceipt(boxId) {
                     
                     <div>
                         <h1 style="margin:0; font-size:22px; color:#0a1931;">GUINEEXPRESS</h1>
-                        <p style="margin:0; font-size:10px; font-weight:bold;">LOGÍSTICA INTERNACIONAL</p>
+                        <p style="margin:0; font-size:10px; font-weight:bold;">AGENCIA DE LOGÍSTICA INTERNACIONAL</p>
                         <p style="margin:2px 0 0 0; font-size:10px;">CNPJ: 49.356.085/0001-34</p>
                     </div>
                 </div>
