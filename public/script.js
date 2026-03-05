@@ -2610,8 +2610,10 @@ function printSelectedLabels() {
                 // Verifica se o celular consegue enviar a imagem direto pro app
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     navigator.share({
-                        title: 'Etiqueta Guineexpress',
-                        files: [file]
+    title: 'Etiqueta Guineexpress',
+    text: 'Imprimir Etiqueta',
+    files: [file]
+
                     }).catch((error) => {
                         console.log("Compartilhamento cancelado.", error);
                     });
