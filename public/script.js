@@ -2500,7 +2500,7 @@ function printSelectedLabels() {
     const printArea = document.getElementById('print-area');
     printArea.innerHTML = ''; 
 
-    // Dados Fixos da Empresa (Organizados)
+    // Dados Fixos da Empresa
     const company = {
         name: "Guineexpress Logística",
         address: "Av. Tristão Gonçalves, 1203",
@@ -2519,12 +2519,11 @@ function printSelectedLabels() {
             const labelDiv = document.createElement('div');
             labelDiv.className = 'shipping-label-container'; 
             
-            // Layout Transformado em "Grade" Profissional (Linhas conectadas)
             labelDiv.innerHTML = `
                 <div style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing: border-box; background: #ffffff; border: 2px solid #000; font-family: sans-serif; color: #000;">
                     
                     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #000; padding: 10px; background: #ffffff;">
-                        <img src="/logo.png" style="width: 55px; height: 55px; object-fit: contain; filter: grayscale(100%) contrast(10000%);">
+                        <img src="/logo-etiqueta.png" style="width: 55px; height: 55px; object-fit: contain;">
                         <div style="text-align: right; font-size: 11px; line-height: 1.4;">
                             <strong style="font-size:14px; text-transform: uppercase;">${company.name}</strong><br>
                             ${company.address}<br>
@@ -2591,37 +2590,40 @@ function printSelectedLabels() {
     // MÁGICA DE COMPARTILHAMENTO DIRETO PARA O APP (Print Label)
     // =====================================================================================
     setTimeout(() => {
-        // Se a biblioteca de imagem não existir, ele faz a impressão normal
+        // Se a biblioteca html2canvas não estiver no seu HTML, ele te avisa em vez de abrir PDF
         if (typeof html2canvas === 'undefined') {
-            window.print();
+            alert("AVISO: A biblioteca 'html2canvas' não foi encontrada. Verifique se você colocou o código dela no seu index.html!");
             return;
         }
 
         const printAreaToImage = document.getElementById('print-area');
         
-        // Transforma a etiqueta numa imagem de alta qualidade
-        html2canvas(printAreaToImage, { scale: 2, backgroundColor: "#ffffff" }).then(canvas => {
+        // Converte a etiqueta para imagem
+        html2canvas(printAreaToImage, { 
+            scale: 2, 
+            backgroundColor: "#ffffff",
+            useCORS: true // Permite usar o logo-etiqueta.png sem falhar
+        }).then(canvas => {
             canvas.toBlob(blob => {
                 const file = new File([blob], "etiqueta_guineexpress.png", { type: "image/png" });
                 
-                // Verifica se o celular suporta enviar arquivos direto para apps
+                // Verifica se o celular consegue enviar a imagem direto pro app
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     navigator.share({
                         title: 'Etiqueta Guineexpress',
-                        text: 'Imprimir etiqueta',
                         files: [file]
-                    }).then(() => {
-                        console.log("Enviado para o aplicativo com sucesso!");
                     }).catch((error) => {
                         console.log("Compartilhamento cancelado.", error);
                     });
                 } else {
-                    // Se estiver no computador, abre a tela normal de impressão
-                    window.print();
+                    // SE FALHAR, ELE AVISA AQUI EM VEZ DE ABRIR O PDF
+                    alert("Seu navegador bloqueou o envio para o App. Isso ocorre se o seu site não tiver cadeado de segurança (HTTPS) ou se o navegador não for compatível.");
                 }
             }, "image/png");
+        }).catch(err => {
+            alert("Erro ao criar a imagem da etiqueta: " + err);
         });
-    }, 800); // Aguarda 800ms para carregar QR Code e Logo
+    }, 1200);
 }
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)
