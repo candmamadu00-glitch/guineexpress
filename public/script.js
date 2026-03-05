@@ -2492,7 +2492,10 @@ function filterLabels() {
     });
 }
 
-// 4. GERAR E IMPRIMIR ETIQUETAS TÉRMICAS (100x151mm Clean e Completa)
+// Variável global para guardar a etiqueta gerada
+let labelFileToPrint = null;
+
+// 4. GERAR E PRÉ-VISUALIZAR ETIQUETAS TÉRMICAS
 function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
@@ -2523,7 +2526,7 @@ function printSelectedLabels() {
                 <div style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing: border-box; background: #ffffff; border: 2px solid #000; font-family: sans-serif; color: #000;">
                     
                     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #000; padding: 10px; background: #ffffff;">
-                        <img src="/logo-etiqueta.png" style="width: 55px; height: 55px; object-fit: contain;">
+                        <img src="https://ui-avatars.com/api/?name=Guine+Express&background=ffffff&color=000000&size=128&font-size=0.33&bold=true&border=1" crossorigin="anonymous" style="width: 55px; height: 55px; object-fit: contain;">
                         <div style="text-align: right; font-size: 11px; line-height: 1.4;">
                             <strong style="font-size:14px; text-transform: uppercase;">${company.name}</strong><br>
                             ${company.address}<br>
@@ -2577,7 +2580,6 @@ function printSelectedLabels() {
 
             printArea.appendChild(labelDiv);
 
-            // Gerar QR Code
             new QRCode(document.getElementById(`qr-${data.id}-${i}`), {
                 text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
                 width: 75, height: 75,
@@ -2586,46 +2588,66 @@ function printSelectedLabels() {
         }
     });
 
-    // =====================================================================================
-    // MÁGICA DE COMPARTILHAMENTO DIRETO PARA O APP (Print Label)
-    // =====================================================================================
+    // Mostra a janela (Modal) primeiro, com mensagem de carregamento
+    const previewContainer = document.getElementById('preview-image-container');
+    previewContainer.innerHTML = '<p style="color:#666; margin-top:20px;">Gerando visualização...</p>';
+    document.getElementById('print-preview-modal').style.display = 'flex';
+
     setTimeout(() => {
-        // Se a biblioteca html2canvas não estiver no seu HTML, ele te avisa em vez de abrir PDF
         if (typeof html2canvas === 'undefined') {
-            alert("AVISO: A biblioteca 'html2canvas' não foi encontrada. Verifique se você colocou o código dela no seu index.html!");
+            closePrintPreview();
+            alert("Aviso: html2canvas não encontrado.");
             return;
         }
 
         const printAreaToImage = document.getElementById('print-area');
         
-        // Converte a etiqueta para imagem
         html2canvas(printAreaToImage, { 
             scale: 2, 
             backgroundColor: "#ffffff",
-            useCORS: true // Permite usar o logo-etiqueta.png sem falhar
+            useCORS: true 
         }).then(canvas => {
-            canvas.toBlob(blob => {
-                const file = new File([blob], "etiqueta_guineexpress.png", { type: "image/png" });
-                
-                // Verifica se o celular consegue enviar a imagem direto pro app
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({
-    title: 'Etiqueta Guineexpress',
-    text: 'Imprimir Etiqueta',
-    files: [file]
+            // 1. Mostra a imagem na tela para o usuário ver
+            const imgData = canvas.toDataURL("image/png");
+            previewContainer.innerHTML = `<img src="${imgData}" style="max-width: 100%; height: auto; border: 1px solid #000;">`;
 
-                    }).catch((error) => {
-                        console.log("Compartilhamento cancelado.", error);
-                    });
-                } else {
-                    // SE FALHAR, ELE AVISA AQUI EM VEZ DE ABRIR O PDF
-                    alert("Seu navegador bloqueou o envio para o App. Isso ocorre se o seu site não tiver cadeado de segurança (HTTPS) ou se o navegador não for compatível.");
-                }
+            // 2. Prepara o arquivo invisível para enviar para o app depois
+            canvas.toBlob(blob => {
+                labelFileToPrint = new File([blob], "etiqueta_guineexpress.png", { type: "image/png" });
             }, "image/png");
+
         }).catch(err => {
-            alert("Erro ao criar a imagem da etiqueta: " + err);
+            closePrintPreview();
+            alert("Erro ao criar a pré-visualização: " + err);
         });
     }, 1200);
+}
+
+// FECHAR A JANELA (Cancelar)
+function closePrintPreview() {
+    document.getElementById('print-preview-modal').style.display = 'none';
+    labelFileToPrint = null; // Limpa o arquivo da memória
+}
+
+// CONFIRMAR E ENVIAR PARA O APLICATIVO DA IMPRESSORA
+function confirmAndSharePrint() {
+    if (!labelFileToPrint) {
+        return alert("Aguarde a imagem terminar de carregar ou tente novamente.");
+    }
+
+    if (navigator.canShare && navigator.canShare({ files: [labelFileToPrint] })) {
+        navigator.share({
+            title: 'Imprimir Etiqueta',
+            files: [labelFileToPrint]
+        }).catch((error) => {
+            console.log("Compartilhamento fechado pelo usuário.", error);
+        });
+        
+        // Depois de enviar para o celular, fecha a janela do site
+        closePrintPreview();
+    } else {
+        alert("Seu navegador não suporta envio direto. Use Chrome ou Safari atualizados.");
+    }
 }
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)
