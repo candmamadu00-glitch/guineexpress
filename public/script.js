@@ -2492,16 +2492,27 @@ function filterLabels() {
     });
 }
 
-// Variável global para guardar a etiqueta gerada
+// Variável global para guardar a etiqueta gerada em PDF
 let labelFileToPrint = null;
 
-// 4. GERAR E PRÉ-VISUALIZAR ETIQUETAS TÉRMICAS
+// 4. GERAR E PRÉ-VISUALIZAR ETIQUETAS TÉRMICAS (CORREÇÃO TELA EM BRANCO)
 function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
 
-    const printArea = document.getElementById('print-area');
-    printArea.innerHTML = ''; 
+    // MÁGICA 1: Cria um "estúdio fotográfico" fora da tela para a câmera ver a etiqueta
+    let offScreenArea = document.getElementById('offscreen-print-area');
+    if (!offScreenArea) {
+        offScreenArea = document.createElement('div');
+        offScreenArea.id = 'offscreen-print-area';
+        offScreenArea.style.position = 'absolute';
+        offScreenArea.style.top = '-9999px'; // Joga para fora da tela
+        offScreenArea.style.left = '-9999px';
+        offScreenArea.style.width = '380px'; // Largura perfeita para 100mm
+        offScreenArea.style.background = 'white';
+        document.body.appendChild(offScreenArea);
+    }
+    offScreenArea.innerHTML = ''; 
 
     // Dados Fixos da Empresa
     const company = {
@@ -2511,22 +2522,30 @@ function printSelectedLabels() {
         cnpj: "49.356.085/0001-34"
     };
 
+    let labelsToRender = []; // Guarda todas as etiquetas que vamos gerar
+
     checked.forEach(box => {
         const data = JSON.parse(box.getAttribute('data-obj'));
-        
         let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
         qtdVolumes = parseInt(qtdVolumes) || 1; 
 
         for (let i = 1; i <= qtdVolumes; i++) {
-            
             const labelDiv = document.createElement('div');
             labelDiv.className = 'shipping-label-container'; 
+            
+            // Força o tamanho para não sair cortado nem em branco
+            labelDiv.style.width = '380px';
+            labelDiv.style.height = '570px'; 
+            labelDiv.style.backgroundColor = '#ffffff';
+            labelDiv.style.boxSizing = 'border-box';
             
             labelDiv.innerHTML = `
                 <div style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing: border-box; background: #ffffff; border: 2px solid #000; font-family: sans-serif; color: #000;">
                     
                     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #000; padding: 10px; background: #ffffff;">
-                        <img src="https://ui-avatars.com/api/?name=Guine+Express&background=ffffff&color=000000&size=128&font-size=0.33&bold=true&border=1" crossorigin="anonymous" style="width: 55px; height: 55px; object-fit: contain;">
+                        <div style="width: 55px; height: 55px; border: 2px solid #000; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; text-align: center; line-height: 1.1; letter-spacing: -0.5px; background: #fff; color: #000;">
+                            GUINE<br>EXPRESS
+                        </div>
                         <div style="text-align: right; font-size: 11px; line-height: 1.4;">
                             <strong style="font-size:14px; text-transform: uppercase;">${company.name}</strong><br>
                             ${company.address}<br>
@@ -2578,75 +2597,93 @@ function printSelectedLabels() {
                 </div>
             `;
 
-            printArea.appendChild(labelDiv);
-
+            offScreenArea.appendChild(labelDiv); // Coloca na área visível
+            
             new QRCode(document.getElementById(`qr-${data.id}-${i}`), {
                 text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
                 width: 75, height: 75,
                 correctLevel : QRCode.CorrectLevel.L
             });
+
+            labelsToRender.push(labelDiv); // Adiciona na lista de fotos
         }
     });
 
-    // Mostra a janela (Modal) primeiro, com mensagem de carregamento
     const previewContainer = document.getElementById('preview-image-container');
-    previewContainer.innerHTML = '<p style="color:#666; margin-top:20px;">Gerando visualização...</p>';
+    previewContainer.innerHTML = '<p style="color:#666; margin-top:20px;">Gerando PDF de alta qualidade...</p>';
     document.getElementById('print-preview-modal').style.display = 'flex';
 
-    setTimeout(() => {
-        if (typeof html2canvas === 'undefined') {
+    setTimeout(async () => {
+        if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
             closePrintPreview();
-            alert("Aviso: html2canvas não encontrado.");
+            alert("Aviso: As bibliotecas não foram encontradas.");
             return;
         }
 
-        const printAreaToImage = document.getElementById('print-area');
-        
-        html2canvas(printAreaToImage, { 
-            scale: 2, 
-            backgroundColor: "#ffffff",
-            useCORS: true 
-        }).then(canvas => {
-            // 1. Mostra a imagem na tela para o usuário ver
-            const imgData = canvas.toDataURL("image/png");
-            previewContainer.innerHTML = `<img src="${imgData}" style="max-width: 100%; height: auto; border: 1px solid #000;">`;
-
-            // 2. Prepara o arquivo invisível para enviar para o app depois
-            canvas.toBlob(blob => {
-                labelFileToPrint = new File([blob], "etiqueta_guineexpress.png", { type: "image/png" });
-            }, "image/png");
-
-        }).catch(err => {
-            closePrintPreview();
-            alert("Erro ao criar a pré-visualização: " + err);
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: [100, 151]
         });
+
+        try {
+            // MÁGICA 2: Loop que tira foto de cada etiqueta e junta num PDF só
+            for (let i = 0; i < labelsToRender.length; i++) {
+                const canvas = await html2canvas(labelsToRender[i], { 
+                    scale: 2, 
+                    backgroundColor: "#ffffff",
+                    useCORS: true 
+                });
+                const imgData = canvas.toDataURL("image/jpeg", 1.0);
+                
+                if (i > 0) doc.addPage(); // A partir da segunda etiqueta, cria uma página nova
+                doc.addImage(imgData, 'JPEG', 0, 0, 100, 151);
+
+                // Mostra a primeira na tela para você conferir
+                if (i === 0) {
+                    previewContainer.innerHTML = `<img src="${imgData}" style="max-width: 100%; height: auto; border: 1px solid #000;">`;
+                    if (labelsToRender.length > 1) {
+                        previewContainer.innerHTML += `<p style="font-size:12px; color:green; margin-top:8px; font-weight:bold;">+ ${labelsToRender.length - 1} etiqueta(s) adicionada(s) ao PDF.</p>`;
+                    }
+                }
+            }
+
+            // Transforma o PDF em arquivo e libera o botão
+            const pdfBlob = doc.output('blob');
+            labelFileToPrint = new File([pdfBlob], "etiqueta_guineexpress.pdf", { type: "application/pdf" });
+
+        } catch (err) {
+            closePrintPreview();
+            alert("Erro ao criar o PDF: " + err);
+        }
     }, 1200);
 }
 
-// FECHAR A JANELA (Cancelar)
+// FECHAR A JANELA
 function closePrintPreview() {
     document.getElementById('print-preview-modal').style.display = 'none';
-    labelFileToPrint = null; // Limpa o arquivo da memória
+    labelFileToPrint = null; 
 }
 
-// CONFIRMAR E ENVIAR PARA O APLICATIVO DA IMPRESSORA
+// CONFIRMAR E ENVIAR PDF PARA O APP
 function confirmAndSharePrint() {
     if (!labelFileToPrint) {
-        return alert("Aguarde a imagem terminar de carregar ou tente novamente.");
+        return alert("Aguarde o PDF terminar de carregar ou tente novamente.");
     }
 
     if (navigator.canShare && navigator.canShare({ files: [labelFileToPrint] })) {
         navigator.share({
             title: 'Imprimir Etiqueta',
             files: [labelFileToPrint]
+        }).then(() => {
+            console.log("PDF enviado com sucesso!");
+            closePrintPreview();
         }).catch((error) => {
-            console.log("Compartilhamento fechado pelo usuário.", error);
+            console.log("Compartilhamento fechado pelo usuário.");
         });
-        
-        // Depois de enviar para o celular, fecha a janela do site
-        closePrintPreview();
     } else {
-        alert("Seu navegador não suporta envio direto. Use Chrome ou Safari atualizados.");
+        alert("Seu navegador não suporta envio direto. Use Chrome ou Safari.");
     }
 }
 // ============================================================
