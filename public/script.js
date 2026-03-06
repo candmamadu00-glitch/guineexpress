@@ -2492,7 +2492,7 @@ function filterLabels() {
     });
 }
 
-// 4. GERAR ETIQUETA EM PDF NATIVO COM CARIMBO E IMPRESSÃO DIRETA
+// 4. GERAR ETIQUETA EM PDF NATIVO COM CARIMBO DE ALTA DEFINIÇÃO E IMPRESSÃO DIRETA
 async function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
@@ -2500,15 +2500,12 @@ async function printSelectedLabels() {
     const box = checked[0]; 
     const data = JSON.parse(box.getAttribute('data-obj'));
 
-    // Verifica de cara se é PC ou Celular
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-    // 1. Pergunta a quantidade de volumes
     let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
     if (qtdVolumes === null) return; 
     qtdVolumes = parseInt(qtdVolumes) || 1; 
 
-    // Se for celular, pergunta o nome do arquivo. Se for PC, não pergunta!
     let nomeEscolhido = `Etiqueta_${data.code}.pdf`;
     if (isMobile) {
         nomeEscolhido = prompt("Digite o nome para salvar o PDF da etiqueta:", `Etiqueta_${data.code}`);
@@ -2518,11 +2515,12 @@ async function printSelectedLabels() {
 
     alert("Gerando a Etiqueta... Por favor, aguarde.");
 
-    // Prepara o PDF Nativo em 100x151mm
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
 
-    // Função para pegar a logomarca original
+    // ==========================================
+    // 1. CARREGAR A LOGO NORMAL (logo.png)
+    // ==========================================
     let logoData = null;
     try {
         const img = new Image();
@@ -2531,14 +2529,32 @@ async function printSelectedLabels() {
         await new Promise((resolve) => {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
+                canvas.width = img.width; canvas.height = img.height;
+                canvas.getContext('2d').drawImage(img, 0, 0);
                 logoData = canvas.toDataURL('image/png');
                 resolve();
             };
             img.onerror = resolve; 
+        });
+    } catch(e) {}
+
+    // ==========================================
+    // 2. CARREGAR O NOVO CARIMBO ROBUSTO (carimbo.png)
+    // ==========================================
+    let carimboData = null;
+    try {
+        const imgCarimbo = new Image();
+        imgCarimbo.src = 'carimbo.png'; // <--- NOME DO NOVO ARQUIVO DE CARIMBO TRANSPARENTE
+        imgCarimbo.crossOrigin = 'Anonymous';
+        await new Promise((resolve) => {
+            imgCarimbo.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = imgCarimbo.width; canvas.height = imgCarimbo.height;
+                canvas.getContext('2d').drawImage(imgCarimbo, 0, 0);
+                carimboData = canvas.toDataURL('image/png');
+                resolve();
+            };
+            imgCarimbo.onerror = resolve; 
         });
     } catch(e) {}
 
@@ -2548,18 +2564,6 @@ async function printSelectedLabels() {
 
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, 100, 151, 'F');
-
-        // --- MARCA D'ÁGUA CENTRAL (CARIMBO) ---
-        // Desenha a logo no centro, bem grande, mas transparente
-        if (logoData) {
-            // Salva o estado atual (para não deixar tudo transparente depois)
-            doc.saveGraphicsState(); 
-            doc.setGState(new doc.GState({opacity: 0.1})); // Define a transparência (10%)
-            // Desenha a imagem no centro: x=15, y=40, largura=70, altura=70
-            doc.addImage(logoData, 'PNG', 15, 40, 70, 70);
-            // Restaura para a cor sólida normal
-            doc.restoreGraphicsState();
-        }
 
         // --- CABEÇALHO ---
         if (logoData) {
@@ -2582,9 +2586,7 @@ async function printSelectedLabels() {
 
         // --- CAIXA: DESTINATÁRIO ---
         doc.setLineWidth(0.5);
-        // Fundo transparente para o texto ficar por cima do carimbo
         doc.setFillColor(255, 255, 255); 
-        // Desenhamos apenas a borda, sem preenchimento, para o carimbo vazar
         doc.roundedRect(5, 28, 90, 24, 2, 2, 'S'); 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
@@ -2654,18 +2656,28 @@ async function printSelectedLabels() {
             const qrData = qrCanvas.toDataURL('image/png');
             doc.addImage(qrData, 'PNG', 75, 126.5, 20, 20);
         }
+
+        // ==========================================
+        // 3. BATER O NOVO CARIMBO POR CIMA DE TUDO
+        // ==========================================
+        if (carimboData) {
+            doc.saveGraphicsState(); 
+            // Opacidade alta (0.85) para carimbo nítido sobre papel
+            doc.setGState(new doc.GState({opacity: 0.85})); 
+            // Desenha o carimbo bem no centro (X=20, Y=45, Largura=60, Altura=60)
+            doc.addImage(carimboData, 'PNG', 20, 45, 60, 60);
+            doc.restoreGraphicsState();
+        }
     }
 
     if (isMobile) {
         doc.save(nomeEscolhido);
         alert(`✅ O arquivo "${nomeEscolhido}" foi baixado!\n\nAbra o aplicativo Print Label e vá em 'Impressão de PDF' para imprimir.`);
     } else {
-        // Para PC: Abre direto a janela de impressão, sem salvar nada na máquina
         doc.autoPrint(); 
         const blob = doc.output('blob');
         const url = URL.createObjectURL(blob);
         
-        // Cria um iframe invisível para imprimir direto sem abrir aba nova
         const iframe = document.createElement('iframe');
         iframe.style.display = 'none';
         iframe.src = url;
