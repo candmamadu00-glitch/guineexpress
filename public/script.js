@@ -2492,199 +2492,207 @@ function filterLabels() {
     });
 }
 
-// Variável global para guardar a etiqueta gerada em PDF
+// Variável global para guardar a etiqueta gerada em formato de IMAGEM
 let labelFileToPrint = null;
 
-// 4. GERAR E PRÉ-VISUALIZAR ETIQUETAS TÉRMICAS (CORREÇÃO TELA EM BRANCO)
-function printSelectedLabels() {
+// 4. GERAR A ETIQUETA E MOSTRAR NA TELA (PRÉ-VISUALIZAÇÃO)
+async function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
 
-    // MÁGICA 1: Cria um "estúdio fotográfico" fora da tela para a câmera ver a etiqueta
+    // =========================================================================
+    // SOLUÇÃO DO ERRO NULL: Cria a janela modal automaticamente se não existir!
+    // =========================================================================
+    let modal = document.getElementById('print-preview-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'print-preview-modal';
+        modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 25, 49, 0.9); z-index: 99999; justify-content: center; align-items: center; backdrop-filter: blur(5px);';
+        modal.innerHTML = `
+            <div style="background: #fff; padding: 20px; border-radius: 15px; width: 90%; max-width: 400px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                <h3 style="margin-top: 0; color: #0a1931; font-weight: bold; text-align: center;">Revisar Etiqueta</h3>
+                <p style="font-size: 13px; color: #666; margin-top: -10px; margin-bottom: 15px; text-align: center;">Confirme para abrir no app Print Label.</p>
+                
+                <div id="preview-image-container" style="overflow-y: auto; max-height: 55vh; margin-bottom: 20px; border: 2px dashed #ccc; border-radius: 8px; padding: 5px; width: 100%; text-align: center; background: #f9f9f9;">
+                </div>
+
+                <div style="display: flex; gap: 10px; width: 100%;">
+                    <button onclick="closePrintPreview()" style="flex: 1; padding: 12px; background: #ffebee; color: #cc0000; border: 1px solid #ffcccc; border-radius: 8px; font-weight: bold; cursor: pointer;">Cancelar</button>
+                    <button onclick="confirmAndSharePrint()" style="flex: 2; padding: 12px; background: #d4af37; color: #0a1931; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px;">
+                        ENVIAR IMPRESSORA
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    // Mostra a janela (Modal) de carregamento
+    const previewContainer = document.getElementById('preview-image-container');
+    previewContainer.innerHTML = '<p style="color:#666; margin-top:20px;">Gerando etiqueta em alta resolução...</p>';
+    modal.style.display = 'flex';
+    labelFileToPrint = null; // Reseta o arquivo anterior
+
+    const company = {
+        name: "Agencia Guineexpress",
+        address: "Av. Tristão Gonçalves, 1203",
+        contact: "(85) 98239-207/(85) 97175-853",
+        cnpj: "49.356.085/0001-34"
+    };
+
+    const box = checked[0]; 
+    const data = JSON.parse(box.getAttribute('data-obj'));
+    
+    let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
+    qtdVolumes = parseInt(qtdVolumes) || 1; 
+
+    // Cria a etiqueta invisível (fora da tela) para bater a foto
     let offScreenArea = document.getElementById('offscreen-print-area');
     if (!offScreenArea) {
         offScreenArea = document.createElement('div');
         offScreenArea.id = 'offscreen-print-area';
         offScreenArea.style.position = 'absolute';
-        offScreenArea.style.top = '-9999px'; // Joga para fora da tela
         offScreenArea.style.left = '-9999px';
-        offScreenArea.style.width = '380px'; // Largura perfeita para 100mm
-        offScreenArea.style.background = 'white';
         document.body.appendChild(offScreenArea);
     }
     offScreenArea.innerHTML = ''; 
 
-    // Dados Fixos da Empresa
-    const company = {
-        name: "Guineexpress Logística",
-        address: "Av. Tristão Gonçalves, 1203",
-        contact: "(85) 98239-207 / (85) 97175-853", 
-        cnpj: "49.356.085/0001-34"
-    };
+    const labelDiv = document.createElement('div');
+    labelDiv.style.width = '380px'; 
+    labelDiv.style.background = '#ffffff';
+    labelDiv.style.padding = '5px';
+    
+    // HTML da etiqueta
+    labelDiv.innerHTML = `
+        <div style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing: border-box; background: #ffffff;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 3px solid #000000; padding-bottom: 8px; margin-bottom: 8px; color: #000000;">
+                <div style="background: #ffffff; padding: 2px; border-radius: 4px;">
+                    <img src="logo.png" crossorigin="anonymous" onerror="this.style.display='none'" style="width: 70px; height: 70px; object-fit: contain; filter: grayscale(100%) contrast(500%) brightness(110%);">
+                </div>
+                <div style="text-align: right; font-size: 11px; line-height: 1.3;">
+                    <strong style="font-size:14px; text-transform: uppercase;">${company.name}</strong><br>
+                    ${company.address}<br>
+                    ${company.contact} | CNPJ: ${company.cnpj}
+                </div>
+            </div>
 
-    let labelsToRender = []; // Guarda todas as etiquetas que vamos gerar
-
-    checked.forEach(box => {
-        const data = JSON.parse(box.getAttribute('data-obj'));
-        let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
-        qtdVolumes = parseInt(qtdVolumes) || 1; 
-
-        for (let i = 1; i <= qtdVolumes; i++) {
-            const labelDiv = document.createElement('div');
-            labelDiv.className = 'shipping-label-container'; 
-            
-            // Força o tamanho para não sair cortado nem em branco
-            labelDiv.style.width = '380px';
-            labelDiv.style.height = '570px'; 
-            labelDiv.style.backgroundColor = '#ffffff';
-            labelDiv.style.boxSizing = 'border-box';
-            
-            labelDiv.innerHTML = `
-                <div style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing: border-box; background: #ffffff; border: 2px solid #000; font-family: sans-serif; color: #000;">
-                    
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #000; padding: 10px; background: #ffffff;">
-                        <div style="width: 55px; height: 55px; border: 2px solid #000; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; text-align: center; line-height: 1.1; letter-spacing: -0.5px; background: #fff; color: #000;">
-                            GUINE<br>EXPRESS
-                        </div>
-                        <div style="text-align: right; font-size: 11px; line-height: 1.4;">
-                            <strong style="font-size:14px; text-transform: uppercase;">${company.name}</strong><br>
-                            ${company.address}<br>
-                            ${company.contact}<br>
-                            CNPJ: ${company.cnpj}
-                        </div>
-                    </div>
-
-                    <div style="border-bottom: 2px solid #000; padding: 10px;">
-                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">DESTINATÁRIO (GUINÉ-BISSAU)</div>
-                        <div style="font-size: 18px; font-weight: 900; line-height: 1.2;">${data.client_name || 'CLIENTE'}</div>
-                        <div style="font-size: 13px; margin-top: 4px; font-weight: 600;">
-                            Tel: ${data.client_phone || '-'}<br>
-                            Email: ${data.client_email ? data.client_email.substring(0, 30) : '-'}
-                        </div>
-                    </div>
-
-                    <div style="display:flex; border-bottom: 2px solid #000;">
-                        <div style="flex: 1; padding: 10px; border-right: 2px solid #000; text-align: center;">
-                            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">CÓDIGO DA ENCOMENDA</div>
-                            <div style="font-size: 20px; font-weight: 900; letter-spacing: 1px;">${data.code}</div>
-                        </div>
-                        <div style="flex: 1; padding: 10px; text-align: center;">
-                            <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">PESO TOTAL</div>
-                            <div style="font-size: 20px; font-weight: 900;">${data.weight} kg</div>
-                        </div>
-                    </div>
-
-                    <div style="border-bottom: 2px solid #000; padding: 10px; flex: 1; overflow: hidden;">
-                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px;">CONTEÚDO / DESCRIÇÃO</div>
-                        <div style="font-size: 13px; font-weight: bold; word-wrap: break-word; white-space: normal; line-height: 1.3;">
-                            ${data.description || 'Sem descrição'}
-                        </div>
-                    </div>
-
-                    <div style="padding: 10px; display:flex; justify-content:space-between; align-items:center;">
-                        <div style="flex: 1;">
-                            <div style="font-size: 12px; font-weight: bold; text-transform: uppercase;">NÚMERO DA BOX</div>
-                            <div style="font-size: 28px; font-weight: 900; letter-spacing: 1px;">${data.box_code || '---'}</div>
-                        </div>
-                        
-                        <div style="border: 2px solid #000; padding: 6px 14px; text-align: center; border-radius: 4px; margin-right: 15px;">
-                            <div style="font-size: 11px; font-weight: bold; letter-spacing: 1px;">VOLUME</div>
-                            <div style="font-size: 26px; font-weight: 900;">${i}/${qtdVolumes}</div>
-                        </div>
-
-                        <div id="qr-${data.id}-${i}" style="width: 75px; height: 75px; display:flex; align-items:center; justify-content:center;"></div>
+            <div style="flex: 1; display:flex; flex-direction:column; gap: 8px;">
+                <div style="border: 2px solid #000; padding: 8px; border-radius: 6px;">
+                    <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">DESTINATÁRIO (GUINÉ-BISSAU)</div>
+                    <div style="font-size: 18px; font-weight: 900; line-height: 1.2;">${data.client_name || 'CLIENTE'}</div>
+                    <div style="font-size: 13px; margin-top: 4px; font-weight: 600;">
+                        Tel: ${data.client_phone || '-'}<br>
+                        Email: ${data.client_email ? data.client_email.substring(0, 30) : '-'}
                     </div>
                 </div>
-            `;
 
-            offScreenArea.appendChild(labelDiv); // Coloca na área visível
-            
-            new QRCode(document.getElementById(`qr-${data.id}-${i}`), {
-                text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
-                width: 75, height: 75,
-                correctLevel : QRCode.CorrectLevel.L
-            });
+                <div style="display:flex; gap: 8px;">
+                    <div style="border: 2px solid #000; padding: 8px; border-radius: 6px; flex: 1; text-align: center;">
+                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">CÓDIGO DA ENCOMENDA</div>
+                        <div style="font-size: 20px; font-weight: 900; letter-spacing: 1px;">${data.code}</div>
+                    </div>
+                    <div style="border: 2px solid #000; padding: 8px; border-radius: 6px; flex: 1; text-align: center;">
+                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">PESO TOTAL</div>
+                        <div style="font-size: 20px; font-weight: 900;">${data.weight} kg</div>
+                    </div>
+                </div>
 
-            labelsToRender.push(labelDiv); // Adiciona na lista de fotos
-        }
+                <div style="border: 2px solid #000; padding: 8px; border-radius: 6px; flex: 1; overflow: hidden;">
+                    <div style="font-size: 11px; font-weight: bold; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">CONTEÚDO / DESCRIÇÃO</div>
+                    <div style="font-size: 13px; font-weight: bold; word-wrap: break-word; white-space: normal; line-height: 1.3;">
+                        ${data.description || 'Sem descrição'}
+                    </div>
+                </div>
+            </div>
+
+            <div style="border-top: 3px solid #000; padding-top: 8px; margin-top: 8px; display:flex; justify-content:space-between; align-items:center;">
+                <div style="flex: 1;">
+                    <div style="font-size: 12px; font-weight: bold; text-transform: uppercase;">NÚMERO DA BOX</div>
+                    <div style="font-size: 28px; font-weight: 900; letter-spacing: 1px;">${data.box_code || '---'}</div>
+                </div>
+                
+                <div style="border: 3px solid #000; padding: 6px 14px; text-align: center; border-radius: 6px; margin-right: 15px;">
+                    <div style="font-size: 11px; font-weight: bold; letter-spacing: 1px;">VOLUME</div>
+                    <div style="font-size: 26px; font-weight: 900;">1/${qtdVolumes}</div>
+                </div>
+
+                <div id="qr-code-temp" style="width: 75px; height: 75px; display:flex; align-items:center; justify-content:center;"></div>
+            </div>
+        </div>
+    `;
+
+    offScreenArea.appendChild(labelDiv);
+
+    new QRCode(document.getElementById('qr-code-temp'), {
+        text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:1/${qtdVolumes}|${data.client_name}`,
+        width: 75, height: 75,
+        correctLevel : QRCode.CorrectLevel.L
     });
 
-    const previewContainer = document.getElementById('preview-image-container');
-    previewContainer.innerHTML = '<p style="color:#666; margin-top:20px;">Gerando PDF de alta qualidade...</p>';
-    document.getElementById('print-preview-modal').style.display = 'flex';
-
+    // Espera o QRCode renderizar para bater a foto
     setTimeout(async () => {
-        if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
-            closePrintPreview();
-            alert("Aviso: As bibliotecas não foram encontradas.");
-            return;
-        }
-
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: [100, 151]
-        });
-
         try {
-            // MÁGICA 2: Loop que tira foto de cada etiqueta e junta num PDF só
-            for (let i = 0; i < labelsToRender.length; i++) {
-                const canvas = await html2canvas(labelsToRender[i], { 
-                    scale: 2, 
-                    backgroundColor: "#ffffff",
-                    useCORS: true 
-                });
-                const imgData = canvas.toDataURL("image/jpeg", 1.0);
-                
-                if (i > 0) doc.addPage(); // A partir da segunda etiqueta, cria uma página nova
-                doc.addImage(imgData, 'JPEG', 0, 0, 100, 151);
+            const canvas = await html2canvas(labelDiv, { scale: 2, useCORS: true });
+            const imgData = canvas.toDataURL("image/jpeg", 1.0);
+            
+            // Mostra a foto na tela para o usuário ver
+            previewContainer.innerHTML = `<img src="${imgData}" style="max-width: 100%; height: auto; border: 1px solid #000; border-radius: 8px;">`;
 
-                // Mostra a primeira na tela para você conferir
-                if (i === 0) {
-                    previewContainer.innerHTML = `<img src="${imgData}" style="max-width: 100%; height: auto; border: 1px solid #000;">`;
-                    if (labelsToRender.length > 1) {
-                        previewContainer.innerHTML += `<p style="font-size:12px; color:green; margin-top:8px; font-weight:bold;">+ ${labelsToRender.length - 1} etiqueta(s) adicionada(s) ao PDF.</p>`;
-                    }
-                }
-            }
+            // Guarda o arquivo na variável global para o botão Enviar usar depois
+            canvas.toBlob((blob) => {
+                labelFileToPrint = new File([blob], `etiqueta_${data.code}.jpg`, { type: 'image/jpeg' });
+            }, 'image/jpeg', 1.0);
 
-            // Transforma o PDF em arquivo e libera o botão
-            const pdfBlob = doc.output('blob');
-            labelFileToPrint = new File([pdfBlob], "etiqueta_guineexpress.pdf", { type: "application/pdf" });
-
-        } catch (err) {
-            closePrintPreview();
-            alert("Erro ao criar o PDF: " + err);
+        } catch (error) {
+            console.error("Erro:", error);
+            previewContainer.innerHTML = '<p style="color:red;">Erro ao gerar a etiqueta.</p>';
         }
-    }, 1200);
+    }, 800);
+}
+
+// 5. ENVIAR PARA O APLICATIVO (Acionado pelo botão ENVIAR IMPRESSORA)
+async function confirmAndSharePrint() {
+    if (!labelFileToPrint) {
+        return alert("Aguarde a etiqueta aparecer na tela!");
+    }
+
+    if (navigator.canShare && navigator.canShare({ files: [labelFileToPrint] })) {
+        try {
+            await navigator.share({
+                title: 'Imprimir Etiqueta',
+                files: [labelFileToPrint]
+            });
+            closePrintPreview(); 
+        } catch (error) {
+            console.log("Compartilhamento fechado:", error);
+        }
+    } else {
+        alert("Navegador não suporta compartilhamento direto. A etiqueta será baixada.");
+        const url = URL.createObjectURL(labelFileToPrint);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = labelFileToPrint.name;
+        a.click();
+        closePrintPreview();
+    }
 }
 
 // FECHAR A JANELA
 function closePrintPreview() {
-    document.getElementById('print-preview-modal').style.display = 'none';
+    const modal = document.getElementById('print-preview-modal');
+    if (modal) modal.style.display = 'none';
     labelFileToPrint = null; 
 }
-
-// CONFIRMAR E ENVIAR PDF PARA O APP
-function confirmAndSharePrint() {
-    if (!labelFileToPrint) {
-        return alert("Aguarde o PDF terminar de carregar ou tente novamente.");
-    }
-
-    if (navigator.canShare && navigator.canShare({ files: [labelFileToPrint] })) {
-        navigator.share({
-            title: 'Imprimir Etiqueta',
-            files: [labelFileToPrint]
-        }).then(() => {
-            console.log("PDF enviado com sucesso!");
-            closePrintPreview();
-        }).catch((error) => {
-            console.log("Compartilhamento fechado pelo usuário.");
-        });
-    } else {
-        alert("Seu navegador não suporta envio direto. Use Chrome ou Safari.");
-    }
+// FUNÇÃO AUXILIAR PARA BAIXAR O PDF
+function baixarPdfManual(file) {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "Etiqueta_Guineexpress.pdf";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    alert("O PDF foi baixado!\n\nAbra o aplicativo 'Print Label', vá em 'Impressão em PDF' (ou 'PDF Print') e escolha este arquivo.");
 }
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)

@@ -2,7 +2,6 @@
 <html lang="pt">
 <head>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="stylesheet" href="cici.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -17,6 +16,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Guineexpress">
+
     <link rel="icon" type="image/png" href="/logo.png">
     <link rel="apple-touch-icon" href="/logo.png">
     
@@ -469,23 +469,6 @@
                 </div>
             </div>
         </div>
-        <div id="print-preview-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 25, 49, 0.9); z-index: 99999; justify-content: center; align-items: center; backdrop-filter: blur(5px);">
-    <div style="background: #fff; padding: 20px; border-radius: 15px; width: 90%; max-width: 400px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-        <h3 style="margin-top: 0; color: #0a1931; font-weight: bold; text-align: center;">Revisar Etiqueta</h3>
-        <p style="font-size: 13px; color: #666; margin-top: -10px; margin-bottom: 15px; text-align: center;">Veja se está tudo correto antes de enviar para a impressora.</p>
-        
-        <div id="preview-image-container" style="overflow-y: auto; max-height: 55vh; margin-bottom: 20px; border: 2px dashed #ccc; border-radius: 8px; padding: 5px; width: 100%; text-align: center; background: #f9f9f9;">
-            <p style="color: #999; margin-top: 20px;">Gerando imagem...</p>
-        </div>
-
-        <div style="display: flex; gap: 10px; width: 100%;">
-            <button onclick="closePrintPreview()" style="flex: 1; padding: 12px; background: #ffebee; color: #cc0000; border: 1px solid #ffcccc; border-radius: 8px; font-weight: bold; cursor: pointer;">Cancelar</button>
-            <button onclick="confirmAndSharePrint()" style="flex: 2; padding: 12px; background: #d4af37; color: #0a1931; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px;">
-                <i class="fas fa-print"></i> ENVIAR IMPRESSORA
-            </button>
-        </div>
-    </div>
-</div>
     </div> <div id="print-area"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
