@@ -2492,7 +2492,7 @@ function filterLabels() {
     });
 }
 
-// 4. GERAR ETIQUETA EM PDF NATIVO (TEXTO REAL) COM NOME PERSONALIZADO
+// 4. GERAR ETIQUETA EM PDF NATIVO COM CARIMBO E IMPRESSÃO DIRETA
 async function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
@@ -2500,25 +2500,29 @@ async function printSelectedLabels() {
     const box = checked[0]; 
     const data = JSON.parse(box.getAttribute('data-obj'));
 
+    // Verifica de cara se é PC ou Celular
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     // 1. Pergunta a quantidade de volumes
     let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
     if (qtdVolumes === null) return; 
     qtdVolumes = parseInt(qtdVolumes) || 1; 
 
-    // 2. Pergunta o nome do arquivo
-    let nomeSugerido = `Etiqueta_${data.code}`;
-    let nomeEscolhido = prompt("Digite o nome para salvar o PDF da etiqueta:", nomeSugerido);
-    
-    if (nomeEscolhido === null || nomeEscolhido.trim() === "") return; 
-    if (!nomeEscolhido.toLowerCase().endsWith('.pdf')) nomeEscolhido += '.pdf';
+    // Se for celular, pergunta o nome do arquivo. Se for PC, não pergunta!
+    let nomeEscolhido = `Etiqueta_${data.code}.pdf`;
+    if (isMobile) {
+        nomeEscolhido = prompt("Digite o nome para salvar o PDF da etiqueta:", `Etiqueta_${data.code}`);
+        if (nomeEscolhido === null || nomeEscolhido.trim() === "") return; 
+        if (!nomeEscolhido.toLowerCase().endsWith('.pdf')) nomeEscolhido += '.pdf';
+    }
 
-    alert("Gerando a Etiqueta de Alta Qualidade... Por favor, aguarde.");
+    alert("Gerando a Etiqueta... Por favor, aguarde.");
 
     // Prepara o PDF Nativo em 100x151mm
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
 
-    // Função para pegar a logomarca e transformar em base64 para o PDF
+    // Função para pegar a logomarca original
     let logoData = null;
     try {
         const img = new Image();
@@ -2534,21 +2538,32 @@ async function printSelectedLabels() {
                 logoData = canvas.toDataURL('image/png');
                 resolve();
             };
-            img.onerror = resolve; // Se der erro na logo, continua sem ela
+            img.onerror = resolve; 
         });
     } catch(e) {}
 
-    // Gera as páginas baseadas nos volumes
+    // Gera as páginas
     for (let i = 1; i <= qtdVolumes; i++) {
         if (i > 1) doc.addPage();
 
-        // Fundo Branco
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, 100, 151, 'F');
 
+        // --- MARCA D'ÁGUA CENTRAL (CARIMBO) ---
+        // Desenha a logo no centro, bem grande, mas transparente
+        if (logoData) {
+            // Salva o estado atual (para não deixar tudo transparente depois)
+            doc.saveGraphicsState(); 
+            doc.setGState(new doc.GState({opacity: 0.1})); // Define a transparência (10%)
+            // Desenha a imagem no centro: x=15, y=40, largura=70, altura=70
+            doc.addImage(logoData, 'PNG', 15, 40, 70, 70);
+            // Restaura para a cor sólida normal
+            doc.restoreGraphicsState();
+        }
+
         // --- CABEÇALHO ---
         if (logoData) {
-            doc.addImage(logoData, 'PNG', 5, 5, 18, 18); // Logo no canto esquerdo
+            doc.addImage(logoData, 'PNG', 5, 5, 18, 18); 
         }
         
         doc.setTextColor(0, 0, 0);
@@ -2562,13 +2577,15 @@ async function printSelectedLabels() {
         doc.text("(85) 98239-207 / (85) 97175-853", 95, 18, { align: "right" });
         doc.text("CNPJ: 49.356.085/0001-34", 95, 22, { align: "right" });
         
-        // Linha divisória
         doc.setLineWidth(0.5);
         doc.line(5, 25, 95, 25);
 
         // --- CAIXA: DESTINATÁRIO ---
         doc.setLineWidth(0.5);
-        doc.roundedRect(5, 28, 90, 24, 2, 2); 
+        // Fundo transparente para o texto ficar por cima do carimbo
+        doc.setFillColor(255, 255, 255); 
+        // Desenhamos apenas a borda, sem preenchimento, para o carimbo vazar
+        doc.roundedRect(5, 28, 90, 24, 2, 2, 'S'); 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
         doc.text("DESTINATÁRIO (GUINÉ-BISSAU)", 7, 32);
@@ -2583,24 +2600,22 @@ async function printSelectedLabels() {
         doc.text(`Email: ${data.client_email ? data.client_email.substring(0, 35) : '-'}`, 7, 50);
 
         // --- CAIXAS: CÓDIGO E PESO ---
-        // Código
         doc.setLineWidth(0.5);
-        doc.roundedRect(5, 54, 43, 16, 2, 2);
+        doc.roundedRect(5, 54, 43, 16, 2, 2, 'S');
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
         doc.text("CÓDIGO DA ENCOMENDA", 26.5, 58, { align: "center" });
         doc.setFontSize(15);
         doc.text(data.code || '-', 26.5, 66, { align: "center" });
 
-        // Peso
-        doc.roundedRect(52, 54, 43, 16, 2, 2);
+        doc.roundedRect(52, 54, 43, 16, 2, 2, 'S');
         doc.setFontSize(8);
         doc.text("PESO TOTAL", 73.5, 58, { align: "center" });
         doc.setFontSize(15);
         doc.text(`${data.weight} kg`, 73.5, 66, { align: "center" });
 
         // --- CAIXA: CONTEÚDO / DESCRIÇÃO ---
-        doc.roundedRect(5, 72, 90, 50, 2, 2);
+        doc.roundedRect(5, 72, 90, 50, 2, 2, 'S');
         doc.setFontSize(8);
         doc.text("CONTEÚDO / DESCRIÇÃO", 7, 76);
         doc.line(7, 77, 40, 77);
@@ -2612,55 +2627,56 @@ async function printSelectedLabels() {
         doc.text(splitDesc, 7, 82);
 
         // --- RODAPÉ (BOX, VOLUME E QR CODE) ---
-        doc.line(5, 125, 95, 125); // Linha divisória de baixo
+        doc.line(5, 125, 95, 125); 
         
-        // Número da Box
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
         doc.text("NÚMERO DA BOX", 5, 131);
         doc.setFontSize(22);
         doc.text(data.box_code || '---', 5, 142);
 
-        // Caixa de Volume
-        doc.roundedRect(45, 128, 26, 17, 2, 2);
+        doc.roundedRect(45, 128, 26, 17, 2, 2, 'S');
         doc.setFontSize(8);
         doc.text("VOLUME", 58, 132, { align: "center" });
         doc.setFontSize(18);
         doc.text(`${i}/${qtdVolumes}`, 58, 141, { align: "center" });
 
-        // QR Code Nativo
         const qrTemp = document.createElement('div');
         new QRCode(qrTemp, {
             text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
-            width: 100,
-            height: 100,
+            width: 100, height: 100,
             correctLevel : QRCode.CorrectLevel.L
         });
         
-        // Espera o QR Code processar
         await new Promise(resolve => setTimeout(resolve, 50));
         const qrCanvas = qrTemp.querySelector('canvas');
         if (qrCanvas) {
             const qrData = qrCanvas.toDataURL('image/png');
-            // Desenha o QR Code perfeito em 20x20mm
             doc.addImage(qrData, 'PNG', 75, 126.5, 20, 20);
         }
     }
 
-    // ==========================================
-    // MÁGICA DE RECONHECIMENTO DE DISPOSITIVO
-    // ==========================================
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
     if (isMobile) {
-        // COMPORTAMENTO NO CELULAR: Baixa o arquivo para usar no Print Label
         doc.save(nomeEscolhido);
         alert(`✅ O arquivo "${nomeEscolhido}" foi baixado!\n\nAbra o aplicativo Print Label e vá em 'Impressão de PDF' para imprimir.`);
     } else {
-        // COMPORTAMENTO NO COMPUTADOR: Abre o PDF numa nova janela para imprimir direto
-        doc.autoPrint(); // Ativa a função nativa de abrir a janela de impressão do Windows/Mac
-        const blobUrl = doc.output('bloburl'); // Cria um link virtual do PDF
-        window.open(blobUrl, '_blank'); // Abre em uma nova aba pronta para imprimir
+        // Para PC: Abre direto a janela de impressão, sem salvar nada na máquina
+        doc.autoPrint(); 
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        
+        // Cria um iframe invisível para imprimir direto sem abrir aba nova
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        
+        iframe.onload = function() {
+            setTimeout(function() {
+                iframe.focus();
+                iframe.contentWindow.print();
+            }, 100);
+        };
     }
 }
 // ============================================================
