@@ -2492,207 +2492,176 @@ function filterLabels() {
     });
 }
 
-// Variável global para guardar a etiqueta gerada em formato de IMAGEM
-let labelFileToPrint = null;
-
-// 4. GERAR A ETIQUETA E MOSTRAR NA TELA (PRÉ-VISUALIZAÇÃO)
+// 4. GERAR ETIQUETA EM PDF NATIVO (TEXTO REAL) COM NOME PERSONALIZADO
 async function printSelectedLabels() {
     const checked = document.querySelectorAll('.label-check:checked');
     if (checked.length === 0) return alert("Selecione pelo menos uma encomenda.");
 
-    // =========================================================================
-    // SOLUÇÃO DO ERRO NULL: Cria a janela modal automaticamente se não existir!
-    // =========================================================================
-    let modal = document.getElementById('print-preview-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'print-preview-modal';
-        modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 25, 49, 0.9); z-index: 99999; justify-content: center; align-items: center; backdrop-filter: blur(5px);';
-        modal.innerHTML = `
-            <div style="background: #fff; padding: 20px; border-radius: 15px; width: 90%; max-width: 400px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                <h3 style="margin-top: 0; color: #0a1931; font-weight: bold; text-align: center;">Revisar Etiqueta</h3>
-                <p style="font-size: 13px; color: #666; margin-top: -10px; margin-bottom: 15px; text-align: center;">Confirme para abrir no app Print Label.</p>
-                
-                <div id="preview-image-container" style="overflow-y: auto; max-height: 55vh; margin-bottom: 20px; border: 2px dashed #ccc; border-radius: 8px; padding: 5px; width: 100%; text-align: center; background: #f9f9f9;">
-                </div>
-
-                <div style="display: flex; gap: 10px; width: 100%;">
-                    <button onclick="closePrintPreview()" style="flex: 1; padding: 12px; background: #ffebee; color: #cc0000; border: 1px solid #ffcccc; border-radius: 8px; font-weight: bold; cursor: pointer;">Cancelar</button>
-                    <button onclick="confirmAndSharePrint()" style="flex: 2; padding: 12px; background: #d4af37; color: #0a1931; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px;">
-                        ENVIAR IMPRESSORA
-                    </button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
-
-    // Mostra a janela (Modal) de carregamento
-    const previewContainer = document.getElementById('preview-image-container');
-    previewContainer.innerHTML = '<p style="color:#666; margin-top:20px;">Gerando etiqueta em alta resolução...</p>';
-    modal.style.display = 'flex';
-    labelFileToPrint = null; // Reseta o arquivo anterior
-
-    const company = {
-        name: "Agencia Guineexpress",
-        address: "Av. Tristão Gonçalves, 1203",
-        contact: "(85) 98239-207/(85) 97175-853",
-        cnpj: "49.356.085/0001-34"
-    };
-
     const box = checked[0]; 
     const data = JSON.parse(box.getAttribute('data-obj'));
-    
+
+    // 1. Pergunta a quantidade de volumes
     let qtdVolumes = prompt(`Quantas sacolas/volumes tem a encomenda de ${data.client_name}? (Código: ${data.code})`, "1");
+    if (qtdVolumes === null) return; 
     qtdVolumes = parseInt(qtdVolumes) || 1; 
 
-    // Cria a etiqueta invisível (fora da tela) para bater a foto
-    let offScreenArea = document.getElementById('offscreen-print-area');
-    if (!offScreenArea) {
-        offScreenArea = document.createElement('div');
-        offScreenArea.id = 'offscreen-print-area';
-        offScreenArea.style.position = 'absolute';
-        offScreenArea.style.left = '-9999px';
-        document.body.appendChild(offScreenArea);
-    }
-    offScreenArea.innerHTML = ''; 
-
-    const labelDiv = document.createElement('div');
-    labelDiv.style.width = '380px'; 
-    labelDiv.style.background = '#ffffff';
-    labelDiv.style.padding = '5px';
+    // 2. Pergunta o nome do arquivo
+    let nomeSugerido = `Etiqueta_${data.code}`;
+    let nomeEscolhido = prompt("Digite o nome para salvar o PDF da etiqueta:", nomeSugerido);
     
-    // HTML da etiqueta
-    labelDiv.innerHTML = `
-        <div style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing: border-box; background: #ffffff;">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 3px solid #000000; padding-bottom: 8px; margin-bottom: 8px; color: #000000;">
-                <div style="background: #ffffff; padding: 2px; border-radius: 4px;">
-                    <img src="logo.png" crossorigin="anonymous" onerror="this.style.display='none'" style="width: 70px; height: 70px; object-fit: contain; filter: grayscale(100%) contrast(500%) brightness(110%);">
-                </div>
-                <div style="text-align: right; font-size: 11px; line-height: 1.3;">
-                    <strong style="font-size:14px; text-transform: uppercase;">${company.name}</strong><br>
-                    ${company.address}<br>
-                    ${company.contact} | CNPJ: ${company.cnpj}
-                </div>
-            </div>
+    if (nomeEscolhido === null || nomeEscolhido.trim() === "") return; 
+    if (!nomeEscolhido.toLowerCase().endsWith('.pdf')) nomeEscolhido += '.pdf';
 
-            <div style="flex: 1; display:flex; flex-direction:column; gap: 8px;">
-                <div style="border: 2px solid #000; padding: 8px; border-radius: 6px;">
-                    <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">DESTINATÁRIO (GUINÉ-BISSAU)</div>
-                    <div style="font-size: 18px; font-weight: 900; line-height: 1.2;">${data.client_name || 'CLIENTE'}</div>
-                    <div style="font-size: 13px; margin-top: 4px; font-weight: 600;">
-                        Tel: ${data.client_phone || '-'}<br>
-                        Email: ${data.client_email ? data.client_email.substring(0, 30) : '-'}
-                    </div>
-                </div>
+    alert("Gerando a Etiqueta de Alta Qualidade... Por favor, aguarde.");
 
-                <div style="display:flex; gap: 8px;">
-                    <div style="border: 2px solid #000; padding: 8px; border-radius: 6px; flex: 1; text-align: center;">
-                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">CÓDIGO DA ENCOMENDA</div>
-                        <div style="font-size: 20px; font-weight: 900; letter-spacing: 1px;">${data.code}</div>
-                    </div>
-                    <div style="border: 2px solid #000; padding: 8px; border-radius: 6px; flex: 1; text-align: center;">
-                        <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">PESO TOTAL</div>
-                        <div style="font-size: 20px; font-weight: 900;">${data.weight} kg</div>
-                    </div>
-                </div>
+    // Prepara o PDF Nativo em 100x151mm
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
 
-                <div style="border: 2px solid #000; padding: 8px; border-radius: 6px; flex: 1; overflow: hidden;">
-                    <div style="font-size: 11px; font-weight: bold; border-bottom: 1px solid #000; margin-bottom: 4px; display:inline-block;">CONTEÚDO / DESCRIÇÃO</div>
-                    <div style="font-size: 13px; font-weight: bold; word-wrap: break-word; white-space: normal; line-height: 1.3;">
-                        ${data.description || 'Sem descrição'}
-                    </div>
-                </div>
-            </div>
+    // Função para pegar a logomarca e transformar em base64 para o PDF
+    let logoData = null;
+    try {
+        const img = new Image();
+        img.src = 'logo.png'; 
+        img.crossOrigin = 'Anonymous';
+        await new Promise((resolve) => {
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                logoData = canvas.toDataURL('image/png');
+                resolve();
+            };
+            img.onerror = resolve; // Se der erro na logo, continua sem ela
+        });
+    } catch(e) {}
 
-            <div style="border-top: 3px solid #000; padding-top: 8px; margin-top: 8px; display:flex; justify-content:space-between; align-items:center;">
-                <div style="flex: 1;">
-                    <div style="font-size: 12px; font-weight: bold; text-transform: uppercase;">NÚMERO DA BOX</div>
-                    <div style="font-size: 28px; font-weight: 900; letter-spacing: 1px;">${data.box_code || '---'}</div>
-                </div>
-                
-                <div style="border: 3px solid #000; padding: 6px 14px; text-align: center; border-radius: 6px; margin-right: 15px;">
-                    <div style="font-size: 11px; font-weight: bold; letter-spacing: 1px;">VOLUME</div>
-                    <div style="font-size: 26px; font-weight: 900;">1/${qtdVolumes}</div>
-                </div>
+    // Gera as páginas baseadas nos volumes
+    for (let i = 1; i <= qtdVolumes; i++) {
+        if (i > 1) doc.addPage();
 
-                <div id="qr-code-temp" style="width: 75px; height: 75px; display:flex; align-items:center; justify-content:center;"></div>
-            </div>
-        </div>
-    `;
+        // Fundo Branco
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, 100, 151, 'F');
 
-    offScreenArea.appendChild(labelDiv);
-
-    new QRCode(document.getElementById('qr-code-temp'), {
-        text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:1/${qtdVolumes}|${data.client_name}`,
-        width: 75, height: 75,
-        correctLevel : QRCode.CorrectLevel.L
-    });
-
-    // Espera o QRCode renderizar para bater a foto
-    setTimeout(async () => {
-        try {
-            const canvas = await html2canvas(labelDiv, { scale: 2, useCORS: true });
-            const imgData = canvas.toDataURL("image/jpeg", 1.0);
-            
-            // Mostra a foto na tela para o usuário ver
-            previewContainer.innerHTML = `<img src="${imgData}" style="max-width: 100%; height: auto; border: 1px solid #000; border-radius: 8px;">`;
-
-            // Guarda o arquivo na variável global para o botão Enviar usar depois
-            canvas.toBlob((blob) => {
-                labelFileToPrint = new File([blob], `etiqueta_${data.code}.jpg`, { type: 'image/jpeg' });
-            }, 'image/jpeg', 1.0);
-
-        } catch (error) {
-            console.error("Erro:", error);
-            previewContainer.innerHTML = '<p style="color:red;">Erro ao gerar a etiqueta.</p>';
+        // --- CABEÇALHO ---
+        if (logoData) {
+            doc.addImage(logoData, 'PNG', 5, 5, 18, 18); // Logo no canto esquerdo
         }
-    }, 800);
-}
+        
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text("AGÊNCIA GUINEEXPRESS", 95, 9, { align: "right" });
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("Av. Tristão Gonçalves, 1203", 95, 14, { align: "right" });
+        doc.text("(85) 98239-207 / (85) 97175-853", 95, 18, { align: "right" });
+        doc.text("CNPJ: 49.356.085/0001-34", 95, 22, { align: "right" });
+        
+        // Linha divisória
+        doc.setLineWidth(0.5);
+        doc.line(5, 25, 95, 25);
 
-// 5. ENVIAR PARA O APLICATIVO (Acionado pelo botão ENVIAR IMPRESSORA)
-async function confirmAndSharePrint() {
-    if (!labelFileToPrint) {
-        return alert("Aguarde a etiqueta aparecer na tela!");
+        // --- CAIXA: DESTINATÁRIO ---
+        doc.setLineWidth(0.5);
+        doc.roundedRect(5, 28, 90, 24, 2, 2); 
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text("DESTINATÁRIO (GUINÉ-BISSAU)", 7, 32);
+        doc.line(7, 33, 48, 33); 
+        
+        doc.setFontSize(14);
+        doc.text(data.client_name || 'CLIENTE', 7, 40);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(`Tel: ${data.client_phone || '-'}`, 7, 46);
+        doc.text(`Email: ${data.client_email ? data.client_email.substring(0, 35) : '-'}`, 7, 50);
+
+        // --- CAIXAS: CÓDIGO E PESO ---
+        // Código
+        doc.setLineWidth(0.5);
+        doc.roundedRect(5, 54, 43, 16, 2, 2);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text("CÓDIGO DA ENCOMENDA", 26.5, 58, { align: "center" });
+        doc.setFontSize(15);
+        doc.text(data.code || '-', 26.5, 66, { align: "center" });
+
+        // Peso
+        doc.roundedRect(52, 54, 43, 16, 2, 2);
+        doc.setFontSize(8);
+        doc.text("PESO TOTAL", 73.5, 58, { align: "center" });
+        doc.setFontSize(15);
+        doc.text(`${data.weight} kg`, 73.5, 66, { align: "center" });
+
+        // --- CAIXA: CONTEÚDO / DESCRIÇÃO ---
+        doc.roundedRect(5, 72, 90, 50, 2, 2);
+        doc.setFontSize(8);
+        doc.text("CONTEÚDO / DESCRIÇÃO", 7, 76);
+        doc.line(7, 77, 40, 77);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        let descText = data.description || 'Nenhum conteúdo informado.';
+        let splitDesc = doc.splitTextToSize(descText, 86);
+        doc.text(splitDesc, 7, 82);
+
+        // --- RODAPÉ (BOX, VOLUME E QR CODE) ---
+        doc.line(5, 125, 95, 125); // Linha divisória de baixo
+        
+        // Número da Box
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.text("NÚMERO DA BOX", 5, 131);
+        doc.setFontSize(22);
+        doc.text(data.box_code || '---', 5, 142);
+
+        // Caixa de Volume
+        doc.roundedRect(45, 128, 26, 17, 2, 2);
+        doc.setFontSize(8);
+        doc.text("VOLUME", 58, 132, { align: "center" });
+        doc.setFontSize(18);
+        doc.text(`${i}/${qtdVolumes}`, 58, 141, { align: "center" });
+
+        // QR Code Nativo
+        const qrTemp = document.createElement('div');
+        new QRCode(qrTemp, {
+            text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
+            width: 100,
+            height: 100,
+            correctLevel : QRCode.CorrectLevel.L
+        });
+        
+        // Espera o QR Code processar
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const qrCanvas = qrTemp.querySelector('canvas');
+        if (qrCanvas) {
+            const qrData = qrCanvas.toDataURL('image/png');
+            // Desenha o QR Code perfeito em 20x20mm
+            doc.addImage(qrData, 'PNG', 75, 126.5, 20, 20);
+        }
     }
 
-    if (navigator.canShare && navigator.canShare({ files: [labelFileToPrint] })) {
-        try {
-            await navigator.share({
-                title: 'Imprimir Etiqueta',
-                files: [labelFileToPrint]
-            });
-            closePrintPreview(); 
-        } catch (error) {
-            console.log("Compartilhamento fechado:", error);
-        }
+    // ==========================================
+    // MÁGICA DE RECONHECIMENTO DE DISPOSITIVO
+    // ==========================================
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isMobile) {
+        // COMPORTAMENTO NO CELULAR: Baixa o arquivo para usar no Print Label
+        doc.save(nomeEscolhido);
+        alert(`✅ O arquivo "${nomeEscolhido}" foi baixado!\n\nAbra o aplicativo Print Label e vá em 'Impressão de PDF' para imprimir.`);
     } else {
-        alert("Navegador não suporta compartilhamento direto. A etiqueta será baixada.");
-        const url = URL.createObjectURL(labelFileToPrint);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = labelFileToPrint.name;
-        a.click();
-        closePrintPreview();
+        // COMPORTAMENTO NO COMPUTADOR: Abre o PDF numa nova janela para imprimir direto
+        doc.autoPrint(); // Ativa a função nativa de abrir a janela de impressão do Windows/Mac
+        const blobUrl = doc.output('bloburl'); // Cria um link virtual do PDF
+        window.open(blobUrl, '_blank'); // Abre em uma nova aba pronta para imprimir
     }
-}
-
-// FECHAR A JANELA
-function closePrintPreview() {
-    const modal = document.getElementById('print-preview-modal');
-    if (modal) modal.style.display = 'none';
-    labelFileToPrint = null; 
-}
-// FUNÇÃO AUXILIAR PARA BAIXAR O PDF
-function baixarPdfManual(file) {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = "Etiqueta_Guineexpress.pdf";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    alert("O PDF foi baixado!\n\nAbra o aplicativo 'Print Label', vá em 'Impressão em PDF' (ou 'PDF Print') e escolha este arquivo.");
 }
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)
