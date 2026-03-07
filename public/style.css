@@ -190,26 +190,7 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     .header-flex { flex-direction: column; gap: 10px; align-items: flex-start; }
     .btn { width: 100%; margin-bottom: 5px; }
 }
-/* =========================================
-       AJUSTE DE FORMULÁRIOS NO CELULAR (VALORES)
-       ========================================= */
-    .form-grid {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 15px;
-    }
 
-    .form-group {
-        width: 100% !important;
-    }
-
-    .form-group input, 
-    .form-group select {
-        width: 100% !important;
-        font-size: 16px !important; /* Letra maior para ler os números fácil */
-        padding: 12px 15px !important; /* Campo mais espaçoso para o dedo */
-        box-sizing: border-box !important;
-    }
 /* =========================================
    6. TELA DE LOGIN (ESTILO DARK GLASS ULTIMATE)
    ========================================= */

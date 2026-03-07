@@ -583,11 +583,12 @@ async function loadBoxes() {
     }
 }
 // ==========================================
-// FUNÇÃO QUE FALTAVA: CRIAR ENCOMENDA
+// FUNÇÃO CRIAR ENCOMENDA
 // ==========================================
 async function createOrder() {
     // 1. Pega os dados do formulário
-    const clientId = document.getElementById('order-client-select').value;
+    const clientSelect = document.getElementById('order-client-select');
+    const clientId = clientSelect.value;
     const code = document.getElementById('order-code').value;
     const desc = document.getElementById('order-desc').value;
     const weight = document.getElementById('order-weight').value;
@@ -597,6 +598,15 @@ async function createOrder() {
     if (!clientId || !code || !weight) {
         return alert("Preencha Cliente, Código e Peso!");
     }
+
+    // --- NOVIDADE: A TRAVA DE SEGURANÇA! ---
+    // Pega o texto da opção que foi selecionada para checar se tem o símbolo de alerta
+    const clienteTexto = clientSelect.options[clientSelect.selectedIndex].text;
+    if (clienteTexto.includes('⚠️')) {
+        const confirmar = confirm("⚠️ ATENÇÃO: Este cliente já possui uma encomenda ativa na Guineexpress! Tem certeza absoluta de que deseja criar mais uma?");
+        if (!confirmar) return; // Se o admin clicar em "Cancelar", a função para aqui!
+    }
+    // ----------------------------------------
 
     const data = {
         client_id: clientId,
@@ -621,10 +631,14 @@ async function createOrder() {
             
             // 4. Limpa e fecha
             document.getElementById('new-order-form').reset();
+            // Limpa o campo de busca que criamos
+            if(document.getElementById('order-client-search')) document.getElementById('order-client-search').value = '';
+            
             closeModal('modal-order');
             
-            // 5. Atualiza a lista na tela
+            // 5. Atualiza a lista na tela (clientes e encomendas)
             loadOrders();
+            loadClients(); // Chama de novo para atualizar as tags ⚠️
         } else {
             alert("Erro ao criar: " + (json.msg || "Verifique se o código já existe."));
         }
@@ -989,6 +1003,16 @@ async function loadClients() {
         const res = await fetch('/api/clients'); 
         const list = await res.json(); 
         
+        // --- NOVIDADE: Checa quem já tem encomenda ativa ---
+        let clientesComEncomenda = [];
+        try {
+            const resOrd = await fetch('/api/orders');
+            const ordList = await resOrd.json();
+            // Salva o ID de todos que têm encomenda e que ainda não foi Entregue
+            clientesComEncomenda = ordList.filter(o => o.status !== 'Entregue').map(o => String(o.client_id));
+        } catch(e) { console.warn("Aviso: Não foi possível checar encomendas ativas."); }
+        // ----------------------------------------------------
+
         // Preenche os Selects (ex: na hora de criar encomenda)
         const selects = [
             document.getElementById('order-client-select'),
@@ -1000,7 +1024,10 @@ async function loadClients() {
                 sel.innerHTML = '<option value="">Selecione o Cliente...</option>'; 
                 list.forEach(c => {
                     if(c.name) {
-                        sel.innerHTML += `<option value="${c.id}">${c.name} | ${c.email || 'Sem email'}</option>`; 
+                        // Se o cliente estiver na lista de encomendas ativas, coloca o aviso!
+                        let aviso = clientesComEncomenda.includes(String(c.id)) ? ' ⚠️ [JÁ TEM ENCOMENDA]' : '';
+                        
+                        sel.innerHTML += `<option value="${c.id}">${c.name}${aviso} | ${c.email || 'Sem email'}</option>`; 
                     }
                 });
             }
@@ -1014,7 +1041,6 @@ async function loadClients() {
             list.forEach(c => { 
                 if(!c.name) return; 
 
-                // Botão Ativar/Desativar
                 let actionBtn = '';
                 if (currentUser && currentUser.role === 'admin') {
                     const btnColor = c.active ? '#dc3545' : '#28a745';
@@ -1024,29 +1050,22 @@ async function loadClients() {
                     actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
                 }
 
-                // Status Badge
                 const statusBadge = c.active 
                     ? '<span style="background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Ativo</span>' 
                     : '<span style="background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Inativo</span>';
 
-                // --- CORREÇÃO AQUI (profile_pic em vez de photo) ---
                 let imgUrl = '';
                 if (c.profile_pic && c.profile_pic !== 'default.png') {
-                    // Verifica se já é um link completo (ex: Google) ou se é arquivo nosso
                     if (c.profile_pic.startsWith('http')) {
                         imgUrl = c.profile_pic;
                     } else {
                         imgUrl = '/uploads/' + c.profile_pic;
                     }
                 } else {
-                    // Avatar genérico com iniciais
                     imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
                 }
 
-                const photoHtml = `<img src="${imgUrl}" 
-                    onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" 
-                    style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
-                // ----------------------------------------------------
+                const photoHtml = `<img src="${imgUrl}" onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
 
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee; text-align: center;">
@@ -5405,5 +5424,35 @@ async function submitPixReceipt() {
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
+    }
+}
+// ==========================================
+// FUNÇÃO PARA BUSCAR CLIENTE NO DROPDOWN
+// ==========================================
+function filtrarClientesDropdown() {
+    const termo = document.getElementById('order-client-search').value.toLowerCase();
+    const options = document.getElementById('order-client-select').options;
+    
+    for (let i = 0; i < options.length; i++) {
+        const texto = options[i].text.toLowerCase();
+        // Oculta quem não tem o texto digitado (exceto a primeira opção "Selecione")
+        const esconder = !texto.includes(termo) && options[i].value !== "";
+        options[i].hidden = esconder;
+        options[i].disabled = esconder; 
+    }
+}
+// ==========================================
+// FUNÇÃO PARA BUSCAR CLIENTE NO DROPDOWN DE BOX
+// ==========================================
+function filtrarClientesBoxDropdown() {
+    const termo = document.getElementById('box-client-search').value.toLowerCase();
+    const options = document.getElementById('box-client-select').options;
+    
+    for (let i = 0; i < options.length; i++) {
+        const texto = options[i].text.toLowerCase();
+        // Oculta quem não tem o texto digitado (exceto a primeira opção "Selecione")
+        const esconder = !texto.includes(termo) && options[i].value !== "";
+        options[i].hidden = esconder;
+        options[i].disabled = esconder; 
     }
 }
