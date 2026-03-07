@@ -5150,127 +5150,6 @@ if (roletaBtn) {
     });
 }
 
-// ==================================================================
-// LÓGICA DO JOGO DA ROLETA DA SORTE 🎡
-// ==================================================================
-
-// Variáveis do Modal
-const modalRoleta = document.getElementById('modal-roleta');
-const btnFecharRoleta = document.getElementById('fechar-roleta');
-const btnGirar = document.getElementById('btn-girar');
-const wheel = document.getElementById('wheel');
-
-// Modificamos a função que o botão flutuante chama para abrir a tela
-function abrirRoleta() {
-    if(modalRoleta) {
-        modalRoleta.classList.add('ativo');
-    }
-}
-
-// Fechar a Roleta
-if(btnFecharRoleta) {
-    btnFecharRoleta.addEventListener('click', () => {
-        modalRoleta.classList.remove('ativo');
-    });
-}
-
-// ==================================================================
-// LÓGICA DO JOGO DA ROLETA (VERSÃO FINAL COM PRÉMIOS)
-// ==================================================================
-const listaPremios = [
-    "Parabéns! Ganhou 10% de desconto! (Código: GUINE10)", // Fatia 0
-    "Ah não... Não foi desta vez. Tente amanhã!",         // Fatia 1
-    "Boa! Ganhou 1 Ponto Express para a sua conta!",       // Fatia 2
-    "Puxa vida... Tente amanhã!",                          // Fatia 3
-    "Legal! Ganhou 5% de desconto! (Código: GUINE5)",      // Fatia 4
-    "Quase... Volte a tentar amanhã!"                      // Fatia 5
-];
-
-let grausAtuais = 0;
-
-if(btnGirar) {
-    btnGirar.addEventListener('click', () => {
-        // 1. VERIFICA SE JÁ JOGOU HOJE (Proteção anti-vício!)
-        const ultimoJogo = localStorage.getItem('dataUltimaRoleta');
-        const dataHoje = new Date().toDateString();
-
-        if (ultimoJogo === dataHoje) {
-            if (typeof ciciAvisa === "function") {
-                ciciAvisa("Você já girou a roleta hoje! Volte amanhã para tentar a sorte de novo. ", "erro");
-            } else {
-                alert("Você já girou a roleta hoje! Volte amanhã.");
-            }
-            return; // Bloqueia e não deixa girar
-        }
-
-        // 2. PREPARA PARA GIRAR
-        btnGirar.disabled = true;
-        btnGirar.innerText = "A GIRAR... 🌀";
-
-        // 3. SORTEIA O PRÉMIO (0 a 5)
-        const fatiaSorteada = Math.floor(Math.random() * 6); 
-
-        // 4. MATEMÁTICA PARA PARAR NA FATIA CERTA
-        // Cada fatia tem 60 graus. O meio da fatia é 30.
-        const centroDaFatia = (fatiaSorteada * 60) + 30;
-        
-        // Quantos graus temos de rodar para o centro da fatia ficar no ponteiro (no topo, que é 0)
-        const grausParaGirar = 1800 + (360 - centroDaFatia);
-        
-        grausAtuais += grausParaGirar;
-
-        // Roda o CSS!
-        wheel.style.transform = `rotate(${grausAtuais}deg)`;
-
-        // 5. DEPOIS DE PARAR (Espera 4 segundos da animação)
-        setTimeout(() => {
-            // Regista que o utilizador já jogou hoje
-            localStorage.setItem('dataUltimaRoleta', dataHoje);
-
-            // Verifica se ganhou algo ou se foi "Tente Amanhã"
-            // Fatias pares (0, 2, 4) são os prémios!
-            if (fatiaSorteada === 0 || fatiaSorteada === 2 || fatiaSorteada === 4) {
-                
-                // 💥 DISPARA OS CONFETTIS! 💥
-                if (typeof confetti === "function") {
-                    confetti({
-                        particleCount: 150,
-                        spread: 80,
-                        origin: { y: 0.6 },
-                        colors: ['#009ee3', '#d4af37', '#ffffff'] // As cores da Guineexpress!
-                    });
-                }
-                   // Se a fatia for a de "1 Ponto" (Fatia 2), avisa o servidor
-                if (fatiaSorteada === 2) {
-                    fetch('/api/save-points', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log("Ponto guardado com sucesso no banco de dados!");
-                    })
-                    .catch(err => console.error("Erro ao comunicar com o servidor"));
-                }
-                if (typeof ciciAvisa === "function") {
-                    ciciAvisa(listaPremios[fatiaSorteada], "sucesso");
-                } else {
-                    alert(listaPremios[fatiaSorteada]);
-                }
-
-                // DICA PARA O FUTURO: Aqui nós avisaremos o servidor para guardar o prémio no Banco de Dados!
-
-            } else {
-                // Se perdeu (Fatias 1, 3, 5)
-                if (typeof ciciAvisa === "function") {
-                    ciciAvisa(listaPremios[fatiaSorteada], "info");
-                } else {
-                    alert(listaPremios[fatiaSorteada]);
-                }
-            }
-            
-            btnGirar.innerText = "VOLTE AMANHÃ";
-            
-        }, 4000);
-    });
-}
 const truck = document.getElementById("truck");
 const gameContainer = document.getElementById("game-container");
 const scoreElement = document.getElementById("score");
@@ -5278,16 +5157,36 @@ const modalJogo = document.getElementById("modal-jogo");
 let score = 0;
 let isGameOver = false;
 
-// Abrir e Fechar o Jogo
-document.getElementById("btn-abrir-jogo").onclick = () => { modalJogo.style.display = 'flex'; resetJogo(); };
-document.getElementById("fechar-jogo").onclick = () => { modalJogo.style.display = 'none'; isGameOver = true; };
+// Abrir e Fechar o Jogo (CORRIGIDO)
+const btnAbrirJogo = document.getElementById("btn-abrir-jogo");
+const btnFecharJogo = document.getElementById("fechar-jogo");
+
+if (btnAbrirJogo) {
+    btnAbrirJogo.onclick = () => { 
+        modalJogo.style.display = 'flex'; 
+        resetJogo(); 
+    };
+}
+
+if (btnFecharJogo) {
+    btnFecharJogo.onclick = () => { 
+        modalJogo.style.display = 'none'; 
+        isGameOver = true; 
+    };
+}
 
 // Função de Saltar
 function jump() {
-    if (!truck.classList.contains("animate-jump")) {
+    if (truck && !truck.classList.contains("animate-jump")) {
         truck.classList.add("animate-jump");
         setTimeout(() => truck.classList.remove("animate-jump"), 500);
     }
+}
+
+// Detetar clique/toque para saltar (CORRIGIDO)
+if (gameContainer) {
+    gameContainer.addEventListener("mousedown", jump);
+    gameContainer.addEventListener("touchstart", (e) => { e.preventDefault(); jump(); });
 }
 
 // Detetar clique/toque para saltar
@@ -5367,88 +5266,7 @@ function ganhouPremioJogo() {
     .then(() => console.log("Prémio do jogo guardado!"))
     .catch(err => console.error("Erro ao guardar pontos do jogo"));
 }
-// ==================================================================
-// LÓGICA DO PASSAPORTE DE VIAGENS (VERSÃO REAL)
-// ==================================================================
 
-// Abrir Passaporte com Efeito Sonoro
-const btnAbrirPassaporte = document.getElementById('btn-abrir-passaporte');
-const modalPassaporte = document.getElementById('modal-passaporte');
-const btnFecharPassaporte = document.getElementById('fechar-passaporte');
-
-if (btnAbrirPassaporte) {
-    btnAbrirPassaporte.onclick = () => {
-        modalPassaporte.style.display = 'flex';
-        
-        // Efeito sonoro de carimbo (opcional, mas muito fixe!)
-        try {
-            let audio = new Audio('https://www.soundjay.com/office/sounds/stapler-01.mp3');
-            audio.volume = 0.4;
-            audio.play();
-        } catch (e) { console.log("Som bloqueado pelo navegador"); }
-
-        // Chama a função que vai buscar os dados reais ao servidor
-        carregarCarimbos();
-    };
-}
-
-if (btnFecharPassaporte) {
-    btnFecharPassaporte.onclick = () => {
-        modalPassaporte.style.display = 'none';
-    };
-}
-
-// Fecha o modal se o utilizador clicar fora da caixa do passaporte
-window.onclick = (event) => {
-    if (event.target == modalPassaporte) {
-        modalPassaporte.style.display = "none";
-    }
-};
-
-function carregarCarimbos() {
-    fetch('/api/get-passport')
-        .then(res => {
-            if (!res.ok) throw new Error('Página não encontrada no servidor (404)');
-            return res.json();
-        })
-        .then(data => {
-            if (data.success) {
-                document.getElementById('pass-user-name').innerText = data.nome;
-                const mapaCidades = {
-                    "Bissau": "stamp-BIS",
-                    "Lisboa": "stamp-LIS",
-                    "Paris": "stamp-PAR",
-                    "Dakar": "stamp-DAK"
-                };
-
-                document.querySelectorAll('.stamp-item').forEach(s => {
-                    s.classList.add('locked');
-                    s.classList.remove('unlocked');
-                });
-
-                data.destinos.forEach(destinoReal => {
-                    const idCarimbo = mapaCidades[destinoReal];
-                    if (idCarimbo && document.getElementById(idCarimbo)) {
-                        document.getElementById(idCarimbo).classList.remove('locked');
-                        document.getElementById(idCarimbo).classList.add('unlocked');
-                    }
-                });
-            }
-        })
-        .catch(err => console.error("Aviso: O passaporte ainda não tem dados para mostrar. ", err));
-}
-
-// Clique do botão com som corrigido (link estável)
-if (btnAbrirPassaporte) {
-    btnAbrirPassaporte.onclick = () => {
-        modalPassaporte.style.display = 'flex';
-        // Novo link de som mais confiável
-        let audio = new Audio('https://assets.mixkit.co/active_storage/sfx/201/201-preview.mp3');
-        audio.volume = 0.3;
-        audio.play().catch(() => {}); // Ignora erro se o som falhar
-        carregarCarimbos();
-    };
-}
 // ==============================================================
 // FUNÇÕES DE AÇÃO EM MASSA (ENCOMENDAS)
 // ==============================================================
