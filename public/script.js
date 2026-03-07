@@ -2794,7 +2794,7 @@ async function printReceipt(boxId) {
         
         const dataHoje = new Date().toLocaleDateString('pt-BR');
         const stampStatus = d.is_paid ? 'PAGO' : 'PENDENTE';
-        const stampColor = d.is_paid ? '#28a745' : '#dc3545';
+        const stampColor = d.is_paid ? '#13d841' : '#d40c0ce5';
 
         printArea.innerHTML = '';
         
@@ -2802,6 +2802,15 @@ async function printReceipt(boxId) {
         receiptDiv.className = 'receipt-a4-container'; 
         
         receiptDiv.innerHTML = `
+            <style>
+                @media print {
+                    @page { margin: 5mm; }
+                    html, body { height: 99%; overflow: hidden; }
+                    .receipt-a4-container { page-break-after: avoid; page-break-inside: avoid; }
+                    #print-area { page-break-after: avoid; }
+                }
+            </style>
+
             <div style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); 
                         font-size: 60px; font-weight: 900; color: ${stampColor}; opacity: 0.2; border: 5px solid ${stampColor}; padding: 10px 40px; text-transform:uppercase;">
                 ${stampStatus}
