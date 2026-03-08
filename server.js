@@ -1044,29 +1044,30 @@ app.get('/api/schedule/appointments', (req, res) => {
 app.post('/api/schedule/status', (req, res) => db.run("UPDATE appointments SET status = ? WHERE id = ?", [req.body.status, req.body.id], (err) => res.json({success: !err})));
 app.post('/api/schedule/cancel', (req, res) => db.run("UPDATE appointments SET status = 'Cancelado' WHERE id = ? AND client_id = ?", [req.body.id, req.session.userId], (err) => res.json({success: !err})));
 
-// Rota de Pedidos (Atualizada para trazer NF, Frete, Telefone e Email)
+// Rota de Pedidos CORRIGIDA (Volumes reais e agrupamento)
 app.get('/api/orders', (req, res) => {
-    // Fazemos um LEFT JOIN com boxes e invoices para resgatar os valores das taxas
     let sql = `SELECT 
-                orders.*, 
-                users.name as client_name, 
-                users.phone as client_phone, 
-                users.email as client_email,
-                invoices.nf_amount,
-                invoices.freight_amount
-               FROM orders 
-               JOIN users ON orders.client_id = users.id
-               LEFT JOIN boxes ON boxes.order_id = orders.id
-               LEFT JOIN invoices ON invoices.box_id = boxes.id`;
+                o.*, 
+                u.name as client_name, 
+                u.phone as client_phone, 
+                u.email as client_email,
+                i.nf_amount,
+                i.freight_amount,
+                COALESCE(MAX(b.volumes), o.volumes, 1) as volumes_reais
+               FROM orders o
+               JOIN users u ON o.client_id = u.id
+               LEFT JOIN boxes b ON b.order_id = o.id
+               LEFT JOIN invoices i ON i.box_id = b.id`;
     
     let params = [];
     
     if(req.session.role === 'client') { 
-        sql += " WHERE orders.client_id = ?"; 
+        sql += " WHERE o.client_id = ?"; 
         params.push(req.session.userId); 
     }
     
-    sql += " ORDER BY orders.id DESC"; 
+    // O GROUP BY é essencial para o MAX(volumes) funcionar
+    sql += " GROUP BY o.id ORDER BY o.id DESC"; 
 
     db.all(sql, params, (err, rows) => {
         if (err) {
@@ -2506,6 +2507,19 @@ app.get('/api/invoices', (req, res) => {
             return res.status(500).json({ error: "Erro no banco de dados." });
         }
         res.json(rows);
+    });
+});
+app.post('/api/orders/:code/deliver', (req, res) => {
+    const orderCode = req.params.code;
+    
+    // IMPORTANTE: Resposta sempre em JSON para não dar erro no JS
+    const sql = `UPDATE orders SET status = 'Entregue' WHERE code = ?`;
+    
+    db.run(sql, [orderCode], function(err) {
+        if (err) return res.status(500).json({ error: "Erro no banco" });
+        if (this.changes === 0) return res.status(404).json({ error: "Código não encontrado" });
+        
+        res.json({ success: true });
     });
 });
 // =====================================================

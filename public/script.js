@@ -5526,3 +5526,93 @@ function filtrarClientesFinanceiroDropdown() {
         options[i].disabled = esconder; 
     }
 }
+async function loadDeliveryList() {
+    try {
+        const response = await fetch('/api/orders'); 
+        const orders = await response.json();
+        const list = document.getElementById('delivery-list');
+        list.innerHTML = '';
+
+        orders.forEach(order => {
+            const isDelivered = order.status === 'Entregue';
+            
+            // ATENÇÃO: Mudamos para order.volumes_reais para bater com o novo SQL
+            const volumeExibicao = order.volumes_reais || order.volumes || '1';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight: bold;">${order.code}</td>
+                <td>${order.client_name}</td>
+                <td style="text-align: center; font-weight: bold; color: #0a1931;">
+                    ${volumeExibicao}
+                </td>
+                <td>
+                    <span class="badge" style="background: ${isDelivered ? '#27ae60' : '#f39c12'}; color: white; padding: 4px 8px; border-radius: 4px;">
+                        ${order.status}
+                    </span>
+                </td>
+                <td style="text-align: center;">
+                    ${isDelivered 
+                        ? '<span style="color: #27ae60; font-weight: bold;"><i class="fas fa-check-circle"></i> JÁ ENTREGUE</span>' 
+                        : `<button onclick="confirmDelivery('${order.code}')" class="btn" style="background: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
+                            <i class="fas fa-handshake"></i> CONFIRMAR ENTREGA
+                           </button>`
+                    }
+                </td>
+            `;
+            list.appendChild(tr);
+        });
+    } catch (err) {
+        console.error("Erro ao carregar lista de entregas:", err);
+    }
+}
+
+async function confirmDelivery(code) {
+    if(!confirm(`Confirmar que o cliente recebeu a encomenda ${code}?`)) return;
+
+    try {
+        const response = await fetch(`/api/orders/${code}/deliver`, { 
+            method: 'POST', // <--- ISSO resolve o erro "Cannot GET"
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+            alert("✅ Entrega registrada com sucesso!");
+            loadDeliveryList(); 
+        } else {
+            alert("❌ Erro ao registrar entrega. Verifique o console.");
+        }
+    } catch (err) {
+        alert("Erro de conexão.");
+    }
+}
+
+async function confirmDelivery(code) {
+    if(!confirm(`Deseja marcar a encomenda ${code} como ENTREGUE?`)) return;
+
+    try {
+        const response = await fetch(`/api/orders/${code}/deliver`, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        // Primeiro verificamos se a resposta é JSON antes de tentar ler
+        const contentType = response.headers.get("content-type");
+        
+        if (response.ok) {
+            alert("✅ Encomenda entregue com sucesso!");
+            loadDeliveryList();
+        } else {
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const errorData = await response.json();
+                alert("❌ Erro: " + (errorData.error || "Falha ao registrar"));
+            } else {
+                // Se cair aqui, é porque o servidor mandou um erro em HTML (provavelmente 404)
+                alert("❌ Erro 404: A rota de entrega não foi encontrada no servidor. Reinicie o seu server.js!");
+            }
+        }
+    } catch (err) {
+        console.error("Erro na requisição:", err);
+        alert("Erro de conexão com o servidor.");
+    }
+}

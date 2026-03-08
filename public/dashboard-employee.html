@@ -49,7 +49,9 @@
     <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn" style="background: #010203; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
         <i class="fas fa-file-invoice-dollar"></i> 💸 Faturas
     </button>
-    
+    <button onclick="showSection('delivery-view'); loadDeliveryList();">
+    <i class="fas fa-shipping-fast"></i> Entregas
+</button>
     <button onclick="showSection('orders-view')" style="background: #007bff; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
         <i class="fas fa-box"></i> Encomendas
     </button>
@@ -232,7 +234,36 @@
     </div>
 </section>
 
+<section id="delivery-view" class="hidden">
+    <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>🚚 Central de Entrega de Cargas</h2>
+    </div>
 
+    <div class="card">
+        <div style="margin-bottom: 20px; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 12px; top: 12px; color: #888;"></i>
+            <input type="text" id="search-delivery" onkeyup="searchTable('search-delivery', 'delivery-list')" 
+                   placeholder="Digite o código da encomenda ou nome do cliente..." 
+                   style="width: 100%; padding: 12px 12px 12px 40px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px;">
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th>Código</th>
+                        <th>Cliente</th>
+                        <th>Volumes</th>
+                        <th>Status Atual</th>
+                        <th style="text-align: center;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="delivery-list">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</section>
         <section id="clients-view" class="hidden">
             <div class="card">
                 <h3>Base de Clientes</h3>
