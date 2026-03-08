@@ -1,38 +1,39 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <link rel="stylesheet" href="cici.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Funcionário - Guineexpress</title>
+    
     <link rel="icon" type="image/png" href="/logo.png">
-    <link rel="stylesheet" href="style.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="apple-touch-icon" href="/logo.png">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0a1931">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Guineexpress">
+    <meta name="mobile-web-app-status-bar-style" content="black-translucent">
 
-    <link rel="icon" type="image/png" href="/logo.png">
-    <link rel="apple-touch-icon" href="/logo.png">
-    <img src="logo-etiqueta.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="cici.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <script>
+        // Registro do Service Worker para PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('App registrado'))
-                    .catch(err => console.log('Erro PWA', err));
+                    .then(reg => console.log('PWA: Ativo'))
+                    .catch(err => console.error('PWA: Erro', err));
             });
         }
 
-        // Item 3: Função de Notificação Push (Adicionada conforme solicitado)
         function requestNotificationPermission() {
-            if ("Notification" in window) {
+            if ("Notification" in window && Notification.permission !== "granted") {
                 Notification.requestPermission();
             }
         }
@@ -129,7 +130,10 @@
             <h3 style="margin: 0;">Gestão de Encomendas</h3>
             
             <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: flex-end;">
-                
+                <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-orders" onclick="loadOrders()"> 
+    👀 Mostrar encomendas já entregues
+</label>
                 <div id="bulk-action-container" style="display: none; background: #fff3cd; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffe69c; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: space-between;">
                     <span style="font-size: 13px; font-weight: bold; color: #664d03; white-space: nowrap;">
                         <i class="fas fa-check-square"></i> <span id="bulk-count">0</span> selecionados
@@ -238,7 +242,10 @@
     <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>🚚 Central de Entrega de Cargas</h2>
     </div>
-
+<label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-deliveries" onclick="loadDeliveryList()"> 
+    👀 Mostrar encomendas já entregues
+</label>
     <div class="card">
         <div style="margin-bottom: 20px; position: relative;">
             <i class="fas fa-search" style="position: absolute; left: 12px; top: 12px; color: #888;"></i>
@@ -279,6 +286,10 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
                     <h3>Gestão de Box</h3>
                     <div style="display:flex; gap: 10px;">
+                        <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-boxes" onclick="loadBoxes()"> 
+    👀 Mostrar boxes já enviadas/entregues
+</label>
                         <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
                         <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
                         <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
@@ -470,6 +481,10 @@
             <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center;">
                 <h2>💰 Faturas Pagas e Pendentes</h2>
                 <div style="display: flex; gap: 10px;">
+                    <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-finances" onclick="loadFinances()"> 
+    👀 Mostrar faturas já pagas
+</label>
                     <button onclick="exportFinancesPDF()" class="btn btn-primary" style="background: #e74c3c;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
                     <button onclick="exportFinancesExcel()" class="btn btn-primary" style="background: #27ae60;"><i class="fas fa-file-excel"></i> Abrir no Excel</button>
                 </div>

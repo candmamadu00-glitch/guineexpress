@@ -539,16 +539,19 @@ function savePrice() {
     });
 }
 
-// --- SISTEMA DE ENCOMENDAS E CAIXAS ---
+// --- SISTEMA DE ENCOMENDAS E CAIXAS INTELIGENTE ---
 async function loadBoxes() {
     const res = await fetch('/api/boxes');
     let list = await res.json(); 
     const tbody = document.getElementById('box-table-body');
     
+    // Pega o estado do botão
+    const toggleBtn = document.getElementById('toggle-boxes');
+    const showCompleted = toggleBtn ? toggleBtn.checked : false;
+    
     if(tbody) {
         tbody.innerHTML = '';
 
-        // MÁGICA DE ORDENAÇÃO: Organiza do menor para o maior (Box 1, Box 2, Box 3...)
         list.sort((a, b) => {
             const boxA = a.box_code || '';
             const boxB = b.box_code || '';
@@ -556,16 +559,17 @@ async function loadBoxes() {
         });
 
         list.forEach(b => {
+            // A MÁGICA: Se o status for Entregue (ou Pago) e o botão estiver desmarcado, oculta!
+            // (Verifique como o status da order vem no seu b.status ou b.order_status)
+            const status = b.status || b.order_status || '';
+            if ((status === 'Entregue' || status === 'Pago') && !showCompleted) return;
+
             const act = (currentUser.role !== 'client') ? 
                 `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>` : '-';
             
             const weight = parseFloat(b.order_weight) || 0;
             const freightValue = weight * globalPricePerKg;
-            
-            // Se já existir uma fatura com Nota Fiscal no banco, pega o valor dela
             const nfValue = parseFloat(b.nf_amount) || 0;
-            
-            // O Total agora soma o Frete + a Nota Fiscal (ou o valor já fechado da fatura)
             const finalTotal = parseFloat(b.amount) || (freightValue + nfValue);
 
             tbody.innerHTML += `
@@ -1173,6 +1177,10 @@ async function loadOrders() {
             }
 
             list.forEach(o => {
+    // === ADICIONE ESTAS DUAS LINHAS AQUI ===
+    const toggleBtn = document.getElementById('toggle-orders');
+    if (o.status === 'Entregue' && (!toggleBtn || !toggleBtn.checked)) return;
+    // ======================================
                 const phone = o.client_phone || o.phone || o.whatsapp || ''; 
                 const email = o.client_email || o.email || o.mail || ''; 
                 const name = o.client_name || o.name || 'Cliente';
@@ -2659,7 +2667,7 @@ async function printSelectedLabels() {
         doc.roundedRect(5, 28, 90, 24, 2, 2, 'S'); 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
-        doc.text("DESTINATÁRIO (GUINÉ-BISSAU)", 7, 32);
+        doc.text("REMETENTE", 7, 32);
         doc.line(7, 33, 48, 33); 
         
         doc.setFontSize(14);
@@ -4240,7 +4248,6 @@ async function loadAccessLogs() {
 // ==========================================
 // ABA FINANCEIRO (ENCOMENDAS E FATURAS)
 // ==========================================
-
 async function loadFinances() {
     try {
         const res = await fetch('/api/finances/all');
@@ -4248,39 +4255,37 @@ async function loadFinances() {
         const tbody = document.getElementById('finances-list');
         tbody.innerHTML = '';
 
+        const toggleBtn = document.getElementById('toggle-finances');
+        const showCompleted = toggleBtn ? toggleBtn.checked : false;
+
         if (finances.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Nenhum registo encontrado.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registo encontrado.</td></tr>`;
             return;
         }
 
         finances.forEach(item => {
-            // 1. TRADUÇÃO AUTOMÁTICA DO STATUS (AGORA COM 'APPROVED')
             let statusPt = item.status;
             const statusLower = statusPt.toLowerCase();
 
             if (statusLower === 'pending') statusPt = 'Pendente';
-            // Adicionamos o 'approved' aqui juntamente com o 'paid'
             if (statusLower === 'paid' || statusLower === 'approved') statusPt = 'Pago'; 
             if (statusLower === 'cancelled' || statusLower === 'rejected') statusPt = 'Cancelado';
 
-            // 2. Escolhe a cor da etiqueta dependendo do status traduzido
-            let statusBadge = 'bg-warning'; // Padrão (Pendente)
-            if (statusPt.toLowerCase().includes('pago')) statusBadge = 'bg-success'; // Verde
-            if (statusPt.toLowerCase().includes('cancelado')) statusBadge = 'bg-danger'; // Vermelho
+            // A MÁGICA AQUI: Esconde faturas pagas se o botão não estiver marcado
+            if (statusPt === 'Pago' && !showCompleted) return;
+
+            let statusBadge = 'bg-warning'; 
+            if (statusPt === 'Pago') statusBadge = 'bg-success'; 
+            if (statusPt === 'Cancelado') statusBadge = 'bg-danger'; 
 
             const tr = document.createElement('tr');
-            // ADICIONAMOS A COLUNA DE VOLUMES E O DATA-LABEL
             tr.innerHTML = `
                 <td data-label="Código" style="font-weight: bold;">${item.id_code || 'N/A'}</td>
                 <td data-label="Tipo"><span class="badge ${item.type === 'Encomenda' ? 'bg-info' : 'bg-primary'}">${item.type}</span></td>
                 <td data-label="Cliente">${item.client_name || 'Desconhecido'}</td>
                 <td data-label="Descrição">${item.description || '-'}</td>
                 <td data-label="Peso" style="text-align: center;">${item.weight ? item.weight + ' kg' : '-'}</td>
-                
-                <td data-label="Volumes" style="text-align: center; font-weight: bold; color: #d4af37;">
-                    <i class="fas fa-boxes"></i> ${item.volumes || '1'} 
-                </td>
-                
+                <td data-label="Volumes" style="text-align: center; font-weight: bold; color: #d4af37;"><i class="fas fa-boxes"></i> ${item.volumes || '1'}</td>
                 <td data-label="Status" style="text-align: center;"><span class="badge ${statusBadge}">${statusPt}</span></td>
             `;
             tbody.appendChild(tr);
@@ -5526,6 +5531,9 @@ function filtrarClientesFinanceiroDropdown() {
         options[i].disabled = esconder; 
     }
 }
+// ==========================================
+// 1. ABA DE ENTREGAS INTELIGENTE
+// ==========================================
 async function loadDeliveryList() {
     try {
         const response = await fetch('/api/orders'); 
@@ -5533,19 +5541,23 @@ async function loadDeliveryList() {
         const list = document.getElementById('delivery-list');
         list.innerHTML = '';
 
+        // Verifica se o usuário quer ver o histórico (se o botão não existir, esconde por padrão)
+        const toggleBtn = document.getElementById('toggle-deliveries');
+        const showCompleted = toggleBtn ? toggleBtn.checked : false;
+
         orders.forEach(order => {
             const isDelivered = order.status === 'Entregue';
             
-            // ATENÇÃO: Mudamos para order.volumes_reais para bater com o novo SQL
+            // A MÁGICA AQUI: Se for entregue e o botão não estiver marcado, pula e oculta!
+            if (isDelivered && !showCompleted) return;
+
             const volumeExibicao = order.volumes_reais || order.volumes || '1';
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="font-weight: bold;">${order.code}</td>
                 <td>${order.client_name}</td>
-                <td style="text-align: center; font-weight: bold; color: #0a1931;">
-                    ${volumeExibicao}
-                </td>
+                <td style="text-align: center; font-weight: bold; color: #0a1931;">${volumeExibicao}</td>
                 <td>
                     <span class="badge" style="background: ${isDelivered ? '#27ae60' : '#f39c12'}; color: white; padding: 4px 8px; border-radius: 4px;">
                         ${order.status}

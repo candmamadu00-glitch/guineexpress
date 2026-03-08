@@ -34,8 +34,25 @@
             });
         }
     </script>
+    <script>
+        // Registro do Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('PWA: Ativo'))
+                    .catch(err => console.error('PWA: Erro', err));
+            });
+        }
+
+        function requestNotificationPermission() {
+            if ("Notification" in window && Notification.permission !== "granted") {
+                Notification.requestPermission();
+            }
+        }
+    </script>
 </head>
 <body>
+<body onload="requestNotificationPermission()">
 
     <nav class="dashboard-nav">
         <div style="font-weight:bold; font-size:18px;">
@@ -180,7 +197,10 @@
             <h3 style="margin: 0;">Gestão de Encomendas</h3>
             
             <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: flex-end;">
-                
+                <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-orders" onclick="loadOrders()"> 
+    👀 Mostrar encomendas já entregues
+</label>
                 <div id="bulk-action-container" style="display: none; background: #fff3cd; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffe69c; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: space-between;">
                     <span style="font-size: 13px; font-weight: bold; color: #664d03; white-space: nowrap;">
                         <i class="fas fa-check-square"></i> <span id="bulk-count">0</span> selecionados
@@ -288,7 +308,10 @@
     <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>🚚 Central de Entrega de Cargas</h2>
     </div>
-
+<label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-deliveries" onclick="loadDeliveryList()"> 
+    👀 Mostrar encomendas já entregues
+</label>
     <div class="card">
         <div style="margin-bottom: 20px; position: relative;">
             <i class="fas fa-search" style="position: absolute; left: 12px; top: 12px; color: #888;"></i>
@@ -355,6 +378,10 @@
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
             <h3>Gestão de Box</h3>
             <div style="display:flex; gap: 10px;">
+                <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-boxes" onclick="loadBoxes()"> 
+    👀 Mostrar boxes já enviadas/entregues
+</label>
                 <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
                 <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
                 <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
@@ -882,7 +909,10 @@
 <section id="finances-view" class="hidden">
     <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center;">
         <h2>💰 Faturas Pagas e Pendentes</h2>
-        
+        <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-finances" onclick="loadFinances()"> 
+    👀 Mostrar faturas já pagas
+</label>
         <div style="display: flex; gap: 10px;">
             <button onclick="exportFinancesPDF()" class="btn btn-primary" style="background: #e74c3c;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
             <button onclick="exportFinancesExcel()" class="btn btn-primary" style="background: #27ae60;"><i class="fas fa-file-excel"></i> Abrir no Excel</button>
