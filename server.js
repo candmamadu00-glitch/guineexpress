@@ -30,6 +30,16 @@ webpush.setVapidDetails(
     process.env.VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
 );
+// ========================================================
+// PATCH FORÇADO: GARANTE QUE AS COLUNAS DE VOLUMES EXISTEM
+// ========================================================
+db.run("ALTER TABLE boxes ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
+    if (!err) console.log("✅ Coluna 'volumes' criada na tabela boxes!");
+});
+db.run("ALTER TABLE orders ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
+    if (!err) console.log("✅ Coluna 'volumes' criada na tabela orders!");
+});
+// ========================================================
 // ==================================================================
 // CONFIGURAÇÃO DO DISCO PERMANENTE (FOTOS E VÍDEOS)
 // ==================================================================
@@ -1068,25 +1078,40 @@ app.get('/api/orders', (req, res) => {
 });
 // ROTA DO PAINEL FINANCEIRO (Junta Encomendas e Faturas)
 app.get('/api/finances/all', async (req, res) => {
-    // Só admin ou funcionário podem ver o painel geral
     const isAdminOrEmployee = req.session.role === 'admin' || req.session.role === 'employee';
     if (!isAdminOrEmployee) return res.json([]);
 
     try {
-        // 1. Busca Encomendas
+        // 1. Busca Encomendas (Agora com LEFT JOIN, 100% garantido que puxa a Box)
         const orders = await new Promise((resolve, reject) => {
-            const sql = `SELECT o.code as id_code, 'Encomenda' as type, u.name as client_name, 
-                                o.description, o.weight, o.status 
-                         FROM orders o JOIN users u ON o.client_id = u.id ORDER BY o.id DESC`;
+            const sql = `SELECT 
+                            o.code as id_code, 
+                            'Encomenda' as type, 
+                            u.name as client_name, 
+                            o.description, 
+                            o.weight, 
+                            o.status, 
+                            COALESCE(MAX(b.volumes), o.volumes, 1) as volumes 
+                         FROM orders o 
+                         JOIN users u ON o.client_id = u.id 
+                         LEFT JOIN boxes b ON b.order_id = o.id
+                         GROUP BY o.id
+                         ORDER BY o.id DESC`;
             db.all(sql, [], (err, rows) => {
                 if (err) reject(err); else resolve(rows);
             });
         });
 
-        // 2. Busca Faturas do Financeiro (CORRIGIDO: Faz a ponte Fatura -> Caixa -> Encomenda)
+        // 2. Busca Faturas do Financeiro
         const invoices = await new Promise((resolve, reject) => {
-            const sql = `SELECT o.code as id_code, 'Fatura' as type, u.name as client_name, 
-                                'Caixa ' || b.box_code as description, NULL as weight, i.status 
+            const sql = `SELECT 
+                            o.code as id_code, 
+                            'Fatura' as type, 
+                            u.name as client_name, 
+                            'Caixa ' || b.box_code as description, 
+                            NULL as weight, 
+                            i.status, 
+                            COALESCE(b.volumes, o.volumes, 1) as volumes 
                          FROM invoices i 
                          LEFT JOIN users u ON i.client_id = u.id 
                          LEFT JOIN boxes b ON i.box_id = b.id 
@@ -1097,7 +1122,6 @@ app.get('/api/finances/all', async (req, res) => {
             });
         });
 
-        // Junta as duas listas e envia
         const combined = [...orders, ...invoices];
         res.json(combined);
 
@@ -1227,6 +1251,16 @@ app.get('/api/boxes', (req, res) => {
 app.post('/api/boxes/create', (req, res) => {
     const {client_id, order_id, box_code, products, amount} = req.body;
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
+});
+// ROTA NOVA: Salvar a quantidade de volumes (Para Encomendas e Caixas)
+app.post('/api/update-volumes', (req, res) => {
+    const { id, type, volumes } = req.body;
+    
+    if (type === 'box') {
+        db.run("UPDATE boxes SET volumes = ? WHERE id = ?", [volumes, id], (err) => res.json({ success: !err }));
+    } else {
+        db.run("UPDATE orders SET volumes = ? WHERE id = ?", [volumes, id], (err) => res.json({ success: !err }));
+    }
 });
 // =========================================================
 // 2. ROTA CORRIGIDA: EXCLUIR BOX (COM AUDITORIA)
@@ -1875,13 +1909,18 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
 
     const sqlBox = `
         SELECT 
-            boxes.id, boxes.box_code, boxes.amount, boxes.products, boxes.created_at,
+            boxes.id, boxes.box_code, boxes.amount, boxes.products, boxes.created_at, 
+            CASE 
+                WHEN boxes.volumes > 1 THEN boxes.volumes 
+                WHEN orders.volumes > 1 THEN orders.volumes 
+                ELSE 1 
+            END as volumes,
             orders.weight as weight, 
             orders.code as order_code,
             users.name as client_name, users.phone, users.document, users.country, users.email,
-            invoices.status as payment_status, -- Pega o status do pagamento (approved/pending)
-            invoices.nf_amount,                -- NOVA COLUNA: Pega o valor da nota fiscal
-            invoices.freight_amount            -- NOVA COLUNA: Pega o valor do frete separado
+            invoices.status as payment_status, 
+            invoices.nf_amount,                
+            invoices.freight_amount            
         FROM boxes
         LEFT JOIN users ON boxes.client_id = users.id
         LEFT JOIN orders ON boxes.order_id = orders.id
@@ -1893,26 +1932,20 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
         if (err) return res.json({ success: false, msg: "Erro no banco." });
         if (!box) return res.json({ success: false, msg: "Box não encontrada." });
 
-        // Busca preço por Kg para cálculo automático
         db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err2, setting) => {
             let pricePerKg = setting ? parseFloat(setting.value) : 0;
             let currentAmount = parseFloat(box.amount) || 0;
             let weight = parseFloat(box.weight) || 0;
 
-            // Se valor for 0, calcula automático (Peso x Preço)
             if (currentAmount === 0 && weight > 0 && pricePerKg > 0) {
                 currentAmount = weight * pricePerKg;
             }
 
-            // Define os valores finais garantindo que são números com 2 casas decimais
             box.amount = currentAmount.toFixed(2);
             box.weight = weight.toFixed(2);
-            
-            // Tratamento das colunas novas para evitar erro em faturas antigas
             box.nf_amount = parseFloat(box.nf_amount || 0).toFixed(2);
             box.freight_amount = parseFloat(box.freight_amount || currentAmount).toFixed(2);
-            
-            // Define status legível para o recibo (considerei 'paid' também caso você use)
+            box.volumes = box.volumes || 1;
             box.is_paid = (box.payment_status === 'approved' || box.payment_status === 'paid'); 
 
             res.json({ success: true, data: box });
@@ -2444,6 +2477,35 @@ app.post('/api/orders/mark-printed', (req, res) => {
             success: true, 
             message: `Encomenda ${orderId} marcada como impressa.` 
         });
+    });
+});
+// ==========================================
+// ROTA PARA LISTAR AS FATURAS COM OS VOLUMES
+// ==========================================
+app.get('/api/invoices', (req, res) => {
+    const sql = `
+        SELECT 
+            invoices.*,
+            users.name as client_name,
+            boxes.box_code,
+            CASE 
+                WHEN boxes.volumes > 1 THEN boxes.volumes 
+                WHEN orders.volumes > 1 THEN orders.volumes 
+                ELSE 1 
+            END as volumes
+        FROM invoices
+        LEFT JOIN users ON invoices.client_id = users.id
+        LEFT JOIN boxes ON invoices.box_id = boxes.id
+        LEFT JOIN orders ON boxes.order_id = orders.id
+        ORDER BY invoices.id DESC
+    `;
+    
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            console.error("Erro ao buscar faturas:", err.message);
+            return res.status(500).json({ error: "Erro no banco de dados." });
+        }
+        res.json(rows);
     });
 });
 // =====================================================

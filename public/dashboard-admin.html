@@ -392,6 +392,8 @@
                 <form onsubmit="createInvoice(event)" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end;">
                     <div class="form-group">
                         <label>1. Selecione o Cliente</label>
+                        <input type="text" id="bill-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesFinanceiroDropdown()" style="margin-bottom: 8px;">
+                        
                         <select id="bill-client-select" class="form-control" onchange="loadClientBoxesForBilling(this.value)" required>
                             <option value="">Carregando...</option>
                         </select>
@@ -872,6 +874,7 @@
                         <th>Cliente</th>
                         <th>Descrição</th>
                         <th style="text-align: center;">Peso</th>
+                        <th style="text-align: center;">Volumes</th>
                         <th style="text-align: center;">Status</th>
                     </tr>
                 </thead>

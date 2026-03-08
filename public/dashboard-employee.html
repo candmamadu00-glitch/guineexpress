@@ -449,14 +449,21 @@
                     <input type="text" id="search-finances" onkeyup="searchTable('search-finances', 'finances-list')" placeholder="Buscar faturas..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
                 </div>
                 <div class="table-responsive">
-                    <table class="data-table" id="finances-table">
-                        <thead>
-                            <tr><th>Código</th><th>Tipo</th><th>Cliente</th><th>Descrição</th><th>Peso</th><th>Status</th></tr>
-                        </thead>
-                        <tbody id="finances-list"></tbody>
-                    </table>
-                </div>
-            </div>
+            <table class="data-table" id="finances-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Tipo</th>
+                        <th>Cliente</th>
+                        <th>Descrição</th>
+                        <th style="text-align: center;">Peso</th>
+                        <th style="text-align: center;">Volumes</th>
+                        <th style="text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="finances-list"></tbody>
+            </table>
+        </div>
         </section>
 
         <div id="delivery-photo-modal" class="modal-overlay hidden">

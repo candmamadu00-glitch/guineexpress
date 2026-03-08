@@ -1967,18 +1967,44 @@ window.onclick = function(event) {
         event.target.classList.remove('active');
     }
 }
-// --- SISTEMA FINANCEIRO E COBRANÇA ---
-
 // 1. Carregar Clientes no Select de Cobrança
 async function loadClientsForBilling() {
     const sel = document.getElementById('bill-client-select');
     if(!sel) return;
-    const res = await fetch('/api/clients');
-    const list = await res.json();
-    sel.innerHTML = '<option value="">Selecione...</option>';
-    list.forEach(c => {
-        sel.innerHTML += `<option value="${c.id}" data-email="${c.email}">${c.name}</option>`;
-    });
+    
+    try {
+        const res = await fetch('/api/clients');
+        const list = await res.json();
+
+        // --- NOVIDADE: Checa quem já tem cobrança pendente ---
+        let clientesComCobranca = [];
+        try {
+            // Busca as faturas (pode ser /api/invoices ou /api/finances/all dependendo do seu backend)
+            // Se a rota exata for diferente, ele ignora sem quebrar o sistema
+            const resInv = await fetch('/api/invoices'); 
+            if (resInv.ok) {
+                const invList = await resInv.json();
+                // Considera pendente tudo que não for Pago, Aprovado ou Cancelado
+                clientesComCobranca = invList
+                    .filter(i => {
+                        const s = (i.status || '').toLowerCase();
+                        return !s.includes('pago') && !s.includes('paid') && !s.includes('approved') && !s.includes('cancel');
+                    })
+                    .map(i => String(i.client_id));
+            }
+        } catch(e) { console.warn("Aviso: Não foi possível checar cobranças ativas."); }
+        // ----------------------------------------------------
+
+        sel.innerHTML = '<option value="">Selecione...</option>';
+        list.forEach(c => {
+            // Se o cliente tem cobrança pendente, coloca a tag do dinheiro
+            let aviso = clientesComCobranca.includes(String(c.id)) ? ' 💰 [COBRANÇA PENDENTE]' : '';
+            
+            sel.innerHTML += `<option value="${c.id}" data-email="${c.email}">${c.name}${aviso}</option>`;
+        });
+    } catch (error) {
+        console.error("Erro ao carregar clientes do financeiro:", error);
+    }
 }
 
 // 2. Quando seleciona cliente, busca os BOXES dele
@@ -2038,6 +2064,14 @@ async function createInvoice(e) {
     
     const clientSelect = document.getElementById('bill-client-select');
     const boxSelect = document.getElementById('bill-box-select');
+
+    // --- NOVIDADE: A TRAVA DE SEGURANÇA NO FINANCEIRO! ---
+    const clienteTexto = clientSelect.options[clientSelect.selectedIndex].text;
+    if (clienteTexto.includes('💰')) {
+        const confirmarDuplicata = confirm("⚠️ ATENÇÃO: Este cliente já possui uma cobrança pendente! Tem certeza que deseja gerar OUTRA cobrança para ele?");
+        if (!confirmarDuplicata) return; // Cancela se o admin disser não
+    }
+    // -----------------------------------------------------
     
     const data = {
         client_id: clientSelect.value,
@@ -2068,6 +2102,9 @@ async function createInvoice(e) {
             alert("✅ Cobrança Gerada! O cliente já pode ver no painel dele.");
             loadInvoices(); // Atualiza tabela
             e.target.reset();
+            
+            // Limpa o campo de busca que acabamos de criar
+            if(document.getElementById('bill-client-search')) document.getElementById('bill-client-search').value = '';
         } else {
             alert("Erro: " + json.msg);
         }
@@ -2525,6 +2562,19 @@ async function printSelectedLabels() {
     if (qtdVolumes === null) return; 
     qtdVolumes = parseInt(qtdVolumes) || 1; 
 
+    // ==========================================
+    // NOVA MÁGICA: SALVA OS VOLUMES NO BANCO DE DADOS EM SILÊNCIO
+    // ==========================================
+    const itemType = box.value.startsWith('box-') ? 'box' : 'order';
+    
+    fetch('/api/update-volumes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: data.id, type: itemType, volumes: qtdVolumes })
+    }).then(() => console.log("Volumes salvos no banco com sucesso!"))
+      .catch(e => console.error("Erro ao salvar volumes:", e));
+    // ==========================================
+
     let nomeEscolhido = `Etiqueta_${data.code}.pdf`;
     if (isMobile) {
         nomeEscolhido = prompt("Digite o nome para salvar o PDF da etiqueta:", `Etiqueta_${data.code}`);
@@ -2872,6 +2922,7 @@ async function printReceipt(boxId) {
                     <div class="rec-line"><strong>Destino:</strong> Guiné-Bissau</div>
                     <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code || '-'}</div>
                     <div class="rec-line"><strong>Peso:</strong> ${d.weight} kg</div>
+                    <div class="rec-line"><strong>Volumes (Qtd):</strong> ${d.volumes || '1'} volume(s)</div>
                     <div class="rec-line"><strong>Status:</strong> ${d.order_status || 'Processando'}</div>
                 </div>
                 <div class="rec-box">
@@ -4218,14 +4269,19 @@ async function loadFinances() {
             if (statusPt.toLowerCase().includes('cancelado')) statusBadge = 'bg-danger'; // Vermelho
 
             const tr = document.createElement('tr');
-            // ADICIONAMOS O data-label EM CADA TD PARA O TELEMÓVEL LER!
+            // ADICIONAMOS A COLUNA DE VOLUMES E O DATA-LABEL
             tr.innerHTML = `
                 <td data-label="Código" style="font-weight: bold;">${item.id_code || 'N/A'}</td>
                 <td data-label="Tipo"><span class="badge ${item.type === 'Encomenda' ? 'bg-info' : 'bg-primary'}">${item.type}</span></td>
                 <td data-label="Cliente">${item.client_name || 'Desconhecido'}</td>
                 <td data-label="Descrição">${item.description || '-'}</td>
-                <td data-label="Peso">${item.weight ? item.weight + ' kg' : '-'}</td>
-                <td data-label="Status"><span class="badge ${statusBadge}">${statusPt}</span></td>
+                <td data-label="Peso" style="text-align: center;">${item.weight ? item.weight + ' kg' : '-'}</td>
+                
+                <td data-label="Volumes" style="text-align: center; font-weight: bold; color: #d4af37;">
+                    <i class="fas fa-boxes"></i> ${item.volumes || '1'} 
+                </td>
+                
+                <td data-label="Status" style="text-align: center;"><span class="badge ${statusBadge}">${statusPt}</span></td>
             `;
             tbody.appendChild(tr);
         });
@@ -4250,15 +4306,13 @@ function exportFinancesPDF() {
         startY: 35,
         theme: 'grid',
         styles: { fontSize: 9 },
-        headStyles: { fillColor: [10, 25, 49] }, // Cor ajustada para o azul escuro da sua marca (opcional)
+        headStyles: { fillColor: [10, 25, 49] }, 
         
-        // MÁGICA ACONTECE AQUI: Hook para alterar estilos das células dinamicamente
         didParseCell: function(data) {
-            // Verifica se estamos no corpo da tabela (body) e na coluna 5 (que é a de Status)
-            // Índices: 0=Código, 1=Tipo, 2=Cliente, 3=Descrição, 4=Peso, 5=Status
-            if (data.section === 'body' && data.column.index === 5) {
+            // ATUALIZADO: O Status agora é a coluna 6!
+            // Índices: 0=Código, 1=Tipo, 2=Cliente, 3=Descrição, 4=Peso, 5=Volumes, 6=Status
+            if (data.section === 'body' && data.column.index === 6) {
                 
-                // Pega o texto da célula e converte para minúsculo para facilitar a comparação
                 const statusText = data.cell.text.join('').toLowerCase();
 
                 if (statusText.includes('pago')) {
@@ -4267,14 +4321,14 @@ function exportFinancesPDF() {
                     data.cell.styles.textColor = [21, 87, 36];
                     data.cell.styles.fontStyle = 'bold';
                 } 
-                else if (statusText.includes('pendente')) {
+                else if (statusText.includes('pendente') || statusText.includes('processando')) {
                     // Fundo Vermelho claro e Texto Vermelho Escuro
                     data.cell.styles.fillColor = [248, 215, 218];
                     data.cell.styles.textColor = [114, 28, 36];
                     data.cell.styles.fontStyle = 'bold';
                 }
                 else if (statusText.includes('cancelado')) {
-                    // Fundo Cinza/Vermelho (pode ajustar como quiser)
+                    // Fundo Cinza/Vermelho
                     data.cell.styles.fillColor = [255, 235, 238];
                     data.cell.styles.textColor = [211, 47, 47];
                     data.cell.styles.fontStyle = 'bold';
@@ -4292,17 +4346,18 @@ async function exportFinancesExcel() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Financeiro');
 
-    // 2. Define as colunas e as larguras
+    // 2. Define as colunas e as larguras (NOVA COLUNA DE VOLUMES ADICIONADA)
     sheet.columns = [
         { header: 'Código', key: 'code', width: 15 },
         { header: 'Tipo', key: 'type', width: 15 },
         { header: 'Cliente', key: 'client', width: 25 },
         { header: 'Descrição', key: 'desc', width: 30 },
         { header: 'Peso', key: 'weight', width: 15 },
+        { header: 'Volumes', key: 'volumes', width: 12 }, // <--- COLUNA NOVA!
         { header: 'Status', key: 'status', width: 20 }
     ];
 
-    // 3. Pinta o cabeçalho de Azul Escuro (padrão GuineExpress) com letra branca
+    // 3. Pinta o cabeçalho de Azul Escuro
     sheet.getRow(1).eachCell((cell) => {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1931' } };
         cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
@@ -4312,31 +4367,31 @@ async function exportFinancesExcel() {
     const rows = document.querySelectorAll('#finances-list tr');
     
     rows.forEach(tr => {
-        // Ignora a linha de "Nenhum registro encontrado"
-        if(tr.cells.length === 1) return;
+        if(tr.cells.length <= 1) return;
 
-        // Pega os textos de cada coluna
+        // Pega os textos de cada coluna (ATUALIZADO PARA 7 COLUNAS)
         const rowData = {
             code: tr.cells[0].innerText,
             type: tr.cells[1].innerText,
             client: tr.cells[2].innerText,
             desc: tr.cells[3].innerText,
             weight: tr.cells[4].innerText,
-            status: tr.cells[5].innerText
+            volumes: tr.cells[5].innerText, // <--- PEGA OS VOLUMES
+            status: tr.cells[6].innerText   // <--- O STATUS PASSOU PARA O 6
         };
 
         const excelRow = sheet.addRow(rowData);
 
-        // 5. Aplica as cores na coluna de Status (Coluna 6)
-        const statusCell = excelRow.getCell(6);
+        // 5. Aplica as cores na coluna de Status (Agora é a Coluna 7 no Excel)
+        const statusCell = excelRow.getCell(7);
         const statusText = rowData.status.toLowerCase();
 
         if (statusText.includes('pago')) {
-            // Fundo Verde (FF + Hex da cor)
+            // Fundo Verde 
             statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } }; 
             statusCell.font = { color: { argb: 'FF155724' }, bold: true };
         } 
-        else if (statusText.includes('pendente')) {
+        else if (statusText.includes('pendente') || statusText.includes('processando')) {
             // Fundo Vermelho
             statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8D7DA' } }; 
             statusCell.font = { color: { argb: 'FF721C24' }, bold: true };
@@ -5451,6 +5506,21 @@ function filtrarClientesBoxDropdown() {
     for (let i = 0; i < options.length; i++) {
         const texto = options[i].text.toLowerCase();
         // Oculta quem não tem o texto digitado (exceto a primeira opção "Selecione")
+        const esconder = !texto.includes(termo) && options[i].value !== "";
+        options[i].hidden = esconder;
+        options[i].disabled = esconder; 
+    }
+}
+// ==========================================
+// FUNÇÃO PARA BUSCAR CLIENTE NO FINANCEIRO
+// ==========================================
+function filtrarClientesFinanceiroDropdown() {
+    const termo = document.getElementById('bill-client-search').value.toLowerCase();
+    const options = document.getElementById('bill-client-select').options;
+    
+    for (let i = 0; i < options.length; i++) {
+        const texto = options[i].text.toLowerCase();
+        // Oculta quem não tem o texto digitado (exceto a primeira opção)
         const esconder = !texto.includes(termo) && options[i].value !== "";
         options[i].hidden = esconder;
         options[i].disabled = esconder; 

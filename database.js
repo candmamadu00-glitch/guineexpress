@@ -180,6 +180,8 @@ db.serialize(() => {
     db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
     db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
     db.run("ALTER TABLE orders ADD COLUMN destino TEXT", () => {});
+    // 📦 LINHA NOVA PARA SALVAR A QUANTIDADE DE VOLUMES DAS CAIXAS:
+    db.run("ALTER TABLE boxes ADD COLUMN volumes INTEGER DEFAULT 1", () => {});
     // Patch de Notificações Push
     db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
         if (!err) console.log("✅ Coluna push_subscription adicionada com sucesso!");
