@@ -272,64 +272,170 @@
     </div>
 </section>
         <section id="clients-view" class="hidden">
-            <div class="card">
-                <h3>Base de Clientes</h3>
-                <table class="data-table">
-                    <thead><tr><th>Foto</th><th>Nome</th><th>Email</th><th>Tel</th><th>País</th><th>Status</th><th>Ações</th></tr></thead>
-                    <tbody id="clients-list"></tbody>
-                </table>
-            </div>
-        </section>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+            <h3 style="margin:0;">Base de Clientes</h3>
+            <button onclick="openModal('modal-new-client-admin')" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px;">
+                <i class="fas fa-user-plus"></i> Novo Cliente
+            </button>
+        </div>
 
-        <section id="box-view" class="hidden">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
-                    <h3>Gestão de Box</h3>
-                    <div style="display:flex; gap: 10px;">
-                        <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
-    <input type="checkbox" id="toggle-boxes" onclick="loadBoxes()"> 
-    👀 Mostrar boxes já enviadas/entregues
-</label>
-                        <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none;"><i class="fas fa-file-pdf"></i> PDF</button>
-                        <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none;"><i class="fas fa-file-excel"></i> Excel</button>
-                        <button onclick="openModal('modal-box')" class="btn btn-primary"><i class="fas fa-box-open"></i> Novo Box</button>
-                    </div>
-                </div>
-                <div style="margin: 15px 0; position: relative;">
-                    <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-                    <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-                </div>
-                <div style="overflow-x:auto;">
-                    <table class="data-table">
-                        <thead>
-                            <tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th><th>Ações</th></tr>
-                        </thead>
-                        <tbody id="box-table-body"></tbody>
-                    </table>
-                </div>
+        <div style="margin-bottom: 15px; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+            <input type="text" id="search-client-admin" onkeyup="searchTable('search-client-admin', 'clients-list')" 
+                   placeholder="Buscar cliente por Nome, Email ou Documento..." 
+                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr><th>Foto</th><th>Nome</th><th>Email</th><th>Tel</th><th>País</th><th>Status</th><th>Ações</th></tr>
+                </thead>
+                <tbody id="clients-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal-new-client-admin" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>👤 Cadastrar Novo Cliente</h3>
+                <button class="btn-close" onclick="closeModal('modal-new-client-admin')">&times;</button>
             </div>
             
-            <div id="modal-box" class="modal-overlay" style="display: none;">
-                <div class="modal-content">
-                    <div class="modal-header"><h3>📦 Criar Novo Box</h3><button class="btn-close" onclick="closeModal('modal-box')">&times;</button></div>
-                    <form id="new-box-form" onsubmit="createBox(event)">
-                         <div class="form-group">
-                            <label>Cliente</label>
-                            <input type="text" id="box-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesBoxDropdown()" style="margin-bottom: 8px;">
-                            
-                            <select id="box-client-select" class="form-control" required onchange="loadClientOrdersInBox(this.value)"></select>
-                        </div>
-                        <div class="form-group"><label>Vincular Encomenda</label><select id="box-order-select" class="form-control" disabled onchange="autoFillBoxData(this)"><option value="">Selecione...</option></select></div>
-                        <div class="form-group"><label>Número Box</label><input type="text" id="box-code" class="form-control" required></div>
-                        <div class="form-group"><label>Produtos</label><textarea id="box-products" class="form-control" rows="3"></textarea></div>
-                        <div class="modal-actions">
-                            <button type="button" class="btn" onclick="closeModal('modal-box')" style="background:#ccc; width:auto;">Cancelar</button>
-                            <button type="submit" class="btn btn-primary" style="width:auto;">Criar</button>
-                        </div>
-                    </form>
+            <form id="admin-register-client-form" onsubmit="adminRegisterClient(event)">
+                <div class="form-group">
+                    <label>País de Origem do Documento</label>
+                    <select id="admin-reg-country" class="form-control" onchange="updateAdminMasks()" required>
+                        <option value="" disabled selected>Selecione um país...</option>
+                        <option value="GW">Guiné-Bissau</option>
+                        <option value="BR">Brasil</option>
+                        <option value="PT">Portugal</option>
+                        <option value="SN">Senegal</option>
+                        <option value="MA">Marrocos</option>
+                        <option value="US">Estados Unidos</option>
+                        <option value="FR">França</option>
+                        <option value="ES">Espanha</option>
+                        <option value="UK">Inglaterra</option>
+                        <option value="BE">Bélgica</option>
+                        <option value="CV">Cabo Verde</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" id="admin-reg-name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>E-mail (Login)</label>
+                    <input type="email" id="admin-reg-email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Telefone / WhatsApp</label>
+                    <input type="text" id="admin-reg-phone" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Documento (ID/CPF/NIF)</label>
+                    <input type="text" id="admin-reg-doc" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Senha Inicial para o Cliente</label>
+                    <input type="text" id="admin-reg-pass" class="form-control" placeholder="Mínimo 6 caracteres" required minlength="6">
+                    <small style="color:#666; display:block; margin-top:3px;">O cliente poderá alterar essa senha depois.</small>
+                </div>
+
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button type="button" class="btn" onclick="closeModal('modal-new-client-admin')" style="background:#ccc;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btn-admin-save-client">Salvar Cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+       <section id="box-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+            <h3 style="margin:0;">Gestão de Box</h3>
+            
+            <div style="display:flex; align-items:center; gap: 15px; flex-wrap: wrap;">
+                <label style="cursor: pointer; color: #555; font-size: 14px; display: flex; align-items: center; margin: 0;">
+                    <input type="checkbox" id="toggle-boxes" onclick="loadBoxes()" style="margin-right: 8px;"> 
+                    👀 Mostrar boxes já enviadas/entregues
+                </label>
+
+                <div style="display:flex; gap: 10px;">
+                    <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none; display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-file-pdf"></i>Baixar PDF
+                    </button>
+                    <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none; display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-file-excel"></i>Baixar Excel
+                    </button>
+                    <button onclick="openModal('modal-box')" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-box-open"></i> Cria Novo Box
+                    </button>
                 </div>
             </div>
-        </section>
+        </div>
+        
+        <div style="margin: 15px 0; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+            <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" 
+                   placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <div id="box-summary-container" style="display: flex; gap: 15px; overflow-x: auto; margin-bottom: 20px; padding-bottom: 10px;"></div>
+
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th><th>Ações</th></tr>
+                </thead>
+                <tbody id="box-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div id="modal-box" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📦 Criar Novo Box</h3>
+                <button class="btn-close" onclick="closeModal('modal-box')">&times;</button>
+            </div>
+            <form id="new-box-form" onsubmit="createBox(event)">
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <input type="text" id="box-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesBoxDropdown()" style="margin-bottom: 8px;">
+                    <select id="box-client-select" class="form-control" required onchange="loadClientOrdersInBox(this.value)"></select>
+                </div>
+                <div class="form-group">
+                    <label>Vincular Encomenda</label>
+                    <select id="box-order-select" class="form-control" disabled onchange="autoFillBoxData(this)">
+                        <option value="">Selecione o Cliente Primeiro...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Número Box</label>
+                    <input type="text" id="box-code" class="form-control" required placeholder="Ex: BOX-001">
+                </div>
+                <div class="form-group">
+                    <label>Produtos</label>
+                    <textarea id="box-products" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Valor (opcional)</label>
+                    <input type="number" id="box-amount" class="form-control" step="0.01">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick="closeModal('modal-box')" style="background:#ccc; width:auto;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" style="width:auto;">Criar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
         
         <section id="billing-view" class="hidden">
             <div class="card" style="margin-top: 20px;">

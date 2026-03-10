@@ -544,14 +544,49 @@ async function loadBoxes() {
     const res = await fetch('/api/boxes');
     let list = await res.json(); 
     const tbody = document.getElementById('box-table-body');
+    const summaryContainer = document.getElementById('box-summary-container');
     
-    // Pega o estado do botão
     const toggleBtn = document.getElementById('toggle-boxes');
     const showCompleted = toggleBtn ? toggleBtn.checked : false;
     
     if(tbody) {
         tbody.innerHTML = '';
+        if(summaryContainer) summaryContainer.innerHTML = '';
 
+        // Calcula o peso total de cada Box
+        const boxTotals = {};
+
+        list.forEach(b => {
+            const status = b.status || b.order_status || '';
+            if ((status === 'Entregue' || status === 'Pago') && !showCompleted) return;
+
+            const code = b.box_code || 'SEM-BOX';
+            const weight = parseFloat(b.order_weight) || 0;
+
+            if (!boxTotals[code]) {
+                boxTotals[code] = 0;
+            }
+            boxTotals[code] += weight; 
+        });
+
+        // Cria os cards de resumo
+        if (summaryContainer && Object.keys(boxTotals).length > 0) {
+            let cardsHTML = '';
+            for (const [code, totalWeight] of Object.entries(boxTotals)) {
+                if (code === 'SEM-BOX') continue;
+                cardsHTML += `
+                    <div style="background: #f4f9ff; border-left: 4px solid #00b1ea; padding: 10px 15px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 150px; flex: 1;">
+                        <span style="font-size: 11px; color: #555; text-transform: uppercase;">📦 Caixa:</span> <br>
+                        <strong style="font-size: 18px; color: #0a1931;">${code}</strong><br>
+                        <span style="font-size: 11px; color: #555;">Peso Total:</span> 
+                        <strong style="font-size: 16px; color: #d4af37;">${totalWeight.toFixed(2)} KG</strong>
+                    </div>
+                `;
+            }
+            summaryContainer.innerHTML = cardsHTML;
+        }
+
+        // Ordena a lista
         list.sort((a, b) => {
             const boxA = a.box_code || '';
             const boxB = b.box_code || '';
@@ -559,25 +594,34 @@ async function loadBoxes() {
         });
 
         list.forEach(b => {
-            // A MÁGICA: Se o status for Entregue (ou Pago) e o botão estiver desmarcado, oculta!
-            // (Verifique como o status da order vem no seu b.status ou b.order_status)
             const status = b.status || b.order_status || '';
             if ((status === 'Entregue' || status === 'Pago') && !showCompleted) return;
 
-            const act = (currentUser.role !== 'client') ? 
-                `<button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>` : '-';
-            
-            const weight = parseFloat(b.order_weight) || 0;
-            const freightValue = weight * globalPricePerKg;
+            const individualWeight = parseFloat(b.order_weight) || 0;
+            const freightValue = individualWeight * globalPricePerKg;
             const nfValue = parseFloat(b.nf_amount) || 0;
             const finalTotal = parseFloat(b.amount) || (freightValue + nfValue);
 
+            const isAdmin = currentUser.role !== 'client';
+
+            // NOVO: Botão de Etiqueta Simples adicionado aqui!
+            const act = isAdmin ? 
+                `<button onclick="printSimpleBoxLabel('${b.box_code}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; cursor:pointer; border-radius:3px; margin-right:5px;" title="Imprimir Etiqueta da Caixa">
+                    <i class="fas fa-tag"></i> Etiqueta
+                 </button>
+                 <button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>` : '-';
+            
+            // Correção da coluna do cliente
+            const clientCell = isAdmin ? 
+                `<td>${b.client_name || '-'}</td>` : 
+                `<td style="display:none;">${b.client_name || '-'}</td>`;
+
             tbody.innerHTML += `
             <tr>
-                <td style="font-weight:bold; color:#0a1931;">${b.box_code}</td>
-                <td>${b.client_name || '-'}</td>
+                <td style="font-weight:bold; color:#0a1931; font-size:16px;">📦 ${b.box_code}</td>
+                ${clientCell}
                 <td>${b.order_code || '-'}</td>
-                <td>${weight} Kg</td>
+                <td>${individualWeight} Kg</td>
                 <td style="font-weight:bold; color:green;">R$ ${finalTotal.toFixed(2)}</td> 
                 <td>${b.products || '-'}</td>
                 <td>${act}</td>
@@ -1002,22 +1046,150 @@ function showLogin() {
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function logout() { fetch('/api/logout'); window.location.href = 'index.html'; }
 
+// ==========================================
+// MÓDULO: GESTÃO DE CLIENTES PELO ADMIN
+// ==========================================
+
+// Variáveis para as máscaras do formulário de Admin
+let adminPhoneMaskInstance = null;
+let adminDocMaskInstance = null;
+
+// Função para aplicar as máscaras de acordo com o país (igual ao login, mas pro Modal Admin)
+function updateAdminMasks() {
+    const country = document.getElementById('admin-reg-country').value;
+    const phoneInput = document.getElementById('admin-reg-phone');
+    const docInput = document.getElementById('admin-reg-doc');
+
+    if (adminPhoneMaskInstance) { adminPhoneMaskInstance.destroy(); adminPhoneMaskInstance = null; }
+    if (adminDocMaskInstance) { adminDocMaskInstance.destroy(); adminDocMaskInstance = null; }
+    phoneInput.value = '';
+    docInput.value = '';
+
+    if (country === 'BR') {
+        adminPhoneMaskInstance = IMask(phoneInput, { mask: '+55 (00) 00000-0000' });
+        adminDocMaskInstance = IMask(docInput, { mask: '000.000.000-00' });
+        docInput.placeholder = "CPF do Cliente";
+    } else if (country === 'PT') {
+        adminPhoneMaskInstance = IMask(phoneInput, { mask: '+351 000 000 000' });
+        adminDocMaskInstance = IMask(docInput, { mask: '000000000' }); 
+        docInput.placeholder = "NIF de Portugal";
+    } else if (country === 'GW') {
+        adminPhoneMaskInstance = IMask(phoneInput, { mask: '+245 000000000' });
+        docInput.placeholder = "Nº de Identificação / Passaporte";
+    } else {
+        docInput.placeholder = "Documento Oficial";
+    }
+}
+
+// Envia o formulário do Modal para a ROTA DE REGISTRO ORIGINAL
+async function adminRegisterClient(e) {
+    e.preventDefault();
+
+    const country = document.getElementById('admin-reg-country').value;
+    const name = document.getElementById('admin-reg-name').value.trim();
+    const email = document.getElementById('admin-reg-email').value.trim();
+    const pass = document.getElementById('admin-reg-pass').value;
+    const docInput = document.getElementById('admin-reg-doc').value.trim();
+    
+    // Tratamento de telefone e documento igual ao login publico
+    const finalPhone = adminPhoneMaskInstance ? adminPhoneMaskInstance.unmaskedValue : document.getElementById('admin-reg-phone').value;
+    
+    let finalDoc = docInput;
+    if (country === 'BR') {
+        finalDoc = adminDocMaskInstance ? adminDocMaskInstance.unmaskedValue : docInput.replace(/\D/g, '');
+    }
+
+    if (!finalPhone || finalPhone.length < 8) return alert('❌ Telefone incompleto ou inválido!');
+    if (pass.length < 6) return alert('❌ A senha deve ter no mínimo 6 caracteres.');
+
+    const formData = {
+        name: name,
+        email: email,
+        phone: finalPhone, 
+        country: country,
+        document: country === 'BR' ? finalDoc : finalDoc.toUpperCase(),
+        password: pass,
+        // Mandamos uma flag para a API saber que foi o Admin quem criou, 
+        // assim não precisa fazer auto-login.
+        createdByAdmin: true 
+    };
+
+    const btn = document.getElementById('btn-admin-save-client');
+    const oldText = btn.innerText;
+    btn.innerText = "Salvando...";
+    btn.disabled = true;
+
+    try {
+        // Aproveitamos a mesma rota de registro que você já tem pronta!
+        const res = await fetch('/api/register', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await res.json();
+        
+        if(data.success) { 
+            alert(`✅ Cliente ${name} cadastrado com sucesso!`); 
+            closeModal('modal-new-client-admin');
+            document.getElementById('admin-register-client-form').reset();
+            loadClients(); // Recarrega a tabela imediatamente
+        } else { 
+            alert('Erro ao cadastrar: ' + data.msg); 
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão ao salvar o cliente.");
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
+}
+
+// Função para o Admin Forçar o Reset de Senha por dentro do sistema
+async function adminResetClientPassword(clientId, clientName) {
+    const novaSenha = prompt(`🔒 DEFINIR NOVA SENHA\n\nDigite a nova senha para o cliente ${clientName}:\n(Mínimo de 6 caracteres)`);
+    
+    if (!novaSenha) return; // Cancelou
+    if (novaSenha.length < 6) return alert("❌ A senha deve ter no mínimo 6 caracteres.");
+
+    if (!confirm(`Confirma a alteração da senha do cliente ${clientName} para: ${novaSenha} ?\nO cliente precisará usar esta nova senha para entrar.`)) return;
+
+    try {
+        const res = await fetch('/api/admin-reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: clientId, newPassword: novaSenha })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            alert(`✅ Senha do cliente ${clientName} alterada com sucesso!`);
+        } else {
+            alert(`❌ Erro: ${data.msg}`);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao comunicar com o servidor.");
+    }
+}
+
+// ==========================================
+// ATUALIZAÇÃO DA FUNÇÃO LOAD CLIENTS
+// ==========================================
 async function loadClients() { 
     try {
         const res = await fetch('/api/clients'); 
         const list = await res.json(); 
         
-        // --- NOVIDADE: Checa quem já tem encomenda ativa ---
         let clientesComEncomenda = [];
         try {
             const resOrd = await fetch('/api/orders');
             const ordList = await resOrd.json();
-            // Salva o ID de todos que têm encomenda e que ainda não foi Entregue
             clientesComEncomenda = ordList.filter(o => o.status !== 'Entregue').map(o => String(o.client_id));
         } catch(e) { console.warn("Aviso: Não foi possível checar encomendas ativas."); }
-        // ----------------------------------------------------
 
-        // Preenche os Selects (ex: na hora de criar encomenda)
         const selects = [
             document.getElementById('order-client-select'),
             document.getElementById('box-client-select')
@@ -1028,16 +1200,13 @@ async function loadClients() {
                 sel.innerHTML = '<option value="">Selecione o Cliente...</option>'; 
                 list.forEach(c => {
                     if(c.name) {
-                        // Se o cliente estiver na lista de encomendas ativas, coloca o aviso!
                         let aviso = clientesComEncomenda.includes(String(c.id)) ? ' ⚠️ [JÁ TEM ENCOMENDA]' : '';
-                        
                         sel.innerHTML += `<option value="${c.id}">${c.name}${aviso} | ${c.email || 'Sem email'}</option>`; 
                     }
                 });
             }
         });
 
-        // Preenche a Tabela da Aba "Clientes"
         const tbody = document.getElementById('clients-list'); 
         if(tbody) {
             tbody.innerHTML = ''; 
@@ -1046,10 +1215,16 @@ async function loadClients() {
                 if(!c.name) return; 
 
                 let actionBtn = '';
-                if (currentUser && currentUser.role === 'admin') {
+                if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'employee')) {
+                    // Botão Ativar/Desativar com TEXTO
                     const btnColor = c.active ? '#dc3545' : '#28a745';
                     const btnText = c.active ? 'Desativar' : 'Ativar';
-                    actionBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">${btnText}</button>`;
+                    const toggleBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; margin-right: 5px;" title="${btnText} Cliente">${btnText}</button>`;
+                    
+                    // NOVO: Botão Resetar Senha
+                    const resetBtn = `<button onclick="adminResetClientPassword(${c.id}, '${c.name.replace(/'/g, "\\'")}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" title="Redefinir Senha do Cliente"><i class="fas fa-key"></i></button>`;
+                    
+                    actionBtn = `<div style="display:flex; justify-content:center; gap:5px;">${toggleBtn}${resetBtn}</div>`;
                 } else {
                     actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
                 }
@@ -1058,16 +1233,9 @@ async function loadClients() {
                     ? '<span style="background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Ativo</span>' 
                     : '<span style="background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Inativo</span>';
 
-                let imgUrl = '';
-                if (c.profile_pic && c.profile_pic !== 'default.png') {
-                    if (c.profile_pic.startsWith('http')) {
-                        imgUrl = c.profile_pic;
-                    } else {
-                        imgUrl = '/uploads/' + c.profile_pic;
-                    }
-                } else {
-                    imgUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
-                }
+                let imgUrl = (c.profile_pic && c.profile_pic !== 'default.png') ? 
+                             (c.profile_pic.startsWith('http') ? c.profile_pic : '/uploads/' + c.profile_pic) : 
+                             `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
 
                 const photoHtml = `<img src="${imgUrl}" onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
 
@@ -5627,4 +5795,174 @@ async function confirmDelivery(code) {
         console.error("Erro na requisição:", err);
         alert("Erro de conexão com o servidor.");
     }
+}
+// ==========================================
+// ETIQUETA SIMPLES DE IDENTIFICAÇÃO DE BOX (100x150mm)
+// ==========================================
+function printSimpleBoxLabel(boxCode) {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Etiqueta Simples - ${boxCode}</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
+                
+                /* Configuração EXATA para impressora térmica de etiquetas 100x150mm */
+                @page {
+                    size: 100mm 150mm;
+                    margin: 0;
+                }
+                
+                body { 
+                    font-family: 'Roboto', sans-serif; 
+                    margin: 0; 
+                    padding: 0;
+                    display: flex; 
+                    justify-content: center; 
+                    align-items: center; 
+                    background-color: #f4f4f4; /* Fundo cinza só pra visualização na tela */
+                }
+
+                .label-container { 
+                    width: 96mm; /* Um pouco menor que 100mm para dar respiro na impressão */
+                    height: 146mm; /* Um pouco menor que 150mm */
+                    background: white; 
+                    border: 2mm solid #000; 
+                    border-radius: 4mm;
+                    box-sizing: border-box;
+                    display: flex; 
+                    flex-direction: column; 
+                    padding: 5mm;
+                    position: relative;
+                }
+
+                /* Cabeçalho - Nome da Agência */
+                .header {
+                    text-align: center;
+                    border-bottom: 1.5mm solid #000;
+                    padding-bottom: 5mm;
+                    margin-bottom: 5mm;
+                }
+                .agency-name { 
+                    font-size: 24px; 
+                    text-transform: uppercase; 
+                    font-weight: 900; 
+                    letter-spacing: 2px;
+                    color: #000;
+                }
+                .subtitle {
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    color: #444;
+                    font-weight: 700;
+                    margin-top: 2px;
+                }
+
+                /* Centro - O Destaque do BOX */
+                .box-highlight {
+                    flex-grow: 1;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    background-color: #000;
+                    color: #fff;
+                    border-radius: 3mm;
+                    padding: 10mm;
+                    margin-bottom: 5mm;
+                }
+                .box-text { 
+                    font-size: 20px; 
+                    font-weight: 700; 
+                    letter-spacing: 5px;
+                    margin-bottom: -5px;
+                }
+                .box-code { 
+                    font-size: 48px; 
+                    font-weight: 900; 
+                    line-height: 1.1;
+                    text-align: center;
+                }
+
+                /* Rodapé - "Código de barras" fake e infos */
+                .footer {
+                    text-align: center;
+                    border-top: 1mm dashed #000;
+                    padding-top: 5mm;
+                }
+                .fake-barcode {
+                    font-family: 'Libre Barcode 39', cursive, sans-serif; /* Fallback se a fonte falhar */
+                    font-size: 45px;
+                    line-height: 40px;
+                    color: #000;
+                    letter-spacing: 2px;
+                }
+                /* Desenhando linhas que parecem código de barras caso não tenha internet para baixar a fonte */
+                .barcode-lines {
+                    height: 30px;
+                    width: 80%;
+                    margin: 0 auto 5px auto;
+                    background: repeating-linear-gradient(
+                        90deg,
+                        #000,
+                        #000 2px,
+                        transparent 2px,
+                        transparent 4px,
+                        #000 4px,
+                        #000 7px,
+                        transparent 7px,
+                        transparent 9px
+                    );
+                }
+                .footer-text {
+                    font-size: 10px;
+                    font-weight: 700;
+                    color: #000;
+                }
+
+                /* Ajustes finais para a hora de imprimir */
+                @media print {
+                    body { background: white; }
+                    .label-container { border: 1.5mm solid #000; }
+                    /* Garante que o fundo preto seja impresso na térmica */
+                    .box-highlight { 
+                        -webkit-print-color-adjust: exact; 
+                        print-color-adjust: exact; 
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="label-container">
+                
+                <div class="header">
+                    <div class="agency-name">Guineexpress</div>
+                    <div class="subtitle">Agencia de Transporte</div>
+                </div>
+
+                <div class="box-highlight">
+                    <div class="box-text">IDENTIFICAÇÃO</div>
+                    <div class="box-code">${boxCode}</div>
+                </div>
+
+                <div class="footer">
+                    <div class="barcode-lines"></div>
+                    <div class="footer-text">REF: ${boxCode}</div>
+                </div>
+
+            </div>
+            
+            <script>
+                window.onload = function() { 
+                    setTimeout(() => {
+                        window.print(); 
+                        window.close();
+                    }, 800);
+                }
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
 }

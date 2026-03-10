@@ -1763,6 +1763,37 @@ app.post('/api/recover-password', (req, res) => {
         });
     });
 });
+// --- ROTA: ADMIN REDEFINIR SENHA DE CLIENTE ---
+app.post('/api/admin-reset-password', (req, res) => {
+    // Verificação de Segurança Opcional: Aqui você pode verificar se req.session.user.role === 'admin' ou 'employee'
+    
+    const { userId, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+        return res.json({ success: false, msg: "Dados incompletos." });
+    }
+
+    if (newPassword.length < 6) {
+        return res.json({ success: false, msg: "A senha deve ter pelo menos 6 caracteres." });
+    }
+
+    // Criptografa a nova senha digitada pelo admin
+    const newHash = bcrypt.hashSync(newPassword, 10);
+
+    // Atualiza apenas a senha do usuário especificado
+    db.run("UPDATE users SET password = ? WHERE id = ? AND role = 'client'", [newHash, userId], function(err) {
+        if (err) {
+            console.error("Erro ao redefinir senha:", err);
+            return res.status(500).json({ success: false, msg: "Erro no banco de dados." });
+        }
+        
+        if (this.changes === 0) {
+            return res.json({ success: false, msg: "Cliente não encontrado ou não autorizado." });
+        }
+
+        res.json({ success: true, msg: "Senha atualizada com sucesso." });
+    });
+});
 // --- ROTA: HISTÓRICO DE ENVIOS ---
 app.get('/api/history', (req, res) => {
     // Base da Query: Pega dados da encomenda e o nome do dono
