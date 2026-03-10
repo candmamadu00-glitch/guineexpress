@@ -607,7 +607,7 @@ async function loadBoxes() {
             // NOVO: Botão de Etiqueta Simples adicionado aqui!
             const act = isAdmin ? 
                 `<button onclick="printSimpleBoxLabel('${b.box_code}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; cursor:pointer; border-radius:3px; margin-right:5px;" title="Imprimir Etiqueta da Caixa">
-                    <i class="fas fa-tag"></i> Etiqueta
+                    <i class="fas fa-tag"></i> Etiqueta para Caixa
                  </button>
                  <button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>` : '-';
             
@@ -1416,16 +1416,22 @@ async function loadOrders() {
                     }
                 }
                 
+                // --- 3. MONTANDO A LINHA DA TABELA ---
+                // Verifica se é admin/employee para mostrar a coluna do checkbox
+                const checkboxHtml = currentUser.role !== 'client' 
+                    ? `<td style="text-align: center;"><input type="checkbox" class="order-checkbox" value="${o.id}" onclick="updateBulkCounter()"></td>`
+                    : ''; // Se for cliente, não mostra a coluna do checkbox
+                
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee;">
-                        <td style="text-align: center;"><input type="checkbox" class="order-checkbox" value="${o.id}" onclick="updateBulkCounter()"></td>
+                        ${checkboxHtml}
                         <td style="padding:12px;"><strong>${o.code}</strong></td>
                         <td>${name}</td>
                         <td>${o.description||'-'}</td>
                         <td>${o.weight} Kg</td>
                         <td style="font-weight:bold; color:green;">R$ ${finalPrice.toFixed(2)}</td> 
                         <td style="min-width: 250px;">${statusDisplay}</td>
-                        <td>${actions}</td>
+                        <td style="text-align:center;">${actions}</td>
                     </tr>`; 
             });
             
