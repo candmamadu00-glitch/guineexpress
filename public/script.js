@@ -2908,14 +2908,11 @@ async function printSelectedLabels() {
         // ==========================================
         // 🛡️ SUPER FILTRO DO QR CODE (À PROVA DE ERROS)
         // ==========================================
-        // Remove acentos, emojis, caracteres estranhos e corta espaços sobrando
         const limparTexto = (texto) => {
             if (!texto) return 'N/A';
-            // Tira acentos e deixa só letras, números, espaços e traços
             return texto.normalize("NFD").replace(/[^a-zA-Z0-9 \-]/g, "").trim();
         };
 
-        // Reduzi um pouco os limites para garantir que NUNCA passe de 440 bits
         const nomeSeguro = limparTexto(data.client_name).substring(0, 20);
         const boxSegura = limparTexto(data.box_code).substring(0, 15);
         const codigoSeguro = limparTexto(data.code).substring(0, 15);
@@ -2945,24 +2942,7 @@ async function printSelectedLabels() {
             doc.addImage(carimboData, 'PNG', 20, 45, 60, 60);
             doc.restoreGraphicsState();
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 50));
-        const qrCanvas = qrTemp.querySelector('canvas');
-        if (qrCanvas) {
-            const qrData = qrCanvas.toDataURL('image/png');
-            doc.addImage(qrData, 'PNG', 75, 126.5, 20, 20);
-        }
-
-        // ==========================================
-        // 3. BATER O NOVO CARIMBO POR CIMA DE TUDO
-        // ==========================================
-        if (carimboData) {
-            doc.saveGraphicsState(); 
-            doc.setGState(new doc.GState({opacity: 0.85})); 
-            doc.addImage(carimboData, 'PNG', 20, 45, 60, 60);
-            doc.restoreGraphicsState();
-        }
-    }
+    } // Fim do loop de páginas
 
     if (isMobile) {
         doc.save(nomeEscolhido);
