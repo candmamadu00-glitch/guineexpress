@@ -1446,7 +1446,7 @@ async function loadOrders() {
 }
 function toggleOrderForm() { const f = document.getElementById('new-order-form'); f.classList.toggle('hidden'); if(!f.classList.contains('hidden')) loadClients(); }
 async function updateOrderStatus(id, status) { await fetch('/api/orders/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status})}); loadOrders(); }
-// --- ATUALIZAR PERFIL (COM FOTO) ---
+// --- ATUALIZAR PERFIL (COM FOTO E ATUALIZAÇÃO NO INÍCIO) ---
 async function updateProfile() {
     const fileInput = document.getElementById('profile-upload');
     const nameInput = document.getElementById('profile-name');
@@ -1481,10 +1481,19 @@ async function updateProfile() {
             alert('✅ Perfil atualizado com sucesso!');
             
             // Atualiza a foto imediatamente na tela
-            if(result.newProfilePicUrl) {
+            // NOTA: Se o seu backend retorna 'newProfilePic' em vez de 'newProfilePicUrl', use result.newProfilePic
+            const picPath = result.newProfilePicUrl || (result.newProfilePic ? '/uploads/' + result.newProfilePic : null);
+            
+            if(picPath) {
+                const newImgSrc = picPath + '?v=' + new Date().getTime();
+                
+                // 1. Atualiza na aba de Perfil
                 const imgDisplay = document.getElementById('profile-img-display');
-                // Adiciona timestamp para forçar atualização do cache do navegador
-                imgDisplay.src = result.newProfilePicUrl + '?v=' + new Date().getTime();
+                if (imgDisplay) imgDisplay.src = newImgSrc;
+
+                // 2. Atualiza no Início (Cabeçalho VIP) - A MÁGICA ACONTECE AQUI ✨
+                const vipImg = document.getElementById('vip-profile-img');
+                if (vipImg) vipImg.src = newImgSrc;
             }
         } else {
             alert('Erro: ' + (result.message || 'Falha ao salvar.'));
@@ -6064,3 +6073,266 @@ function printSimpleBoxLabel(boxCode) {
         alert("O seu navegador bloqueou a abertura da etiqueta. Por favor, permita pop-ups para este site.");
     }
 }
+// ==========================================
+// SISTEMA DE LIXEIRA (SOFT DELETE / RECUPERAÇÃO)
+// ==========================================
+
+// 1. Carrega os itens que estão na lixeira
+async function loadTrash() {
+    try {
+        const res = await fetch('/api/trash');
+        const trashItems = await res.json();
+        const tbody = document.getElementById('trash-list');
+        
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        if (trashItems.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:#888;">Nenhum item na lixeira de momento. Tudo limpo! ✨</td></tr>';
+            return;
+        }
+
+        trashItems.forEach(item => {
+            // Define as cores e ícones consoante seja Box ou Encomenda
+            const badgeColor = item.type === 'Encomenda' ? '#17a2b8' : '#0d6efd';
+            const icon = item.type === 'Encomenda' ? 'fa-box' : 'fa-boxes';
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <span class="badge" style="background: ${badgeColor}; color: white; padding: 5px 10px; border-radius: 4px;">
+                        <i class="fas ${icon}"></i> ${item.type}
+                    </span>
+                </td>
+                <td style="font-weight: bold; font-size: 16px; color: #333;">${item.name}</td>
+                <td style="text-align: center;">
+                    <button onclick="restoreFromTrash(${item.id}, '${item.type}')" 
+                            style="background: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s;">
+                        <i class="fas fa-trash-restore"></i> RESTAURAR
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Erro ao carregar a lixeira:", e);
+    }
+}
+
+// 2. Envia o pedido para restaurar o item selecionado
+async function restoreFromTrash(id, type) {
+    if (!confirm(`Tem a certeza que deseja restaurar esta ${type}? O registo voltará a aparecer nas listas principais.`)) return;
+
+    try {
+        const res = await fetch('/api/trash/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, type })
+        });
+
+        const data = await res.json();
+        
+        if (data.success) {
+            alert(`✅ ${type} restaurada com sucesso!`);
+            
+            // Atualiza a Lixeira para remover o item da lista
+            loadTrash(); 
+            
+            // Atualiza as tabelas principais no fundo para que o item volte a aparecer lá
+            if (typeof loadOrders === 'function') loadOrders();
+            if (typeof loadBoxes === 'function') loadBoxes();
+        } else {
+            alert("❌ Erro ao tentar restaurar o item.");
+        }
+    } catch (e) {
+        console.error("Erro ao restaurar:", e);
+        alert("Erro de ligação com o servidor.");
+    }
+}
+// ==========================================
+// CARREGAR DADOS DO CLIENTE NO CABEÇALHO VIP
+// ==========================================
+document.addEventListener('DOMContentLoaded', async () => {
+    // Só executa se estivermos na página do cliente
+    if (document.getElementById('vip-profile-img')) {
+        try {
+            const res = await fetch('/api/check-session');
+            const data = await res.json();
+            
+            if (data.loggedIn && data.user) {
+                // Atualiza o nome de boas-vindas
+                const nameDisplay = document.getElementById('user-name-display');
+                if (nameDisplay) nameDisplay.innerText = data.user.name.split(' ')[0]; // Mostra só o primeiro nome
+
+                // Atualiza a foto de perfil no cabeçalho e na aba perfil
+                if (data.user.profile_pic && data.user.profile_pic !== 'default.png') {
+                    const imgUrl = data.user.profile_pic.startsWith('http') 
+                        ? data.user.profile_pic 
+                        : '/uploads/' + data.user.profile_pic;
+                    
+                    document.getElementById('vip-profile-img').src = imgUrl;
+                    
+                    const profileImg = document.getElementById('profile-img-display');
+                    if(profileImg) profileImg.src = imgUrl;
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao carregar sessão para o cabeçalho:", error);
+        }
+    }
+});
+// ==============================================================
+// 🌟 SISTEMA INTELIGENTE DE NOTIFICAÇÕES (COM CONFIRMAÇÃO DE LEITURA)
+// ==============================================================
+
+let tentativasAssistente = 0;
+let assistenteInterval = setInterval(iniciarAssistente, 2000);
+
+// Variáveis para guardar o que está pendente atualmente
+let currentPendingOrdersIds = "";
+let currentPendingInvoicesIds = "";
+
+async function iniciarAssistente() {
+    tentativasAssistente++;
+
+    // Aguarda o usuário ser carregado
+    if (typeof currentUser === 'undefined' || !currentUser) {
+        if (tentativasAssistente > 10) clearInterval(assistenteInterval);
+        return;
+    }
+
+    clearInterval(assistenteInterval);
+
+    // Se não for cliente, aborta silenciosamente
+    if (currentUser.role !== 'client') return;
+
+    let alertas = [];
+    let mostrarBolinhaOrders = false;
+    let mostrarBolinhaInvoices = false;
+    let countOrders = 0;
+    let countInvoices = 0;
+
+    // 1. Checar Encomendas
+    try {
+        const res = await fetch('/api/orders');
+        if (res.ok) {
+            const orders = await res.json();
+            const pendentes = orders.filter(o => o.status !== 'Entregue' && o.status !== 'Avaria');
+            countOrders = pendentes.length;
+            
+            // Salva os IDs de tudo que está pendente hoje para comparar com o que ele já viu
+            currentPendingOrdersIds = pendentes.map(o => o.id).sort().join(',');
+            const lidos = localStorage.getItem('lido_orders') || "";
+
+            // Só mostra a bolinha se houver encomendas E se for diferente do que ele já tinha visto
+            if (countOrders > 0 && currentPendingOrdersIds !== lidos) {
+                mostrarBolinhaOrders = true;
+                alertas.push(`📦 Você tem <b>${countOrders} encomenda(s)</b> a caminho. <a href="#" onclick="showTab('orders')" style="color:#007bff; text-decoration:none;"><b>Rastrear agora ➔</b></a>`);
+            }
+        }
+    } catch(e) {}
+
+    // 2. Checar Faturas
+    try {
+        const res = await fetch('/api/invoices/list');
+        if (res.ok) {
+            const invoices = await res.json();
+            const pendentes = invoices.filter(i => i.status === 'pending');
+            countInvoices = pendentes.length;
+
+            currentPendingInvoicesIds = pendentes.map(i => i.id).sort().join(',');
+            const lidos = localStorage.getItem('lido_invoices') || "";
+
+            // Só mostra a bolinha se houver faturas E se for diferente do que ele já tinha visto
+            if (countInvoices > 0 && currentPendingInvoicesIds !== lidos) {
+                mostrarBolinhaInvoices = true;
+                alertas.push(`🚨 Atenção: Você tem <b>${countInvoices} fatura(s) pendente(s)</b>! <a href="#" onclick="showTab('invoices')" style="color:#dc3545; text-decoration:none;"><b>[ Pagar Agora ]</b></a>`);
+            }
+        }
+    } catch(e) {}
+
+    // === INJETAR NA TELA ===
+    if (mostrarBolinhaOrders) atualizarBolinhaMenu('orders', countOrders);
+    if (mostrarBolinhaInvoices) atualizarBolinhaMenu('invoices', countInvoices);
+    
+    mostrarCardAvisos(alertas);
+}
+
+// Cria a bolinha vermelha no menu
+function atualizarBolinhaMenu(tabName, count) {
+    const menuBtn = document.querySelector(`li[onclick*="${tabName}"], a[onclick*="${tabName}"]`);
+    if (!menuBtn) return;
+
+    const oldBadge = menuBtn.querySelector('.smart-badge');
+    if (oldBadge) oldBadge.remove();
+
+    if (count > 0) {
+        // Agora a bolinha tem um ID para podermos apagá-la no clique
+        menuBtn.innerHTML += `<span class="smart-badge" id="badge-${tabName}" style="background:#dc3545; color:white; border-radius:50%; padding:2px 6px; font-size:11px; margin-left:8px; font-weight:bold; box-shadow:0 0 5px rgba(220,53,69,0.5); vertical-align: top; animation: pulse 2s infinite;">${count}</span>`;
+    }
+}
+
+// Cria o Card Amarelo na tela Início
+function mostrarCardAvisos(alertas) {
+    let container = document.getElementById('smart-alerts-container');
+    
+    if (!container) {
+        const dashboardTab = document.getElementById('dashboard');
+        if (!dashboardTab) return;
+        container = document.createElement('div');
+        container.id = 'smart-alerts-container';
+        dashboardTab.insertBefore(container, dashboardTab.firstChild);
+    }
+
+    if (alertas.length === 0) {
+        container.innerHTML = '';
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    let html = `
+    <div style="background: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+        <h4 style="margin-top:0; color: #856404; font-size: 16px; margin-bottom: 10px;">
+            <i class="fas fa-bell"></i> <b>Assistente GuineExpress:</b>
+        </h4>
+        <ul style="margin-bottom:0; color: #856404; line-height: 1.8; list-style-type: none; padding-left: 0;">`;
+    
+    alertas.forEach(alerta => html += `<li style="margin-bottom: 8px; font-size: 14px;">${alerta}</li>`);
+    html += `</ul></div>`;
+    
+    container.innerHTML = html;
+}
+
+// ==============================================================
+// 🕵️ MÁGICA PARA ESCONDER AS NOTIFICAÇÕES AO CLICAR NA ABA
+// ==============================================================
+document.addEventListener('click', (e) => {
+    // 1. O cliente clicou em "Encomendas"?
+    const clicouOrders = e.target.closest('[onclick*="orders"]');
+    if (clicouOrders && currentPendingOrdersIds) {
+        // Salva na memória que ele já abriu e leu!
+        localStorage.setItem('lido_orders', currentPendingOrdersIds);
+        
+        // Remove a bolinha instantaneamente
+        const badge = document.getElementById('badge-orders');
+        if (badge) badge.remove();
+        
+        // Dá um refresh no robô para limpar o card amarelo também
+        setTimeout(iniciarAssistente, 100); 
+    }
+
+    // 2. O cliente clicou em "Faturas"?
+    const clicouInvoices = e.target.closest('[onclick*="invoices"]');
+    if (clicouInvoices && currentPendingInvoicesIds) {
+        // Salva na memória
+        localStorage.setItem('lido_invoices', currentPendingInvoicesIds);
+        
+        // Remove a bolinha instantaneamente
+        const badge = document.getElementById('badge-invoices');
+        if (badge) badge.remove();
+
+        // Dá um refresh no robô para limpar o card amarelo
+        setTimeout(iniciarAssistente, 100);
+    }
+});

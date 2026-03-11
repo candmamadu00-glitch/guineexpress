@@ -39,6 +39,7 @@ db.run("ALTER TABLE boxes ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
 db.run("ALTER TABLE orders ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
     if (!err) console.log("✅ Coluna 'volumes' criada na tabela orders!");
 });
+
 // ========================================================
 // ==================================================================
 // CONFIGURAÇÃO DO DISCO PERMANENTE (FOTOS E VÍDEOS)
@@ -132,15 +133,18 @@ async function sendEmailHtml(to, subject, title, message) {
     }
 }
 
-// Função para gravar logs automaticamente
+// Função para gravar logs automaticamente (COM NOME E EMAIL CORRETOS)
 function logSystemAction(req, action, details) {
-    const user = req.session.userName || 'Admin/Sistema';
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // 🔥 Puxando as informações do usuário corretamente
+    const userLogado = req.session.user;
+    const user = userLogado ? `${userLogado.name} (${userLogado.email})` : 'Sistema/Desconhecido';
+    
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'Desconhecido';
 
     db.run("INSERT INTO system_logs (user_name, action, details, ip_address) VALUES (?, ?, ?, ?)", 
         [user, action, details, ip], 
         (err) => {
-            if(err) console.error("Erro ao salvar log:", err);
+            if(err) console.error("Erro ao salvar log no sistema:", err);
         }
     );
 }
@@ -536,13 +540,15 @@ app.get('/api/admin/logs', (req, res) => {
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({success: true}); });
 // ROTA: Checar Sessão Ativa (Para Auto-Login)
 app.get('/api/check-session', (req, res) => {
-    if (req.session.userId) {
+    if (req.session.userId && req.session.user) { 
         res.json({ 
             loggedIn: true, 
             user: { 
                 id: req.session.userId,
-                name: req.session.userName,
-                role: req.session.role
+                name: req.session.user.name, 
+                email: req.session.user.email,
+                role: req.session.role,
+                profile_pic: req.session.user.profile_pic // <-- ADICIONADA ESTA LINHA: Envia a foto do perfil
             }
         });
     } else {
@@ -580,6 +586,37 @@ app.post('/api/users/change-password', (req, res) => {
         });
     });
 });
+// Exemplo de como você deve atualizar a imagem ao carregar os dados do utilizador
+async function loadUserProfileData() {
+    try {
+        const res = await fetch('/api/user');
+        const user = await res.json();
+        
+        if (user.name) {
+            // Atualiza o nome (você já devia ter algo parecido)
+            document.getElementById('user-name-display').innerText = user.name;
+        }
+
+        // --- CÓDIGO NOVO PARA A FOTO DE PERFIL ---
+        if (user.profile_pic) {
+            // Se o utilizador tiver foto, construa o caminho correto
+            // Verifique se a pasta de uploads se chama mesmo '/uploads/' no seu servidor
+            const profilePicUrl = `/uploads/${user.profile_pic}`;
+            
+            // Atualiza a foto no Cabeçalho VIP
+            const vipImg = document.getElementById('vip-profile-img');
+            if (vipImg) vipImg.src = profilePicUrl;
+            
+            // Atualiza a foto na aba "Perfil" (que você já tinha)
+            const profileImg = document.getElementById('profile-img-display');
+            if (profileImg) profileImg.src = profilePicUrl;
+        }
+        // -----------------------------------------
+
+    } catch (error) {
+        console.error("Erro ao carregar os dados do perfil:", error);
+    }
+}
 
 // --- ROTA: Ler Logs do Sistema ---
 app.get('/api/admin/logs', (req, res) => {
@@ -1044,7 +1081,9 @@ app.get('/api/schedule/appointments', (req, res) => {
 app.post('/api/schedule/status', (req, res) => db.run("UPDATE appointments SET status = ? WHERE id = ?", [req.body.status, req.body.id], (err) => res.json({success: !err})));
 app.post('/api/schedule/cancel', (req, res) => db.run("UPDATE appointments SET status = 'Cancelado' WHERE id = ? AND client_id = ?", [req.body.id, req.session.userId], (err) => res.json({success: !err})));
 
-// Rota de Pedidos CORRIGIDA (Volumes reais e agrupamento)
+// ==========================================
+// ROTA: BUSCAR ENCOMENDAS (ESCONDE LIXEIRA)
+// ==========================================
 app.get('/api/orders', (req, res) => {
     let sql = `SELECT 
                 o.*, 
@@ -1057,25 +1096,50 @@ app.get('/api/orders', (req, res) => {
                FROM orders o
                JOIN users u ON o.client_id = u.id
                LEFT JOIN boxes b ON b.order_id = o.id
-               LEFT JOIN invoices i ON i.box_id = b.id`;
+               LEFT JOIN invoices i ON i.box_id = b.id
+               WHERE o.deleted = 0`; // <-- MÁGICA 1: Só mostra se não estiver deletado
     
     let params = [];
     
     if(req.session.role === 'client') { 
-        sql += " WHERE o.client_id = ?"; 
+        sql += " AND o.client_id = ?"; // <-- MÁGICA 2: Troca WHERE por AND
         params.push(req.session.userId); 
     }
     
-    // O GROUP BY é essencial para o MAX(volumes) funcionar
     sql += " GROUP BY o.id ORDER BY o.id DESC"; 
 
     db.all(sql, params, (err, rows) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({error: "Erro no banco de dados"});
-        }
+        if (err) return res.status(500).json({error: "Erro no banco de dados"});
         res.json(rows);
     });
+});
+
+// ==========================================
+// ROTA: BUSCAR BOXES (ESCONDE LIXEIRA)
+// ==========================================
+app.get('/api/boxes', (req, res) => {
+    let sql = `SELECT 
+            boxes.*, 
+            users.name as client_name, 
+            orders.code as order_code, 
+            orders.status as order_status, 
+            orders.weight as order_weight,
+            invoices.nf_amount,
+            invoices.freight_amount
+        FROM boxes 
+        JOIN users ON boxes.client_id = users.id 
+        LEFT JOIN orders ON boxes.order_id = orders.id
+        LEFT JOIN invoices ON boxes.id = invoices.box_id
+        WHERE boxes.deleted = 0`; // <-- Só mostra se não estiver deletado
+        
+    let params = [];
+    
+    if(req.session.role === 'client') { 
+        sql += " AND boxes.client_id = ?"; 
+        params.push(req.session.userId); 
+    }
+    
+    db.all(sql, params, (err, rows) => res.json(rows));
 });
 // ROTA DO PAINEL FINANCEIRO (Junta Encomendas e Faturas)
 app.get('/api/finances/all', async (req, res) => {
@@ -1223,32 +1287,7 @@ app.post('/api/orders/update', (req, res) => {
         });
     });
 });
-app.get('/api/boxes', (req, res) => {
-    // Agora o banco também busca o nf_amount e o freight_amount lá na tabela de faturas (invoices)
-    let sql = `
-        SELECT 
-            boxes.*, 
-            users.name as client_name, 
-            orders.code as order_code, 
-            orders.status as order_status, 
-            orders.weight as order_weight,
-            invoices.nf_amount,
-            invoices.freight_amount
-        FROM boxes 
-        JOIN users ON boxes.client_id = users.id 
-        LEFT JOIN orders ON boxes.order_id = orders.id
-        LEFT JOIN invoices ON boxes.id = invoices.box_id
-    `;
-    let params = [];
-    
-    // Mantém a regra de segurança: se for cliente, vê só as caixas dele
-    if(req.session.role === 'client') { 
-        sql += " WHERE boxes.client_id = ?"; 
-        params.push(req.session.userId); 
-    }
-    
-    db.all(sql, params, (err, rows) => res.json(rows));
-});
+
 app.post('/api/boxes/create', (req, res) => {
     const {client_id, order_id, box_code, products, amount} = req.body;
     db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
@@ -1263,36 +1302,7 @@ app.post('/api/update-volumes', (req, res) => {
         db.run("UPDATE orders SET volumes = ? WHERE id = ?", [volumes, id], (err) => res.json({ success: !err }));
     }
 });
-// =========================================================
-// 2. ROTA CORRIGIDA: EXCLUIR BOX (COM AUDITORIA)
-// =========================================================
-app.post('/api/boxes/delete', (req, res) => {
-    // Trava de segurança: Clientes não podem apagar
-    if (!req.session.userId || req.session.role === 'client') {
-        return res.status(403).json({ success: false, message: 'Sem permissão' });
-    }
 
-    const id = req.body.id;
-    const userName = req.session.userName || 'Funcionário Desconhecido';
-    const ip = req.ip || req.connection.remoteAddress || 'Desconhecido';
-
-    // Puxa o código da Box antes de destruí-la
-    db.get("SELECT box_code FROM boxes WHERE id = ?", [id], (err, row) => {
-        const boxCode = row ? row.box_code : 'Desconhecida';
-
-        db.run("DELETE FROM boxes WHERE id = ?", [id], function(err) {
-            if (err) return res.json({ success: false });
-
-            // 🕵️‍♂️ O ESPIÃO: Grava na tabela de Auditoria (access_logs)
-            const reason = `📦 Apagou a Box: ${boxCode} (ID: ${id})`;
-            db.run(`INSERT INTO access_logs (user_input, status, device, ip_address, reason) 
-                    VALUES (?, 'Exclusão', 'Ação do Sistema', ?, ?)`, 
-                [userName, ip, reason]);
-
-            res.json({ success: true });
-        });
-    });
-});
 // --- ROTA: Atualizar Usuário ---
 app.post('/api/user/update', upload.single('profile_pic'), (req, res) => {
     if (!req.session.user) {
@@ -2202,33 +2212,84 @@ app.put('/api/orders/bulk-status', (req, res) => {
     });
 });
 // =========================================================
-// 1. ROTA CORRIGIDA: EXCLUIR ENCOMENDA (COM AUDITORIA)
+// ROTA: MANDAR ENCOMENDA PARA LIXEIRA
 // =========================================================
 app.delete('/api/orders/:id', (req, res) => {
-    // Trava de segurança: Clientes não podem apagar
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
     }
 
     const id = req.params.id;
-    const userName = req.session.userName || 'Funcionário Desconhecido'; 
-    const ip = req.ip || req.connection.remoteAddress || 'Desconhecido';
-
-    // Puxa o código da encomenda antes de destruí-la
     db.get("SELECT code FROM orders WHERE id = ?", [id], (err, row) => {
         const orderCode = row ? row.code : 'Desconhecido';
 
-        db.run("DELETE FROM orders WHERE id = ?", [id], function(err) {
+        // MÁGICA: Agora atualiza para deleted = 1 em vez de arrancar do banco
+        db.run("UPDATE orders SET deleted = 1 WHERE id = ?", [id], function(err) {
             if (err) return res.json({ success: false, message: "Erro ao excluir." });
 
-            // 🕵️‍♂️ O ESPIÃO: Grava na tabela de Auditoria (access_logs)
-            const reason = `🗑️ Apagou a Encomenda: ${orderCode} (ID: ${id})`;
-            db.run(`INSERT INTO access_logs (user_input, status, device, ip_address, reason) 
-                    VALUES (?, 'Exclusão', 'Ação do Sistema', ?, ?)`, 
-                [userName, ip, reason]);
+            const reason = `🗑️ Moveu Encomenda para Lixeira: ${orderCode} (ID: ${id})`;
+            if (typeof logSystemAction === 'function') logSystemAction(req, 'Exclusão de Encomenda', reason);
 
             res.json({ success: true });
         });
+    });
+});
+
+// =========================================================
+// ROTA: MANDAR BOX PARA LIXEIRA
+// =========================================================
+app.post('/api/boxes/delete', (req, res) => {
+    if (!req.session.userId || req.session.role === 'client') {
+        return res.status(403).json({ success: false, message: 'Sem permissão' });
+    }
+
+    const id = req.body.id;
+    db.get("SELECT box_code FROM boxes WHERE id = ?", [id], (err, row) => {
+        const boxCode = row ? row.box_code : 'Desconhecida';
+
+        // MÁGICA: Atualiza para deleted = 1
+        db.run("UPDATE boxes SET deleted = 1 WHERE id = ?", [id], function(err) {
+            if (err) return res.json({ success: false });
+
+            const reason = `📦 Moveu Box para Lixeira: ${boxCode} (ID: ${id})`;
+            if (typeof logSystemAction === 'function') logSystemAction(req, 'Exclusão de Box', reason);
+
+            res.json({ success: true });
+        });
+    });
+});
+// =========================================================
+// ROTA: VER A LIXEIRA (Apenas Admin e Funcionário)
+// =========================================================
+app.get('/api/trash', (req, res) => {
+    if (!req.session.role || req.session.role === 'client') return res.status(403).json([]);
+
+    // Busca encomendas e boxes deletadas para mostrar
+    db.all("SELECT id, code as name, 'Encomenda' as type FROM orders WHERE deleted = 1", (err, ordersTrash) => {
+        db.all("SELECT id, box_code as name, 'Box' as type FROM boxes WHERE deleted = 1", (err, boxesTrash) => {
+            const trashList = [...(ordersTrash || []), ...(boxesTrash || [])];
+            res.json(trashList);
+        });
+    });
+});
+
+// =========================================================
+// ROTA: RESTAURAR DA LIXEIRA
+// =========================================================
+app.post('/api/trash/restore', (req, res) => {
+    if (!req.session.role || req.session.role === 'client') return res.status(403).json({ success: false });
+
+    const { id, type } = req.body;
+    const table = type === 'Encomenda' ? 'orders' : 'boxes';
+
+    // MÁGICA: Muda o deleted de volta para 0
+    db.run(`UPDATE ${table} SET deleted = 0 WHERE id = ?`, [id], function(err) {
+        if (err) return res.json({ success: false });
+
+        const reason = `♻️ Restaurou da Lixeira: ${type} (ID: ${id})`;
+        if (typeof logSystemAction === 'function') logSystemAction(req, 'Restauração', reason);
+
+        res.json({ success: true });
     });
 });
 // Certifique-se que a rota está assim:

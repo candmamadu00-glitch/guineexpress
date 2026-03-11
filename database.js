@@ -182,6 +182,9 @@ db.serialize(() => {
     db.run("ALTER TABLE orders ADD COLUMN destino TEXT", () => {});
     // 📦 LINHA NOVA PARA SALVAR A QUANTIDADE DE VOLUMES DAS CAIXAS:
     db.run("ALTER TABLE boxes ADD COLUMN volumes INTEGER DEFAULT 1", () => {});
+    // 🗑️ COLUNAS PARA A LIXEIRA (SOFT DELETE):
+    db.run("ALTER TABLE orders ADD COLUMN deleted INTEGER DEFAULT 0", () => {});
+    db.run("ALTER TABLE boxes ADD COLUMN deleted INTEGER DEFAULT 0", () => {});
     // Patch de Notificações Push
     db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
         if (!err) console.log("✅ Coluna push_subscription adicionada com sucesso!");

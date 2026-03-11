@@ -63,6 +63,7 @@
             <button onclick="showSection('delivery-view'); loadDeliveryList();">
     <i class="fas fa-shipping-fast"></i> Entregas
 </button>
+<button onclick="showSection('trash-view'); loadTrash();" style="background: #6c757d; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🗑️ Lixeira</button>
     <button onclick="showSection('price-section')" style="background: #20c997; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">💰 Preço</button>
     
     <button onclick="showSection('orders-view')" style="background: #007bff; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-box"></i> Encomendas</button>
@@ -301,6 +302,32 @@
                     <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
                 </div>
             </form>
+        </div>
+    </div>
+</section>
+<section id="trash-view" class="hidden">
+    <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>🗑️ Lixeira do Sistema</h2>
+        <button onclick="loadTrash()" class="btn btn-primary" style="background: #0a1931;"><i class="fas fa-sync-alt"></i> Atualizar Lixeira</button>
+    </div>
+
+    <div class="card">
+        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+            Aqui estão as Encomendas e Caixas (Boxes) que foram apagadas recentemente. Pode restaurá-las para que voltem a aparecer no sistema normalmente.
+        </p>
+        
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th>Tipo do Registo</th>
+                        <th>Identificação (Código)</th>
+                        <th style="text-align: center;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="trash-list">
+                    </tbody>
+            </table>
         </div>
     </div>
 </section>
@@ -547,7 +574,32 @@
         </div>
     </div>
 </section>
+<section id="trash-view" class="hidden">
+    <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>🗑️ Lixeira do Sistema</h2>
+        <button onclick="loadTrash()" class="btn btn-primary" style="background: #0a1931;"><i class="fas fa-sync-alt"></i> Atualizar Lixeira</button>
+    </div>
 
+    <div class="card">
+        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+            Aqui estão as Encomendas e Caixas (Boxes) que foram apagadas recentemente. Pode restaurá-las para que voltem a aparecer no sistema normalmente.
+        </p>
+        
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th>Tipo do Registo</th>
+                        <th>Identificação (Código)</th>
+                        <th style="text-align: center;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="trash-list">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</section>
         <section id="billing-view" class="hidden">
             <div class="card" id="admin-billing-panel" style="background: #e8f0fe; border-left: 5px solid #0a1931;">
                 <h3><i class="fas fa-file-invoice-dollar"></i> Gerar Nova Cobrança</h3>
@@ -613,7 +665,32 @@
 </table>
             </div>
         </section>
+<section id="trash-view" class="hidden">
+    <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>🗑️ Lixeira do Sistema</h2>
+        <button onclick="loadTrash()" class="btn btn-primary" style="background: #0a1931;"><i class="fas fa-sync-alt"></i> Atualizar Lixeira</button>
+    </div>
 
+    <div class="card">
+        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+            Aqui estão as Encomendas e Caixas (Boxes) que foram apagadas recentemente. Pode restaurá-las para que voltem a aparecer no sistema normalmente.
+        </p>
+        
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th>Tipo do Registo</th>
+                        <th>Identificação (Código)</th>
+                        <th style="text-align: center;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="trash-list">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</section>
         <section id="expenses-view" class="hidden">
             <div class="kpi-grid" style="margin-bottom: 30px;">
                 <div class="kpi-card" style="border-left-color: #28a745;">
