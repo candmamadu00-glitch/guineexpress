@@ -1196,34 +1196,24 @@ app.get('/api/finances/all', async (req, res) => {
     }
 });
 app.get('/api/orders/by-client/:id', (req, res) => db.all("SELECT * FROM orders WHERE client_id = ?", [req.params.id], (err, rows) => res.json(rows)));
-// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CÓDIGO AUTOMÁTICO E CÁLCULO DE PREÇO) ---
+// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CÁLCULO DE PREÇO) ---
 app.post('/api/orders/create', (req, res) => {
-    let { client_id, code, description, weight, status } = req.body;
-
-    // ==========================================
-    // 🚀 NOVA MÁGICA: GERA CÓDIGO AUTOMÁTICO
-    // Se o código vier vazio, criamos um único!
-    // ==========================================
-    if (!code || code.trim() === '') {
-        // Gera algo como "GUI-" + 6 letras/números aleatórios
-        code = 'GUI-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    }
+    const { client_id, code, description, weight, status } = req.body;
 
     db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
         const pricePerKg = row ? parseFloat(row.value) : 0;
         const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
 
-        console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice} | Código: ${code}`);
+        console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
 
         const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
                      
         db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
             if (err) {
-                if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "Este código já existe. Tente outro ou deixe em branco." });
+                if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "Código já existe." });
                 return res.json({ success: false, msg: err.message });
             }
-            // Retornamos o código gerado de volta para a tela, caso precise
-            res.json({ success: true, id: this.lastID, generated_code: code }); 
+            res.json({ success: true, id: this.lastID });
         });
     });
 });
