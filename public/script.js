@@ -2905,12 +2905,19 @@ async function printSelectedLabels() {
         doc.setFontSize(18);
         doc.text(`${i}/${qtdVolumes}`, 58, 141, { align: "center" });
 
-        const qrTemp = document.createElement('div');
-        new QRCode(qrTemp, {
-            text: `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${data.client_name}`,
-            width: 100, height: 100,
-            correctLevel : QRCode.CorrectLevel.L
-        });
+        // 1. Pegamos o nome do cliente, mas CORTAMOS se passar de 30 caracteres
+const nomeSeguro = (data.client_name || 'CLIENTE').substring(0, 30);
+
+// 2. Montamos o texto do QR Code
+const textoDoQR = `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${nomeSeguro}`;
+
+const qrTemp = document.createElement('div');
+new QRCode(qrTemp, {
+    text: textoDoQR, // Usamos o texto limitado aqui
+    width: 100, 
+    height: 100,
+    correctLevel : QRCode.CorrectLevel.L
+});
         
         await new Promise(resolve => setTimeout(resolve, 50));
         const qrCanvas = qrTemp.querySelector('canvas');
