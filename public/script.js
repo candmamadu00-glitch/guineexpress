@@ -2906,19 +2906,45 @@ async function printSelectedLabels() {
         doc.text(`${i}/${qtdVolumes}`, 58, 141, { align: "center" });
 
         // ==========================================
-        // 🔒 CORREÇÃO DO ERRO DO QR CODE
-        // Limitando o tamanho dos textos para não estourar o limite (440 chars)
+        // 🛡️ SUPER FILTRO DO QR CODE (À PROVA DE ERROS)
         // ==========================================
-        const nomeSeguro = (data.client_name || 'N/A').substring(0, 30);
-        const boxSegura = (data.box_code || 'N/A').substring(0, 20);
-        const codigoSeguro = (data.code || 'N/A').substring(0, 20);
+        // Remove acentos, emojis, caracteres estranhos e corta espaços sobrando
+        const limparTexto = (texto) => {
+            if (!texto) return 'N/A';
+            // Tira acentos e deixa só letras, números, espaços e traços
+            return texto.normalize("NFD").replace(/[^a-zA-Z0-9 \-]/g, "").trim();
+        };
+
+        // Reduzi um pouco os limites para garantir que NUNCA passe de 440 bits
+        const nomeSeguro = limparTexto(data.client_name).substring(0, 20);
+        const boxSegura = limparTexto(data.box_code).substring(0, 15);
+        const codigoSeguro = limparTexto(data.code).substring(0, 15);
+
+        const textoDoQR = `BOX:${boxSegura}|ENC:${codigoSeguro}|VOL:${i}/${qtdVolumes}|${nomeSeguro}`;
 
         const qrTemp = document.createElement('div');
         new QRCode(qrTemp, {
-            text: `BOX:${boxSegura}|ENC:${codigoSeguro}|VOL:${i}/${qtdVolumes}|${nomeSeguro}`,
+            text: textoDoQR,
             width: 100, height: 100,
             correctLevel : QRCode.CorrectLevel.L
         });
+        
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const qrCanvas = qrTemp.querySelector('canvas');
+        if (qrCanvas) {
+            const qrData = qrCanvas.toDataURL('image/png');
+            doc.addImage(qrData, 'PNG', 75, 126.5, 20, 20);
+        }
+
+        // ==========================================
+        // 3. BATER O NOVO CARIMBO POR CIMA DE TUDO
+        // ==========================================
+        if (carimboData) {
+            doc.saveGraphicsState(); 
+            doc.setGState(new doc.GState({opacity: 0.85})); 
+            doc.addImage(carimboData, 'PNG', 20, 45, 60, 60);
+            doc.restoreGraphicsState();
+        }
         
         await new Promise(resolve => setTimeout(resolve, 50));
         const qrCanvas = qrTemp.querySelector('canvas');
