@@ -2806,7 +2806,7 @@ async function printSelectedLabels() {
     let carimboData = null;
     try {
         const imgCarimbo = new Image();
-        imgCarimbo.src = 'carimbo.png'; // <--- NOME DO NOVO ARQUIVO DE CARIMBO TRANSPARENTE
+        imgCarimbo.src = 'carimbo.png'; 
         imgCarimbo.crossOrigin = 'Anonymous';
         await new Promise((resolve) => {
             imgCarimbo.onload = () => {
@@ -2905,19 +2905,20 @@ async function printSelectedLabels() {
         doc.setFontSize(18);
         doc.text(`${i}/${qtdVolumes}`, 58, 141, { align: "center" });
 
-        // 1. Pegamos o nome do cliente, mas CORTAMOS se passar de 30 caracteres
-const nomeSeguro = (data.client_name || 'CLIENTE').substring(0, 30);
+        // ==========================================
+        // 🔒 CORREÇÃO DO ERRO DO QR CODE
+        // Limitando o tamanho dos textos para não estourar o limite (440 chars)
+        // ==========================================
+        const nomeSeguro = (data.client_name || 'N/A').substring(0, 30);
+        const boxSegura = (data.box_code || 'N/A').substring(0, 20);
+        const codigoSeguro = (data.code || 'N/A').substring(0, 20);
 
-// 2. Montamos o texto do QR Code
-const textoDoQR = `BOX:${data.box_code || 'N/A'}|ENC:${data.code}|VOL:${i}/${qtdVolumes}|${nomeSeguro}`;
-
-const qrTemp = document.createElement('div');
-new QRCode(qrTemp, {
-    text: textoDoQR, // Usamos o texto limitado aqui
-    width: 100, 
-    height: 100,
-    correctLevel : QRCode.CorrectLevel.L
-});
+        const qrTemp = document.createElement('div');
+        new QRCode(qrTemp, {
+            text: `BOX:${boxSegura}|ENC:${codigoSeguro}|VOL:${i}/${qtdVolumes}|${nomeSeguro}`,
+            width: 100, height: 100,
+            correctLevel : QRCode.CorrectLevel.L
+        });
         
         await new Promise(resolve => setTimeout(resolve, 50));
         const qrCanvas = qrTemp.querySelector('canvas');
@@ -2931,9 +2932,7 @@ new QRCode(qrTemp, {
         // ==========================================
         if (carimboData) {
             doc.saveGraphicsState(); 
-            // Opacidade alta (0.85) para carimbo nítido sobre papel
             doc.setGState(new doc.GState({opacity: 0.85})); 
-            // Desenha o carimbo bem no centro (X=20, Y=45, Largura=60, Altura=60)
             doc.addImage(carimboData, 'PNG', 20, 45, 60, 60);
             doc.restoreGraphicsState();
         }
