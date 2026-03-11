@@ -2540,19 +2540,87 @@ app.get('/api/invoices', (req, res) => {
         res.json(rows);
     });
 });
+// --- CONFIRMAR ENTREGA E SALVAR FOTO NO BANCO + ENVIO ZAP AUTOMÁTICO ---
 app.post('/api/orders/:code/deliver', (req, res) => {
     const orderCode = req.params.code;
+    const proofImage = req.body.proofImage || null; // Pega a foto que veio do celular
     
-    // IMPORTANTE: Resposta sempre em JSON para não dar erro no JS
-    const sql = `UPDATE orders SET status = 'Entregue' WHERE code = ?`;
+    // 1. Atualiza o status e salva a imagem
+    const sqlUpdate = `UPDATE orders SET status = 'Entregue', proof_image = ? WHERE code = ?`;
     
-    db.run(sql, [orderCode], function(err) {
-        if (err) return res.status(500).json({ error: "Erro no banco" });
+    db.run(sqlUpdate, [proofImage, orderCode], function(err) {
+        if (err) return res.status(500).json({ error: "Erro no banco ao salvar entrega" });
         if (this.changes === 0) return res.status(404).json({ error: "Código não encontrado" });
         
-        res.json({ success: true });
+        console.log(`\n📦 [ENTREGA] Encomenda ${orderCode} marcada como Entregue no banco.`);
+
+        // 2. CORREÇÃO: Busca o nome e telefone do dono usando APENAS a tabela users (u.name, u.phone)
+        const sqlUser = `
+            SELECT u.name as user_name, u.phone as user_phone 
+            FROM orders o 
+            JOIN users u ON o.client_id = u.id 
+            WHERE o.code = ?
+        `;
+        
+        db.get(sqlUser, [orderCode], async (errUser, row) => {
+            if (errUser) {
+                console.error("❌ [ZAP] Erro ao buscar dados do cliente:", errUser.message);
+                return res.json({ success: true, message: "Entrega registrada, mas erro ao buscar cliente para o Zap." });
+            }
+
+            if (!row) {
+                console.log(`⚠️ [ZAP] Cliente não encontrado no banco para a encomenda ${orderCode}.`);
+                return res.json({ success: true, message: "Entrega salva! (Sem Zap: cliente não encontrado)" });
+            }
+
+            // Pega os dados direto do usuário encontrado
+            const finalName = row.user_name || 'Cliente';
+            const finalPhone = row.user_phone;
+
+            if (!finalPhone) {
+                console.log(`⚠️ [ZAP] Cliente ${finalName} da encomenda ${orderCode} não tem telefone cadastrado. Foto não enviada.`);
+                return res.json({ success: true, message: "Entrega salva! (Sem Zap: cliente sem telefone)" });
+            }
+
+            // 3. Inicia o envio do Zap se o bot estiver conectado
+            if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                try {
+                    let cleanPhone = finalPhone.replace(/\D/g, ''); // Limpa traços e espaços
+                    const numberId = await clientZap.getNumberId(cleanPhone); 
+                    
+                    if (numberId) {
+                        const { MessageMedia } = require('whatsapp-web.js');
+                        
+                        if (proofImage) {
+                            // O Base64 vem com "data:image/jpeg;base64,...", separando para o Zap ler
+                            const base64Data = proofImage.split(',')[1]; 
+                            const media = new MessageMedia('image/jpeg', base64Data, 'comprovante.jpg');
+                            
+                            const msg = `Olá *${finalName}*! 🎉\n\nSua encomenda *${orderCode}* acaba de ser entregue com sucesso pela Guineexpress!\n\nSegue a foto do comprovante de entrega:`;
+                            
+                            await clientZap.sendMessage(numberId._serialized, media, { caption: msg });
+                            console.log(`✅ [ZAP] Foto de Comprovante enviada com sucesso para ${cleanPhone}`);
+                        } else {
+                            const msgText = `Olá *${finalName}*! 🎉\n\nSua encomenda *${orderCode}* acaba de ser entregue com sucesso pela Guineexpress!`;
+                            await clientZap.sendMessage(numberId._serialized, msgText);
+                            console.log(`✅ [ZAP] Aviso de entrega enviado (sem foto) para ${cleanPhone}`);
+                        }
+                    } else {
+                        console.log(`⚠️ [ZAP] O número ${cleanPhone} não possui WhatsApp ativo ou não foi reconhecido.`);
+                    }
+                } catch (zapErr) {
+                    console.error("❌ [ZAP] Erro ao enviar comprovante no Zap:", zapErr.message);
+                }
+            } else {
+                console.log("❌ [ZAP] WhatsApp desconectado. A foto foi salva no painel, mas o Zap não foi enviado.");
+            }
+            
+            // Retorna o sucesso para o frontend (fecha a tela na hora pro entregador)
+            res.json({ success: true, message: "Entrega registrada com sucesso!" });
+        });
     });
 });
+
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================

@@ -558,7 +558,7 @@ async function loadBoxes() {
 
         list.forEach(b => {
             const status = b.status || b.order_status || '';
-            if ((status === 'Entregue' || status === 'Pago') && !showCompleted) return;
+            if ((status === 'Entregue' || status === 'Pago') && currentUser.role !== 'client' && !showCompleted) return;
 
             const code = b.box_code || 'SEM-BOX';
             const weight = parseFloat(b.order_weight) || 0;
@@ -595,7 +595,7 @@ async function loadBoxes() {
 
         list.forEach(b => {
             const status = b.status || b.order_status || '';
-            if ((status === 'Entregue' || status === 'Pago') && !showCompleted) return;
+            if ((status === 'Entregue' || status === 'Pago') && currentUser.role !== 'client' && !showCompleted) return;
 
             const individualWeight = parseFloat(b.order_weight) || 0;
             const freightValue = individualWeight * globalPricePerKg;
@@ -1347,7 +1347,8 @@ async function loadOrders() {
             list.forEach(o => {
     // === ADICIONE ESTAS DUAS LINHAS AQUI ===
     const toggleBtn = document.getElementById('toggle-orders');
-    if (o.status === 'Entregue' && (!toggleBtn || !toggleBtn.checked)) return;
+    // Se for o cliente, NUNCA esconde. Se for admin/funcionário, obedece o botão.
+    if (o.status === 'Entregue' && currentUser.role !== 'client' && (!toggleBtn || !toggleBtn.checked)) return;
     // ======================================
                 const phone = o.client_phone || o.phone || o.whatsapp || ''; 
                 const email = o.client_email || o.email || o.mail || ''; 
@@ -1409,8 +1410,9 @@ async function loadOrders() {
                         actions = `<button onclick="openPaymentModal(${o.id}, '${o.description}', ${finalPrice})" class="btn-pay-pulse" style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fas fa-dollar-sign"></i> PAGAR</button>`;
                     } else if (o.status === 'Pago') {
                         actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
-                    } else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.delivery_proof) {
-                        actions = `<button onclick='DeliveryProof.view("${o.delivery_proof}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer;">Ver Foto 📸</button>`;
+                    } else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.proof_image) {
+                        // AQUI ESTÁ A CORREÇÃO: Chama a função nova de ver a foto e usa o.proof_image
+                        actions = `<button onclick='viewDeliveryPhoto("${o.proof_image}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fas fa-camera"></i> Ver Comprovante</button>`;
                     } else {
                         actions = `<button onclick="alert('Detalhes: ${o.description} | Valor: R$ ${finalPrice.toFixed(2)}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer; border-radius:4px;">Detalhes</button>`;
                     }
@@ -4420,7 +4422,7 @@ async function loadAccessLogs() {
     }
 }
 // ==========================================
-// ABA FINANCEIRO (ENCOMENDAS E FATURAS)
+// ABA FINANCEIRO (APENAS FATURAS/CAIXAS)
 // ==========================================
 async function loadFinances() {
     try {
@@ -4433,11 +4435,14 @@ async function loadFinances() {
         const showCompleted = toggleBtn ? toggleBtn.checked : false;
 
         if (finances.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registo encontrado.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registro encontrado.</td></tr>`;
             return;
         }
 
         finances.forEach(item => {
+            // A NOVA MÁGICA: Ignora tudo que for "Encomenda" e mostra apenas o resto (Faturas/Boxes)
+            if (item.type === 'Encomenda') return;
+
             let statusPt = item.status;
             const statusLower = statusPt.toLowerCase();
 
@@ -4445,7 +4450,7 @@ async function loadFinances() {
             if (statusLower === 'paid' || statusLower === 'approved') statusPt = 'Pago'; 
             if (statusLower === 'cancelled' || statusLower === 'rejected') statusPt = 'Cancelado';
 
-            // A MÁGICA AQUI: Esconde faturas pagas se o botão não estiver marcado
+            // Esconde faturas pagas se o botão não estiver marcado
             if (statusPt === 'Pago' && !showCompleted) return;
 
             let statusBadge = 'bg-warning'; 
@@ -4455,7 +4460,7 @@ async function loadFinances() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td data-label="Código" style="font-weight: bold;">${item.id_code || 'N/A'}</td>
-                <td data-label="Tipo"><span class="badge ${item.type === 'Encomenda' ? 'bg-info' : 'bg-primary'}">${item.type}</span></td>
+                <td data-label="Tipo"><span class="badge bg-primary">${item.type}</span></td>
                 <td data-label="Cliente">${item.client_name || 'Desconhecido'}</td>
                 <td data-label="Descrição">${item.description || '-'}</td>
                 <td data-label="Peso" style="text-align: center;">${item.weight ? item.weight + ' kg' : '-'}</td>
@@ -4468,7 +4473,6 @@ async function loadFinances() {
         console.error("Erro ao carregar o financeiro", e);
     }
 }
-
 // Geração de PDF (Requer jspdf e autotable no HTML)
 function exportFinancesPDF() {
     const { jsPDF } = window.jspdf;
@@ -4871,6 +4875,7 @@ async function forcePayInvoice(invoiceId) {
         alert("Erro de conexão ao forçar o pagamento.");
     }
 }
+
 // O Administrador clica para abrir a foto do comprovante e aprovar
 function viewReceipt(invoiceId, receiptUrl) {
     if(!receiptUrl) return alert("Erro: Link do talão não encontrado.");
@@ -4903,7 +4908,21 @@ function openEcobankModal(invoiceId) {
     document.getElementById('ecobank-receipt-file').value = ''; 
     document.getElementById('modal-ecobank').style.display = 'block';
 }
-
+// ==========================================
+// FUNÇÃO PARA O CLIENTE/ADMIN VER A FOTO DA ENTREGA
+// ==========================================
+function viewDeliveryPhoto(base64Data) {
+    // Cria uma tela preta transparente por cima de tudo para mostrar a foto
+    const modal = document.createElement('div');
+    modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; display:flex; justify-content:center; align-items:center; flex-direction:column;";
+    
+    modal.innerHTML = `
+        <img src="${base64Data}" style="max-width:90%; max-height:80%; border-radius:10px; border:3px solid #009ee3; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <button onclick="this.parentElement.remove()" style="margin-top:20px; padding:12px 25px; background:#dc3545; color:white; border:none; border-radius:5px; font-size:16px; font-weight:bold; cursor:pointer;"><i class="fas fa-times"></i> Fechar Comprovante</button>
+    `;
+    
+    document.body.appendChild(modal);
+}
 // ==========================================
 // CLIENTE ENVIA COMPROVANTE ECOBANK
 // ==========================================
@@ -5739,7 +5758,8 @@ async function loadDeliveryList() {
                 </td>
                 <td style="text-align: center;">
                     ${isDelivered 
-                        ? '<span style="color: #27ae60; font-weight: bold;"><i class="fas fa-check-circle"></i> JÁ ENTREGUE</span>' 
+                        ? `<span style="color: #27ae60; font-weight: bold;"><i class="fas fa-check-circle"></i> JÁ ENTREGUE</span>
+                           ${order.proof_image ? `<br><button onclick='viewDeliveryPhoto("${order.proof_image}")' style="margin-top:5px; color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;"><i class="fas fa-camera"></i> Ver Foto</button>` : ''}` 
                         : `<button onclick="confirmDelivery('${order.code}')" class="btn" style="background: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
                             <i class="fas fa-handshake"></i> CONFIRMAR ENTREGA
                            </button>`
@@ -5753,64 +5773,114 @@ async function loadDeliveryList() {
     }
 }
 
-async function confirmDelivery(code) {
-    if(!confirm(`Confirmar que o cliente recebeu a encomenda ${code}?`)) return;
+// ==========================================
+// SISTEMA DE ENTREGA COM FOTO (POD - Base64)
+// ==========================================
 
-    try {
-        const response = await fetch(`/api/orders/${code}/deliver`, { 
-            method: 'POST', // <--- ISSO resolve o erro "Cannot GET"
-            headers: { 'Content-Type': 'application/json' }
-        });
+var pendingDeliveryCode = null;
+var currentProofBase64 = null;
 
-        if (response.ok) {
-            alert("✅ Entrega registrada com sucesso!");
-            loadDeliveryList(); 
-        } else {
-            alert("❌ Erro ao registrar entrega. Verifique o console.");
-        }
-    } catch (err) {
-        alert("Erro de conexão.");
-    }
+// Abre o modal de captura ao invés de confirmar direto
+function confirmDelivery(code) {
+    pendingDeliveryCode = code;
+    currentProofBase64 = null;
+    
+    // Reseta o visual do modal
+    document.getElementById('camera-input').value = '';
+    document.getElementById('preview-container').style.display = 'none';
+    document.getElementById('btn-submit-delivery').disabled = true;
+    
+    document.getElementById('delivery-modal').style.display = 'flex';
 }
 
-async function confirmDelivery(code) {
-    if(!confirm(`Deseja marcar a encomenda ${code} como ENTREGUE?`)) return;
+function closeDeliveryModal() {
+    document.getElementById('delivery-modal').style.display = 'none';
+    pendingDeliveryCode = null;
+    currentProofBase64 = null;
+}
+
+// Quando o usuário tira a foto, converte e reduz tamanho
+function previewDeliveryImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        // Exibe o preview
+        const imgElement = document.getElementById('image-preview');
+        imgElement.src = e.target.result;
+        document.getElementById('preview-container').style.display = 'block';
+        
+        // Habilita o botão de envio
+        document.getElementById('btn-submit-delivery').disabled = false;
+        
+        // Vamos comprimir a imagem num Canvas para não estourar o banco de dados
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 600; // Reduz a resolução para caber tranquilo
+            const scaleSize = MAX_WIDTH / img.width;
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scaleSize;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // Salva a imagem comprimida na variável global
+            currentProofBase64 = canvas.toDataURL('image/jpeg', 0.6); // 60% de qualidade
+        }
+        img.src = e.target.result;
+    }
+    reader.readAsDataURL(file);
+}
+
+// Envia os dados para o servidor (Agora silencioso, o servidor se vira com o Zap)
+async function submitDelivery() {
+    if (!pendingDeliveryCode || !currentProofBase64) return;
+
+    const btn = document.getElementById('btn-submit-delivery');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    btn.disabled = true;
 
     try {
-        const response = await fetch(`/api/orders/${code}/deliver`, { 
+        const response = await fetch(`/api/orders/${pendingDeliveryCode}/deliver`, { 
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proofImage: currentProofBase64 }) // Manda a foto pro banco
         });
 
-        // Primeiro verificamos se a resposta é JSON antes de tentar ler
-        const contentType = response.headers.get("content-type");
-        
         if (response.ok) {
-            alert("✅ Encomenda entregue com sucesso!");
-            loadDeliveryList();
+            alert("✅ Encomenda entregue! A foto foi salva e enviada automaticamente no WhatsApp do cliente.");
+            closeDeliveryModal();
+            loadDeliveryList(); 
         } else {
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                const errorData = await response.json();
-                alert("❌ Erro: " + (errorData.error || "Falha ao registrar"));
-            } else {
-                // Se cair aqui, é porque o servidor mandou um erro em HTML (provavelmente 404)
-                alert("❌ Erro 404: A rota de entrega não foi encontrada no servidor. Reinicie o seu server.js!");
-            }
+            const errorData = await response.json();
+            alert("❌ Erro: " + (errorData.error || "Falha ao registrar"));
+            btn.innerHTML = 'Confirmar Entrega';
+            btn.disabled = false;
         }
     } catch (err) {
         console.error("Erro na requisição:", err);
         alert("Erro de conexão com o servidor.");
+        btn.innerHTML = 'Confirmar Entrega';
+        btn.disabled = false;
     }
 }
 // ==========================================
-// ETIQUETA SIMPLES DE IDENTIFICAÇÃO DE BOX (100x150mm)
+// ETIQUETA SIMPLES DE IDENTIFICAÇÃO DE BOX (100x150mm) - VERSÃO MOBILE FRIENDLY
 // ==========================================
 function printSimpleBoxLabel(boxCode) {
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    printWindow.document.write(`
+    // 1. Força a primeira letra a ser maiúscula (ex: "box 1" vira "Box 1")
+    let formattedBoxCode = boxCode;
+    if (formattedBoxCode && formattedBoxCode.toLowerCase().startsWith('box ')) {
+        formattedBoxCode = 'Box ' + formattedBoxCode.substring(4);
+    }
+
+    const htmlContent = `
         <html>
         <head>
-            <title>Etiqueta Simples - ${boxCode}</title>
+            <title>Etiqueta Simples - ${formattedBoxCode}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
                 
@@ -5825,14 +5895,31 @@ function printSimpleBoxLabel(boxCode) {
                     margin: 0; 
                     padding: 0;
                     display: flex; 
-                    justify-content: center; 
+                    flex-direction: column;
                     align-items: center; 
-                    background-color: #f4f4f4; /* Fundo cinza só pra visualização na tela */
+                    background-color: #f4f4f4; 
+                }
+
+                /* Aviso para quem está no celular */
+                .mobile-warning {
+                    background-color: #ff9800;
+                    color: white;
+                    padding: 15px;
+                    text-align: center;
+                    width: 100%;
+                    font-weight: bold;
+                    margin-bottom: 20px;
+                    box-sizing: border-box;
+                }
+
+                @media print {
+                    .mobile-warning { display: none !important; }
+                    body { background: white; display: block; }
                 }
 
                 .label-container { 
-                    width: 96mm; /* Um pouco menor que 100mm para dar respiro na impressão */
-                    height: 146mm; /* Um pouco menor que 150mm */
+                    width: 96mm; 
+                    height: 146mm; 
                     background: white; 
                     border: 2mm solid #000; 
                     border-radius: 4mm;
@@ -5841,6 +5928,7 @@ function printSimpleBoxLabel(boxCode) {
                     flex-direction: column; 
                     padding: 5mm;
                     position: relative;
+                    margin-top: 10px;
                 }
 
                 /* Cabeçalho - Nome da Agência */
@@ -5897,14 +5985,6 @@ function printSimpleBoxLabel(boxCode) {
                     border-top: 1mm dashed #000;
                     padding-top: 5mm;
                 }
-                .fake-barcode {
-                    font-family: 'Libre Barcode 39', cursive, sans-serif; /* Fallback se a fonte falhar */
-                    font-size: 45px;
-                    line-height: 40px;
-                    color: #000;
-                    letter-spacing: 2px;
-                }
-                /* Desenhando linhas que parecem código de barras caso não tenha internet para baixar a fonte */
                 .barcode-lines {
                     height: 30px;
                     width: 80%;
@@ -5929,9 +6009,7 @@ function printSimpleBoxLabel(boxCode) {
 
                 /* Ajustes finais para a hora de imprimir */
                 @media print {
-                    body { background: white; }
-                    .label-container { border: 1.5mm solid #000; }
-                    /* Garante que o fundo preto seja impresso na térmica */
+                    .label-container { border: 1.5mm solid #000; margin: 0; }
                     .box-highlight { 
                         -webkit-print-color-adjust: exact; 
                         print-color-adjust: exact; 
@@ -5940,35 +6018,49 @@ function printSimpleBoxLabel(boxCode) {
             </style>
         </head>
         <body>
+            <div class="mobile-warning">
+                Se a janela de impressão não abrir sozinha, use o menu do seu navegador (três pontinhos) e clique em "Compartilhar" > "Imprimir" ou "Salvar como PDF".<br><br>
+                <button onclick="window.print()" style="padding: 10px 20px; margin-top:10px; font-weight:bold; cursor:pointer;">IMPRIMIR AGORA</button>
+            </div>
+
             <div class="label-container">
-                
                 <div class="header">
                     <div class="agency-name">Guineexpress</div>
-                    <div class="subtitle">Agencia de Transporte</div>
+                    <div class="subtitle">Logística & Encomendas</div>
                 </div>
 
                 <div class="box-highlight">
                     <div class="box-text">IDENTIFICAÇÃO</div>
-                    <div class="box-code">${boxCode}</div>
+                    <div class="box-code">${formattedBoxCode}</div>
                 </div>
 
                 <div class="footer">
                     <div class="barcode-lines"></div>
-                    <div class="footer-text">REF: ${boxCode}</div>
+                    <div class="footer-text">REF: ${formattedBoxCode}</div>
                 </div>
-
             </div>
             
             <script>
+                // Tenta abrir a impressão automaticamente
                 window.onload = function() { 
                     setTimeout(() => {
                         window.print(); 
-                        window.close();
-                    }, 800);
+                    }, 1000);
                 }
             </script>
         </body>
         </html>
-    `);
-    printWindow.document.close();
+    `;
+
+    // Para celular, a melhor abordagem é abrir na MESMA janela ou usar um iframe.
+    // Usar uma nova janela no mobile frequentemente quebra. 
+    // Aqui, vamos tentar abrir uma nova aba simples sem tentar forçar tamanhos.
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+    } else {
+        alert("O seu navegador bloqueou a abertura da etiqueta. Por favor, permita pop-ups para este site.");
+    }
 }
