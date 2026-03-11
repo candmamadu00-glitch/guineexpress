@@ -1195,25 +1195,36 @@ app.get('/api/finances/all', async (req, res) => {
         res.status(500).json({ error: "Erro ao gerar relatório financeiro" });
     }
 });
-app.get('/api/orders/by-client/:id', (req, res) => db.all("SELECT * FROM orders WHERE client_id = ?", [req.params.id], (err, rows) => res.json(rows)));
-// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CÁLCULO DE PREÇO) ---
+// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (BLOQUEIO RIGOROSO DE CÓDIGO DUPLICADO) ---
 app.post('/api/orders/create', (req, res) => {
     const { client_id, code, description, weight, status } = req.body;
 
-    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-        const pricePerKg = row ? parseFloat(row.value) : 0;
-        const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
+    // 1. CHECAGEM DE CÓDIGO DUPLICADO (Ignorando Maiúsculas/Minúsculas)
+    // O comando LOWER() transforma tudo em minúsculo para comparar
+    db.get("SELECT id FROM orders WHERE LOWER(code) = LOWER(?)", [code], (err, existingOrder) => {
+        if (err) return res.json({ success: false, msg: err.message });
+        
+        // Se a busca retornar algum resultado, significa que o código já existe!
+        if (existingOrder) {
+            return res.json({ success: false, msg: `❌ O código "${code}" já está sendo usado em outra encomenda! Por favor, digite um código diferente.` });
+        }
 
-        console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
+        // 2. Se o código for totalmente novo, prossegue com o cálculo de preço e salva
+        db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+            const pricePerKg = row ? parseFloat(row.value) : 0;
+            const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
 
-        const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
-                     
-        db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
-            if (err) {
-                if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "Código já existe." });
-                return res.json({ success: false, msg: err.message });
-            }
-            res.json({ success: true, id: this.lastID });
+            console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
+
+            const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
+                         
+            db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
+                if (err) {
+                    if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "❌ Este código já existe." });
+                    return res.json({ success: false, msg: err.message });
+                }
+                res.json({ success: true, id: this.lastID });
+            });
         });
     });
 });
