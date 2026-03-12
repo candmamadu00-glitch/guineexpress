@@ -1195,37 +1195,54 @@ app.get('/api/finances/all', async (req, res) => {
         res.status(500).json({ error: "Erro ao gerar relatório financeiro" });
     }
 });
-// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (BLOQUEIO RIGOROSO DE CÓDIGO DUPLICADO) ---
+// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (LIBERA CÓDIGO DA LIXEIRA) ---
 app.post('/api/orders/create', (req, res) => {
     const { client_id, code, description, weight, status } = req.body;
 
-    // 1. CHECAGEM DE CÓDIGO DUPLICADO (Ignorando Maiúsculas/Minúsculas)
-    // O comando LOWER() transforma tudo em minúsculo para comparar
-    db.get("SELECT id FROM orders WHERE LOWER(code) = LOWER(?)", [code], (err, existingOrder) => {
+    // 1. Procura se o código já existe em qualquer lugar (ativo ou lixeira)
+    db.get("SELECT id, deleted FROM orders WHERE LOWER(code) = LOWER(?)", [code], (err, existingOrder) => {
         if (err) return res.json({ success: false, msg: err.message });
         
-        // Se a busca retornar algum resultado, significa que o código já existe!
+        // Se achou o código...
         if (existingOrder) {
-            return res.json({ success: false, msg: `❌ O código "${code}" já está sendo usado em outra encomenda! Por favor, digite um código diferente.` });
+            // Se a encomenda NÃO estiver na lixeira (deleted = 0 ou null), bloqueia!
+            if (!existingOrder.deleted || existingOrder.deleted === 0) {
+                return res.json({ success: false, msg: `❌ O código "${code}" já está sendo usado em uma encomenda ATIVA! Por favor, digite outro.` });
+            } 
+            // Se a encomenda ESTIVER na lixeira (deleted = 1), nós renomeamos o código velho para liberar espaço!
+            else {
+                db.run("UPDATE orders SET code = code || '_lixeira_' || id WHERE id = ?", [existingOrder.id], (err) => {
+                    if (err) console.error("Erro ao liberar código da lixeira:", err);
+                    salvarNovaEncomenda(); // Agora que liberou, salva a nova!
+                });
+                return; // Pausa aqui para esperar o UPDATE terminar
+            }
         }
 
-        // 2. Se o código for totalmente novo, prossegue com o cálculo de preço e salva
-        db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-            const pricePerKg = row ? parseFloat(row.value) : 0;
-            const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
+        // Se o código não existe em lugar nenhum, salva direto
+        salvarNovaEncomenda();
 
-            console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
+        // ---------------------------------------------------------
+        // FUNÇÃO INTERNA PARA SALVAR A ENCOMENDA DEPOIS DE TUDO CHECADO
+        // ---------------------------------------------------------
+        function salvarNovaEncomenda() {
+            db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+                const pricePerKg = row ? parseFloat(row.value) : 0;
+                const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
 
-            const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
-                         
-            db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
-                if (err) {
-                    if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "❌ Este código já existe." });
-                    return res.json({ success: false, msg: err.message });
-                }
-                res.json({ success: true, id: this.lastID });
+                console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
+
+                const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
+                             
+                db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
+                    if (err) {
+                        if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "❌ Este código já existe no banco de dados." });
+                        return res.json({ success: false, msg: err.message });
+                    }
+                    res.json({ success: true, id: this.lastID });
+                });
             });
-        });
+        }
     });
 });
 // --- ROTA CORRIGIDA: EDITAR ENCOMENDA ---
