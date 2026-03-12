@@ -2156,6 +2156,27 @@ app.get('/api/orders/:id', (req, res) => {
         res.json(row);
     });
 });
+// ==============================================================
+// ROTA RECRIADA: BUSCAR ENCOMENDAS POR CLIENTE (PARA O NOVO BOX)
+// ==============================================================
+app.get('/api/orders/by-client/:clientId', (req, res) => {
+    const clientId = req.params.clientId;
+    
+    // Busca as encomendas do cliente que NÃO foram apagadas definitivamente
+    const sql = `
+        SELECT id, code, description 
+        FROM orders 
+        WHERE client_id = ? AND (deleted = 0 OR deleted IS NULL)
+    `;
+    
+    db.all(sql, [clientId], (err, rows) => {
+        if (err) {
+            console.error("Erro ao buscar encomendas do cliente:", err);
+            return res.json([]); // Retorna lista vazia em caso de erro
+        }
+        res.json(rows || []);
+    });
+});
 
 // --- ROTA: Atualizar Encomendas EM MASSA E ENVIAR WHATSAPP ---
 app.put('/api/orders/bulk-status', (req, res) => {
