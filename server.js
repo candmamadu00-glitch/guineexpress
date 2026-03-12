@@ -1509,8 +1509,15 @@ app.post('/api/videos/delete', (req, res) => {
 // ROTA: CRIAR FATURA (PIX MANUAL) E AVISAR CLIENTE
 // ==========================================
 app.post('/api/invoices/create', async (req, res) => {
-    // 1. Segurança: Só o Admin pode criar
-    if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
+    
+    // 🔴 APAGUE OU COMENTE ESTA LINHA:
+    // if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
+
+    // 🟢 COLOQUE ESTA LINHA NO LUGAR:
+    // Permite se for 'admin' OU 'employee' OU 'funcionario'
+    if(req.session.role !== 'admin' && req.session.role !== 'employee' && req.session.role !== 'funcionario') {
+        return res.status(403).json({msg: 'Sem permissão para criar faturas'});
+    }
 
     // Adicionamos os novos campos nf_amount e freight_amount aqui
     const { client_id, box_id, amount, description, email, nf_amount, freight_amount } = req.body; 
@@ -1597,29 +1604,23 @@ app.post('/api/invoices/:id/force-pay', (req, res) => {
         res.json({ success: true, message: 'Fatura marcada como paga manualmente.' });
     });
 });
-// 2. Listar Faturas
 app.get('/api/invoices/list', (req, res) => {
-    // Busca avançada: cruza os dados pelo ID ou pelo Código caso o banco tenha salvo como texto
-    let sql = `SELECT invoices.*, 
-                      users.name as client_name, 
-                      boxes.box_code, 
-                      orders.code as order_code,
-                      boxes.order_id as raw_order
+    // Se não for admin nem funcionário nem cliente, bloqueia
+    if(!req.session.role) return res.status(401).json([]);
+
+    let sql = `SELECT invoices.*, users.name as client_name, boxes.box_code 
                FROM invoices 
                LEFT JOIN users ON invoices.client_id = users.id 
-               LEFT JOIN boxes ON invoices.box_id = boxes.id
-               LEFT JOIN orders ON (boxes.order_id = orders.id OR boxes.order_id = orders.code)`;
+               LEFT JOIN boxes ON invoices.box_id = boxes.id`;
     
     let params = [];
-
-    // Se for cliente, vê só as dele
     if(req.session.role === 'client') {
         sql += " WHERE invoices.client_id = ?";
         params.push(req.session.userId);
     } 
+    // Para Admin e Employee, o SQL continua sem WHERE (vê tudo)
 
     sql += " ORDER BY invoices.id DESC";
-    
     db.all(sql, params, (err, rows) => {
         if(err) return res.json([]);
         res.json(rows);

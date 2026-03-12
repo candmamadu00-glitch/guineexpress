@@ -2160,43 +2160,48 @@ window.onclick = function(event) {
         event.target.classList.remove('active');
     }
 }
-// 1. Carregar Clientes no Select de Cobrança
 async function loadClientsForBilling() {
     const sel = document.getElementById('bill-client-select');
     if(!sel) return;
     
+    // Tira o "Carregando..." na hora e prepara o seletor
+    sel.innerHTML = '<option value="">Buscando clientes...</option>';
+
     try {
+        // Busca a lista de clientes
         const res = await fetch('/api/clients');
         const list = await res.json();
 
-        // --- NOVIDADE: Checa quem já tem cobrança pendente ---
         let clientesComCobranca = [];
+        
+        // Tenta buscar faturas. Se der erro, ele pula pro catch interno e segue a vida.
         try {
-            // Busca as faturas (pode ser /api/invoices ou /api/finances/all dependendo do seu backend)
-            // Se a rota exata for diferente, ele ignora sem quebrar o sistema
-            const resInv = await fetch('/api/invoices'); 
+            const resInv = await fetch('/api/invoices/list'); 
             if (resInv.ok) {
                 const invList = await resInv.json();
-                // Considera pendente tudo que não for Pago, Aprovado ou Cancelado
                 clientesComCobranca = invList
                     .filter(i => {
                         const s = (i.status || '').toLowerCase();
-                        return !s.includes('pago') && !s.includes('paid') && !s.includes('approved') && !s.includes('cancel');
+                        return !['pago','paid','approved','cancel'].some(st => s.includes(st));
                     })
                     .map(i => String(i.client_id));
             }
-        } catch(e) { console.warn("Aviso: Não foi possível checar cobranças ativas."); }
-        // ----------------------------------------------------
+        } catch(e) { 
+            console.warn("Aviso: Ignorando checagem de faturas pendentes."); 
+        }
 
-        sel.innerHTML = '<option value="">Selecione...</option>';
+        // Limpa o select e preenche com os clientes reais
+        let html = '<option value="">Selecione o Cliente...</option>';
         list.forEach(c => {
-            // Se o cliente tem cobrança pendente, coloca a tag do dinheiro
-            let aviso = clientesComCobranca.includes(String(c.id)) ? ' 💰 [COBRANÇA PENDENTE]' : '';
-            
-            sel.innerHTML += `<option value="${c.id}" data-email="${c.email}">${c.name}${aviso}</option>`;
+            let aviso = clientesComCobranca.includes(String(c.id)) ? ' 💰 [PENDENTE]' : '';
+            html += `<option value="${c.id}" data-email="${c.email}">${c.name}${aviso}</option>`;
         });
+        
+        sel.innerHTML = html;
+
     } catch (error) {
-        console.error("Erro ao carregar clientes do financeiro:", error);
+        console.error("Erro ao carregar clientes:", error);
+        sel.innerHTML = '<option value="">Erro ao carregar lista</option>';
     }
 }
 
@@ -4857,12 +4862,13 @@ async function loadInvoices() {
                     <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
                 </tr>`;
             } else {
-                // Tabela para funcionário comum ver
+                // Tabela para funcionário comum ver (AGORA COM O VALOR)
                 tbody.innerHTML += `
                 <tr style="border-bottom: 1px solid #eee;">
                     <td style="font-weight:bold; color:#0a1931; padding:12px;">${refCode}</td>
                     <td>${inv.client_name}</td>
                     <td>${inv.box_code || '-'}</td>
+                    <td style="font-weight:bold;">R$ ${inv.amount}</td> 
                     <td>${statusHtml}</td>
                     <td>-</td>
                 </tr>`;

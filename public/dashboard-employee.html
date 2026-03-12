@@ -65,9 +65,9 @@
         🎥 Vídeos
     </button>
     
-    <button onclick="showSection('billing-view')" style="background: #28a745; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-        💲 Status Pagto
-    </button>
+    <button onclick="showSection('billing-view'); loadClientsForBilling(); loadInvoices();" style="background: #28a745; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+    💲 Status Pagto
+</button>
     
     <button onclick="showSection('schedule-view')" style="background: #8e44ad; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
         📅 Agendamentos
@@ -459,19 +459,70 @@
 </section>
         
         <section id="billing-view" class="hidden">
-            <div class="card" style="margin-top: 20px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3>Status de Pagamentos</h3>
-                    <button onclick="loadInvoices()" class="btn-secondary" style="width:auto;">🔄 Atualizar Lista</button>
-                </div>
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Ref. Encomenda</th><th>Cliente</th><th>Box Ref</th><th>Valor</th><th>Status</th><th>Ações</th></tr>
-                    </thead>
-                    <tbody id="invoices-list"></tbody>
-                </table>
+    <div class="card" id="employee-billing-panel" style="background: #e8f0fe; border-left: 5px solid #0a1931; margin-bottom: 20px;">
+        <h3><i class="fas fa-file-invoice-dollar"></i> Gerar Nova Cobrança</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:15px;">Selecione um cliente e um box para gerar o QR Code Pix e link de pagamento.</p>
+        
+        <form onsubmit="createInvoice(event)" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+            
+            <div class="form-group" style="flex: 1 1 250px; min-width: 250px;">
+                <label>1. Selecione o Cliente</label>
+                <input type="text" id="bill-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesFinanceiroDropdown()" style="margin-bottom: 8px;">
+                <select id="bill-client-select" class="form-control" onchange="loadClientBoxesForBilling(this.value)" required>
+                    <option value="">Carregando...</option>
+                </select>
             </div>
-        </section>
+            
+            <div class="form-group" style="flex: 1 1 200px; min-width: 200px;">
+                <label>2. Selecione o Box</label>
+                <select id="bill-box-select" class="form-control" onchange="calculateBillAmount(this)" required disabled>
+                    <option value="">Selecione Cliente...</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="flex: 1 1 150px; min-width: 150px;">
+                <label>Frete</label>
+                <input type="number" id="bill-freight-amount" class="form-control" step="0.01" readonly style="background: #f8f9fa;">
+            </div>
+            
+            <div class="form-group" style="flex: 1 1 150px; min-width: 150px;">
+                <label>Nota Fiscal</label>
+                <input type="number" id="bill-nf-amount" class="form-control" step="0.01" value="0.00" oninput="updateTotalAmount()" required>
+            </div>
+            
+            <div class="form-group" style="flex: 1 1 150px; min-width: 150px;">
+                <label style="font-weight: bold; color: #d32f2f;">Valor Total </label>
+                <input type="number" id="bill-amount" class="form-control" step="0.01" readonly style="font-weight: bold; color: #d32f2f;">
+            </div>
+            
+            <div style="flex: 1 1 100%; margin-top: 5px;">
+                <button type="submit" class="btn btn-primary" style="width: 100%; height: 45px; font-weight:bold; font-size: 16px;">
+                    <i class="fas fa-qrcode"></i> Gerar Fatura
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>Status de Pagamentos</h3>
+            <button onclick="loadInvoices()" class="btn-secondary" style="width:auto;">🔄 Atualizar Lista</button>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Ref. Encomenda</th>
+                    <th>Cliente</th>
+                    <th>Box Ref</th>
+                    <th>Valor</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="invoices-list"></tbody>
+        </table>
+    </div>
+</section>
 
         <section id="labels-view" class="hidden">
             <div class="header-flex">
