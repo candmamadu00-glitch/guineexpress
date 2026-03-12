@@ -1082,7 +1082,7 @@ app.post('/api/schedule/status', (req, res) => db.run("UPDATE appointments SET s
 app.post('/api/schedule/cancel', (req, res) => db.run("UPDATE appointments SET status = 'Cancelado' WHERE id = ? AND client_id = ?", [req.body.id, req.session.userId], (err) => res.json({success: !err})));
 
 // ==========================================
-// ROTA: BUSCAR ENCOMENDAS (ESCONDE LIXEIRA)
+// ROTA: BUSCAR ENCOMENDAS (MOSTRA ATIVAS E NOVAS)
 // ==========================================
 app.get('/api/orders', (req, res) => {
     let sql = `SELECT 
@@ -1097,12 +1097,12 @@ app.get('/api/orders', (req, res) => {
                JOIN users u ON o.client_id = u.id
                LEFT JOIN boxes b ON b.order_id = o.id
                LEFT JOIN invoices i ON i.box_id = b.id
-               WHERE o.deleted = 0`; // <-- MÁGICA 1: Só mostra se não estiver deletado
+               WHERE (o.deleted = 0 OR o.deleted IS NULL)`; // <-- MÁGICA: Aceita 0 ou vazio (NULL)
     
     let params = [];
     
     if(req.session.role === 'client') { 
-        sql += " AND o.client_id = ?"; // <-- MÁGICA 2: Troca WHERE por AND
+        sql += " AND o.client_id = ?"; 
         params.push(req.session.userId); 
     }
     
@@ -1115,7 +1115,7 @@ app.get('/api/orders', (req, res) => {
 });
 
 // ==========================================
-// ROTA: BUSCAR BOXES (ESCONDE LIXEIRA)
+// ROTA: BUSCAR BOXES (MOSTRA ATIVAS E NOVAS)
 // ==========================================
 app.get('/api/boxes', (req, res) => {
     let sql = `SELECT 
@@ -1130,7 +1130,7 @@ app.get('/api/boxes', (req, res) => {
         JOIN users ON boxes.client_id = users.id 
         LEFT JOIN orders ON boxes.order_id = orders.id
         LEFT JOIN invoices ON boxes.id = invoices.box_id
-        WHERE boxes.deleted = 0`; // <-- Só mostra se não estiver deletado
+        WHERE (boxes.deleted = 0 OR boxes.deleted IS NULL)`; // <-- MÁGICA: Aceita 0 ou vazio (NULL)
         
     let params = [];
     
