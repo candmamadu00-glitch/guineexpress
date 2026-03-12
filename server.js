@@ -1195,35 +1195,36 @@ app.get('/api/finances/all', async (req, res) => {
         res.status(500).json({ error: "Erro ao gerar relatório financeiro" });
     }
 });
-// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (LIBERA CÓDIGO DA LIXEIRA) ---
+// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (BLOQUEIA ATIVOS, MAS LIBERA DA LIXEIRA) ---
 app.post('/api/orders/create', (req, res) => {
     const { client_id, code, description, weight, status } = req.body;
 
-    // 1. Procura se o código já existe em qualquer lugar (ativo ou lixeira)
+    // 1. Procura se o código já existe (ignora maiúsculas/minúsculas)
     db.get("SELECT id, deleted FROM orders WHERE LOWER(code) = LOWER(?)", [code], (err, existingOrder) => {
         if (err) return res.json({ success: false, msg: err.message });
         
-        // Se achou o código...
+        // Se achou o código no banco...
         if (existingOrder) {
-            // Se a encomenda NÃO estiver na lixeira (deleted = 0 ou null), bloqueia!
+            // REGRA 1: Se a encomenda estiver ATIVA (não está na lixeira) -> BLOQUEIA!
             if (!existingOrder.deleted || existingOrder.deleted === 0) {
-                return res.json({ success: false, msg: `❌ O código "${code}" já está sendo usado em uma encomenda ATIVA! Por favor, digite outro.` });
+                return res.json({ success: false, msg: `❌ O código "${code}" já pertence a uma encomenda ATIVA! Digite um código diferente.` });
             } 
-            // Se a encomenda ESTIVER na lixeira (deleted = 1), nós renomeamos o código velho para liberar espaço!
+            // REGRA 2: Se a encomenda estiver na LIXEIRA -> LIBERA O CÓDIGO!
             else {
+                // Renomeia o código antigo na lixeira para algo como "X1_lixeira_5" para liberar o nome "X1"
                 db.run("UPDATE orders SET code = code || '_lixeira_' || id WHERE id = ?", [existingOrder.id], (err) => {
                     if (err) console.error("Erro ao liberar código da lixeira:", err);
-                    salvarNovaEncomenda(); // Agora que liberou, salva a nova!
+                    salvarNovaEncomenda(); // O código está livre, salva a nova!
                 });
-                return; // Pausa aqui para esperar o UPDATE terminar
+                return; // Para aqui e espera a função de cima terminar
             }
         }
 
-        // Se o código não existe em lugar nenhum, salva direto
+        // Se o código não existir em lugar nenhum, salva direto
         salvarNovaEncomenda();
 
         // ---------------------------------------------------------
-        // FUNÇÃO INTERNA PARA SALVAR A ENCOMENDA DEPOIS DE TUDO CHECADO
+        // FUNÇÃO PARA SALVAR A NOVA ENCOMENDA NO BANCO
         // ---------------------------------------------------------
         function salvarNovaEncomenda() {
             db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
@@ -1236,7 +1237,6 @@ app.post('/api/orders/create', (req, res) => {
                              
                 db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
                     if (err) {
-                        if(err.message.includes('UNIQUE')) return res.json({ success: false, msg: "❌ Este código já existe no banco de dados." });
                         return res.json({ success: false, msg: err.message });
                     }
                     res.json({ success: true, id: this.lastID });
