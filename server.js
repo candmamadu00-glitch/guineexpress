@@ -1322,9 +1322,16 @@ app.post('/api/orders/update', (req, res) => {
 
 app.post('/api/boxes/create', (req, res) => {
     const {client_id, order_id, box_code, products, amount} = req.body;
-    db.run("INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", [client_id, order_id, box_code, products, amount], (err) => res.json({success: !err}));
-});
-// ROTA NOVA: Salvar a quantidade de volumes (Para Encomendas e Caixas)
+    
+    // A MÁGICA AQUI: Transforma em maiúsculo e tira os espaços!
+    const cleanBoxCode = box_code ? box_code.trim().toUpperCase() : '';
+
+    db.run(
+        "INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", 
+        [client_id, order_id, cleanBoxCode, products, amount], 
+        (err) => res.json({success: !err})
+    );
+});// ROTA NOVA: Salvar a quantidade de volumes (Para Encomendas e Caixas)
 app.post('/api/update-volumes', (req, res) => {
     const { id, type, volumes } = req.body;
     
@@ -2286,27 +2293,23 @@ app.delete('/api/orders/:id', (req, res) => {
     });
 });
 
-// =========================================================
-// ROTA: APAGAR BOX DE VERDADE (EXCLUSÃO PERMANENTE)
-// =========================================================
-app.delete('/api/boxes/:id', (req, res) => {
-    if (!req.session.userId || req.session.role === 'client') {
-        return res.status(403).json({ success: false, message: 'Sem permissão' });
+// ==========================================
+// ROTA: DELETAR BOX (MANDA PARA A LIXEIRA)
+// ==========================================
+app.post('/api/boxes/delete', (req, res) => {
+    const boxId = req.body.id;
+
+    if (!boxId) {
+        return res.json({ success: false, msg: "ID da caixa não fornecido." });
     }
 
-    const id = req.params.id;
-    db.get("SELECT box_code FROM boxes WHERE id = ?", [id], (err, row) => {
-        const boxCode = row ? row.box_code : 'Desconhecida';
-
-        // MÁGICA: O comando DELETE FROM arranca a Box do banco de dados para sempre!
-        db.run("DELETE FROM boxes WHERE id = ?", [id], function(err) {
-            if (err) return res.json({ success: false, message: "Erro ao excluir a Box." });
-
-            const reason = `🗑️ Apagou Definitivamente a Box: ${boxCode} (ID: ${id})`;
-            if (typeof logSystemAction === 'function') logSystemAction(req, 'Exclusão de Box', reason);
-
-            res.json({ success: true });
-        });
+    // Faz o "Soft Delete" (esconde a caixa marcando deleted = 1)
+    db.run("UPDATE boxes SET deleted = 1 WHERE id = ?", [boxId], function(err) {
+        if (err) {
+            console.error("Erro ao deletar box:", err);
+            return res.json({ success: false, msg: "Erro ao deletar a caixa." });
+        }
+        res.json({ success: true, msg: "Caixa deletada com sucesso!" });
     });
 });
 // Certifique-se que a rota está assim:

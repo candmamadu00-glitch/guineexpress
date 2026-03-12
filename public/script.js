@@ -712,7 +712,7 @@ async function createBox(e) {
 
     // 2. Pega os valores com segurança
     const clientVal = clientEl.value;
-    const codeVal = codeEl.value;
+    const codeVal = codeEl.value.trim().toUpperCase();
     const orderVal = orderEl ? orderEl.value : ""; // Se não existir, vazio
     const prodVal = prodEl ? prodEl.value : "";   // Se não existir, vazio
     
