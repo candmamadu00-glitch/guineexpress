@@ -185,6 +185,9 @@ db.serialize(() => {
     // 🗑️ COLUNAS PARA A LIXEIRA (SOFT DELETE):
     db.run("ALTER TABLE orders ADD COLUMN deleted INTEGER DEFAULT 0", () => {});
     db.run("ALTER TABLE boxes ADD COLUMN deleted INTEGER DEFAULT 0", () => {});
+    // 👤 LINHAS NOVAS: NOME E DOCUMENTO DO RECEBEDOR EM BISSAU
+    db.run("ALTER TABLE boxes ADD COLUMN receiver_name TEXT", () => {});
+    db.run("ALTER TABLE boxes ADD COLUMN receiver_doc TEXT", () => {});
     // Patch de Notificações Push
     db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
         if (!err) console.log("✅ Coluna push_subscription adicionada com sucesso!");

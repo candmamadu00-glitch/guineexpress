@@ -1996,6 +1996,7 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
     const sqlBox = `
         SELECT 
             boxes.id, boxes.box_code, boxes.amount, boxes.products, boxes.created_at, 
+            boxes.receiver_name, boxes.receiver_doc,
             CASE 
                 WHEN boxes.volumes > 1 THEN boxes.volumes 
                 WHEN orders.volumes > 1 THEN orders.volumes 
@@ -2037,6 +2038,22 @@ app.get('/api/receipt-data/:boxId', (req, res) => {
             res.json({ success: true, data: box });
         });
     });
+});
+// ==========================================
+// ROTA NOVA: CLIENTE INFORMA QUEM VAI RECEBER
+// ==========================================
+app.post('/api/boxes/set-receiver', (req, res) => {
+    if(!req.session.userId) return res.status(401).json({success: false, msg: 'Não logado'});
+    
+    const { box_id, receiver_name, receiver_doc } = req.body;
+    
+    db.run(`UPDATE boxes SET receiver_name = ?, receiver_doc = ? WHERE id = ?`, 
+        [receiver_name, receiver_doc, box_id], 
+        (err) => {
+            if(err) return res.json({success: false, msg: 'Erro ao salvar'});
+            res.json({success: true});
+        }
+    );
 });
 // ==========================================
 // SISTEMA DE BACKUP AUTOMÁTICO

@@ -604,18 +604,32 @@ async function loadBoxes() {
 
             const isAdmin = currentUser.role !== 'client';
 
-            // NOVO: Botão de Etiqueta Simples adicionado aqui!
-            const act = isAdmin ? 
-                `<button onclick="printSimpleBoxLabel('${b.box_code}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; cursor:pointer; border-radius:3px; margin-right:5px;" title="Imprimir Etiqueta da Caixa">
+            // SE FOR ADMIN VÊ OS BOTÕES DE ETIQUETA E EXCLUIR. SE FOR CLIENTE VÊ O BOTÃO DE RECEBEDOR!
+            let act = '-';
+            if (isAdmin) {
+                act = `
+                 <button onclick="printSimpleBoxLabel('${b.box_code}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; cursor:pointer; border-radius:3px; margin-right:5px;" title="Imprimir Etiqueta da Caixa">
                     <i class="fas fa-tag"></i> Etiqueta para Caixa
                  </button>
-                 <button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>` : '-';
-            
-            // Correção da coluna do cliente
+                 <button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>`;
+            } else {
+                // É CLIENTE! Mostra o botão amarelo
+                const textoBtn = b.receiver_name ? `✅ Recebedor: ${b.receiver_name.split(' ')[0]}` : '👤 Informar Recebedor';
+                const corBtn = b.receiver_name ? '#28a745' : '#f1c40f';
+                const corTexto = b.receiver_name ? '#fff' : '#000';
+                
+                act = `<button onclick="openReceiverModal(${b.id}, '${b.receiver_name || ''}', '${b.receiver_doc || ''}')" 
+                        style="background:${corBtn}; color:${corTexto}; border:none; padding:5px 10px; cursor:pointer; border-radius:4px; font-weight:bold; font-size:12px;">
+                        ${textoBtn}
+                       </button>`;
+            }
+
+            // Correção da coluna do cliente (MANTENHA ISSO)
             const clientCell = isAdmin ? 
                 `<td>${b.client_name || '-'}</td>` : 
                 `<td style="display:none;">${b.client_name || '-'}</td>`;
 
+            // Onde as linhas da tabela são desenhadas (MANTENHA ISSO)
             tbody.innerHTML += `
             <tr>
                 <td style="font-weight:bold; color:#0a1931; font-size:16px;">📦 ${b.box_code}</td>
@@ -3120,6 +3134,7 @@ async function printReceipt(boxId) {
             </div>
 
             <div class="rec-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                
                 <div class="rec-box">
                     <h3>DADOS DO CLIENTE</h3>
                     <div class="rec-line"><strong>Nome:</strong> ${d.client_name}</div>
@@ -3127,6 +3142,7 @@ async function printReceipt(boxId) {
                     <div class="rec-line"><strong>Documento:</strong> ${d.document || '-'}</div>
                     <div class="rec-line"><strong>Email:</strong> ${d.email || '-'}</div>
                 </div>
+
                 <div class="rec-box">
                     <h3>DADOS DO ENVIO</h3>
                     <div class="rec-line"><strong>Destino:</strong> Guiné-Bissau</div>
@@ -3135,14 +3151,20 @@ async function printReceipt(boxId) {
                     <div class="rec-line"><strong>Volumes (Qtd):</strong> ${d.volumes || '1'} volume(s)</div>
                     <div class="rec-line"><strong>Status:</strong> ${d.order_status || 'Processando'}</div>
                 </div>
+
                 <div class="rec-box">
                     <h3>RETIRADA EM GUINÉ-BISSAU</h3>
                     <div class="rec-line"><strong>Local:</strong> Rotunda de Nhonho</div>
                     <div class="rec-line"><strong>Bairro:</strong> Belem</div>
                     <div class="rec-line"><strong>Contato:</strong> +245 956604423</div>
+                    <div class="rec-line" style="color: #d32f2f; background: #fff3cd; padding: 5px; margin-top: 8px; border-radius: 4px; border: 1px solid #ffe69c;">
+                        <strong>AUTORIZADO A RETIRAR:</strong><br>
+                        👤 Nome: ${d.receiver_name ? d.receiver_name : 'O Próprio Cliente'}<br>
+                        📄 Bilhete: ${d.receiver_doc ? d.receiver_doc : '-'}
+                    </div>
                 </div>
-            </div>
 
+            </div> 
             <table class="rec-table">
                 <thead>
                     <tr>
@@ -6279,3 +6301,43 @@ document.addEventListener('click', (e) => {
         setTimeout(iniciarAssistente, 100);
     }
 });
+// Abre o popup pro cliente digitar
+function openReceiverModal(boxId, currentName, currentDoc) {
+    document.getElementById('rec-box-id').value = boxId;
+    document.getElementById('rec-name').value = currentName !== 'null' ? currentName : '';
+    document.getElementById('rec-doc').value = currentDoc !== 'null' ? currentDoc : '';
+    document.getElementById('modal-receiver').style.display = 'flex';
+}
+
+// Salva e manda pro servidor
+async function saveReceiver(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    btn.innerText = "Salvando...";
+    
+    const data = {
+        box_id: document.getElementById('rec-box-id').value,
+        receiver_name: document.getElementById('rec-name').value,
+        receiver_doc: document.getElementById('rec-doc').value
+    };
+
+    try {
+        const res = await fetch('/api/boxes/set-receiver', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        
+        if(json.success) {
+            closeModal('modal-receiver');
+            alert("✅ Recebedor salvo com sucesso! O nome já sairá no recibo.");
+            loadBoxes(); // Atualiza a tabela pra ficar verde!
+        } else {
+            alert("Erro: " + json.msg);
+        }
+    } catch(err) {
+        alert("Erro de conexão.");
+    }
+    btn.innerText = "Salvar Recebedor";
+}

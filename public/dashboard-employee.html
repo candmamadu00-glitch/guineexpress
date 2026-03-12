@@ -68,7 +68,8 @@
     <button onclick="showSection('billing-view'); loadClientsForBilling(); loadInvoices();" style="background: #28a745; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
     💲 Status Pagto
 </button>
-    
+        <button onclick="showSection('receipts-view')" style="background: #17a2b8; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-file-invoice"></i> Recibos</button>
+
     <button onclick="showSection('schedule-view')" style="background: #8e44ad; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
         📅 Agendamentos
     </button>
@@ -374,7 +375,31 @@
         </div>
     </div>
 </section>
+<section id="receipts-view" class="hidden">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3><i class="fas fa-file-invoice"></i> Recibos e Comprovantes</h3>
+                </div>
+                <p style="color:#666; font-size:13px; margin-bottom:15px;">
+                    Recibos gerados automaticamente a partir das Boxes cadastradas.
+                </p>
 
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>N° Box</th>
+                                <th id="rec-col-client">Cliente</th> <th>Conteúdo</th>
+                                <th>Peso</th>
+                                <th>Valor</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="receipts-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
        <section id="box-view" class="hidden">
     <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
@@ -516,7 +541,6 @@
                     <th>Box Ref</th>
                     <th>Valor</th>
                     <th>Status</th>
-                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody id="invoices-list"></tbody>
