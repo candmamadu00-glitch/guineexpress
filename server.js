@@ -1934,27 +1934,31 @@ app.get('/api/print-receipt/:boxId', (req, res) => {
 // ==========================================
 // ROTA DASHBOARD BI (ESTATÍSTICAS)
 // ==========================================
-// --- ROTA: DADOS DO DASHBOARD (GRÁFICOS REAIS) ---
+// --- ROTA: DADOS DO DASHBOARD (GRÁFICOS REAIS E SEM LIXO) ---
 app.get('/api/dashboard-stats', (req, res) => {
     
-    // 1. Totais Gerais (Cards do Topo)
+    // 1. Totais Gerais (Cards do Topo) - Agora ignorando os deletados!
     const sqlTotals = `
         SELECT 
-            (SELECT SUM(price) FROM orders) as revenue,
-            (SELECT SUM(weight) FROM orders) as weight,
-            (SELECT COUNT(*) FROM orders) as totalOrders,
+            (SELECT SUM(price) FROM orders WHERE deleted = 0 OR deleted IS NULL) as revenue,
+            (SELECT SUM(weight) FROM orders WHERE deleted = 0 OR deleted IS NULL) as weight,
+            (SELECT COUNT(*) FROM orders WHERE deleted = 0 OR deleted IS NULL) as totalOrders,
             (SELECT COUNT(*) FROM users WHERE role = 'client') as totalClients
     `;
 
-    // 2. Distribuição de Status (Gráfico de Rosca)
-    const sqlStatus = "SELECT status, COUNT(*) as count FROM orders GROUP BY status";
+    // 2. Distribuição de Status (Gráfico de Rosca) - Sem lixo!
+    const sqlStatus = `
+        SELECT status, COUNT(*) as count 
+        FROM orders 
+        WHERE deleted = 0 OR deleted IS NULL 
+        GROUP BY status
+    `;
 
-    // 3. Faturamento Mensal - Últimos 6 Meses (Gráfico de Barras)
-    // Nota: strftime é função do SQLite para formatar datas
+    // 3. Faturamento Mensal - Últimos 6 Meses (Gráfico de Barras) - Só lucro real!
     const sqlMonthly = `
         SELECT strftime('%m/%Y', created_at) as month, SUM(price) as total 
         FROM orders 
-        WHERE created_at >= date('now', '-6 months') 
+        WHERE created_at >= date('now', '-6 months') AND (deleted = 0 OR deleted IS NULL)
         GROUP BY month 
         ORDER BY created_at ASC
     `;
@@ -1966,7 +1970,7 @@ app.get('/api/dashboard-stats', (req, res) => {
             
             db.all(sqlMonthly, [], (err, monthlyRows) => {
                 
-                // Prepara os meses (caso não tenha vendas em algum mês, o gráfico mostra o que tem)
+                // Prepara os meses e envia os dados limpos
                 res.json({
                     success: true,
                     data: {
@@ -1975,7 +1979,7 @@ app.get('/api/dashboard-stats', (req, res) => {
                         totalOrders: totals.totalOrders || 0,
                         totalClients: totals.totalClients || 0,
                         statusDistribution: statusRows || [],
-                        revenueHistory: monthlyRows || [] // Envia o histórico real
+                        revenueHistory: monthlyRows || []
                     }
                 });
             });
