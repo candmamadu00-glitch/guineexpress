@@ -1195,54 +1195,38 @@ app.get('/api/finances/all', async (req, res) => {
         res.status(500).json({ error: "Erro ao gerar relatório financeiro" });
     }
 });
-// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (BLOQUEIA ATIVOS, MAS LIBERA DA LIXEIRA) ---
+// --- ROTA CORRIGIDA: CRIAR ENCOMENDA (BLOQUEIO RIGOROSO) ---
 app.post('/api/orders/create', (req, res) => {
     const { client_id, code, description, weight, status } = req.body;
 
-    // 1. Procura se o código já existe (ignora maiúsculas/minúsculas)
-    db.get("SELECT id, deleted FROM orders WHERE LOWER(code) = LOWER(?)", [code], (err, existingOrder) => {
+    // Removemos espaços vazios que possam ter sido digitados sem querer
+    const cleanCode = code.trim();
+
+    // 1. Verifica de forma absoluta se o código já existe
+    db.get("SELECT id FROM orders WHERE LOWER(code) = LOWER(?)", [cleanCode], (err, existingOrder) => {
         if (err) return res.json({ success: false, msg: err.message });
         
-        // Se achou o código no banco...
+        // Se achou o código, BLOQUEIA NA HORA!
         if (existingOrder) {
-            // REGRA 1: Se a encomenda estiver ATIVA (não está na lixeira) -> BLOQUEIA!
-            if (!existingOrder.deleted || existingOrder.deleted === 0) {
-                return res.json({ success: false, msg: `❌ O código "${code}" já pertence a uma encomenda ATIVA! Digite um código diferente.` });
-            } 
-            // REGRA 2: Se a encomenda estiver na LIXEIRA -> LIBERA O CÓDIGO!
-            else {
-                // Renomeia o código antigo na lixeira para algo como "X1_lixeira_5" para liberar o nome "X1"
-                db.run("UPDATE orders SET code = code || '_lixeira_' || id WHERE id = ?", [existingOrder.id], (err) => {
-                    if (err) console.error("Erro ao liberar código da lixeira:", err);
-                    salvarNovaEncomenda(); // O código está livre, salva a nova!
-                });
-                return; // Para aqui e espera a função de cima terminar
-            }
+            return res.json({ success: false, msg: `❌ O código "${cleanCode}" já existe no sistema! Digite um código diferente.` });
         }
 
-        // Se o código não existir em lugar nenhum, salva direto
-        salvarNovaEncomenda();
+        // 2. Se o código não existir, cria a nova encomenda com sucesso
+        db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+            const pricePerKg = row ? parseFloat(row.value) : 0;
+            const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
 
-        // ---------------------------------------------------------
-        // FUNÇÃO PARA SALVAR A NOVA ENCOMENDA NO BANCO
-        // ---------------------------------------------------------
-        function salvarNovaEncomenda() {
-            db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-                const pricePerKg = row ? parseFloat(row.value) : 0;
-                const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
+            console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
 
-                console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
-
-                const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
-                             
-                db.run(sql, [client_id, code, description, weight, status, totalPrice], function(err) {
-                    if (err) {
-                        return res.json({ success: false, msg: err.message });
-                    }
-                    res.json({ success: true, id: this.lastID });
-                });
+            const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
+                         
+            db.run(sql, [client_id, cleanCode, description, weight, status, totalPrice], function(err) {
+                if (err) {
+                    return res.json({ success: false, msg: err.message });
+                }
+                res.json({ success: true, id: this.lastID });
             });
-        }
+        });
     });
 });
 // --- ROTA CORRIGIDA: EDITAR ENCOMENDA ---
@@ -2239,9 +2223,6 @@ app.put('/api/orders/bulk-status', (req, res) => {
         });
     });
 });
-// =========================================================
-// ROTA: MANDAR ENCOMENDA PARA LIXEIRA
-// =========================================================
 app.delete('/api/orders/:id', (req, res) => {
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
@@ -2251,11 +2232,12 @@ app.delete('/api/orders/:id', (req, res) => {
     db.get("SELECT code FROM orders WHERE id = ?", [id], (err, row) => {
         const orderCode = row ? row.code : 'Desconhecido';
 
-        // MÁGICA: Agora atualiza para deleted = 1 em vez de arrancar do banco
-        db.run("UPDATE orders SET deleted = 1 WHERE id = ?", [id], function(err) {
+        // MÁGICA: Em vez de atualizar, nós APAGAMOS o registro de verdade!
+        // Isso libera o código no banco de dados automaticamente.
+        db.run("DELETE FROM orders WHERE id = ?", [id], function(err) {
             if (err) return res.json({ success: false, message: "Erro ao excluir." });
 
-            const reason = `🗑️ Moveu Encomenda para Lixeira: ${orderCode} (ID: ${id})`;
+            const reason = `🗑️ Apagou Definitivamente a Encomenda: ${orderCode} (ID: ${id})`;
             if (typeof logSystemAction === 'function') logSystemAction(req, 'Exclusão de Encomenda', reason);
 
             res.json({ success: true });
@@ -2264,26 +2246,38 @@ app.delete('/api/orders/:id', (req, res) => {
 });
 
 // =========================================================
-// ROTA: MANDAR BOX PARA LIXEIRA
+// ROTA: VER A LIXEIRA (AGORA SÓ MOSTRA BOXES)
 // =========================================================
-app.post('/api/boxes/delete', (req, res) => {
-    if (!req.session.userId || req.session.role === 'client') {
-        return res.status(403).json({ success: false, message: 'Sem permissão' });
-    }
+app.get('/api/trash', (req, res) => {
+    if (!req.session.role || req.session.role === 'client') return res.status(403).json([]);
 
-    const id = req.body.id;
-    db.get("SELECT box_code FROM boxes WHERE id = ?", [id], (err, row) => {
-        const boxCode = row ? row.box_code : 'Desconhecida';
+    // Busca apenas as boxes deletadas. Encomendas não vão mais para a lixeira.
+    db.all("SELECT id, box_code as name, 'Box' as type FROM boxes WHERE deleted = 1", (err, boxesTrash) => {
+        res.json(boxesTrash || []);
+    });
+});
 
-        // MÁGICA: Atualiza para deleted = 1
-        db.run("UPDATE boxes SET deleted = 1 WHERE id = ?", [id], function(err) {
-            if (err) return res.json({ success: false });
+// =========================================================
+// ROTA: RESTAURAR DA LIXEIRA (AGORA SÓ RESTAURA BOXES)
+// =========================================================
+app.post('/api/trash/restore', (req, res) => {
+    if (!req.session.role || req.session.role === 'client') return res.status(403).json({ success: false });
 
-            const reason = `📦 Moveu Box para Lixeira: ${boxCode} (ID: ${id})`;
-            if (typeof logSystemAction === 'function') logSystemAction(req, 'Exclusão de Box', reason);
+    const { id, type } = req.body;
+    
+    // Se por acaso tentar restaurar uma encomenda, o sistema ignora
+    if (type === 'Encomenda') return res.json({ success: false, msg: "Encomendas são apagadas definitivamente." });
 
-            res.json({ success: true });
-        });
+    const table = 'boxes';
+
+    // MÁGICA: Muda o deleted de volta para 0
+    db.run(`UPDATE ${table} SET deleted = 0 WHERE id = ?`, [id], function(err) {
+        if (err) return res.json({ success: false });
+
+        const reason = `♻️ Restaurou da Lixeira: ${type} (ID: ${id})`;
+        if (typeof logSystemAction === 'function') logSystemAction(req, 'Restauração', reason);
+
+        res.json({ success: true });
     });
 });
 // =========================================================
@@ -2301,25 +2295,6 @@ app.get('/api/trash', (req, res) => {
     });
 });
 
-// =========================================================
-// ROTA: RESTAURAR DA LIXEIRA
-// =========================================================
-app.post('/api/trash/restore', (req, res) => {
-    if (!req.session.role || req.session.role === 'client') return res.status(403).json({ success: false });
-
-    const { id, type } = req.body;
-    const table = type === 'Encomenda' ? 'orders' : 'boxes';
-
-    // MÁGICA: Muda o deleted de volta para 0
-    db.run(`UPDATE ${table} SET deleted = 0 WHERE id = ?`, [id], function(err) {
-        if (err) return res.json({ success: false });
-
-        const reason = `♻️ Restaurou da Lixeira: ${type} (ID: ${id})`;
-        if (typeof logSystemAction === 'function') logSystemAction(req, 'Restauração', reason);
-
-        res.json({ success: true });
-    });
-});
 // Certifique-se que a rota está assim:
 app.get('/api/users-all', (req, res) => {
     // Permite ADMIN e EMPLOYEE. Só bloqueia se não estiver logado ou se for CLIENTE.
