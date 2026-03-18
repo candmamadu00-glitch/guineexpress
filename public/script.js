@@ -614,7 +614,7 @@ async function loadBoxes() {
                  <button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>`;
             } else {
                 // É CLIENTE! Mostra o botão amarelo
-                const textoBtn = b.receiver_name ? `✅ Recebedor: ${b.receiver_name.split(' ')[0]}` : '👤 Informar Recebedor';
+                const textoBtn = b.receiver_name ? `✅ Destinatario: ${b.receiver_name.split(' ')[0]}` : '👤 Informar Destinatario';
                 const corBtn = b.receiver_name ? '#28a745' : '#f1c40f';
                 const corTexto = b.receiver_name ? '#fff' : '#000';
                 
@@ -6331,7 +6331,7 @@ async function saveReceiver(e) {
         
         if(json.success) {
             closeModal('modal-receiver');
-            alert("✅ Recebedor salvo com sucesso! O nome já sairá no recibo.");
+            alert("✅ Destinatario salvo com sucesso! O nome já sairá no recibo.");
             loadBoxes(); // Atualiza a tabela pra ficar verde!
         } else {
             alert("Erro: " + json.msg);
@@ -6339,5 +6339,131 @@ async function saveReceiver(e) {
     } catch(err) {
         alert("Erro de conexão.");
     }
-    btn.innerText = "Salvar Recebedor";
+    btn.innerText = "Salvar Destinatario";
+}
+// --- CARREGAR E SOMAR OS ITENS DA LISTA DE EMBARQUE ---
+async function loadManifest() {
+    try {
+        const res = await fetch('/api/manifest');
+        const json = await res.json();
+        
+        if (!json.success) return alert("Erro ao carregar lista de embarque.");
+
+        const tbody = document.getElementById('manifest-list');
+        tbody.innerHTML = '';
+
+        let itemMap = {};
+
+        // Lógica inteligente para separar quantidades e nomes
+        json.data.forEach(row => {
+            // Agora ele lê a coluna 'items' que vem da nova rota do servidor
+            if (!row.items) return; 
+            
+            // Separa os itens por vírgula ou por linha (Enter)
+            let itemsArray = row.items.split(/,|\n/);
+            
+            itemsArray.forEach(item => {
+                let cleanItem = item.trim();
+                if (!cleanItem) return;
+
+                // Tenta achar um número no começo (Ex: "20 Calcinhas") ou no fim (Ex: "Calcinhas 20")
+                let match = cleanItem.match(/^(\d+)\s*(.*)$/) || cleanItem.match(/^(.*)\s+(\d+)$/);
+                
+                let qtd = 1; // Se não tiver número, assume que é 1
+                let nome = cleanItem;
+
+                if (match) {
+                    if (!isNaN(match[1])) { 
+                        qtd = parseInt(match[1]); 
+                        nome = match[2]; 
+                    } else { 
+                        qtd = parseInt(match[2]); 
+                        nome = match[1]; 
+                    }
+                }
+
+                // Padroniza o nome para maiúsculo para somar iguais (ex: havaianas = HAVAIANAS)
+                nome = nome.trim().toUpperCase();
+                if (nome === "") nome = "ITENS DIVERSOS";
+
+                if (itemMap[nome]) {
+                    itemMap[nome] += qtd;
+                } else {
+                    itemMap[nome] = qtd;
+                }
+            });
+        });
+
+        // Transforma o dicionário em lista e desenha na tabela
+        let keys = Object.keys(itemMap).sort(); // Ordem alfabética
+        
+        if(keys.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">Nenhum produto encontrado nas encomendas/boxes ativas.</td></tr>';
+            return;
+        }
+
+        let totalGeral = 0;
+
+        keys.forEach(nome => {
+            let qtd = itemMap[nome];
+            totalGeral += qtd;
+            tbody.innerHTML += `
+                <tr>
+                    <td style="text-align: center; font-weight: bold; font-size: 16px; color: #d32f2f;">${qtd}</td>
+                    <td style="font-weight: bold; color: #0a1931;">${nome}</td>
+                </tr>
+            `;
+        });
+
+        // Adiciona a linha de TOTAL no final
+        tbody.innerHTML += `
+            <tr style="background-color: #e9ecef;">
+                <td style="text-align: center; font-weight: 900; font-size: 18px;">${totalGeral}</td>
+                <td style="font-weight: 900; font-size: 18px;">TOTAL DE ITENS</td>
+            </tr>
+        `;
+
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+// --- BAIXAR PDF DA LISTA DE EMBARQUE ---
+function printManifestPDF() {
+    const area = document.getElementById('print-manifest-area').innerHTML;
+    const dataHoje = new Date().toLocaleDateString('pt-BR');
+    
+    // Cria uma tela de impressão rápida e bonita
+    const janela = window.open('', '', 'width=800,height=600');
+    janela.document.write(`
+        <html>
+        <head>
+            <title>Manifesto de Carga - Guineexpress</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                h1 { text-align: center; color: #0a1931; margin-bottom: 5px; }
+                p { text-align: center; color: #666; margin-top: 0; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                th { background-color: #0a1931; color: white; }
+                .center { text-align: center; }
+            </style>
+        </head>
+        <body>
+            <h1>MANIFESTO DE CARGA - GUINEEXPRESS</h1>
+            <p>Gerado em: ${dataHoje}</p>
+            ${area}
+        </body>
+        </html>
+    `);
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => { janela.print(); janela.close(); }, 500);
+}
+
+// COLOQUE APENAS ISSO:
+// --- NOVO BOTÃO DE BAIXAR EXCEL INTELIGENTE ---
+function exportManifestExcel() {
+    // Redireciona para a nossa nova rota inteligente do backend!
+    window.location.href = '/api/export/smart-excel';
 }

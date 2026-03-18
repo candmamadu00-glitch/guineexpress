@@ -8,28 +8,63 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
-const helmet = require('helmet'); // Instale: npm install helmet
-const compression = require('compression'); // Instale: npm install compression
+const helmet = require('helmet'); 
+const rateLimit = require('express-rate-limit'); // <-- NOVA IMPORTAÇÃO AQUI
+const compression = require('compression'); 
 const MercadoPagoConfig = require('mercadopago').MercadoPagoConfig;
 const Payment = require('mercadopago').Payment;
 const Preference = require('mercadopago').Preference;
-const cron = require('node-cron'); // Agendador de tarefas
-const path = require('path');      // Para lidar com caminhos de pastas
+const cron = require('node-cron'); 
+const path = require('path');      
 const SQLiteStore = require('connect-sqlite3')(session);
-const app = express();
 const db = require('./database'); 
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const fs = require('fs');
-// Configuração do caminho da sessão (usando o seu disco permanente do Render)
-const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
 const webpush = require('web-push');
+const app = express(); // <-- O App é criado aqui
+const ExcelJS = require('exceljs');
+// ==========================================
+// 🛡️ 1. PROTEÇÃO CONTRA HACKERS (HELMET)
+// ==========================================
+app.use(helmet({
+    contentSecurityPolicy: false, // Desativado para não bloquear seus scripts e imagens
+    crossOriginEmbedderPolicy: false
+}));
+
+// ==========================================
+// 🛡️ 2. PROTEÇÃO CONTRA QUEDA (DDOS)
+// ==========================================
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 300, // Máximo de 300 requisições por IP
+    message: { success: false, msg: "⚠️ Muitas requisições. Sistema de segurança ativado. Aguarde alguns minutos." }
+});
+app.use(generalLimiter);
+
+// ==========================================
+// 🛡️ 3. PROTEÇÃO CONTRA ROBÔS (CADASTRO E LOGIN)
+// ==========================================
+const authLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: 10, // Máximo de 10 tentativas
+    message: { success: false, msg: "🚫 Muitas tentativas de acesso. Seu IP foi bloqueado por segurança. Tente novamente em 1 hora." }
+});
+
+app.use('/api/user/register', authLimiter); 
+app.use('/api/user/login', authLimiter); 
+app.use('/api/admin/register-client', authLimiter);
+
+// Configuração do caminho da sessão
+const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
+
 let clientZap = null;
 webpush.setVapidDetails(
     'mailto:candemamadu00@gmail.com',
     process.env.VAPID_PUBLIC_KEY,
     process.env.VAPID_PRIVATE_KEY
 );
+
 // ========================================================
 // PATCH FORÇADO: GARANTE QUE AS COLUNAS DE VOLUMES EXISTEM
 // ========================================================
@@ -40,7 +75,6 @@ db.run("ALTER TABLE orders ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
     if (!err) console.log("✅ Coluna 'volumes' criada na tabela orders!");
 });
 
-// ========================================================
 // ==================================================================
 // CONFIGURAÇÃO DO DISCO PERMANENTE (FOTOS E VÍDEOS)
 // ==================================================================
@@ -209,6 +243,194 @@ app.get('/dashboard-employee.html', employeeOnly, (req, res) => {
 
 app.get('/dashboard-client.html', loggedIn, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard-client.html'));
+});
+// ==========================================
+// ROTA: EXPORTAR EXCEL INTELIGENTE (CÁLCULO EXATO DE CAIXAS FÍSICAS)
+// ==========================================
+app.get('/api/export/smart-excel', (req, res) => {
+    const sql = `
+        SELECT b.*, o.weight AS net_weight 
+        FROM boxes b 
+        LEFT JOIN orders o ON b.order_id = o.id 
+        WHERE b.deleted = 0 OR b.deleted IS NULL
+    `;
+    
+    db.all(sql, [], async (err, rows) => {
+        if (err) return res.status(500).send("Erro no banco de dados.");
+
+        try {
+            let itemMap = {};
+            let totalNetWeight = 0;   
+            let uniqueBoxes = new Set(); // ✨ AQUI ESTÁ A MÁGICA: Guarda apenas os nomes únicos dos Boxes
+
+            // 1. SOMAR ITENS, PESOS E SEPARAR AS CAIXAS FÍSICAS
+            rows.forEach(row => {
+                // Soma o peso de todas as encomendazinhas (pacotes dos clientes)
+                totalNetWeight += parseFloat(row.net_weight || 0); 
+                
+                // Guarda o nome do Box (ex: "BOX 1"). O 'Set' ignora repetições automaticamente!
+                if (row.box_code) {
+                    uniqueBoxes.add(row.box_code.trim().toUpperCase());
+                }
+
+                // Lógica de agrupar os produtos (inalterada)
+                if (row.products) {
+                    let items = row.products.split(/,|\n/);
+                    items.forEach(item => {
+                        let cleanItem = item.trim();
+                        if (!cleanItem) return;
+
+                        let match = cleanItem.match(/^(\d+)\s*(.*)$/) || cleanItem.match(/^(.*)\s+(\d+)$/);
+                        let qtd = 1, nome = cleanItem;
+
+                        if (match) {
+                            if (!isNaN(match[1])) { qtd = parseInt(match[1]); nome = match[2]; }
+                            else { qtd = parseInt(match[2]); nome = match[1]; }
+                        }
+
+                        nome = nome.trim() || "ITENS DIVERSOS";
+                        itemMap[nome] = (itemMap[nome] || 0) + qtd;
+                    });
+                }
+            });
+
+            // ==========================================
+            // CÁLCULO AUTOMÁTICO DO PESO BRUTO (AGORA CERTO!)
+            // ==========================================
+            const totalVolumes = uniqueBoxes.size; // Conta quantos "BOXES" diferentes existem (ex: 2)
+            const pesoPorCaixaVazia = 4; // Cada caixote pesa 4 kilos
+            const pesoTotalDasCaixasDePapelao = totalVolumes * pesoPorCaixaVazia;
+            const totalGrossWeight = totalNetWeight + pesoTotalDasCaixasDePapelao; // Roupas + Caixotes
+
+            // 2. CRIAR EXCEL
+            const workbook = new ExcelJS.Workbook();
+            const sheet = workbook.addWorksheet('Nota de venda');
+            
+            sheet.columns = [
+                { key: 'item', width: 6 }, { key: 'produto', width: 35 },
+                { key: 'qtd', width: 15 }, { key: 'peso', width: 20 },
+                { key: 'compra', width: 20 }, { key: 'finalidade', width: 15 },
+                { key: 'preco_saida', width: 25 }, { key: 'total_saida', width: 25 }
+            ];
+
+            let mesAno = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            mesAno = mesAno.charAt(0).toUpperCase() + mesAno.slice(1);
+
+            // Cabeçalho
+            sheet.mergeCells('A1:H1');
+            sheet.getCell('A1').value = `EXPORTAÇÃO\nGUINE EXPRESS LTDA\n${mesAno}`;
+            sheet.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+            sheet.getCell('A1').font = { bold: true };
+            sheet.getRow(1).height = 60;
+
+            sheet.addRow([]);
+            sheet.addRow(['NOME CLIENTE']);
+            sheet.getCell(`A3`).font = { bold: true };
+            sheet.addRow([]);
+            sheet.getCell(`G4`).value = '<<< Preencher';
+            sheet.getCell(`G4`).font = { color: { argb: 'FFFF0000' } };
+            
+            sheet.addRow(['ENDEREÇO COMPLETO CLIENTE']);
+            sheet.getCell(`A5`).font = { bold: true };
+            sheet.addRow([]);
+            sheet.getCell(`G6`).value = '<<< Preencher';
+            sheet.getCell(`G6`).font = { color: { argb: 'FFFF0000' } };
+            sheet.addRow([]);
+
+            const headerRow = sheet.addRow(['ITEM', 'PRODUTO', 'QUANTIDADE', 'PESO LÍQUIDO (KG)', 'PREÇO DE COMPRA', 'FINALIDADE', 'PREÇO UNITÁRIO SAÍDA', 'TOTAL ITEM SAÍDA']);
+            headerRow.font = { bold: true };
+            headerRow.eachCell(cell => {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+                cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+            });
+
+            let keys = Object.keys(itemMap).sort();
+            let startRow = 9;
+
+            keys.forEach((nome, index) => {
+                let rowNum = startRow + index;
+                let row = sheet.addRow([
+                    index + 1, nome, itemMap[nome], '', '', 'Revenda'  
+                ]);
+
+                // Fórmulas
+                sheet.getCell(`G${rowNum}`).value = { formula: `E${rowNum}*4` };
+                sheet.getCell(`G${rowNum}`).numFmt = '"R$ "#,##0.00';
+                sheet.getCell(`H${rowNum}`).value = { formula: `C${rowNum}*G${rowNum}` };
+                sheet.getCell(`H${rowNum}`).numFmt = '"R$ "#,##0.00';
+                sheet.getCell(`H${rowNum}`).font = { bold: true };
+
+                sheet.getCell(`F${rowNum}`).dataValidation = {
+                    type: 'list', allowBlank: true, formulae: ['"Revenda,Amostra"']
+                };
+
+                row.eachCell(cell => { cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }; });
+            });
+
+            // ==========================================
+            // ✨ RODAPÉ INTELIGENTE ✨
+            // ==========================================
+            let nextRow = sheet.rowCount + 2;
+
+            sheet.mergeCells(`A${nextRow}:H${nextRow}`);
+            sheet.getCell(`A${nextRow}`).value = 'RESUMO GERAL DO EMBARQUE';
+            sheet.getCell(`A${nextRow}`).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+            sheet.getCell(`A${nextRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1931' } };
+            sheet.getCell(`A${nextRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+            sheet.getRow(nextRow).height = 25;
+
+            // 1. Quantidade de Caixotes Físicos (Boxes únicos)
+            sheet.mergeCells(`A${nextRow+1}:G${nextRow+1}`);
+            sheet.getCell(`A${nextRow+1}`).value = 'QUANTIDADE TOTAL DE CAIXAS (VOLUMES FÍSICOS):';
+            sheet.getCell(`A${nextRow+1}`).alignment = { horizontal: 'right', vertical: 'middle' };
+            sheet.getCell(`A${nextRow+1}`).font = { bold: true };
+            sheet.getCell(`H${nextRow+1}`).value = totalVolumes; // Puxa o número de boxes únicos!
+            sheet.getCell(`H${nextRow+1}`).alignment = { horizontal: 'center', vertical: 'middle' };
+            sheet.getCell(`H${nextRow+1}`).font = { bold: true, size: 12 };
+
+            // 2. Peso de Cada Caixa
+            sheet.mergeCells(`A${nextRow+2}:G${nextRow+2}`);
+            sheet.getCell(`A${nextRow+2}`).value = 'PESO DE CADA CAIXA VAZIA (KG):';
+            sheet.getCell(`A${nextRow+2}`).alignment = { horizontal: 'right', vertical: 'middle' };
+            sheet.getCell(`A${nextRow+2}`).font = { bold: true };
+            sheet.getCell(`H${nextRow+2}`).value = pesoPorCaixaVazia; 
+            sheet.getCell(`H${nextRow+2}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // 3. Peso Líquido (Apenas Encomendas)
+            sheet.mergeCells(`A${nextRow+3}:G${nextRow+3}`);
+            sheet.getCell(`A${nextRow+3}`).value = 'PESO LÍQUIDO TOTAL DAS ENCOMENDAS (KG):';
+            sheet.getCell(`A${nextRow+3}`).alignment = { horizontal: 'right', vertical: 'middle' };
+            sheet.getCell(`A${nextRow+3}`).font = { bold: true };
+            sheet.getCell(`H${nextRow+3}`).value = totalNetWeight.toFixed(2); 
+            sheet.getCell(`H${nextRow+3}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // 4. Peso Bruto Total
+            sheet.mergeCells(`A${nextRow+4}:G${nextRow+4}`);
+            sheet.getCell(`A${nextRow+4}`).value = 'PESO BRUTO TOTAL (CAIXAS + ENCOMENDAS) (KG):';
+            sheet.getCell(`A${nextRow+4}`).alignment = { horizontal: 'right', vertical: 'middle' };
+            sheet.getCell(`A${nextRow+4}`).font = { bold: true, color: { argb: 'FFFF0000' } }; 
+            sheet.getCell(`H${nextRow+4}`).value = totalGrossWeight.toFixed(2); 
+            sheet.getCell(`H${nextRow+4}`).alignment = { horizontal: 'center', vertical: 'middle' };
+            sheet.getCell(`H${nextRow+4}`).font = { bold: true, size: 12, color: { argb: 'FFFF0000' } };
+            
+            // Coloca as bordas
+            for (let i = nextRow; i <= nextRow + 4; i++) {
+                sheet.getRow(i).eachCell(cell => {
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                });
+            }
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=Nota_Venda_Padrao.xlsx`);
+            await workbook.xlsx.write(res);
+            res.end();
+            
+        } catch (e) {
+            console.error("❌ ERRO AO CRIAR O ARQUIVO EXCEL:", e);
+            res.status(500).send("Erro interno ao gerar a planilha.");
+        }
+    });
 });
 // ==================================================================
 // FUNÇÃO AUXILIAR: Detectar Dispositivo e Salvar Log
@@ -1270,6 +1492,22 @@ app.put('/api/orders/:id', (req, res) => {
             if (err) return res.json({ success: false, msg: err.message });
             res.json({ success: true });
         });
+    });
+});
+// ==========================================
+// ROTA: PUXAR PRODUTOS PARA LISTA DE EMBARQUE
+// ==========================================
+app.get('/api/manifest', (req, res) => {
+    // Busca tudo: products dos Boxes E description das Encomendas!
+    const sql = `
+        SELECT products as items FROM boxes WHERE deleted = 0 AND products IS NOT NULL AND products != ''
+        UNION ALL
+        SELECT description as items FROM orders WHERE deleted = 0 AND description IS NOT NULL AND description != ''
+    `;
+    
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.json({ success: false, msg: "Erro ao buscar itens no banco." });
+        res.json({ success: true, data: rows });
     });
 });
 // --- ATUALIZAR STATUS E ENVIAR EMAIL AUTOMÁTICO (COM FOTO) ---

@@ -74,6 +74,7 @@
     <button onclick="showSection('billing-view')" style="background: #28a745; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">💲 Financeiro</button>
     
     <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn" style="background: #fd7e14; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-tags"></i> Etiquetas</button>
+    </button>
     
     <button onclick="showSection('receipts-view')" style="background: #17a2b8; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-file-invoice"></i> Recibos</button>
     
@@ -100,7 +101,8 @@
     <button onclick="showSection('history-view')" class="nav-btn" style="background: #7f8c8d; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-history"></i> Histórico</button> 
     
     <button onclick="showSection('clients-view')" style="background: #d81b60; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-users"></i> Clientes</button>
-    
+<button onclick="showSection('manifest-view'); loadManifest();" style="background: #e67e22; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-clipboard-list"></i> Lista de Embarque
+    </button>
     <button onclick="showSection('logs-view'); loadAccessLogs()" class="btn-menu" style="background: #111111; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-user-shield"></i> Histórico de Acessos</button>
 
    <button onclick="logout()" style="color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Sair</button>
@@ -543,11 +545,45 @@
                     <button type="button" class="btn" onclick="closeModal('modal-box')" style="background:#ccc; width:auto;">Cancelar</button>
                     <button type="submit" class="btn btn-primary" style="width:auto;">Criar</button>
                 </div>
+                
             </form>
         </div>
     </div>
 </section>
+<section id="manifest-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+            <h3 style="margin:0;">📋 Lista de Embarque (Manifesto)</h3>
+            
+            <div style="display:flex; gap: 10px;">
+                <button onclick="printManifestPDF()" class="btn" style="background:#dc3545; color:white; border:none; display: flex; align-items: center; gap: 5px; font-weight: bold;">
+                    <i class="fas fa-file-pdf"></i> Baixar PDF
+                </button>
+                <button onclick="exportManifestExcel()" class="btn" style="background:#0cb634; color:white; border:none; display: flex; align-items: center; gap: 5px; font-weight: bold;">
+                    <i class="fas fa-file-excel"></i> Baixar Excel
+                </button>
+            </div>
+        </div>
+        
+        <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+            Esta lista soma automaticamente as quantidades de produtos de todas as caixas ativas. 
+            <em>Dica: Ao criar um box, digite sempre a quantidade e o nome (Ex: 20 Havaianas, 5 Camisetas) separados por vírgula.</em>
+        </p>
 
+        <div id="print-manifest-area" style="overflow-x:auto;">
+            <table class="data-table" id="manifest-table">
+                <thead>
+                    <tr style="background-color: #0a1931; color: white;">
+                        <th style="width: 100px; text-align: center;">Quantidade</th>
+                        <th>Descrição do Item</th>
+                    </tr>
+                </thead>
+                <tbody id="manifest-list">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</section>
         <section id="billing-view" class="hidden">
             <div class="card" id="admin-billing-panel" style="background: #e8f0fe; border-left: 5px solid #0a1931;">
                 <h3><i class="fas fa-file-invoice-dollar"></i> Gerar Nova Cobrança</h3>
