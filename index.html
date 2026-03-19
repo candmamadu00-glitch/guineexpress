@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gravador de Tela + Webcam</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Gravador Pro (Tela + Câmera)</h1>
+        <p class="subtitle">Grave, assista ao resultado e depois baixe o vídeo!</p>
+        
+        <div class="video-container">
+            <canvas id="previewCanvas" width="1920" height="1080"></canvas>
+            
+            <video id="recordedVideo" controls style="display: none;"></video>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" class="btn primary">🔴 Iniciar Gravação</button>
+            <button id="toggleCamBtn" class="btn warning" disabled>📷 Ocultar Câmera</button>
+            <button id="stopBtn" class="btn danger" disabled>⏹️ Parar</button>
+            <a id="downloadBtn" class="btn success" style="display: none;">⬇️ Baixar Vídeo</a>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guineexpress - Experiência Premium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Fundo Animado Premium (Blobs) */
+        .bg-blobs {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -1;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+        .blob {
+            position: absolute;
+            filter: blur(90px);
+            border-radius: 50%;
+            animation: float 20s infinite ease-in-out alternate;
+            opacity: 0.6;
+        }
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #c7d2fe; animation-delay: 0s; }
+        .blob-2 { bottom: -20%; right: -10%; width: 60vw; height: 60vw; background: #bae6fd; animation-delay: -5s; }
+        .blob-3 { top: 40%; left: 50%; width: 40vw; height: 40vw; background: #e0e7ff; animation-delay: -10s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(50px, 50px) scale(1.1); }
+        }
+
+        /* Glass Panel Ultra Premium */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 
+                0 40px 80px -20px rgba(15, 23, 42, 0.08),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+        }
+
+        /* Animações de Transição Manteiga (Butter-smooth) */
+        .fade-transition {
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .fade-out {
+            opacity: 0;
+            transform: translateY(20px) scale(0.98);
+        }
+        .fade-in {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        /* Mockup do Telefone (Estilo iPhone Pro - Titânio) */
+        .phone-container {
+            position: relative;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 3.5rem;
+            box-shadow: 
+                0 30px 60px -15px rgba(0, 0, 0, 0.15),
+                inset 0 0 0 2px #cbd5e1, /* Linha externa titânio */
+                inset 0 0 20px rgba(0,0,0,0.05); /* Sombra interna */
+            width: 100%;
+            max-width: 330px;
+            margin: 0 auto;
+            border: 4px solid #e2e8f0;
+        }
+
+        .phone-screen {
+            background: #ffffff;
+            border-radius: 2.8rem;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 9/19;
+            width: 100%;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+        }
+
+        /* Brilho de reflexo no vidro do telemóvel */
+        .phone-screen::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            background: linear-gradient(115deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 35%);
+            pointer-events: none;
+            z-index: 25;
+        }
+
+        /* Dynamic Island */
+        .dynamic-island {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 28px;
+            background-color: #0f172a;
+            border-radius: 20px;
+            z-index: 30;
+            box-shadow: inset 0 -1px 2px rgba(255,255,255,0.2);
+        }
+
+        .dynamic-island::before { /* Câmera */
+            content: '';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #1e293b;
+            box-shadow: inset 0 0 2px rgba(0,0,0,0.8);
+        }
+
+        .slide-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            transform-origin: center top;
+        }
+
+        /* Gradiente de Texto Premium */
+        .text-gradient {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Animações de botões */
+        .btn-premium {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-premium:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 15px 30px -5px rgba(37, 99, 235, 0.4);
+        }
+        .btn-premium::after {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+            transform: rotate(45deg) translateY(100%);
+            transition: transform 0.6s ease;
+        }
+        .btn-premium:hover::after {
+            transform: rotate(45deg) translateY(-100%);
+        }
+
+        .dot-active {
+            width: 2.5rem;
+            background: linear-gradient(to right, #2563eb, #3b82f6);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4 sm:p-6 lg:p-10">
+
+    <!-- Fundo Animado -->
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <!-- CONTAINER PRINCIPAL -->
+    <div class="glass-panel rounded-[3rem] w-full max-w-[1400px] overflow-hidden flex flex-col lg:flex-row h-auto lg:h-[850px] relative z-10">
+        
+        <!-- LADO ESQUERDO: Apresentação Interativa -->
+        <div class="w-full lg:w-[55%] p-8 sm:p-10 lg:p-14 flex flex-col h-full relative">
+            
+            <!-- Cabeçalho Tour -->
+            <div class="mb-10">
+                <div class="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-white/60 shadow-sm border border-white/50 mb-4 backdrop-blur-md">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
+                    </span>
+                    <span class="text-blue-800 font-bold text-xs uppercase tracking-widest">Tour Interativo</span>
+                </div>
+                <h2 class="text-4xl sm:text-5xl font-extrabold text-slate-800 tracking-tight leading-tight" id="slide-title">
+                    A carregar experiência...
+                </h2>
+            </div>
+
+            <!-- Área Central do Tour (Texto + Telemóvel) -->
+            <div class="flex-1 flex flex-col sm:flex-row items-center justify-between gap-10 mb-8">
+                
+                <!-- Texto Explicativo -->
+                <div class="w-full sm:w-5/12 fade-transition" id="text-container">
+                    <p class="text-slate-600 text-lg sm:text-xl leading-relaxed font-medium" id="slide-desc">
+                        A preparar o ambiente visual...
+                    </p>
+                    
+                    <!-- Decorador de citação/foco -->
+                    <div class="mt-8 h-1 w-12 bg-gradient-to-r from-blue-600 to-indigo-400 rounded-full"></div>
+                </div>
+
+                <!-- Telemóvel -->
+                <div class="w-full sm:w-7/12 flex justify-center perspective-1000">
+                    <div class="phone-container transform transition-transform duration-700 hover:rotate-y-[-5deg] hover:scale-[1.02]">
+                        <div class="dynamic-island"></div>
+                        <div class="phone-screen">
+                            <img id="slide-image" src="" alt="Ecrã da App Guineexpress" class="slide-image fade-transition" onerror="this.src='https://placehold.co/400x800/f8fafc/64748b?text=Imagem+em+Falta'">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controlos de Navegação -->
+            <div class="mt-auto pt-6 border-t border-slate-200/50">
+                <!-- Bolinhas -->
+                <div class="flex space-x-2.5 mb-8 justify-start items-center" id="progress-dots">
+                    <!-- Geradas por JS -->
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <button onclick="prevSlide()" class="group p-4 rounded-full bg-white shadow-[0_8px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_25px_rgba(0,0,0,0.1)] text-slate-700 transition-all hover:scale-105 border border-slate-100" aria-label="Anterior">
+                        <svg class="transform transition-transform group-hover:-translate-x-1" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    
+                    <button onclick="togglePlay()" class="btn-premium flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-full font-semibold text-[17px] shadow-[0_10px_25px_rgba(37,99,235,0.3)]">
+                        <svg id="play-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                        <span id="play-text">Pausar Tour</span>
+                    </button>
+
+                    <button onclick="nextSlide()" class="group p-4 rounded-full bg-white shadow-[0_8px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_25px_rgba(0,0,0,0.1)] text-slate-700 transition-all hover:scale-105 border border-slate-100" aria-label="Seguinte">
+                        <svg class="transform transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- LADO DIREITO: Área de Login Premium -->
+        <div class="w-full lg:w-[45%] bg-white/80 backdrop-blur-3xl p-8 sm:p-12 lg:p-16 flex flex-col justify-center border-l border-white shadow-[-20px_0_40px_rgba(0,0,0,0.02)] relative overflow-hidden">
+            
+            <!-- Efeito de luz de fundo suave no login -->
+            <div class="absolute top-0 right-0 w-64 h-64 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"></div>
+
+            <div class="text-center mb-12 relative z-10">
+                <div class="w-24 h-24 bg-gradient-to-br from-slate-900 to-slate-800 rounded-[1.5rem] mx-auto mb-8 flex items-center justify-center shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-500 border border-slate-700">
+                    <span class="text-white font-black text-4xl tracking-tighter text-gradient bg-gradient-to-r from-blue-400 to-cyan-300">GX</span>
+                </div>
+                <h1 class="text-4xl font-extrabold text-slate-900 mb-3">Bem-vindo.</h1>
+                <p class="text-slate-500 text-lg font-medium">Aceda ao seu painel inteligente.</p>
+            </div>
+
+            <form class="space-y-6 relative z-10" onsubmit="event.preventDefault(); alert('Exemplo Premium de Login!');">
+                <div class="group">
+                    <label class="block text-sm font-bold text-slate-700 mb-2.5 transition-colors group-focus-within:text-blue-600" for="email">Correio Eletrónico</label>
+                    <div class="relative">
+                        <input type="email" id="email" class="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all text-slate-800 font-medium text-lg shadow-sm" placeholder="exemplo@email.com" required>
+                    </div>
+                </div>
+                
+                <div class="group">
+                    <div class="flex justify-between items-center mb-2.5">
+                        <label class="block text-sm font-bold text-slate-700 transition-colors group-focus-within:text-blue-600" for="password">Palavra-passe</label>
+                        <a href="#" class="text-sm text-blue-600 font-bold hover:text-blue-800 transition-colors">Recuperar acesso</a>
+                    </div>
+                    <input type="password" id="password" class="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all text-slate-800 font-medium text-lg shadow-sm" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="w-full bg-slate-900 hover:bg-black text-white font-bold text-lg py-4.5 rounded-2xl shadow-[0_10px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_30px_rgba(0,0,0,0.2)] mt-8 transition-all duration-300 transform hover:-translate-y-1 h-[60px] flex items-center justify-center">
+                    Entrar na Conta
+                </button>
+                
+                <div class="mt-10 text-center">
+                    <p class="text-slate-500 font-semibold">
+                        Ainda não é cliente? 
+                        <a href="#" class="text-blue-600 font-extrabold hover:text-blue-800 hover:underline ml-1 transition-colors">Criar conta grátis</a>
+                    </p>
+                </div>
+            </form>
+        </div>
+
+    </div>
+
+    <script>
+        // Os nomes EXATOS das imagens carregadas
+        const slides = [
+            {
+                title: "O seu Painel Inicial",
+                text: "Logo após o login, tem uma visão geral perfeita. Acompanhe atalhos rápidos, o resumo das suas encomendas e faturas pendentes de forma clara e objetiva.",
+                img: "tela de inicio.png"
+            },
+            {
+                title: "As suas Encomendas",
+                text: "Aceda à lista de todas as suas encomendas. Verifique os estados em tempo real, desde a receção até à entrega, para que nunca perca o rasto aos seus pacotes.",
+                img: "tela de encomendas.png"
+            },
+            {
+                title: "Gestão da sua Box",
+                text: "No separador Box, pode ver tudo o que está guardado connosco. É aqui que informa os dados exatos de quem vai receber a encomenda no destino.",
+                img: "tela de box onde ver o seu box e informar os dados de que vai receber a encomenda.png"
+            },
+            {
+                title: "Controlo de Faturas",
+                text: "Mantenha as suas finanças organizadas. Na secção de faturas, veja claramente o que já pagou e o que está pendente de pagamento.",
+                img: "tela da faturas.png"
+            },
+            {
+                title: "Pagamento via Pix",
+                text: "Pagar nunca foi tão fácil. Gere a chave Pix, efetue o pagamento na sua app bancária e anexe o comprovativo diretamente aqui, tudo na mesma tela.",
+                img: "tela de chave pix e anexar comprovante de pagamentos.png"
+            },
+            {
+                title: "Agendamentos",
+                text: "Assim que a fatura estiver regularizada, escolha comodamente o dia e a hora para a recolha ou entrega dos seus bens.",
+                img: "tela de agendamento.png"
+            },
+            {
+                title: "Histórico de Envios",
+                text: "Aceda ao seu histórico completo para rever todas as transações, detalhes de envios passados e ter tudo registado e sob controlo.",
+                img: "tela de historico de envios.png"
+            },
+            {
+                title: "O seu Perfil",
+                text: "Gira a sua conta facilmente. Atualize os seus dados pessoais, altere as configurações e adapte a app às suas necessidades.",
+                img: "tela de configuração de dados de perfil.png"
+            }
+        ];
+
+        let currentSlide = 0;
+        let autoPlayInterval;
+        let isPlaying = true;
+        const SLIDE_DURATION = 5500; // 5.5s para apreciar as animações
+
+        // Elementos do DOM
+        const slideImage = document.getElementById('slide-image');
+        const textContainer = document.getElementById('text-container');
+        const slideTitle = document.getElementById('slide-title');
+        const slideDesc = document.getElementById('slide-desc');
+        const dotsContainer = document.getElementById('progress-dots');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const playText = document.getElementById('play-text');
+
+        // Gerar bolinhas (dots)
+        slides.forEach((_, index) => {
+            const dot = document.createElement('button');
+            dot.className = index === 0 
+                ? "h-2.5 rounded-full dot-active transition-all duration-500 ease-out" 
+                : "w-3 h-2.5 rounded-full bg-slate-300 transition-all duration-500 hover:bg-slate-400 ease-out";
+            dot.onclick = () => goToSlide(index);
+            dotsContainer.appendChild(dot);
+        });
+
+        function updateSlide() {
+            // Inicia fade out
+            slideImage.classList.replace('fade-in', 'fade-out');
+            textContainer.classList.replace('fade-in', 'fade-out');
+            slideTitle.classList.replace('fade-in', 'fade-out');
+
+            // Troca o conteúdo a meio da animação
+            setTimeout(() => {
+                slideImage.src = slides[currentSlide].img;
+                slideTitle.textContent = slides[currentSlide].title;
+                slideDesc.textContent = slides[currentSlide].text;
+
+                // Atualizar dots
+                const dots = dotsContainer.children;
+                for (let i = 0; i < dots.length; i++) {
+                    dots[i].className = i === currentSlide 
+                        ? "h-2.5 rounded-full dot-active transition-all duration-500 ease-out" 
+                        : "w-3 h-2.5 rounded-full bg-slate-300 transition-all duration-500 hover:bg-slate-400 ease-out";
+                }
+
+                // Inicia fade in
+                slideImage.classList.replace('fade-out', 'fade-in');
+                textContainer.classList.replace('fade-out', 'fade-in');
+                slideTitle.classList.replace('fade-out', 'fade-in');
+            }, 300); // 300ms combina bem com a transição CSS de 600ms
+        }
+
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % slides.length;
+            updateSlide();
+            resetTimer();
+        }
+
+        function prevSlide() {
+            currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+            updateSlide();
+            resetTimer();
+        }
+
+        function goToSlide(index) {
+            currentSlide = index;
+            updateSlide();
+            resetTimer();
+        }
+
+        function startAutoPlay() {
+            autoPlayInterval = setInterval(nextSlide, SLIDE_DURATION);
+            isPlaying = true;
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+            playText.textContent = "Pausar Tour";
+        }
+
+        function stopAutoPlay() {
+            clearInterval(autoPlayInterval);
+            isPlaying = false;
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            playText.textContent = "Retomar Tour";
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                stopAutoPlay();
+            } else {
+                nextSlide();
+                startAutoPlay();
+            }
+        }
+
+        function resetTimer() {
+            if (isPlaying) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = setInterval(nextSlide, SLIDE_DURATION);
+            }
+        }
+
+        // Teclado
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+
+        // Iniciar
+        document.addEventListener('DOMContentLoaded', () => {
+            slideTitle.classList.add('fade-in');
+            slideImage.classList.add('fade-in');
+            textContainer.classList.add('fade-in');
+            
+            // Primeira renderização instantânea
+            slideImage.src = slides[0].img;
+            slideTitle.textContent = slides[0].title;
+            slideDesc.textContent = slides[0].text;
+            
+            startAutoPlay();
+        });
+    </script>
+</body>
+</html>

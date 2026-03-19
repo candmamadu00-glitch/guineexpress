@@ -245,191 +245,197 @@ app.get('/dashboard-client.html', loggedIn, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard-client.html'));
 });
 // ==========================================
-// ROTA: EXPORTAR EXCEL INTELIGENTE (CÁLCULO EXATO DE CAIXAS FÍSICAS)
+// ROTA: EXPORTAR EXCEL INTELIGENTE (PESO 100% SINCRONIZADO COM O DASHBOARD)
 // ==========================================
 app.get('/api/export/smart-excel', (req, res) => {
-    const sql = `
-        SELECT b.*, o.weight AS net_weight 
-        FROM boxes b 
-        LEFT JOIN orders o ON b.order_id = o.id 
-        WHERE b.deleted = 0 OR b.deleted IS NULL
-    `;
     
-    db.all(sql, [], async (err, rows) => {
-        if (err) return res.status(500).send("Erro no banco de dados.");
+    // 1. MÁGICA DA SINCRONIZAÇÃO: Pega o peso EXATO igualzinho à Visão Geral
+    const sqlWeight = `SELECT SUM(weight) as totalWeight FROM orders WHERE deleted = 0 OR deleted IS NULL`;
+    
+    // 2. Pega os boxes para listar as mercadorias e contar as caixas físicas
+    const sqlBoxes = `SELECT * FROM boxes WHERE deleted = 0 OR deleted IS NULL`;
 
-        try {
-            let itemMap = {};
-            let totalNetWeight = 0;   
-            let uniqueBoxes = new Set(); // ✨ AQUI ESTÁ A MÁGICA: Guarda apenas os nomes únicos dos Boxes
+    db.get(sqlWeight, [], (err, stats) => {
+        if (err) return res.status(500).send("Erro ao buscar peso das encomendas.");
+        
+        // Peso Líquido cravado com o Dashboard
+        let totalNetWeight = parseFloat(stats.totalWeight || 0);
 
-            // 1. SOMAR ITENS, PESOS E SEPARAR AS CAIXAS FÍSICAS
-            rows.forEach(row => {
-                // Soma o peso de todas as encomendazinhas (pacotes dos clientes)
-                totalNetWeight += parseFloat(row.net_weight || 0); 
+        db.all(sqlBoxes, [], async (err, rows) => {
+            if (err) return res.status(500).send("Erro ao buscar boxes.");
+
+            try {
+                let itemMap = {};
+                let uniqueBoxes = new Set(); // Conta os caixotes (BOX 1, BOX 2)
+
+                // SOMAR ITENS E SEPARAR AS CAIXAS FÍSICAS
+                rows.forEach(row => {
+                    // Guarda o nome do Box (ex: "BOX 1"). Ignora os repetidos!
+                    if (row.box_code) {
+                        uniqueBoxes.add(row.box_code.trim().toUpperCase());
+                    }
+
+                    // Organiza os produtos (inalterado)
+                    if (row.products) {
+                        let items = row.products.split(/,|\n/);
+                        items.forEach(item => {
+                            let cleanItem = item.trim();
+                            if (!cleanItem) return;
+
+                            let match = cleanItem.match(/^(\d+)\s*(.*)$/) || cleanItem.match(/^(.*)\s+(\d+)$/);
+                            let qtd = 1, nome = cleanItem;
+
+                            if (match) {
+                                if (!isNaN(match[1])) { qtd = parseInt(match[1]); nome = match[2]; }
+                                else { qtd = parseInt(match[2]); nome = match[1]; }
+                            }
+
+                            nome = nome.trim() || "ITENS DIVERSOS";
+                            itemMap[nome] = (itemMap[nome] || 0) + qtd;
+                        });
+                    }
+                });
+
+                // ==========================================
+                // CÁLCULO DE PESOS BRUTOS E CAIXAS
+                // ==========================================
+                const totalVolumes = uniqueBoxes.size; // Ex: 2 (BOX 1 e BOX 2)
+                const pesoPorCaixaVazia = 4; // Cada caixote pesa 4 kilos
+                const pesoTotalDasCaixasDePapelao = totalVolumes * pesoPorCaixaVazia;
+                const totalGrossWeight = totalNetWeight + pesoTotalDasCaixasDePapelao; // Roupas + Caixotes
+
+                // ==========================================
+                // CRIAR O EXCEL
+                // ==========================================
+                const workbook = new ExcelJS.Workbook();
+                const sheet = workbook.addWorksheet('Nota de venda');
                 
-                // Guarda o nome do Box (ex: "BOX 1"). O 'Set' ignora repetições automaticamente!
-                if (row.box_code) {
-                    uniqueBoxes.add(row.box_code.trim().toUpperCase());
-                }
+                sheet.columns = [
+                    { key: 'item', width: 6 }, { key: 'produto', width: 35 },
+                    { key: 'qtd', width: 15 }, { key: 'peso', width: 20 },
+                    { key: 'compra', width: 20 }, { key: 'finalidade', width: 15 },
+                    { key: 'preco_saida', width: 25 }, { key: 'total_saida', width: 25 }
+                ];
 
-                // Lógica de agrupar os produtos (inalterada)
-                if (row.products) {
-                    let items = row.products.split(/,|\n/);
-                    items.forEach(item => {
-                        let cleanItem = item.trim();
-                        if (!cleanItem) return;
+                let mesAno = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                mesAno = mesAno.charAt(0).toUpperCase() + mesAno.slice(1);
 
-                        let match = cleanItem.match(/^(\d+)\s*(.*)$/) || cleanItem.match(/^(.*)\s+(\d+)$/);
-                        let qtd = 1, nome = cleanItem;
+                // Cabeçalho Principal
+                sheet.mergeCells('A1:H1');
+                sheet.getCell('A1').value = `EXPORTAÇÃO\nGUINE EXPRESS LTDA\n${mesAno}`;
+                sheet.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                sheet.getCell('A1').font = { bold: true };
+                sheet.getRow(1).height = 60;
 
-                        if (match) {
-                            if (!isNaN(match[1])) { qtd = parseInt(match[1]); nome = match[2]; }
-                            else { qtd = parseInt(match[2]); nome = match[1]; }
-                        }
+                sheet.addRow([]);
+                sheet.addRow(['NOME CLIENTE']);
+                sheet.getCell(`A3`).font = { bold: true };
+                sheet.addRow([]);
+                sheet.getCell(`G4`).value = '<<< Preencher';
+                sheet.getCell(`G4`).font = { color: { argb: 'FFFF0000' } };
+                
+                sheet.addRow(['ENDEREÇO COMPLETO CLIENTE']);
+                sheet.getCell(`A5`).font = { bold: true };
+                sheet.addRow([]);
+                sheet.getCell(`G6`).value = '<<< Preencher';
+                sheet.getCell(`G6`).font = { color: { argb: 'FFFF0000' } };
+                sheet.addRow([]);
 
-                        nome = nome.trim() || "ITENS DIVERSOS";
-                        itemMap[nome] = (itemMap[nome] || 0) + qtd;
-                    });
-                }
-            });
-
-            // ==========================================
-            // CÁLCULO AUTOMÁTICO DO PESO BRUTO (AGORA CERTO!)
-            // ==========================================
-            const totalVolumes = uniqueBoxes.size; // Conta quantos "BOXES" diferentes existem (ex: 2)
-            const pesoPorCaixaVazia = 4; // Cada caixote pesa 4 kilos
-            const pesoTotalDasCaixasDePapelao = totalVolumes * pesoPorCaixaVazia;
-            const totalGrossWeight = totalNetWeight + pesoTotalDasCaixasDePapelao; // Roupas + Caixotes
-
-            // 2. CRIAR EXCEL
-            const workbook = new ExcelJS.Workbook();
-            const sheet = workbook.addWorksheet('Nota de venda');
-            
-            sheet.columns = [
-                { key: 'item', width: 6 }, { key: 'produto', width: 35 },
-                { key: 'qtd', width: 15 }, { key: 'peso', width: 20 },
-                { key: 'compra', width: 20 }, { key: 'finalidade', width: 15 },
-                { key: 'preco_saida', width: 25 }, { key: 'total_saida', width: 25 }
-            ];
-
-            let mesAno = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-            mesAno = mesAno.charAt(0).toUpperCase() + mesAno.slice(1);
-
-            // Cabeçalho
-            sheet.mergeCells('A1:H1');
-            sheet.getCell('A1').value = `EXPORTAÇÃO\nGUINE EXPRESS LTDA\n${mesAno}`;
-            sheet.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-            sheet.getCell('A1').font = { bold: true };
-            sheet.getRow(1).height = 60;
-
-            sheet.addRow([]);
-            sheet.addRow(['NOME CLIENTE']);
-            sheet.getCell(`A3`).font = { bold: true };
-            sheet.addRow([]);
-            sheet.getCell(`G4`).value = '<<< Preencher';
-            sheet.getCell(`G4`).font = { color: { argb: 'FFFF0000' } };
-            
-            sheet.addRow(['ENDEREÇO COMPLETO CLIENTE']);
-            sheet.getCell(`A5`).font = { bold: true };
-            sheet.addRow([]);
-            sheet.getCell(`G6`).value = '<<< Preencher';
-            sheet.getCell(`G6`).font = { color: { argb: 'FFFF0000' } };
-            sheet.addRow([]);
-
-            const headerRow = sheet.addRow(['ITEM', 'PRODUTO', 'QUANTIDADE', 'PESO LÍQUIDO (KG)', 'PREÇO DE COMPRA', 'FINALIDADE', 'PREÇO UNITÁRIO SAÍDA', 'TOTAL ITEM SAÍDA']);
-            headerRow.font = { bold: true };
-            headerRow.eachCell(cell => {
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
-                cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-                cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-            });
-
-            let keys = Object.keys(itemMap).sort();
-            let startRow = 9;
-
-            keys.forEach((nome, index) => {
-                let rowNum = startRow + index;
-                let row = sheet.addRow([
-                    index + 1, nome, itemMap[nome], '', '', 'Revenda'  
-                ]);
-
-                // Fórmulas
-                sheet.getCell(`G${rowNum}`).value = { formula: `E${rowNum}*4` };
-                sheet.getCell(`G${rowNum}`).numFmt = '"R$ "#,##0.00';
-                sheet.getCell(`H${rowNum}`).value = { formula: `C${rowNum}*G${rowNum}` };
-                sheet.getCell(`H${rowNum}`).numFmt = '"R$ "#,##0.00';
-                sheet.getCell(`H${rowNum}`).font = { bold: true };
-
-                sheet.getCell(`F${rowNum}`).dataValidation = {
-                    type: 'list', allowBlank: true, formulae: ['"Revenda,Amostra"']
-                };
-
-                row.eachCell(cell => { cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }; });
-            });
-
-            // ==========================================
-            // ✨ RODAPÉ INTELIGENTE ✨
-            // ==========================================
-            let nextRow = sheet.rowCount + 2;
-
-            sheet.mergeCells(`A${nextRow}:H${nextRow}`);
-            sheet.getCell(`A${nextRow}`).value = 'RESUMO GERAL DO EMBARQUE';
-            sheet.getCell(`A${nextRow}`).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-            sheet.getCell(`A${nextRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1931' } };
-            sheet.getCell(`A${nextRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
-            sheet.getRow(nextRow).height = 25;
-
-            // 1. Quantidade de Caixotes Físicos (Boxes únicos)
-            sheet.mergeCells(`A${nextRow+1}:G${nextRow+1}`);
-            sheet.getCell(`A${nextRow+1}`).value = 'QUANTIDADE TOTAL DE CAIXAS (VOLUMES FÍSICOS):';
-            sheet.getCell(`A${nextRow+1}`).alignment = { horizontal: 'right', vertical: 'middle' };
-            sheet.getCell(`A${nextRow+1}`).font = { bold: true };
-            sheet.getCell(`H${nextRow+1}`).value = totalVolumes; // Puxa o número de boxes únicos!
-            sheet.getCell(`H${nextRow+1}`).alignment = { horizontal: 'center', vertical: 'middle' };
-            sheet.getCell(`H${nextRow+1}`).font = { bold: true, size: 12 };
-
-            // 2. Peso de Cada Caixa
-            sheet.mergeCells(`A${nextRow+2}:G${nextRow+2}`);
-            sheet.getCell(`A${nextRow+2}`).value = 'PESO DE CADA CAIXA VAZIA (KG):';
-            sheet.getCell(`A${nextRow+2}`).alignment = { horizontal: 'right', vertical: 'middle' };
-            sheet.getCell(`A${nextRow+2}`).font = { bold: true };
-            sheet.getCell(`H${nextRow+2}`).value = pesoPorCaixaVazia; 
-            sheet.getCell(`H${nextRow+2}`).alignment = { horizontal: 'center', vertical: 'middle' };
-
-            // 3. Peso Líquido (Apenas Encomendas)
-            sheet.mergeCells(`A${nextRow+3}:G${nextRow+3}`);
-            sheet.getCell(`A${nextRow+3}`).value = 'PESO LÍQUIDO TOTAL DAS ENCOMENDAS (KG):';
-            sheet.getCell(`A${nextRow+3}`).alignment = { horizontal: 'right', vertical: 'middle' };
-            sheet.getCell(`A${nextRow+3}`).font = { bold: true };
-            sheet.getCell(`H${nextRow+3}`).value = totalNetWeight.toFixed(2); 
-            sheet.getCell(`H${nextRow+3}`).alignment = { horizontal: 'center', vertical: 'middle' };
-
-            // 4. Peso Bruto Total
-            sheet.mergeCells(`A${nextRow+4}:G${nextRow+4}`);
-            sheet.getCell(`A${nextRow+4}`).value = 'PESO BRUTO TOTAL (CAIXAS + ENCOMENDAS) (KG):';
-            sheet.getCell(`A${nextRow+4}`).alignment = { horizontal: 'right', vertical: 'middle' };
-            sheet.getCell(`A${nextRow+4}`).font = { bold: true, color: { argb: 'FFFF0000' } }; 
-            sheet.getCell(`H${nextRow+4}`).value = totalGrossWeight.toFixed(2); 
-            sheet.getCell(`H${nextRow+4}`).alignment = { horizontal: 'center', vertical: 'middle' };
-            sheet.getCell(`H${nextRow+4}`).font = { bold: true, size: 12, color: { argb: 'FFFF0000' } };
-            
-            // Coloca as bordas
-            for (let i = nextRow; i <= nextRow + 4; i++) {
-                sheet.getRow(i).eachCell(cell => {
+                // Títulos das Colunas
+                const headerRow = sheet.addRow(['ITEM', 'PRODUTO', 'QUANTIDADE', 'PESO LÍQUIDO (KG)', 'PREÇO DE COMPRA', 'FINALIDADE', 'PREÇO UNITÁRIO SAÍDA', 'TOTAL ITEM SAÍDA']);
+                headerRow.font = { bold: true };
+                headerRow.eachCell(cell => {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
                     cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
                 });
-            }
 
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename=Nota_Venda_Padrao.xlsx`);
-            await workbook.xlsx.write(res);
-            res.end();
-            
-        } catch (e) {
-            console.error("❌ ERRO AO CRIAR O ARQUIVO EXCEL:", e);
-            res.status(500).send("Erro interno ao gerar a planilha.");
-        }
+                let keys = Object.keys(itemMap).sort();
+                let startRow = 9;
+
+                keys.forEach((nome, index) => {
+                    let rowNum = startRow + index;
+                    let row = sheet.addRow([
+                        index + 1, nome, itemMap[nome], '', '', 'Revenda'  
+                    ]);
+
+                    // Fórmulas Automáticas do Excel (Preço de Saída x4)
+                    sheet.getCell(`G${rowNum}`).value = { formula: `E${rowNum}*4` };
+                    sheet.getCell(`G${rowNum}`).numFmt = '"R$ "#,##0.00';
+                    sheet.getCell(`H${rowNum}`).value = { formula: `C${rowNum}*G${rowNum}` };
+                    sheet.getCell(`H${rowNum}`).numFmt = '"R$ "#,##0.00';
+                    sheet.getCell(`H${rowNum}`).font = { bold: true };
+
+                    sheet.getCell(`F${rowNum}`).dataValidation = {
+                        type: 'list', allowBlank: true, formulae: ['"Revenda,Amostra"']
+                    };
+
+                    row.eachCell(cell => { cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }; });
+                });
+
+                // ==========================================
+                // ✨ RODAPÉ INTELIGENTE ✨
+                // ==========================================
+                let nextRow = sheet.rowCount + 2;
+
+                sheet.mergeCells(`A${nextRow}:H${nextRow}`);
+                sheet.getCell(`A${nextRow}`).value = 'RESUMO GERAL DO EMBARQUE';
+                sheet.getCell(`A${nextRow}`).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+                sheet.getCell(`A${nextRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1931' } };
+                sheet.getCell(`A${nextRow}`).alignment = { horizontal: 'center', vertical: 'middle' };
+                sheet.getRow(nextRow).height = 25;
+
+                // 1. Quantidade de Caixotes Físicos (Boxes únicos)
+                sheet.mergeCells(`A${nextRow+1}:G${nextRow+1}`);
+                sheet.getCell(`A${nextRow+1}`).value = 'QUANTIDADE TOTAL DE CAIXAS (VOLUMES FÍSICOS):';
+                sheet.getCell(`A${nextRow+1}`).alignment = { horizontal: 'right', vertical: 'middle' };
+                sheet.getCell(`A${nextRow+1}`).font = { bold: true };
+                sheet.getCell(`H${nextRow+1}`).value = totalVolumes; 
+                sheet.getCell(`H${nextRow+1}`).alignment = { horizontal: 'center', vertical: 'middle' };
+                sheet.getCell(`H${nextRow+1}`).font = { bold: true, size: 12 };
+
+                // 2. Peso de Cada Caixa
+                sheet.mergeCells(`A${nextRow+2}:G${nextRow+2}`);
+                sheet.getCell(`A${nextRow+2}`).value = 'PESO DE CADA CAIXA VAZIA (KG):';
+                sheet.getCell(`A${nextRow+2}`).alignment = { horizontal: 'right', vertical: 'middle' };
+                sheet.getCell(`A${nextRow+2}`).font = { bold: true };
+                sheet.getCell(`H${nextRow+2}`).value = pesoPorCaixaVazia; 
+                sheet.getCell(`H${nextRow+2}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+                // 3. Peso Líquido (Apenas Encomendas - IDÊNTICO AO DASHBOARD)
+                sheet.mergeCells(`A${nextRow+3}:G${nextRow+3}`);
+                sheet.getCell(`A${nextRow+3}`).value = 'PESO LÍQUIDO TOTAL DAS ENCOMENDAS (KG):';
+                sheet.getCell(`A${nextRow+3}`).alignment = { horizontal: 'right', vertical: 'middle' };
+                sheet.getCell(`A${nextRow+3}`).font = { bold: true };
+                sheet.getCell(`H${nextRow+3}`).value = totalNetWeight.toFixed(2); 
+                sheet.getCell(`H${nextRow+3}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+                // 4. Peso Bruto Total
+                sheet.mergeCells(`A${nextRow+4}:G${nextRow+4}`);
+                sheet.getCell(`A${nextRow+4}`).value = 'PESO BRUTO TOTAL (CAIXAS + ENCOMENDAS) (KG):';
+                sheet.getCell(`A${nextRow+4}`).alignment = { horizontal: 'right', vertical: 'middle' };
+                sheet.getCell(`A${nextRow+4}`).font = { bold: true, color: { argb: 'FFFF0000' } }; 
+                sheet.getCell(`H${nextRow+4}`).value = totalGrossWeight.toFixed(2); 
+                sheet.getCell(`H${nextRow+4}`).alignment = { horizontal: 'center', vertical: 'middle' };
+                sheet.getCell(`H${nextRow+4}`).font = { bold: true, size: 12, color: { argb: 'FFFF0000' } };
+                
+                // Coloca as bordas
+                for (let i = nextRow; i <= nextRow + 4; i++) {
+                    sheet.getRow(i).eachCell(cell => {
+                        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                    });
+                }
+
+                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                res.setHeader('Content-Disposition', `attachment; filename=Nota_Venda_Padrao.xlsx`);
+                await workbook.xlsx.write(res);
+                res.end();
+                
+            } catch (e) {
+                console.error("❌ ERRO AO CRIAR O ARQUIVO EXCEL:", e);
+                res.status(500).send("Erro interno ao gerar a planilha.");
+            }
+        });
     });
 });
 // ==================================================================
