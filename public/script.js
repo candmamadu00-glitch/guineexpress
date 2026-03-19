@@ -1190,7 +1190,7 @@ async function adminResetClientPassword(clientId, clientName) {
 }
 
 // ==========================================
-// ATUALIZAÇÃO DA FUNÇÃO LOAD CLIENTS
+// ATUALIZAÇÃO DA FUNÇÃO LOAD CLIENTS (COMPLETA)
 // ==========================================
 async function loadClients() { 
     try {
@@ -1230,15 +1230,24 @@ async function loadClients() {
 
                 let actionBtn = '';
                 if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'employee')) {
-                    // Botão Ativar/Desativar com TEXTO
+                    // Botão Ativar/Desativar
                     const btnColor = c.active ? '#dc3545' : '#28a745';
                     const btnText = c.active ? 'Desativar' : 'Ativar';
                     const toggleBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; margin-right: 5px;" title="${btnText} Cliente">${btnText}</button>`;
                     
-                    // NOVO: Botão Resetar Senha
+                    // Botão Resetar Senha
                     const resetBtn = `<button onclick="adminResetClientPassword(${c.id}, '${c.name.replace(/'/g, "\\'")}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" title="Redefinir Senha do Cliente"><i class="fas fa-key"></i></button>`;
                     
-                    actionBtn = `<div style="display:flex; justify-content:center; gap:5px;">${toggleBtn}${resetBtn}</div>`;
+                    // NOVO: Botão Excluir (Apenas para Admin)
+                    let deleteBtn = '';
+                    if (currentUser.role === 'admin') {
+                        deleteBtn = `<button onclick="excluirCliente(${c.id}, '${c.name.replace(/'/g, "\\'")}')" class="btn" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 5px;" title="Excluir Cliente Permanentemente">
+                                        <i class="fas fa-trash"></i>
+                                     </button>`;
+                    }
+
+                    // Junta todos os botões na coluna de Ações
+                    actionBtn = `<div style="display:flex; justify-content:center; gap:5px; align-items:center;">${toggleBtn}${resetBtn}${deleteBtn}</div>`;
                 } else {
                     actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
                 }
@@ -1253,6 +1262,15 @@ async function loadClients() {
 
                 const photoHtml = `<img src="${imgUrl}" onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
 
+                // ==========================================
+                // AQUI ESTÁ A PARTE DA DATA DE CADASTRO QUE FALTAVA!
+                // ==========================================
+                let dataCadastro = "Antigo";
+                if (c.created_at) {
+                    let dataFormatada = new Date(c.created_at);
+                    dataCadastro = dataFormatada.toLocaleDateString('pt-BR');
+                }
+
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee; text-align: center;">
                         <td style="padding:10px;">${photoHtml}</td>  
@@ -1260,7 +1278,7 @@ async function loadClients() {
                         <td>${c.email || '-'}</td> 
                         <td>${c.phone || '-'}</td> 
                         <td>${c.country || 'BR'}</td> 
-                        <td>${statusBadge}</td> 
+                        <td style="font-weight:bold; color:#555;">${dataCadastro}</td> <td>${statusBadge}</td> 
                         <td>${actionBtn}</td> 
                     </tr>`; 
             }); 
@@ -6466,4 +6484,33 @@ function printManifestPDF() {
 function exportManifestExcel() {
     // Redireciona para a nossa nova rota inteligente do backend!
     window.location.href = '/api/export/smart-excel';
+}
+// ==========================================
+// FUNÇÃO PARA EXCLUIR CLIENTE (ADMIN)
+// ==========================================
+async function excluirCliente(id, nome) {
+    // Confirmação de segurança dupla para não apagar sem querer
+    const confirmacao = confirm(`⚠️ ATENÇÃO!\n\nTem certeza absoluta que deseja excluir o cadastro de "${nome}"?\n\nEsta ação apagará o acesso deste cliente e NÃO pode ser desfeita!`);
+    
+    if (!confirmacao) {
+        return; // Se o admin clicar em "Cancelar", não faz nada
+    }
+
+    try {
+        const res = await fetch(`/api/admin/clients/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ " + data.msg);
+            loadClients(); // Atualiza a tabela imediatamente tirando o cliente da tela
+        } else {
+            alert("❌ Erro: " + data.msg);
+        }
+    } catch (err) {
+        console.error("Erro ao tentar excluir:", err);
+        alert("Erro na conexão com o servidor. Tente novamente.");
+    }
 }

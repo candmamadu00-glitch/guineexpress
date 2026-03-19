@@ -27,7 +27,7 @@ db.serialize(() => {
 
     // --- TABELAS PRINCIPAIS ---
 
-    // Tabela de Usuários
+    // Tabela de Usuários (A nova coluna created_at já está aqui caso a base seja nova)
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         role TEXT, 
@@ -38,8 +38,10 @@ db.serialize(() => {
         document TEXT, 
         password TEXT,
         profile_pic TEXT DEFAULT 'default.png', 
-        active INTEGER DEFAULT 1
+        active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+
     // --- TABELA DE HISTÓRICO DE LOGINS ---
     db.run(`CREATE TABLE IF NOT EXISTS access_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +176,11 @@ db.serialize(() => {
     )`);
 
     // --- PATCH DE CORREÇÃO (ALTER TABLE) ---
+    // AQUI É A CORREÇÃO PRINCIPAL: Tentamos adicionar a coluna na tabela existente ignorando se já existir
+    db.run("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP", (err) => {
+        if (!err) console.log("✅ Coluna 'created_at' adicionada a users!");
+    });
+    
     db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
     db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      
     db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 
@@ -189,9 +196,9 @@ db.serialize(() => {
     db.run("ALTER TABLE boxes ADD COLUMN receiver_name TEXT", () => {});
     db.run("ALTER TABLE boxes ADD COLUMN receiver_doc TEXT", () => {});
     // Adicione isso junto com os outros db.run de Patch Forçado no server.js
-db.run("ALTER TABLE boxes ADD COLUMN gross_weight REAL DEFAULT 0", (err) => {
-    if (!err) console.log("✅ Coluna 'gross_weight' (Peso Bruto) criada na tabela boxes!");
-});
+    db.run("ALTER TABLE boxes ADD COLUMN gross_weight REAL DEFAULT 0", (err) => {
+        if (!err) console.log("✅ Coluna 'gross_weight' (Peso Bruto) criada na tabela boxes!");
+    });
     // Patch de Notificações Push
     db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
         if (!err) console.log("✅ Coluna push_subscription adicionada com sucesso!");

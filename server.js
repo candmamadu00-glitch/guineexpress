@@ -860,15 +860,24 @@ app.get('/api/admin/logs', (req, res) => {
         res.json(rows);
     });
 });
-// --- ROTA QUE ESTAVA FALTANDO ---
+// --- ROTA DE CLIENTES (À PROVA DE FALHAS) ---
 app.get('/api/clients', (req, res) => {
-    // Busca todos os usuários que são 'client'
-    db.all("SELECT * FROM users WHERE role = 'client'", (err, rows) => {
-        if(err) {
-            console.error(err);
-            return res.json([]);
+    // 1. Tenta buscar os clientes organizados pela data nova
+    db.all("SELECT * FROM users WHERE role = 'client' ORDER BY created_at DESC", (err, rows) => {
+        if (err) {
+            // 2. SE DER ERRO (A coluna ainda não existe), ele não quebra! 
+            // Ele faz a busca normal e devolve os clientes para a tela não ficar vazia.
+            db.all("SELECT * FROM users WHERE role = 'client'", (err2, rows2) => {
+                if(err2) {
+                    console.error("Erro extremo ao buscar clientes:", err2);
+                    return res.json([]);
+                }
+                res.json(rows2); // Manda os clientes pra tela
+            });
+        } else {
+            // Se a coluna nova funcionou, manda os clientes já organizados
+            res.json(rows);
         }
-        res.json(rows);
     });
 });
 // --- ROTA DE DADOS COMPLETOS PARA O RECIBO ---
@@ -2967,7 +2976,33 @@ app.post('/api/orders/:code/deliver', (req, res) => {
         });
     });
 });
+// ==========================================
+// ROTA: EXCLUIR CLIENTE (Apenas Admin)
+// ==========================================
+app.delete('/api/admin/clients/:id', (req, res) => {
+    // 1. Verifica se quem está tentando excluir é realmente o Administrador
+    if (!req.session.role || req.session.role !== 'admin') {
+        return res.status(403).json({ success: false, msg: 'Acesso negado. Apenas administradores podem excluir clientes.' });
+    }
 
+    const clientId = req.params.id;
+
+    // 2. Apaga o usuário do banco de dados (Garante que só apaga se for 'client')
+    db.run("DELETE FROM users WHERE id = ? AND role = 'client'", [clientId], function(err) {
+        if (err) {
+            console.error("Erro ao excluir cliente:", err);
+            return res.status(500).json({ success: false, msg: 'Erro interno ao excluir cliente do banco de dados.' });
+        }
+        
+        // Verifica se realmente apagou alguém
+        if (this.changes > 0) {
+            logSystemAction(req, "EXCLUIR CLIENTE", `Cliente ID: ${clientId} foi excluído do sistema.`);
+            res.json({ success: true, msg: 'Cliente excluído com sucesso!' });
+        } else {
+            res.status(404).json({ success: false, msg: 'Cliente não encontrado ou já excluído.' });
+        }
+    });
+});
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================
