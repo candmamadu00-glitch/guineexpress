@@ -1265,7 +1265,7 @@ async function loadClients() {
                 // ==========================================
                 // AQUI ESTÁ A PARTE DA DATA DE CADASTRO QUE FALTAVA!
                 // ==========================================
-                let dataCadastro = "Antigo";
+                let dataCadastro = "-";
                 if (c.created_at) {
                     let dataFormatada = new Date(c.created_at);
                     dataCadastro = dataFormatada.toLocaleDateString('pt-BR');
