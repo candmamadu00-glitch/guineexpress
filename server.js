@@ -1015,6 +1015,7 @@ app.get('/api/admin/zap-qr', async (req, res) => {
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
         puppeteer: {
+            protocolTimeout: 600000, // <--- ADICIONE ESTA LINHA (Dá até 10 minutos para enviar o vídeo sem dar erro)
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
