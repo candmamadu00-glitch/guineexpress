@@ -2367,7 +2367,7 @@ async function deleteInvoice(id) {
 }
 
 // ==========================================
-// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE
+// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM MEMÓRIA PARA A CICÍ)
 // ==========================================
 async function loadClientInvoices() {
     const tbody = document.getElementById('client-invoices-list');
@@ -2385,6 +2385,8 @@ async function loadClientInvoices() {
             return;
         }
 
+        let faturasPendentes = 0; 
+
         list.forEach(inv => {
             let statusHtml = '';
             let actionHtml = '';
@@ -2399,13 +2401,13 @@ async function loadClientInvoices() {
                 statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
                 actionHtml = '<span style="color:#ccc; font-size:12px;">Aguardando o Admin</span>';
             } else if(inv.status === 'pending') {
+                faturasPendentes++; 
                 statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
                 
-                // OS DOIS BOTÕES APARECEM AQUI PARA O CLIENTE
                 actionHtml = `
                 <div style="display:flex; justify-content:center; gap:8px;">
-                    <button onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        💸 Pagar pelo Pix e Envia o Comprovante 
+                    <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                        💸 Pagar pelo Pix e Enviar o Comprovante 
                     </button>
                 </div>`;
             } else {
@@ -2422,13 +2424,29 @@ async function loadClientInvoices() {
                 <td style="text-align:center;">${actionHtml}</td>
             </tr>`;
         });
+
+        // 🧠 MEMÓRIA DA CICÍ: Só entra aqui se tiver fatura E se ELA AINDA NÃO AVISOU hoje
+        if (faturasPendentes > 0 && !window.ciciJaAvisouFatura) {
+            window.ciciJaAvisouFatura = true; // Grava na memória que ela já fez o trabalho!
+            
+            setTimeout(() => {
+                showSection('billing-view');
+                
+                setTimeout(() => {
+                    CiciTour.focarElemento('.btn-pisca', `🚨 Ei! Vi que você tem fatura pendente.<br><br>Clique no botão azul que a seta está apontando para abrir o seu PIX.`);
+                    
+                    document.getElementById('cici-overlay').onclick = () => CiciTour.limparFoco('.btn-pisca');
+                }, 500);
+            }, 8000); 
+        }
+
     } catch (err) {
         console.error(err);
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
     }
 }
 // ==========================================
-// ABRIR MODAL DE PAGAMENTO (PIX MANUAL)
+// ABRIR MODAL DE PAGAMENTO (PIX MANUAL) - ATUALIZADO COM CICÍ
 // ==========================================
 function openPaymentModal(orderId, description, amount) {
     // 1. Mostra o modal na tela
@@ -2456,10 +2474,23 @@ function openPaymentModal(orderId, description, amount) {
     
     // 6. Abre sempre na aba padrão da Chave CNPJ
     togglePixKey('cnpj');
+
+    // ✨ A MÁGICA DA CICÍ COMEÇA AQUI ✨
+    // Espera meio segundo (500ms) para o modal abrir direitinho na tela e então aponta a seta
+    setTimeout(() => {
+        // Foca no campo de escolher o arquivo e dá a instrução exata
+        CiciTour.focarElemento('#pix-file-input', `💸 <b>Passo 1:</b> Copie a chave acima e faça o PIX no seu banco.<br><br><b>Passo 2:</b> Tire um Print do comprovante.<br><br><b>Passo 3:</b> Clique aqui onde a seta aponta, selecione a foto do Print e depois clique em "Enviar Comprovante"!`);
+        
+        // Se o cliente clicar no campo para escolher a foto, a tela volta ao normal
+        const inputArquivo = document.getElementById('pix-file-input');
+        if (inputArquivo) {
+            inputArquivo.onclick = () => CiciTour.limparFoco('#pix-file-input');
+        }
+    }, 500);
 }
 
 // ==========================================
-// FECHAR MODAL DE PAGAMENTO
+// FECHAR MODAL DE PAGAMENTO - ATUALIZADO COM CICÍ
 // ==========================================
 function closePaymentModal() {
     // Esconde o modal
@@ -2474,6 +2505,12 @@ function closePaymentModal() {
     if(btnSubmit) {
         btnSubmit.disabled = false;
         btnSubmit.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
+    }
+
+    // ✨ LIMPEZA DA CICÍ ✨
+    // Se o cliente clicar no "X" para fechar o modal, nós limpamos a tela escura e a seta
+    if (typeof CiciTour !== 'undefined') {
+        CiciTour.limparFoco('#pix-file-input');
     }
 }
 // Função robusta para limpar dinheiro (aceita "R$ 4", "R$ 4,00" e "1.200,50")
@@ -2501,7 +2538,38 @@ function limparValor(valor) {
     // Se der NaN, retorna 0
     return isNaN(numero) ? 0 : numero;
 }
+// ==========================================
+// CICÍ COBRANDO DADOS DO RECEBEDOR (COM MEMÓRIA)
+// ==========================================
+async function checkMissingReceiverInfo(clientId) {
+    if(!clientId) return;
 
+    try {
+        const res = await fetch('/api/boxes'); 
+        const allBoxes = await res.json();
+        const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
+        
+        const missingInfoBoxes = clientBoxes.filter(b => !b.receiver_name || !b.ticket_number);
+        
+        // 🧠 MEMÓRIA DA CICÍ: Só entra se faltar dado E ela ainda não avisou
+        if (missingInfoBoxes.length > 0 && !window.ciciJaAvisouBox) {
+            window.ciciJaAvisouBox = true; // Grava na memória!
+            
+            setTimeout(() => {
+                showSection('box-view'); 
+                
+                setTimeout(() => {
+                    CiciTour.focarElemento('#box-table-body', `📦 Atenção! Você precisa me dizer quem vai retirar a sua encomenda lá em Bissau.<br><br>Olhe para onde a seta está apontando, clique em <b>"Informar Recebedor"</b> e preencha o Nome e o Número do Bilhete do seu familiar.`);
+                    
+                    document.getElementById('cici-overlay').onclick = () => CiciTour.limparFoco('#box-table-body');
+                }, 500);
+
+            }, 4000); 
+        }
+    } catch(err) {
+        console.error("Erro ao verificar recebedores: ", err);
+    }
+}
 async function recoverPassword() {
     // 1. Pergunta o e-mail ao usuário
     const email = prompt("🔒 RECUPERAÇÃO DE SENHA\n\nDigite seu E-mail ou Celular cadastrado:");
@@ -6514,3 +6582,67 @@ async function excluirCliente(id, nome) {
         alert("Erro na conexão com o servidor. Tente novamente.");
     }
 }
+// ==========================================
+// CICÍ TOUR GUIDE (EFEITOS VISUAIS E SETAS)
+// ==========================================
+const CiciTour = {
+    overlay: null,
+    arrow: null,
+
+    // Cria a camada escura e a seta
+    initEfeitos: function() {
+        if (!document.getElementById('cici-overlay')) {
+            this.overlay = document.createElement('div');
+            this.overlay.id = 'cici-overlay';
+            this.overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9990; display:none; pointer-events:none; transition: all 0.3s;';
+            document.body.appendChild(this.overlay);
+        }
+        if (!document.getElementById('cici-arrow')) {
+            this.arrow = document.createElement('div');
+            this.arrow.id = 'cici-arrow';
+            this.arrow.innerHTML = '👉'; // Seta piscando
+            this.arrow.style.cssText = 'position:fixed; z-index:9995; font-size:40px; display:none; animation: bounceX 1s infinite; pointer-events:none;';
+            document.body.appendChild(this.arrow);
+            
+            // Adiciona a animação da seta no CSS
+            const style = document.createElement('style');
+            style.innerHTML = `@keyframes bounceX { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-15px); } }`;
+            document.head.appendChild(style);
+        }
+    },
+
+    // Ilumina um elemento específico e aponta a seta
+    focarElemento: function(elementId, mensagemCici) {
+        this.initEfeitos();
+        const el = document.getElementById(elementId) || document.querySelector(elementId);
+        
+        if (!el) return;
+
+        // Traz o elemento para frente do overlay
+        el.style.position = 'relative';
+        el.style.zIndex = '9991';
+        el.style.background = '#fff'; // Garante que fique visível
+
+        this.overlay.style.display = 'block';
+
+        // Calcula a posição para colocar a seta ao lado esquerdo do elemento
+        const rect = el.getBoundingClientRect();
+        this.arrow.style.top = `${rect.top + (rect.height / 2) - 20}px`;
+        this.arrow.style.left = `${rect.left - 50}px`;
+        this.arrow.style.display = 'block';
+
+        // Faz a Cicí falar
+        if (!CiciAI.isOpen) CiciAI.toggle();
+        CiciAI.addMessage(mensagemCici, 'cici');
+    },
+
+    limparFoco: function(elementId) {
+        const el = document.getElementById(elementId) || document.querySelector(elementId);
+        if (el) {
+            el.style.zIndex = '';
+            el.style.position = '';
+        }
+        if(this.overlay) this.overlay.style.display = 'none';
+        if(this.arrow) this.arrow.style.display = 'none';
+    }
+};

@@ -1997,3 +1997,12 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
 .summary-card.warning { border-bottom: 4px solid #ffc107; }
 .summary-card.danger { border-bottom: 4px solid #e74c3c; }
 .summary-card.info-blue { border-bottom: 4px solid #3498db; }
+.btn-pisca {
+    animation: pulse-animation 1.5s infinite;
+}
+
+@keyframes pulse-animation {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 177, 234, 0.7); }
+    50% { transform: scale(1.03); box-shadow: 0 0 0 8px rgba(0, 177, 234, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 177, 234, 0); }
+}
