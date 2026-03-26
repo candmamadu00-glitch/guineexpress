@@ -540,6 +540,8 @@ function savePrice() {
 }
 
 // --- SISTEMA DE ENCOMENDAS E CAIXAS INTELIGENTE (TURBINADO) ---
+let boxLimit = 50; // Quantas caixas mostrar por vez (variável global)
+
 async function loadBoxes() {
     try {
         const res = await fetch('/api/boxes');
@@ -596,9 +598,10 @@ async function loadBoxes() {
             return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
         });
 
-        // 3. A MÁGICA DA VELOCIDADE: Usar um "Buffer" e limitar a 50 na tela
+        // 3. A MÁGICA DA VELOCIDADE: Usar um "Buffer" e limitar na tela
         let htmlBuffer = '';
         let itensRenderizados = 0;
+        let totalValidos = 0; // Conta quantos itens reais existem para mostrar o botão certo
 
         for (let i = 0; i < list.length; i++) {
             const b = list[i];
@@ -607,8 +610,10 @@ async function loadBoxes() {
             // Ignora os completos se a chave estiver desligada
             if ((status === 'Entregue' || status === 'Pago') && currentUser.role !== 'client' && !showCompleted) continue;
 
-            // PARA DE DESENHAR DEPOIS DE 50 PARA NÃO TRAVAR O CELULAR
-            if (itensRenderizados >= 50) break;
+            totalValidos++; // Conta que achou um item válido para mostrar
+
+            // PARA DE DESENHAR SE CHEGAR NO LIMITE PARA NÃO TRAVAR O CELULAR
+            if (itensRenderizados >= boxLimit) continue; // Continua o loop só para contar o totalValidos
 
             const individualWeight = parseFloat(b.order_weight) || 0;
             const freightValue = individualWeight * globalPricePerKg;
@@ -653,6 +658,18 @@ async function loadBoxes() {
             itensRenderizados++;
         }
         
+        // 4. ADICIONA O BOTÃO "CARREGAR MAIS" SE HOUVER MAIS ITENS
+        if (totalValidos > boxLimit) {
+            htmlBuffer += `
+            <tr>
+                <td colspan="7" style="text-align:center; padding: 20px;">
+                    <button onclick="loadMoreBoxes()" style="background:#00b1ea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%; max-width: 300px;">
+                        <i class="fas fa-chevron-down"></i> Mostrar mais caixas antigas...
+                    </button>
+                </td>
+            </tr>`;
+        }
+
         // Joga todo o código HTML na tabela DE UMA VEZ SÓ (extremamente rápido)
         tbody.innerHTML = htmlBuffer;
         if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
@@ -661,6 +678,18 @@ async function loadBoxes() {
         console.error("Erro ao carregar boxes:", e);
     }
 }
+
+// Função auxiliar para o botão "Carregar Mais"
+function loadMoreBoxes() {
+    boxLimit += 50; // Aumenta o limite em mais 50
+    loadBoxes(); // Recarrega a tabela com o novo limite
+}
+
+// Resetar o limite quando o botão de filtro mudar (opcional, mas recomendado)
+document.getElementById('toggle-boxes')?.addEventListener('change', () => {
+    boxLimit = 50; // Volta o limite para 50 ao mudar o filtro
+    loadBoxes();
+});
 // ==========================================
 // FUNÇÃO CRIAR ENCOMENDA
 // ==========================================
@@ -1209,10 +1238,12 @@ async function adminResetClientPassword(clientId, clientName) {
 // ==========================================
 // ATUALIZAÇÃO DA FUNÇÃO LOAD CLIENTS (OTIMIZADA 🚀)
 // ==========================================
+let clientsLimit = 50; // Variável global de limite
+
 async function loadClients() { 
     try {
         const tbody = document.getElementById('clients-list'); 
-        if(tbody) tbody.innerHTML = '<tr><td colspan="7" align="center">Carregando clientes...</td></tr>';
+        if(tbody) tbody.innerHTML = '<tr><td colspan="8" align="center">Carregando clientes...</td></tr>';
 
         const res = await fetch('/api/clients'); 
         const list = await res.json(); 
@@ -1246,29 +1277,32 @@ async function loadClients() {
         if(tbody) {
             let htmlBuffer = '';
             let renderizados = 0;
+            let totalValidos = 0;
 
             for (let i = 0; i < list.length; i++) {
-                if (renderizados >= 50) break; // Trava de segurança para não travar o painel do Admin
-
                 const c = list[i];
                 if(!c.name) continue; 
+                
+                totalValidos++;
+
+                if (renderizados >= clientsLimit) continue; // Trava de segurança 
 
                 let actionBtn = '';
                 if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'employee')) {
                     const btnColor = c.active ? '#dc3545' : '#28a745';
                     const btnText = c.active ? 'Desativar' : 'Ativar';
-                    const toggleBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; margin-right: 5px;" title="${btnText} Cliente">${btnText}</button>`;
+                    const toggleBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" title="${btnText} Cliente">${btnText}</button>`;
                     
                     const resetBtn = `<button onclick="adminResetClientPassword(${c.id}, '${c.name.replace(/'/g, "\\'")}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" title="Redefinir Senha do Cliente"><i class="fas fa-key"></i></button>`;
                     
                     let deleteBtn = '';
                     if (currentUser.role === 'admin') {
-                        deleteBtn = `<button onclick="excluirCliente(${c.id}, '${c.name.replace(/'/g, "\\'")}')" class="btn" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 5px;" title="Excluir Cliente Permanentemente">
+                        deleteBtn = `<button onclick="excluirCliente(${c.id}, '${c.name.replace(/'/g, "\\'")}')" class="btn" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: bold;" title="Excluir Cliente Permanentemente">
                                         <i class="fas fa-trash"></i>
                                      </button>`;
                     }
 
-                    actionBtn = `<div style="display:flex; justify-content:center; gap:5px; align-items:center;">${toggleBtn}${resetBtn}${deleteBtn}</div>`;
+                    actionBtn = `<div style="display:flex; justify-content:center; gap:5px; align-items:center; flex-wrap:wrap;">${toggleBtn}${resetBtn}${deleteBtn}</div>`;
                 } else {
                     actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
                 }
@@ -1296,14 +1330,27 @@ async function loadClients() {
                         <td>${c.email || '-'}</td> 
                         <td>${c.phone || '-'}</td> 
                         <td>${c.country || 'BR'}</td> 
-                        <td style="font-weight:bold; color:#555;">${dataCadastro}</td> <td>${statusBadge}</td> 
+                        <td style="font-weight:bold; color:#555;">${dataCadastro}</td> 
+                        <td>${statusBadge}</td> 
                         <td>${actionBtn}</td> 
                     </tr>`; 
                 renderizados++;
             }
             
+            // ADICIONA O BOTÃO "CARREGAR MAIS" NO FINAL DA TABELA
+            if (totalValidos > clientsLimit) {
+                htmlBuffer += `
+                <tr>
+                    <td colspan="8" style="text-align:center; padding: 20px;">
+                        <button onclick="loadMoreClients()" style="background:#00b1ea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%; max-width: 300px;">
+                            <i class="fas fa-chevron-down"></i> Mostrar mais clientes...
+                        </button>
+                    </td>
+                </tr>`;
+            }
+
             if (renderizados === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" align="center">Nenhum cliente cadastrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" align="center">Nenhum cliente cadastrado.</td></tr>';
             } else {
                 tbody.innerHTML = htmlBuffer;
             }
@@ -1313,8 +1360,14 @@ async function loadClients() {
     } catch (error) {
         console.error("Erro ao carregar clientes:", error);
         const tbody = document.getElementById('clients-list');
-        if(tbody) tbody.innerHTML = '<tr><td colspan="7" align="center" style="color:red;">Erro ao buscar clientes.</td></tr>';
+        if(tbody) tbody.innerHTML = '<tr><td colspan="8" align="center" style="color:red;">Erro ao buscar clientes.</td></tr>';
     }
+}
+
+// Função auxiliar para carregar mais clientes
+function loadMoreClients() {
+    clientsLimit += 50;
+    loadClients();
 }
 async function toggleClient(id, active) { await fetch('/api/clients/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,active})}); loadClients(); }
 
@@ -2046,6 +2099,10 @@ async function loadClientInfoForVideo(clientId) {
     }
 }
 
+// --- VARIÁVEIS GLOBAIS PARA LIMITES DE VÍDEOS ---
+let adminVideoLimit = 50;
+let clientVideoLimit = 50;
+
 // --- VÍDEOS DO ADMIN (RÁPIDO E COM BOTÕES BONITOS 🎨) ---
 async function loadAdminVideos() {
     const tbody = document.getElementById('admin-video-list');
@@ -2065,9 +2122,12 @@ async function loadAdminVideos() {
 
         let htmlBuffer = '';
         let renderizados = 0;
+        let totalValidos = 0;
 
         for (let i = 0; i < list.length; i++) {
-            if (renderizados >= 50) break; // Trava de segurança (50 vídeos no máximo na tela)
+            totalValidos++;
+
+            if (renderizados >= adminVideoLimit) continue; // Trava de segurança 
 
             const v = list[i];
             
@@ -2094,12 +2154,30 @@ async function loadAdminVideos() {
             renderizados++;
         }
 
+        // ADICIONA O BOTÃO "CARREGAR MAIS"
+        if (totalValidos > adminVideoLimit) {
+            htmlBuffer += `
+            <tr>
+                <td colspan="4" style="text-align:center; padding: 20px;">
+                    <button onclick="loadMoreAdminVideos()" style="background:#00b1ea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%; max-width: 300px;">
+                        <i class="fas fa-chevron-down"></i> Mostrar vídeos antigos...
+                    </button>
+                </td>
+            </tr>`;
+        }
+
         tbody.innerHTML = htmlBuffer;
 
     } catch (error) {
         console.error("Erro ao carregar vídeos admin:", error);
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Erro ao buscar vídeos.</td></tr>';
     }
+}
+
+// Função auxiliar para Admin ver mais vídeos
+function loadMoreAdminVideos() {
+    adminVideoLimit += 50;
+    loadAdminVideos();
 }
 
 // --- VÍDEOS DO CLIENTE (LEVE E PREPARADO PARA MP4 🎬) ---
@@ -2120,9 +2198,12 @@ async function loadClientVideos() {
 
         let htmlBuffer = '';
         let renderizados = 0;
+        let totalValidos = 0;
 
         for (let i = 0; i < list.length; i++) {
-            if (renderizados >= 50) break; // Trava de segurança para não explodir o celular do cliente
+            totalValidos++;
+
+            if (renderizados >= clientVideoLimit) continue; // Trava de segurança para não explodir o celular do cliente
 
             const v = list[i];
             const dateStr = new Date(v.created_at).toLocaleDateString('pt-BR');
@@ -2151,12 +2232,28 @@ async function loadClientVideos() {
             renderizados++;
         }
 
+        // ADICIONA O BOTÃO "CARREGAR MAIS" NO FINAL DA GRADE
+        if (totalValidos > clientVideoLimit) {
+            htmlBuffer += `
+            <div style="width: 100%; display: flex; justify-content: center; padding: 20px 0;">
+                <button onclick="loadMoreClientVideos()" style="background:#00b1ea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%; max-width: 300px;">
+                    <i class="fas fa-chevron-down"></i> Mostrar vídeos antigos...
+                </button>
+            </div>`;
+        }
+
         grid.innerHTML = htmlBuffer;
 
     } catch (error) {
         console.error("Erro ao carregar vídeos:", error);
         grid.innerHTML = '<p style="color:red; text-align:center; width:100%;">Erro de conexão ao buscar vídeos.</p>';
     }
+}
+
+// Função auxiliar para Cliente ver mais vídeos
+function loadMoreClientVideos() {
+    clientVideoLimit += 50;
+    loadClientVideos();
 }
 // --- FUNÇÃO DE PESQUISA GLOBAL ---
 function searchTable(inputId, tableBodyId) {
@@ -2808,6 +2905,8 @@ function filterHistory() {
 // ==========================================
 // CARREGAR LISTA PARA IMPRIMIR ETIQUETAS (OTIMIZADO 🚀)
 // ==========================================
+let labelsLimit = 50;
+
 async function loadLabels() {
     if (currentUser.role === 'client') {
         alert("Acesso restrito.");
@@ -2842,10 +2941,12 @@ async function loadLabels() {
 
         let htmlBuffer = '';
         let renderizados = 0;
+        let totalValidos = 0;
 
         // PARTE 1: MOSTRAR AS CAIXAS (BOXES) PRIMEIRO
         for (let i = 0; i < boxes.length; i++) {
-            if (renderizados >= 50) break;
+            totalValidos++;
+            if (renderizados >= labelsLimit) continue;
 
             const box = boxes[i];
             const orderOriginal = orders.find(o => o.code === box.order_code) || {};
@@ -2881,7 +2982,8 @@ async function loadLabels() {
         ordersWithoutBox.sort((a, b) => b.id - a.id);
 
         for (let i = 0; i < ordersWithoutBox.length; i++) {
-            if (renderizados >= 50) break;
+            totalValidos++;
+            if (renderizados >= labelsLimit) continue;
 
             const order = ordersWithoutBox[i];
             const date = new Date(order.created_at).toLocaleDateString('pt-BR');
@@ -2912,12 +3014,29 @@ async function loadLabels() {
             renderizados++;
         }
 
+        // ADICIONA O BOTÃO "CARREGAR MAIS"
+        if (totalValidos > labelsLimit) {
+            htmlBuffer += `
+            <tr>
+                <td colspan="6" style="text-align:center; padding: 20px;">
+                    <button onclick="loadMoreLabels()" style="background:#00b1ea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%; max-width: 300px;">
+                        <i class="fas fa-chevron-down"></i> Mostrar mais etiquetas...
+                    </button>
+                </td>
+            </tr>`;
+        }
+
         tbody.innerHTML = htmlBuffer;
 
     } catch (err) {
         console.error("Erro ao carregar etiquetas:", err);
         tbody.innerHTML = '<tr><td colspan="6" align="center">Erro ao carregar dados. Tente novamente.</td></tr>';
     }
+}
+
+function loadMoreLabels() {
+    labelsLimit += 50;
+    loadLabels();
 }
 
 // 2. Selecionar Todos
@@ -3160,6 +3279,8 @@ async function printSelectedLabels() {
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (OTIMIZADA 🚀)
 // ============================================================
+let receiptsLimit = 50;
+
 async function loadReceipts() {
     const list = document.getElementById('receipts-list');
     if (!list) return;
@@ -3183,9 +3304,12 @@ async function loadReceipts() {
 
         let htmlBuffer = '';
         let renderizados = 0;
+        let totalValidos = 0;
 
         for (let i = 0; i < boxes.length; i++) {
-            if (renderizados >= 50) break; // Limite para não travar
+            totalValidos++;
+            
+            if (renderizados >= receiptsLimit) continue; // Limite para não travar
 
             const box = boxes[i];
             const peso = parseFloat(box.order_weight || 0);
@@ -3219,6 +3343,17 @@ async function loadReceipts() {
             renderizados++;
         }
 
+        if (totalValidos > receiptsLimit) {
+            htmlBuffer += `
+            <tr>
+                <td colspan="6" style="text-align:center; padding: 20px;">
+                    <button onclick="loadMoreReceipts()" style="background:#00b1ea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%; max-width: 300px;">
+                        <i class="fas fa-chevron-down"></i> Mostrar recibos antigos...
+                    </button>
+                </td>
+            </tr>`;
+        }
+
         list.innerHTML = htmlBuffer;
         
         const thClient = document.getElementById('rec-col-client');
@@ -3228,6 +3363,11 @@ async function loadReceipts() {
         console.error(err);
         list.innerHTML = '<tr><td colspan="6">Erro ao carregar dados.</td></tr>';
     }
+}
+
+function loadMoreReceipts() {
+    receiptsLimit += 50;
+    loadReceipts();
 }
 
 // 5. GERAR RECIBO A4 (Com Nota Fiscal e Total Corrigido)
@@ -4642,6 +4782,8 @@ async function loadAccessLogs() {
 // ==========================================
 // ABA FINANCEIRO (TURBINADA 🚀)
 // ==========================================
+let financesLimit = 50;
+
 async function loadFinances() {
     try {
         const res = await fetch('/api/finances/all');
@@ -4650,7 +4792,6 @@ async function loadFinances() {
         
         if (!tbody) return;
 
-        // Aviso de carregamento rápido para o usuário não achar que travou
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Carregando financeiro...</td></tr>';
 
         const toggleBtn = document.getElementById('toggle-finances');
@@ -4661,14 +4802,13 @@ async function loadFinances() {
             return;
         }
 
-        // A MÁGICA DA VELOCIDADE: Usar um "Buffer" e limitar a 50 na tela
         let htmlBuffer = '';
         let itensRenderizados = 0;
+        let totalValidos = 0;
 
         for (let i = 0; i < finances.length; i++) {
             const item = finances[i];
             
-            // Ignora tudo que for "Encomenda" e mostra apenas o resto (Faturas/Boxes)
             if (item.type === 'Encomenda') continue;
 
             let statusPt = item.status || '';
@@ -4678,11 +4818,11 @@ async function loadFinances() {
             if (statusLower === 'paid' || statusLower === 'approved') statusPt = 'Pago'; 
             if (statusLower === 'cancelled' || statusLower === 'rejected') statusPt = 'Cancelado';
 
-            // Esconde faturas pagas se o botão não estiver marcado
             if (statusPt === 'Pago' && !showCompleted) continue;
 
-            // PARA DE DESENHAR DEPOIS DE 50 PARA NÃO TRAVAR O CELULAR/PC
-            if (itensRenderizados >= 50) break;
+            totalValidos++;
+
+            if (itensRenderizados >= financesLimit) continue; 
 
             let statusBadge = 'bg-warning'; 
             if (statusPt === 'Pago') statusBadge = 'bg-success'; 
@@ -4703,7 +4843,17 @@ async function loadFinances() {
             itensRenderizados++;
         }
 
-        // Joga todo o código HTML na tabela DE UMA VEZ SÓ
+        if (totalValidos > financesLimit) {
+            htmlBuffer += `
+            <tr>
+                <td colspan="7" style="text-align:center; padding: 20px;">
+                    <button onclick="loadMoreFinances()" style="background:#00b1ea; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold; width: 100%; max-width: 300px;">
+                        <i class="fas fa-chevron-down"></i> Mostrar registros antigos...
+                    </button>
+                </td>
+            </tr>`;
+        }
+
         if (itensRenderizados === 0) {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registro pendente para exibir.</td></tr>`;
         } else {
@@ -4716,6 +4866,17 @@ async function loadFinances() {
         if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red;">Erro ao carregar dados.</td></tr>`;
     }
 }
+
+function loadMoreFinances() {
+    financesLimit += 50;
+    loadFinances();
+}
+
+// Resetar o limite quando o botão de filtro do financeiro mudar (opcional)
+document.getElementById('toggle-finances')?.addEventListener('change', () => {
+    financesLimit = 50;
+    loadFinances();
+});
 // Geração de PDF (Requer jspdf e autotable no HTML)
 function exportFinancesPDF() {
     const { jsPDF } = window.jspdf;
