@@ -1350,8 +1350,11 @@ function getTimelineHTML(status) {
 }
 
 // ==============================================================
-// 2. FUNÇÃO LOAD ORDERS ATUALIZADA (COM CÁLCULO DE NF E AVARIA)
+// 2. FUNÇÃO LOAD ORDERS ATUALIZADA (COM LAZY LOADING E VELOCIDADE)
 // ==============================================================
+window.todasEncomendas = []; // Guarda os dados na memória (não na tela)
+window.limiteEncomendas = 50; // Quantidade inicial para carregar rápido
+
 async function loadOrders() {
     if (!currentUser) return; 
 
@@ -1359,122 +1362,144 @@ async function loadOrders() {
         const res = await fetch('/api/orders');
         const list = await res.json();
         
+        // Salva na memória e atualiza o número no topo do painel
+        window.todasEncomendas = list;
+        window.limiteEncomendas = 50; 
+        
         const dashCount = document.getElementById('dash-orders-count');
-        if (dashCount) {
-            dashCount.innerText = list.length; 
-        }
+        if (dashCount) dashCount.innerText = list.length; 
         
-        const tbody = document.getElementById('orders-list') || 
-                      document.getElementById('client-orders-list') || 
-                      document.querySelector('.data-table tbody');
-        
-        if(tbody) {
-            tbody.innerHTML = '';
-            
-            if(list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada.</td></tr>';
-                return;
-            }
+        // Chama a função turbo para desenhar a tabela
+        renderizarTabelaEncomendas();
 
-            list.forEach(o => {
-    // === ADICIONE ESTAS DUAS LINHAS AQUI ===
-    const toggleBtn = document.getElementById('toggle-orders');
-    // Se for o cliente, NUNCA esconde. Se for admin/funcionário, obedece o botão.
-    if (o.status === 'Entregue' && currentUser.role !== 'client' && (!toggleBtn || !toggleBtn.checked)) return;
-    // ======================================
-                const phone = o.client_phone || o.phone || o.whatsapp || ''; 
-                const email = o.client_email || o.email || o.mail || ''; 
-                const name = o.client_name || o.name || 'Cliente';
-                
-                // MÁGICA DA MATEMÁTICA AQUI:
-                const basePrice = parseFloat(o.price) || 0;
-                const freightValue = parseFloat(o.freight_amount) || basePrice;
-                const nfValue = parseFloat(o.nf_amount) || 0;
-                
-                // O preço final agora soma o Frete com a Nota Fiscal
-                const finalPrice = freightValue + nfValue;
-
-                // --- 1. STATUS ---
-                let statusDisplay;
-                if (currentUser.role === 'client') {
-                    statusDisplay = typeof getTimelineHTML === 'function' ? getTimelineHTML(o.status) : o.status;
-                } else {
-                    statusDisplay = `
-                    <select onchange="checkDeliveryStatus(this, ${o.id}, '${name}', '${o.code}', '${phone}')" 
-                            style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px; width:100%;">
-                        <option value="Processando" ${o.status=='Processando'?'selected':''}>Processando</option>
-                        <option value="Recebido" ${o.status=='Recebido'?'selected':''}>Recebido na Origem</option>
-                        <option value="Em Trânsito" ${o.status=='Em Trânsito'?'selected':''}>Em Trânsito ✈️</option>
-                        <option value="Chegou ao Destino" ${o.status=='Chegou ao Destino'?'selected':''}>Chegou ao Destino 🏢</option>
-                        <option value="Pendente Pagamento" ${o.status=='Pendente Pagamento'?'selected':''}>Pendente Pagamento</option>
-                        <option value="Pago" ${o.status=='Pago'?'selected':''}>Pago</option>
-                        <option value="Entregue" ${o.status=='Entregue'?'selected':''}>Entregue ✅</option>
-                        <option value="Avaria" ${o.status=='Avaria'?'selected':''}>Avaria ⚠️</option>
-                    </select>`;
-                }
-
-                // --- 2. BOTÕES DE AÇÃO ---
-                let actions = '-';
-                if (currentUser.role !== 'client') {
-                    const whatsappColor = phone ? '#25D366' : '#ccc';
-                    const emailColor = email ? '#007bff' : '#ccc';
-
-                    actions = `<div style="display:flex; gap:5px; justify-content:center;">`;
-
-                    actions += `<button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" title="WhatsApp" style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fab fa-whatsapp"></i></button>`;
-                    
-                    actions += `<button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" title="Email" style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="far fa-envelope"></i></button>`;
-
-                    actions += `<button onclick="editOrder(${o.id})" title="Editar" style="background:#ffc107; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-edit"></i></button>`;
-
-                    actions += `<button onclick="deleteOrder(${o.id})" title="Excluir" style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-trash"></i></button>`;
-
-                    actions += `<button onclick="DeliveryProof.start(${o.id}, 'damage')" title="Avaria" style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-exclamation-triangle"></i></button>`;
-
-                    if (o.delivery_proof) {
-                        actions += `<button onclick='DeliveryProof.view("${o.delivery_proof}")' title="Ver Foto" style="background:#6f42c1; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-camera"></i></button>`;
-                    }
-                    
-                    actions += `<button onclick="printLabel('${o.code}', '${name}', '${o.weight}', '${o.description}')" title="Etiqueta" style="background:#6c757d; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer;"><i class="fas fa-print"></i></button></div>`;
-
-                } else {
-                    if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
-                        actions = `<button onclick="openPaymentModal(${o.id}, '${o.description}', ${finalPrice})" class="btn-pay-pulse" style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fas fa-dollar-sign"></i> PAGAR</button>`;
-                    } else if (o.status === 'Pago') {
-                        actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
-                    } else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.proof_image) {
-                        // AQUI ESTÁ A CORREÇÃO: Chama a função nova de ver a foto e usa o.proof_image
-                        actions = `<button onclick='viewDeliveryPhoto("${o.proof_image}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fas fa-camera"></i> Ver Comprovante</button>`;
-                    } else {
-                        actions = `<button onclick="alert('Detalhes: ${o.description} | Valor: R$ ${finalPrice.toFixed(2)}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer; border-radius:4px;">Detalhes</button>`;
-                    }
-                }
-                
-                // --- 3. MONTANDO A LINHA DA TABELA ---
-                // Verifica se é admin/employee para mostrar a coluna do checkbox
-                const checkboxHtml = currentUser.role !== 'client' 
-                    ? `<td style="text-align: center;"><input type="checkbox" class="order-checkbox" value="${o.id}" onclick="updateBulkCounter()"></td>`
-                    : ''; // Se for cliente, não mostra a coluna do checkbox
-                
-                tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        ${checkboxHtml}
-                        <td style="padding:12px;"><strong>${o.code}</strong></td>
-                        <td>${name}</td>
-                        <td>${o.description||'-'}</td>
-                        <td>${o.weight} Kg</td>
-                        <td style="font-weight:bold; color:green;">R$ ${finalPrice.toFixed(2)}</td> 
-                        <td style="min-width: 250px;">${statusDisplay}</td>
-                        <td style="text-align:center;">${actions}</td>
-                    </tr>`; 
-            });
-            
-            if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
-        }
         if (currentUser.role === 'client') updateClientNotifications(list);
     } catch (error) {
         console.error("Erro ao carregar encomendas:", error);
     }
+}
+
+// --------------------------------------------------------------
+// FUNÇÃO TURBO: DESENHA A TABELA SEM TRAVAR O NAVEGADOR
+// --------------------------------------------------------------
+function renderizarTabelaEncomendas() {
+    const tbody = document.getElementById('orders-list') || 
+                  document.getElementById('client-orders-list') || 
+                  document.querySelector('.data-table tbody');
+    
+    if(!tbody) return;
+    
+    if(window.todasEncomendas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada.</td></tr>';
+        return;
+    }
+
+    // Pega apenas as primeiras encomendas até o limite atual
+    const encomendasVisiveis = window.todasEncomendas.slice(0, window.limiteEncomendas);
+    
+    // O SEGREDO DA VELOCIDADE: Cria o HTML na memória antes de jogar na tela
+    let htmlDasLinhas = '';
+
+    encomendasVisiveis.forEach(o => {
+        const toggleBtn = document.getElementById('toggle-orders');
+        if (o.status === 'Entregue' && currentUser.role !== 'client' && (!toggleBtn || !toggleBtn.checked)) return;
+        
+        const phone = o.client_phone || o.phone || o.whatsapp || ''; 
+        const email = o.client_email || o.email || o.mail || ''; 
+        const name = o.client_name || o.name || 'Cliente';
+        
+        const basePrice = parseFloat(o.price) || 0;
+        const freightValue = parseFloat(o.freight_amount) || basePrice;
+        const nfValue = parseFloat(o.nf_amount) || 0;
+        const finalPrice = freightValue + nfValue;
+
+        // --- 1. STATUS ---
+        let statusDisplay;
+        if (currentUser.role === 'client') {
+            statusDisplay = typeof getTimelineHTML === 'function' ? getTimelineHTML(o.status) : o.status;
+        } else {
+            statusDisplay = `
+            <select onchange="checkDeliveryStatus(this, ${o.id}, '${name}', '${o.code}', '${phone}')" 
+                    style="padding:5px; border-radius:4px; border:1px solid #ccc; font-size:12px; width:100%;">
+                <option value="Processando" ${o.status=='Processando'?'selected':''}>Processando</option>
+                <option value="Recebido" ${o.status=='Recebido'?'selected':''}>Recebido na Origem</option>
+                <option value="Em Trânsito" ${o.status=='Em Trânsito'?'selected':''}>Em Trânsito ✈️</option>
+                <option value="Chegou ao Destino" ${o.status=='Chegou ao Destino'?'selected':''}>Chegou ao Destino 🏢</option>
+                <option value="Pendente Pagamento" ${o.status=='Pendente Pagamento'?'selected':''}>Pendente Pagamento</option>
+                <option value="Pago" ${o.status=='Pago'?'selected':''}>Pago</option>
+                <option value="Entregue" ${o.status=='Entregue'?'selected':''}>Entregue ✅</option>
+                <option value="Avaria" ${o.status=='Avaria'?'selected':''}>Avaria ⚠️</option>
+            </select>`;
+        }
+
+        // --- 2. BOTÕES DE AÇÃO ---
+        let actions = '-';
+        if (currentUser.role !== 'client') {
+            const whatsappColor = phone ? '#25D366' : '#ccc';
+            const emailColor = email ? '#007bff' : '#ccc';
+            actions = `<div style="display:flex; gap:5px; justify-content:center;">`;
+            actions += `<button onclick="sendNotification('whatsapp', '${phone}', '${name}', '${o.code}', '${o.status}')" title="WhatsApp" style="background:${whatsappColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fab fa-whatsapp"></i></button>`;
+            actions += `<button onclick="sendNotification('email', '${email}', '${name}', '${o.code}', '${o.status}')" title="Email" style="background:${emailColor}; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="far fa-envelope"></i></button>`;
+            actions += `<button onclick="editOrder(${o.id})" title="Editar" style="background:#ffc107; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-edit"></i></button>`;
+            actions += `<button onclick="deleteOrder(${o.id})" title="Excluir" style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-trash"></i></button>`;
+            actions += `<button onclick="DeliveryProof.start(${o.id}, 'damage')" title="Avaria" style="background:#dc3545; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-exclamation-triangle"></i></button>`;
+            if (o.delivery_proof) {
+                actions += `<button onclick='DeliveryProof.view("${o.delivery_proof}")' title="Ver Foto" style="background:#6f42c1; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer; display:flex; align-items:center; justify-content:center;"><i class="fas fa-camera"></i></button>`;
+            }
+            actions += `<button onclick="printLabel('${o.code}', '${name}', '${o.weight}', '${o.description}')" title="Etiqueta" style="background:#6c757d; color:white; border:none; width:30px; height:30px; border-radius:50%; margin-left:5px; cursor:pointer;"><i class="fas fa-print"></i></button></div>`;
+        } else {
+            if (o.status === 'Pendente Pagamento' || o.status === 'Pendente') {
+                actions = `<button onclick="openPaymentModal(${o.id}, '${o.description}', ${finalPrice})" class="btn-pay-pulse" style="background:#28a745; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fas fa-dollar-sign"></i> PAGAR</button>`;
+            } else if (o.status === 'Pago') {
+                actions = `<span style="color:green; font-weight:bold;"><i class="fas fa-check-circle"></i> Pago</span>`;
+            } else if ((o.status === 'Entregue' || o.status === 'Avaria') && o.proof_image) {
+                actions = `<button onclick='viewDeliveryPhoto("${o.proof_image}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;"><i class="fas fa-camera"></i> Ver Comprovante</button>`;
+            } else {
+                actions = `<button onclick="alert('Detalhes: ${o.description} | Valor: R$ ${finalPrice.toFixed(2)}')" style="padding:5px 10px; border:1px solid #ddd; background:#fff; cursor:pointer; border-radius:4px;">Detalhes</button>`;
+            }
+        }
+        
+        const checkboxHtml = currentUser.role !== 'client' 
+            ? `<td style="text-align: center;"><input type="checkbox" class="order-checkbox" value="${o.id}" onclick="updateBulkCounter()"></td>`
+            : '';
+        
+        // Em vez de desenhar, ele soma no texto
+        htmlDasLinhas += `
+            <tr style="border-bottom: 1px solid #eee;">
+                ${checkboxHtml}
+                <td style="padding:12px;"><strong>${o.code}</strong></td>
+                <td>${name}</td>
+                <td>${o.description||'-'}</td>
+                <td>${o.weight} Kg</td>
+                <td style="font-weight:bold; color:green;">R$ ${finalPrice.toFixed(2)}</td> 
+                <td style="min-width: 250px;">${statusDisplay}</td>
+                <td style="text-align:center;">${actions}</td>
+            </tr>`; 
+    });
+
+    // Se ainda tem mais para mostrar, adiciona o botão mágico de carregar mais
+    if (window.todasEncomendas.length > window.limiteEncomendas) {
+        htmlDasLinhas += `
+        <tr>
+            <td colspan="8" style="text-align:center; padding: 15px;">
+                <button onclick="carregarMaisEncomendas()" style="background:#0a1931; color:white; font-weight:bold; padding:10px 20px; border-radius:5px; border:none; cursor:pointer; width: 100%; max-width: 300px;">
+                    Carregar Mais Encomendas ⬇️
+                </button>
+            </td>
+        </tr>`;
+    }
+
+    // A mágica acontece aqui: Desenha TUDO de uma única vez!
+    tbody.innerHTML = htmlDasLinhas;
+    
+    if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
+}
+
+// --------------------------------------------------------------
+// FUNÇÃO DO BOTÃO "CARREGAR MAIS"
+// --------------------------------------------------------------
+function carregarMaisEncomendas() {
+    window.limiteEncomendas += 50; // Aumenta de 50 em 50
+    renderizarTabelaEncomendas(); // Redesenha a tabela ultra-rápido
 }
 function toggleOrderForm() { const f = document.getElementById('new-order-form'); f.classList.toggle('hidden'); if(!f.classList.contains('hidden')) loadClients(); }
 async function updateOrderStatus(id, status) { await fetch('/api/orders/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status})}); loadOrders(); }
@@ -2655,8 +2680,9 @@ async function sendRecoveryRequest() {
     btn.innerText = originalText;
     btn.disabled = false;
 }
-// --- FUNÇÕES DO HISTÓRICO ---
-
+// ==============================================================
+// FUNÇÃO HISTORY ATUALIZADA (SUPER RÁPIDA)
+// ==============================================================
 async function loadHistory() {
     const tbody = document.getElementById('history-list');
     if (!tbody) return;
@@ -2667,30 +2693,28 @@ async function loadHistory() {
         const res = await fetch('/api/history');
         const list = await res.json();
         
-        tbody.innerHTML = '';
-        
         if (list.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" align="center">Nenhum registro encontrado.</td></tr>';
             return;
         }
 
-        list.forEach(item => {
+        let htmlDasLinhas = '';
+        
+        // No histórico, desenhamos apenas os 100 mais recentes para não travar
+        const listLimitada = list.slice(0, 100);
+
+        listLimitada.forEach(item => {
             const date = new Date(item.created_at).toLocaleDateString('pt-BR');
             const statusClass = `status-${item.status}`; 
             
-            // 1. CORREÇÃO DE ALINHAMENTO: 
-            // Só cria a string da coluna se NÃO for cliente. 
-            // Se for cliente, a coluna simplesmente não existirá no HTML da linha.
             let clientCellHtml = '';
             if (currentUser.role !== 'client') {
                 clientCellHtml = `<td>${item.client_name || 'Desconhecido'}</td>`;
             }
 
-            // 2. CORREÇÃO DA DESCRIÇÃO:
-            // Tenta pegar 'description' (da tabela orders) ou 'products' (da tabela boxes)
             const conteudo = item.description || item.products || 'Sem descrição';
 
-            tbody.innerHTML += `
+            htmlDasLinhas += `
                 <tr>
                     <td>${date}</td>
                     <td style="font-weight:bold;">${item.code}</td>
@@ -2701,7 +2725,13 @@ async function loadHistory() {
             `;
         });
         
-        // 3. AJUSTE DO CABEÇALHO (TH):
+        if (list.length > 100) {
+            htmlDasLinhas += `<tr><td colspan="5" style="text-align:center; padding: 15px; color:#666; font-size:12px;">Mostrando os 100 registros mais recentes...</td></tr>`;
+        }
+
+        // Desenha de uma vez!
+        tbody.innerHTML = htmlDasLinhas;
+        
         const thClient = document.getElementById('hist-col-client');
         if(thClient) {
             thClient.style.display = (currentUser.role === 'client') ? 'none' : 'table-cell';

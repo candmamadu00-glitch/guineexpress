@@ -24,6 +24,10 @@ const fs = require('fs');
 const webpush = require('web-push');
 const app = express(); // <-- O App é criado aqui
 const ExcelJS = require('exceljs');
+// === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // ==========================================
 // 🛡️ 1. PROTEÇÃO CONTRA HACKERS (HELMET)
 // ==========================================
@@ -1670,65 +1674,80 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
     const { client_id, description } = req.body;
     if(!client_id) return res.status(400).json({success: false, msg: "Cliente não identificado."});
 
-    db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", 
-    [client_id, req.file.filename, description], function(err) {
-        if(err) return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
-        
-        console.log(`✅ Vídeo salvo no banco!`);
+    // 1. Caminhos do arquivo
+    const videoOriginalWebm = req.file.path; // Arquivo .webm original que o multer salvou
+    const nomeArquivoMp4 = req.file.filename.replace('.webm', '.mp4'); // Troca a extensão no nome
+    const videoConvertidoMp4 = path.join(videosFolder, nomeArquivoMp4); // Caminho final do .mp4
 
-        db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
-            if (err || !user || !user.phone) {
-                return res.json({success: true, msg: "Vídeo salvo, mas cliente sem telefone."});
-            }
+    console.log(`⏳ Convertendo vídeo de .webm para .mp4... Aguarde.`);
 
-            // Verifica se o Zap está conectado
-            if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                try {
-                    // Limpeza Global do número
-                    let cleanPhone = user.phone.replace(/\D/g, '');
-                    
-                    // Valida o número no WhatsApp para evitar erro No LID
-                    const numberId = await clientZap.getNumberId(cleanPhone);
-                    
-                    if (numberId) {
-                    try {
-                        // A. Envia a mensagem de texto primeiro
-                        const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
-                        await clientZap.sendMessage(numberId._serialized, message);
+    // 2. Inicia a conversão com FFmpeg
+    ffmpeg(videoOriginalWebm)
+        .outputOptions([
+            '-preset veryfast', // Converte rápido
+            '-c:v libx264',     // Formato de vídeo universal (H.264)
+            '-c:a aac'          // Formato de áudio universal
+        ])
+        .save(videoConvertidoMp4)
+        .on('end', () => {
+            console.log(`✅ Vídeo convertido com sucesso para MP4!`);
 
-                        // B. BUSCA O CAMINHO CORRETO (Usando a sua variável inteligente videosFolder)
-                        const videoPath = path.join(videosFolder, req.file.filename);
+            // Apaga o arquivo .webm antigo para não lotar seu servidor
+            fs.unlink(videoOriginalWebm, (err) => {
+                if (err) console.error("⚠️ Erro ao apagar arquivo .webm antigo:", err);
+            });
 
-                        // C. Se o arquivo existir, envia a mídia
-                        if (fs.existsSync(videoPath)) {
-                            const media = MessageMedia.fromFilePath(videoPath);
-                            
-                            // 🔥 A MÁGICA: Como o vídeo é .webm, forçamos o envio como "Documento"
-                            await clientZap.sendMessage(numberId._serialized, media, { 
-                                sendMediaAsDocument: true, 
-                                caption: `Vídeo: ${description || 'Sua encomenda'}` 
-                            });
-                            console.log(`✅ Arquivo de vídeo enviado com sucesso para ${cleanPhone}`);
-                        } else {
-                            console.error("❌ Arquivo de vídeo não encontrado. O sistema procurou em:", videoPath);
-                        }
-                    } catch (err) {
-                        console.error("❌ Erro interno no envio da mídia:", err.message);
+            // 3. Salva no banco de dados com o NOVO nome (.mp4)
+            db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", 
+            [client_id, nomeArquivoMp4, description], function(err) {
+                if(err) return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
+                
+                console.log(`✅ Vídeo MP4 salvo no banco!`);
+
+                // 4. Fluxo do WhatsApp
+                db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
+                    if (err || !user || !user.phone) {
+                        return res.json({success: true, msg: "Vídeo salvo, mas cliente sem telefone."});
                     }
-                } else {
-                    console.log(`⚠️ Número ${cleanPhone} não reconhecido pelo WhatsApp.`);
-                }
-                } catch (zapErr) {
-                    console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
-                }
-            } else {
-                console.log("❌ Zap desconectado. Notificação não enviada.");
-            }
-            
-            // Retorna sucesso para o Front-end independente do Zap ter ido ou não
-            res.json({success: true});
+
+                    if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                        try {
+                            let cleanPhone = user.phone.replace(/\D/g, '');
+                            const numberId = await clientZap.getNumberId(cleanPhone);
+                            
+                            if (numberId) {
+                                try {
+                                    const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
+                                    await clientZap.sendMessage(numberId._serialized, message);
+
+                                    if (fs.existsSync(videoConvertidoMp4)) {
+                                        const media = MessageMedia.fromFilePath(videoConvertidoMp4);
+                                        
+                                        // 🔥 A MÁGICA ACONTECE AQUI: Tiramos o 'sendMediaAsDocument'
+                                        // Agora ele vai como vídeo nativo para tocar na hora!
+                                        await clientZap.sendMessage(numberId._serialized, media, { 
+                                            caption: `Vídeo: ${description || 'Sua encomenda'}` 
+                                        });
+                                        console.log(`✅ Vídeo nativo enviado com sucesso para ${cleanPhone}`);
+                                    }
+                                } catch (err) {
+                                    console.error("❌ Erro interno no envio da mídia:", err.message);
+                                }
+                            }
+                        } catch (zapErr) {
+                            console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
+                        }
+                    }
+                    
+                    // Retorna sucesso para liberar a tela do funcionário
+                    res.json({success: true});
+                });
+            });
+        })
+        .on('error', (err) => {
+            console.error("❌ Erro na conversão do vídeo:", err);
+            res.status(500).json({success: false, msg: "Erro ao converter vídeo para MP4."});
         });
-    });
 });
 // 2. Listar Vídeos
 app.get('/api/videos/list', (req, res) => {
