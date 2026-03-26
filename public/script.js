@@ -539,21 +539,24 @@ function savePrice() {
     });
 }
 
-// --- SISTEMA DE ENCOMENDAS E CAIXAS INTELIGENTE ---
+// --- SISTEMA DE ENCOMENDAS E CAIXAS INTELIGENTE (TURBINADO) ---
 async function loadBoxes() {
-    const res = await fetch('/api/boxes');
-    let list = await res.json(); 
-    const tbody = document.getElementById('box-table-body');
-    const summaryContainer = document.getElementById('box-summary-container');
-    
-    const toggleBtn = document.getElementById('toggle-boxes');
-    const showCompleted = toggleBtn ? toggleBtn.checked : false;
-    
-    if(tbody) {
-        tbody.innerHTML = '';
+    try {
+        const res = await fetch('/api/boxes');
+        let list = await res.json(); 
+        const tbody = document.getElementById('box-table-body');
+        const summaryContainer = document.getElementById('box-summary-container');
+        
+        const toggleBtn = document.getElementById('toggle-boxes');
+        const showCompleted = toggleBtn ? toggleBtn.checked : false;
+        
+        if(!tbody) return;
+        
+        // Coloca um aviso de carregando rápido
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Carregando caixas...</td></tr>';
         if(summaryContainer) summaryContainer.innerHTML = '';
 
-        // Calcula o peso total de cada Box
+        // 1. FAZ A MATEMÁTICA COM TODAS AS CAIXAS (Para não quebrar o resumo)
         const boxTotals = {};
 
         list.forEach(b => {
@@ -569,7 +572,7 @@ async function loadBoxes() {
             boxTotals[code] += weight; 
         });
 
-        // Cria os cards de resumo
+        // 2. CRIA OS CARTÕES DE RESUMO
         if (summaryContainer && Object.keys(boxTotals).length > 0) {
             let cardsHTML = '';
             for (const [code, totalWeight] of Object.entries(boxTotals)) {
@@ -593,9 +596,19 @@ async function loadBoxes() {
             return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
         });
 
-        list.forEach(b => {
+        // 3. A MÁGICA DA VELOCIDADE: Usar um "Buffer" e limitar a 50 na tela
+        let htmlBuffer = '';
+        let itensRenderizados = 0;
+
+        for (let i = 0; i < list.length; i++) {
+            const b = list[i];
             const status = b.status || b.order_status || '';
-            if ((status === 'Entregue' || status === 'Pago') && currentUser.role !== 'client' && !showCompleted) return;
+            
+            // Ignora os completos se a chave estiver desligada
+            if ((status === 'Entregue' || status === 'Pago') && currentUser.role !== 'client' && !showCompleted) continue;
+
+            // PARA DE DESENHAR DEPOIS DE 50 PARA NÃO TRAVAR O CELULAR
+            if (itensRenderizados >= 50) break;
 
             const individualWeight = parseFloat(b.order_weight) || 0;
             const freightValue = individualWeight * globalPricePerKg;
@@ -604,7 +617,6 @@ async function loadBoxes() {
 
             const isAdmin = currentUser.role !== 'client';
 
-            // SE FOR ADMIN VÊ OS BOTÕES DE ETIQUETA E EXCLUIR. SE FOR CLIENTE VÊ O BOTÃO DE RECEBEDOR!
             let act = '-';
             if (isAdmin) {
                 act = `
@@ -613,7 +625,6 @@ async function loadBoxes() {
                  </button>
                  <button onclick="deleteBox(${b.id})" style="color:white; background:red; border:none; padding:5px 10px; cursor:pointer; border-radius:3px;">Excluir</button>`;
             } else {
-                // É CLIENTE! Mostra o botão amarelo
                 const textoBtn = b.receiver_name ? `✅ Destinatario: ${b.receiver_name.split(' ')[0]}` : '👤 Informar Destinatario';
                 const corBtn = b.receiver_name ? '#28a745' : '#f1c40f';
                 const corTexto = b.receiver_name ? '#fff' : '#000';
@@ -624,13 +635,11 @@ async function loadBoxes() {
                        </button>`;
             }
 
-            // Correção da coluna do cliente (MANTENHA ISSO)
             const clientCell = isAdmin ? 
                 `<td>${b.client_name || '-'}</td>` : 
                 `<td style="display:none;">${b.client_name || '-'}</td>`;
 
-            // Onde as linhas da tabela são desenhadas (MANTENHA ISSO)
-            tbody.innerHTML += `
+            htmlBuffer += `
             <tr>
                 <td style="font-weight:bold; color:#0a1931; font-size:16px;">📦 ${b.box_code}</td>
                 ${clientCell}
@@ -640,8 +649,16 @@ async function loadBoxes() {
                 <td>${b.products || '-'}</td>
                 <td>${act}</td>
             </tr>`; 
-        });
+            
+            itensRenderizados++;
+        }
+        
+        // Joga todo o código HTML na tabela DE UMA VEZ SÓ (extremamente rápido)
+        tbody.innerHTML = htmlBuffer;
         if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
+
+    } catch (e) {
+        console.error("Erro ao carregar boxes:", e);
     }
 }
 // ==========================================
@@ -1190,10 +1207,13 @@ async function adminResetClientPassword(clientId, clientName) {
 }
 
 // ==========================================
-// ATUALIZAÇÃO DA FUNÇÃO LOAD CLIENTS (COMPLETA)
+// ATUALIZAÇÃO DA FUNÇÃO LOAD CLIENTS (OTIMIZADA 🚀)
 // ==========================================
 async function loadClients() { 
     try {
+        const tbody = document.getElementById('clients-list'); 
+        if(tbody) tbody.innerHTML = '<tr><td colspan="7" align="center">Carregando clientes...</td></tr>';
+
         const res = await fetch('/api/clients'); 
         const list = await res.json(); 
         
@@ -1204,41 +1224,43 @@ async function loadClients() {
             clientesComEncomenda = ordList.filter(o => o.status !== 'Entregue').map(o => String(o.client_id));
         } catch(e) { console.warn("Aviso: Não foi possível checar encomendas ativas."); }
 
+        // Popula os selects (isso aqui é rápido e pode fazer todos)
         const selects = [
             document.getElementById('order-client-select'),
             document.getElementById('box-client-select')
         ];
 
-        selects.forEach(sel => {
-            if(sel) {
-                sel.innerHTML = '<option value="">Selecione o Cliente...</option>'; 
-                list.forEach(c => {
-                    if(c.name) {
-                        let aviso = clientesComEncomenda.includes(String(c.id)) ? ' ⚠️ [JÁ TEM ENCOMENDA]' : '';
-                        sel.innerHTML += `<option value="${c.id}">${c.name}${aviso} | ${c.email || 'Sem email'}</option>`; 
-                    }
-                });
+        let selectOptionsHtml = '<option value="">Selecione o Cliente...</option>';
+        list.forEach(c => {
+            if(c.name) {
+                let aviso = clientesComEncomenda.includes(String(c.id)) ? ' ⚠️ [JÁ TEM ENCOMENDA]' : '';
+                selectOptionsHtml += `<option value="${c.id}">${c.name}${aviso} | ${c.email || 'Sem email'}</option>`; 
             }
         });
 
-        const tbody = document.getElementById('clients-list'); 
+        selects.forEach(sel => {
+            if(sel) sel.innerHTML = selectOptionsHtml;
+        });
+
+        // Agora sim, monta a Tabela de Clientes com o Buffer
         if(tbody) {
-            tbody.innerHTML = ''; 
-            
-            list.forEach(c => { 
-                if(!c.name) return; 
+            let htmlBuffer = '';
+            let renderizados = 0;
+
+            for (let i = 0; i < list.length; i++) {
+                if (renderizados >= 50) break; // Trava de segurança para não travar o painel do Admin
+
+                const c = list[i];
+                if(!c.name) continue; 
 
                 let actionBtn = '';
                 if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'employee')) {
-                    // Botão Ativar/Desativar
                     const btnColor = c.active ? '#dc3545' : '#28a745';
                     const btnText = c.active ? 'Desativar' : 'Ativar';
                     const toggleBtn = `<button onclick="toggleClient(${c.id},${c.active?0:1})" style="color:white; background:${btnColor}; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; margin-right: 5px;" title="${btnText} Cliente">${btnText}</button>`;
                     
-                    // Botão Resetar Senha
                     const resetBtn = `<button onclick="adminResetClientPassword(${c.id}, '${c.name.replace(/'/g, "\\'")}')" style="color:white; background:#ff9800; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;" title="Redefinir Senha do Cliente"><i class="fas fa-key"></i></button>`;
                     
-                    // NOVO: Botão Excluir (Apenas para Admin)
                     let deleteBtn = '';
                     if (currentUser.role === 'admin') {
                         deleteBtn = `<button onclick="excluirCliente(${c.id}, '${c.name.replace(/'/g, "\\'")}')" class="btn" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; margin-left: 5px;" title="Excluir Cliente Permanentemente">
@@ -1246,7 +1268,6 @@ async function loadClients() {
                                      </button>`;
                     }
 
-                    // Junta todos os botões na coluna de Ações
                     actionBtn = `<div style="display:flex; justify-content:center; gap:5px; align-items:center;">${toggleBtn}${resetBtn}${deleteBtn}</div>`;
                 } else {
                     actionBtn = '<span style="color:#999; font-size:12px;">🔒 Restrito</span>';
@@ -1262,16 +1283,13 @@ async function loadClients() {
 
                 const photoHtml = `<img src="${imgUrl}" onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
 
-                // ==========================================
-                // AQUI ESTÁ A PARTE DA DATA DE CADASTRO QUE FALTAVA!
-                // ==========================================
                 let dataCadastro = "-";
                 if (c.created_at) {
                     let dataFormatada = new Date(c.created_at);
                     dataCadastro = dataFormatada.toLocaleDateString('pt-BR');
                 }
 
-                tbody.innerHTML += `
+                htmlBuffer += `
                     <tr style="border-bottom: 1px solid #eee; text-align: center;">
                         <td style="padding:10px;">${photoHtml}</td>  
                         <td style="text-align:left; font-weight:bold;">${c.name}</td> 
@@ -1281,12 +1299,21 @@ async function loadClients() {
                         <td style="font-weight:bold; color:#555;">${dataCadastro}</td> <td>${statusBadge}</td> 
                         <td>${actionBtn}</td> 
                     </tr>`; 
-            }); 
+                renderizados++;
+            }
             
+            if (renderizados === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" align="center">Nenhum cliente cadastrado.</td></tr>';
+            } else {
+                tbody.innerHTML = htmlBuffer;
+            }
+
             if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
         }
     } catch (error) {
         console.error("Erro ao carregar clientes:", error);
+        const tbody = document.getElementById('clients-list');
+        if(tbody) tbody.innerHTML = '<tr><td colspan="7" align="center" style="color:red;">Erro ao buscar clientes.</td></tr>';
     }
 }
 async function toggleClient(id, active) { await fetch('/api/clients/toggle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,active})}); loadClients(); }
@@ -2019,31 +2046,69 @@ async function loadClientInfoForVideo(clientId) {
     }
 }
 
+// --- VÍDEOS DO ADMIN (RÁPIDO E COM BOTÕES BONITOS 🎨) ---
 async function loadAdminVideos() {
-    const res = await fetch('/api/videos/list');
-    const list = await res.json();
     const tbody = document.getElementById('admin-video-list');
     if(!tbody) return;
-    tbody.innerHTML = '';
-    list.forEach(v => {
-        tbody.innerHTML += `
-            <tr>
-                <td>${v.id}</td>
-                <td>${v.client_name || 'Desconhecido'}</td>
-                <td>${formatDate(v.created_at)}</td>
-                <td>
-                    <a href="/uploads/videos/${v.filename}" target="_blank" style="color:blue">Ver</a> | 
-                    <button onclick="deleteVideo(${v.id}, '${v.filename}')" style="color:red; border:none; background:none; cursor:pointer;">Excluir</button>
-                </td>
-            </tr>
-        `;
-    });
+
+    // Aviso de carregamento
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregando vídeos...</td></tr>';
+
+    try {
+        const res = await fetch('/api/videos/list');
+        const list = await res.json();
+        
+        if (list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum vídeo encontrado.</td></tr>';
+            return;
+        }
+
+        let htmlBuffer = '';
+        let renderizados = 0;
+
+        for (let i = 0; i < list.length; i++) {
+            if (renderizados >= 50) break; // Trava de segurança (50 vídeos no máximo na tela)
+
+            const v = list[i];
+            
+            // A MÁGICA DOS BOTÕES AQUI 👇
+            htmlBuffer += `
+                <tr>
+                    <td style="font-weight:bold; color:#0a1931;">${v.id}</td>
+                    <td>${v.client_name || 'Desconhecido'}</td>
+                    <td>${formatDate(v.created_at)}</td>
+                    <td>
+                        <div style="display: flex; gap: 8px; justify-content: flex-start;">
+                            <a href="/uploads/videos/${v.filename}" target="_blank" 
+                               style="background-color: #00b1ea; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <i class="fas fa-eye"></i> Ver
+                            </a> 
+                            <button onclick="deleteVideo(${v.id}, '${v.filename}')" 
+                                    style="background-color: #dc3545; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-size: 13px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <i class="fas fa-trash"></i> Excluir
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            renderizados++;
+        }
+
+        tbody.innerHTML = htmlBuffer;
+
+    } catch (error) {
+        console.error("Erro ao carregar vídeos admin:", error);
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Erro ao buscar vídeos.</td></tr>';
+    }
 }
 
+// --- VÍDEOS DO CLIENTE (LEVE E PREPARADO PARA MP4 🎬) ---
 async function loadClientVideos() {
     const grid = document.getElementById('client-video-grid');
     if(!grid) return; 
     
+    grid.innerHTML = '<p style="text-align:center; width:100%;">Carregando seus vídeos...</p>';
+
     try {
         const res = await fetch('/api/videos/list');
         const list = await res.json();
@@ -2053,13 +2118,18 @@ async function loadClientVideos() {
             return;
         }
 
-        // Monta todo o HTML numa variável primeiro (Mais rápido)
         let htmlBuffer = '';
+        let renderizados = 0;
 
-        list.forEach(v => {
+        for (let i = 0; i < list.length; i++) {
+            if (renderizados >= 50) break; // Trava de segurança para não explodir o celular do cliente
+
+            const v = list[i];
             const dateStr = new Date(v.created_at).toLocaleDateString('pt-BR');
-            // Escapa aspas para evitar quebra de HTML
             const descSafe = (v.description || 'Sem descrição').replace(/"/g, '&quot;');
+            
+            // Verifica a extensão do arquivo (agora pode ser .mp4 ou .webm)
+            const ext = v.filename.split('.').pop();
             
             htmlBuffer += `
                 <div class="video-card" style="border:1px solid #ddd; padding:15px; border-radius:8px; background:white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
@@ -2067,38 +2137,27 @@ async function loadClientVideos() {
                         📦 ${descSafe}
                     </div>
                     <video controls preload="metadata" style="width:100%; border-radius:5px; background:black; aspect-ratio: 16/9;">
-                        <source src="/uploads/videos/${v.filename}" type="video/webm">
+                        <source src="/uploads/videos/${v.filename}" type="video/${ext === 'mp4' ? 'mp4' : 'webm'}">
                         Seu navegador não suporta vídeos.
                     </video>
                     <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:#666;">📅 ${dateStr}</span>
-                        <a href="/uploads/videos/${v.filename}" download="video-${v.id}.webm" class="btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px; border-radius:4px;">
+                        <a href="/uploads/videos/${v.filename}" download="video-${v.id}.${ext}" class="btn-primary" style="padding:6px 12px; text-decoration:none; font-size:12px; border-radius:4px; font-weight:bold; display:inline-flex; align-items:center; gap:5px;">
                             <i class="fas fa-download"></i> Baixar
                         </a>
                     </div>
                 </div>
             `;
-        });
+            renderizados++;
+        }
 
         grid.innerHTML = htmlBuffer;
 
     } catch (error) {
         console.error("Erro ao carregar vídeos:", error);
-        grid.innerHTML = '<p style="color:red; text-align:center;">Erro de conexão ao buscar vídeos.</p>';
+        grid.innerHTML = '<p style="color:red; text-align:center; width:100%;">Erro de conexão ao buscar vídeos.</p>';
     }
 }
-
-async function deleteVideo(id, filename) {
-    if(!confirm("Excluir este vídeo permanentemente?")) return;
-    await fetch('/api/videos/delete', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({id, filename})
-    });
-    loadAdminVideos();
-    
-}
-
 // --- FUNÇÃO DE PESQUISA GLOBAL ---
 function searchTable(inputId, tableBodyId) {
     const input = document.getElementById(inputId);
@@ -2747,10 +2806,9 @@ function filterHistory() {
     searchTable('history-search', 'history-list');
 }
 // ==========================================
-// CARREGAR LISTA PARA IMPRIMIR ETIQUETAS
+// CARREGAR LISTA PARA IMPRIMIR ETIQUETAS (OTIMIZADO 🚀)
 // ==========================================
 async function loadLabels() {
-    // Permite Admin e Employee (Funcionário)
     if (currentUser.role === 'client') {
         alert("Acesso restrito.");
         showSection('orders-view');
@@ -2763,7 +2821,6 @@ async function loadLabels() {
     tbody.innerHTML = '<tr><td colspan="6" align="center">Carregando etiquetas...</td></tr>';
 
     try {
-        // MÁGICA 1: Busca as Encomendas E as Boxes ao mesmo tempo!
         const [resOrders, resBoxes] = await Promise.all([
             fetch('/api/orders'),
             fetch('/api/boxes')
@@ -2772,31 +2829,30 @@ async function loadLabels() {
         const orders = await resOrders.json();
         const boxes = await resBoxes.json();
         
-        tbody.innerHTML = '';
-
         if ((!orders || orders.length === 0) && (!boxes || boxes.length === 0)) {
             tbody.innerHTML = '<tr><td colspan="6" align="center">Nenhuma etiqueta encontrada.</td></tr>';
             return;
         }
 
-        // MÁGICA 2: Organiza as Boxes do menor para o maior (Box 1, Box 2, Box 3...)
         boxes.sort((a, b) => {
             const boxA = a.box_code || '';
             const boxB = b.box_code || '';
             return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
         });
 
-        // ----------------------------------------------------
+        let htmlBuffer = '';
+        let renderizados = 0;
+
         // PARTE 1: MOSTRAR AS CAIXAS (BOXES) PRIMEIRO
-        // ----------------------------------------------------
-        boxes.forEach(box => {
-            // Procura a encomenda original para "roubar" o telefone e o email do cliente
+        for (let i = 0; i < boxes.length; i++) {
+            if (renderizados >= 50) break;
+
+            const box = boxes[i];
             const orderOriginal = orders.find(o => o.code === box.order_code) || {};
             
-            // Monta o pacote perfeito com NÚMERO DA BOX, TELEFONE e EMAIL!
             const labelData = {
                 id: box.id,
-                box_code: box.box_code, // Garante que a etiqueta imprima o número da Box
+                box_code: box.box_code,
                 code: box.order_code || 'SEM-REF',
                 client_name: box.client_name || orderOriginal.client_name || 'Desconhecido',
                 client_phone: orderOriginal.client_phone || 'Não informado',
@@ -2805,10 +2861,9 @@ async function loadLabels() {
                 weight: box.order_weight || orderOriginal.weight || 0
             };
 
-            // Sanitiza para não quebrar o HTML
             const jsonStr = JSON.stringify(labelData).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
             
-            let row = `
+            htmlBuffer += `
                 <tr style="background-color: #f4f9ff; border-left: 4px solid #00b1ea;">
                     <td><input type="checkbox" class="label-check" value="box-${box.id}" data-obj='${jsonStr}'></td>
                     <td><span style="background:#0a1931; color:#fff; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">📦 BOX</span></td>
@@ -2818,23 +2873,23 @@ async function loadLabels() {
                     <td>${labelData.weight} kg</td>
                 </tr>
             `;
-            tbody.innerHTML += row;
-        });
+            renderizados++;
+        }
 
-        // ----------------------------------------------------
         // PARTE 2: MOSTRAR AS ENCOMENDAS SOLTAS DEPOIS
-        // ----------------------------------------------------
-        // Filtra para não mostrar encomendas que já estão dentro de alguma Box
         const ordersWithoutBox = orders.filter(o => !boxes.some(b => b.order_code === o.code));
-        ordersWithoutBox.sort((a, b) => b.id - a.id); // Mais recentes primeiro
+        ordersWithoutBox.sort((a, b) => b.id - a.id);
 
-        ordersWithoutBox.forEach(order => {
+        for (let i = 0; i < ordersWithoutBox.length; i++) {
+            if (renderizados >= 50) break;
+
+            const order = ordersWithoutBox[i];
             const date = new Date(order.created_at).toLocaleDateString('pt-BR');
             
             const labelData = {
                 id: order.id,
                 code: order.code,
-                box_code: '', // Vazio porque não é box
+                box_code: '', 
                 client_name: order.client_name || 'Desconhecido',
                 client_phone: order.client_phone || 'Não informado',
                 client_email: order.client_email || 'Não informado',
@@ -2844,7 +2899,7 @@ async function loadLabels() {
 
             const orderJson = JSON.stringify(labelData).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
             
-            let row = `
+            htmlBuffer += `
                 <tr>
                     <td><input type="checkbox" class="label-check" value="ord-${order.id}" data-obj='${orderJson}'></td>
                     <td>${date}</td>
@@ -2854,8 +2909,10 @@ async function loadLabels() {
                     <td>${labelData.weight} kg</td>
                 </tr>
             `;
-            tbody.innerHTML += row;
-        });
+            renderizados++;
+        }
+
+        tbody.innerHTML = htmlBuffer;
 
     } catch (err) {
         console.error("Erro ao carregar etiquetas:", err);
@@ -3101,10 +3158,8 @@ async function printSelectedLabels() {
     }
 }
 // ============================================================
-// LÓGICA DE RECIBOS PROFISSIONAIS (CORRIGIDA)
+// LÓGICA DE RECIBOS PROFISSIONAIS (OTIMIZADA 🚀)
 // ============================================================
-
-// 1. Carrega a tabela na aba (Moeda R$)
 async function loadReceipts() {
     const list = document.getElementById('receipts-list');
     if (!list) return;
@@ -3119,7 +3174,6 @@ async function loadReceipts() {
             boxes = boxes.filter(b => b.client_id === currentUser.id);
         }
 
-        list.innerHTML = '';
         if (boxes.length === 0) {
             list.innerHTML = '<tr><td colspan="6" align="center">Nenhum recibo disponível.</td></tr>';
             return;
@@ -3127,19 +3181,17 @@ async function loadReceipts() {
 
         boxes.sort((a, b) => b.id - a.id);
 
-        boxes.forEach(box => {
+        let htmlBuffer = '';
+        let renderizados = 0;
+
+        for (let i = 0; i < boxes.length; i++) {
+            if (renderizados >= 50) break; // Limite para não travar
+
+            const box = boxes[i];
             const peso = parseFloat(box.order_weight || 0);
-            
-            // 1. Calcula a estimativa de frete (se for caixa nova)
             const freteEstimado = peso * globalPricePerKg;
-            
-            // 2. Pega o valor do frete (do banco de dados) ou usa a estimativa
             const valorFrete = parseFloat(box.freight_amount) || parseFloat(box.amount) || freteEstimado;
-            
-            // 3. Pega o valor da Nota Fiscal do banco de dados (se existir)
             const valorNf = parseFloat(box.nf_amount) || 0;
-            
-            // 4. MÁGICA: Soma o Frete com a Nota Fiscal para mostrar o Total Real!
             const valorTotalCalculado = valorFrete + valorNf;
 
             const valorReais = valorTotalCalculado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -3150,7 +3202,7 @@ async function loadReceipts() {
                 clientCol = `<td>${box.client_name || 'Desconhecido'}</td>`;
             }
 
-            const row = `
+            htmlBuffer += `
                 <tr>
                     <td><strong>#${box.box_code}</strong></td>
                     ${clientCol}
@@ -3164,8 +3216,10 @@ async function loadReceipts() {
                     </td>
                 </tr>
             `;
-            list.innerHTML += row;
-        });
+            renderizados++;
+        }
+
+        list.innerHTML = htmlBuffer;
         
         const thClient = document.getElementById('rec-col-client');
         if(thClient && currentUser.role === 'client') thClient.style.display = 'none';
@@ -4586,14 +4640,18 @@ async function loadAccessLogs() {
     }
 }
 // ==========================================
-// ABA FINANCEIRO (APENAS FATURAS/CAIXAS)
+// ABA FINANCEIRO (TURBINADA 🚀)
 // ==========================================
 async function loadFinances() {
     try {
         const res = await fetch('/api/finances/all');
         const finances = await res.json();
         const tbody = document.getElementById('finances-list');
-        tbody.innerHTML = '';
+        
+        if (!tbody) return;
+
+        // Aviso de carregamento rápido para o usuário não achar que travou
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Carregando financeiro...</td></tr>';
 
         const toggleBtn = document.getElementById('toggle-finances');
         const showCompleted = toggleBtn ? toggleBtn.checked : false;
@@ -4603,11 +4661,17 @@ async function loadFinances() {
             return;
         }
 
-        finances.forEach(item => {
-            // A NOVA MÁGICA: Ignora tudo que for "Encomenda" e mostra apenas o resto (Faturas/Boxes)
-            if (item.type === 'Encomenda') return;
+        // A MÁGICA DA VELOCIDADE: Usar um "Buffer" e limitar a 50 na tela
+        let htmlBuffer = '';
+        let itensRenderizados = 0;
 
-            let statusPt = item.status;
+        for (let i = 0; i < finances.length; i++) {
+            const item = finances[i];
+            
+            // Ignora tudo que for "Encomenda" e mostra apenas o resto (Faturas/Boxes)
+            if (item.type === 'Encomenda') continue;
+
+            let statusPt = item.status || '';
             const statusLower = statusPt.toLowerCase();
 
             if (statusLower === 'pending') statusPt = 'Pendente';
@@ -4615,26 +4679,41 @@ async function loadFinances() {
             if (statusLower === 'cancelled' || statusLower === 'rejected') statusPt = 'Cancelado';
 
             // Esconde faturas pagas se o botão não estiver marcado
-            if (statusPt === 'Pago' && !showCompleted) return;
+            if (statusPt === 'Pago' && !showCompleted) continue;
+
+            // PARA DE DESENHAR DEPOIS DE 50 PARA NÃO TRAVAR O CELULAR/PC
+            if (itensRenderizados >= 50) break;
 
             let statusBadge = 'bg-warning'; 
             if (statusPt === 'Pago') statusBadge = 'bg-success'; 
             if (statusPt === 'Cancelado') statusBadge = 'bg-danger'; 
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td data-label="Código" style="font-weight: bold;">${item.id_code || 'N/A'}</td>
-                <td data-label="Tipo"><span class="badge bg-primary">${item.type}</span></td>
-                <td data-label="Cliente">${item.client_name || 'Desconhecido'}</td>
-                <td data-label="Descrição">${item.description || '-'}</td>
-                <td data-label="Peso" style="text-align: center;">${item.weight ? item.weight + ' kg' : '-'}</td>
-                <td data-label="Volumes" style="text-align: center; font-weight: bold; color: #d4af37;"><i class="fas fa-boxes"></i> ${item.volumes || '1'}</td>
-                <td data-label="Status" style="text-align: center;"><span class="badge ${statusBadge}">${statusPt}</span></td>
+            htmlBuffer += `
+                <tr>
+                    <td data-label="Código" style="font-weight: bold;">${item.id_code || 'N/A'}</td>
+                    <td data-label="Tipo"><span class="badge bg-primary">${item.type}</span></td>
+                    <td data-label="Cliente">${item.client_name || 'Desconhecido'}</td>
+                    <td data-label="Descrição">${item.description || '-'}</td>
+                    <td data-label="Peso" style="text-align: center;">${item.weight ? item.weight + ' kg' : '-'}</td>
+                    <td data-label="Volumes" style="text-align: center; font-weight: bold; color: #d4af37;"><i class="fas fa-boxes"></i> ${item.volumes || '1'}</td>
+                    <td data-label="Status" style="text-align: center;"><span class="badge ${statusBadge}">${statusPt}</span></td>
+                </tr>
             `;
-            tbody.appendChild(tr);
-        });
+            
+            itensRenderizados++;
+        }
+
+        // Joga todo o código HTML na tabela DE UMA VEZ SÓ
+        if (itensRenderizados === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registro pendente para exibir.</td></tr>`;
+        } else {
+            tbody.innerHTML = htmlBuffer;
+        }
+
     } catch (e) {
         console.error("Erro ao carregar o financeiro", e);
+        const tbody = document.getElementById('finances-list');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red;">Erro ao carregar dados.</td></tr>`;
     }
 }
 // Geração de PDF (Requer jspdf e autotable no HTML)

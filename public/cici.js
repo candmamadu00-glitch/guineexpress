@@ -158,7 +158,30 @@ const CiciAI = {
         if (nameEl && nameEl.innerText !== '...') this.userName = nameEl.innerText.trim();
         else if (window.currentUser && window.currentUser.name) this.userName = window.currentUser.name; 
     },
+     // 🌟 Radar da Cicí (Procura novos pagamentos a cada 10s)
+    startRadarAdmin: function() {
+        // Só liga o radar se quem estiver logado for o admin
+        if (this.userRole !== 'admin') return;
 
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/cici/avisos');
+                const avisos = await response.json();
+                
+                if (avisos && avisos.length > 0) {
+                    // Se tiver aviso, a Cicí abre a janela sozinha (se estiver fechada)
+                    if (!this.isOpen) this.toggle();
+                    
+                    // Fala todos os avisos acumulados
+                    avisos.forEach(aviso => {
+                        this.addMessage(aviso, 'cici');
+                    });
+                }
+            } catch (e) {
+                // Se der erro de rede, ela apenas continua tentando em silêncio
+            }
+        }, 10000); // 10000 ms = 10 segundos
+    },
     renderWidget: function() {
         if(document.getElementById('cici-widget')) return;
         const html = `
@@ -321,12 +344,15 @@ const CiciAI = {
         // Chamada para ativar o movimento
         setTimeout(() => this.makeDraggable(), 500); 
 
+        // LIGANDO O RADAR DO ADMIN 📡
+        this.startRadarAdmin();
+
         window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
         setTimeout(() => {
             const badge = document.getElementById('cici-badge');
             if(badge) badge.classList.remove('hidden');
         }, 1500);
     }
-};
+    };
 
 document.addEventListener('DOMContentLoaded', () => { setTimeout(() => CiciAI.init(), 1000); });
