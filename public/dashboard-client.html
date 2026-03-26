@@ -629,7 +629,7 @@
         </div>
 
         <div id="area-pix-manual" style="text-align:center;">
-            <p style="font-size:14px; color:#333; margin-bottom:10px;">Copie a chave abaixo e pague no seu App E Envia o Comprovante:</p>
+            <p style="font-size:14px; color:#333; margin-bottom:10px;">Copie a chave abaixo, pague no seu App e anexe o comprovante:</p>
             
             <div style="background:#f1f1f1; padding:15px; border-radius:8px; border:2px dashed #0a1931; margin-bottom:15px;">
                 <span id="txt-chave" style="font-weight:bold; font-size:18px; color:#0a1931;">49356085000134</span>
@@ -643,14 +643,13 @@
 
             <hr style="border:0; border-top:1px solid #eee; margin-bottom:20px;">
 
-            <p style="font-weight:bold; color:#28a745; margin-bottom:10px;">Já pagou? Envie o comprovante aqui:</p>
-            <input type="file" id="pix-file-input" accept="image/*,application/pdf" style="margin-bottom:15px; font-size:14px; width:100%; border:1px solid #ddd; padding:8px; border-radius:4px;">
+            <p style="font-weight:bold; color:#28a745; margin-bottom:10px;">Enviar Comprovante Clica Nesse Espaço:</p>
             
-            <button id="btn-submit-receipt" onclick="submitPixReceipt()" style="background:#28a745; color:white; border:none; padding:12px; border-radius:5px; width:100%; font-weight:bold; cursor:pointer; font-size:16px;">
-                <i class="fas fa-upload"></i> ENVIAR COMPROVANTE
+            <input type="file" id="pix-file-input" accept="image/*,application/pdf" style="display:none;" onchange="handleAutoSubmitPix()">
+            
+            <button id="btn-auto-submit-pix" onclick="document.getElementById('pix-file-input').click()" style="background:#28a745; color:rgb(228, 9, 100); border:none; padding:15px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-size:16px; margin-bottom:12px; box-shadow: 0 4px 6px rgba(40,167,69,0.3);">
+                <i class="fas fa-camera"></i> ANEXAR E ENVIAR
             </button>
-        </div>
-
         <input type="hidden" id="pay-order-id">
         <input type="hidden" id="pay-amount">
     </div>

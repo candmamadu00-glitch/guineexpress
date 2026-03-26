@@ -2627,9 +2627,12 @@ async function loadClientInvoices() {
     }
 }
 // ==========================================
-// ABRIR MODAL DE PAGAMENTO (PIX MANUAL) - ATUALIZADO COM CICÍ
+// ABRIR MODAL DE PAGAMENTO (PIX MANUAL) - ATUALIZADO
 // ==========================================
 function openPaymentModal(orderId, description, amount) {
+    // 🌟 SALVA O ID DA FATURA NA MEMÓRIA DO CELULAR PARA O AUTO-ENVIO DO BANCO
+    localStorage.setItem('fatura_pendente_id', orderId);
+
     // 1. Mostra o modal na tela
     document.getElementById('modal-payment').style.display = 'block';
 
@@ -2642,34 +2645,36 @@ function openPaymentModal(orderId, description, amount) {
     let valorParaExibir = valorNumerico.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     document.getElementById('pay-desc').innerText = `${description} - ${valorParaExibir}`;
     
-    // 4. Limpa o input de arquivo (caso o cliente tenha aberto antes e fechado)
+    // 4. Limpa o input de arquivo
     const fileInput = document.getElementById('pix-file-input');
     if(fileInput) fileInput.value = '';
     
     // 5. Restaura o botão de enviar (caso tenha ficado travado em "Enviando...")
-    const btnSubmit = document.getElementById('btn-submit-receipt');
+    const btnSubmit = document.getElementById('btn-auto-submit-pix');
     if(btnSubmit) {
         btnSubmit.disabled = false;
-        btnSubmit.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
+        btnSubmit.innerHTML = '<i class="fas fa-camera"></i> ANEXAR E ENVIAR';
     }
     
     // 6. Abre sempre na aba padrão da Chave CNPJ
     togglePixKey('cnpj');
 
     // ✨ A MÁGICA DA CICÍ COMEÇA AQUI ✨
-    // Espera meio segundo (500ms) para o modal abrir direitinho na tela e então aponta a seta
     setTimeout(() => {
-        // Foca no campo de escolher o arquivo e dá a instrução exata
-        CiciTour.focarElemento('#pix-file-input', `💸 <b>Passo 1:</b> Copie a chave acima e faça o PIX no seu banco.<br><br><b>Passo 2:</b> Tire um Print do comprovante.<br><br><b>Passo 3:</b> Clique aqui onde a seta aponta, selecione a foto do Print e depois clique em "Enviar Comprovante"!`);
-        
-        // Se o cliente clicar no campo para escolher a foto, a tela volta ao normal
-        const inputArquivo = document.getElementById('pix-file-input');
-        if (inputArquivo) {
-            inputArquivo.onclick = () => CiciTour.limparFoco('#pix-file-input');
+        if (typeof CiciTour !== 'undefined') {
+            CiciTour.focarElemento('#btn-auto-submit-pix', `💸 <b>Passo 1:</b> Copie a chave acima e pague no app do banco.<br><br><b>Passo 2:</b> Compartilhe o comprovante direto com nosso App, ou clique neste botão verde e anexe a foto!`);
+            
+            const botaoAnexar = document.getElementById('btn-auto-submit-pix');
+            if (botaoAnexar) {
+                botaoAnexar.onclick = () => {
+                    CiciTour.limparFoco('#btn-auto-submit-pix');
+                    const fileInput = document.getElementById('pix-file-input');
+                    if(fileInput) fileInput.click();
+                };
+            }
         }
     }, 500);
 }
-
 // ==========================================
 // FECHAR MODAL DE PAGAMENTO - ATUALIZADO COM CICÍ
 // ==========================================
@@ -2681,11 +2686,11 @@ function closePaymentModal() {
     const fileInput = document.getElementById('pix-file-input');
     if(fileInput) fileInput.value = '';
     
-    // Reseta o botão de enviar
-    const btnSubmit = document.getElementById('btn-submit-receipt');
+    // 5. Restaura o botão de enviar (caso tenha ficado travado em "Enviando...")
+    const btnSubmit = document.getElementById('btn-auto-submit-pix');
     if(btnSubmit) {
         btnSubmit.disabled = false;
-        btnSubmit.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
+        btnSubmit.innerHTML = '<i class="fas fa-camera"></i> ANEXAR E ENVIAR';
     }
 
     // ✨ LIMPEZA DA CICÍ ✨
@@ -6076,7 +6081,9 @@ function copyManualPix() {
 async function submitPixReceipt() {
     const orderId = document.getElementById('pay-order-id').value;
     const fileInput = document.getElementById('pix-file-input');
-    const btn = document.getElementById('btn-submit-receipt');
+    
+    // 👇 CORREÇÃO 1: Atualizamos para o ID novo do botão!
+    const btn = document.getElementById('btn-auto-submit-pix');
 
     if (!fileInput.files[0]) {
         return alert("Por favor, selecione a foto do comprovante antes de enviar.");
@@ -6085,8 +6092,11 @@ async function submitPixReceipt() {
     const formData = new FormData();
     formData.append('receipt', fileInput.files[0]);
 
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    // 👇 CORREÇÃO 2: Trava de segurança para evitar o erro null
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
+    }
 
     try {
         const res = await fetch(`/api/invoices/${orderId}/upload-receipt`, {
@@ -6106,8 +6116,13 @@ async function submitPixReceipt() {
         console.error(err);
         alert("Erro na conexão com o servidor. Tente novamente.");
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-upload"></i> ENVIAR COMPROVANTE';
+        // 👇 CORREÇÃO 3: Restaura o visual do botão novo caso dê erro
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-camera"></i> ANEXAR E ENVIAR';
+        }
+        // Limpa a foto da memória para não bugar o próximo envio
+        fileInput.value = '';
     }
 }
 // ==========================================
@@ -6968,3 +6983,105 @@ const CiciTour = {
         if(this.arrow) this.arrow.style.display = 'none';
     }
 };
+// ==========================================
+// FUNÇÕES NOVAS PARA FACILITAR O ENVIO DO PIX
+// ==========================================
+
+// 1. Faz o auto-envio assim que o cliente escolhe a foto
+function handleAutoSubmitPix() {
+    const fileInput = document.getElementById('pix-file-input');
+    
+    // Se o cliente realmente escolheu um arquivo
+    if (fileInput.files.length > 0) {
+        const btn = document.getElementById('btn-auto-submit-pix');
+        
+        // Dá um "feedback" visual pro cliente saber que está indo
+        if(btn) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
+            btn.style.opacity = '0.7';
+            btn.disabled = true;
+        }
+        
+        // Chama a sua função original que faz a gravação no sistema
+        submitPixReceipt();
+    }
+}
+
+// 2. Monta a mensagem para o WhatsApp automático
+function sendPixViaWhatsApp() {
+    const orderId = document.getElementById('pay-order-id').value;
+    
+    // ⚠️ ATENÇÃO: COLOQUE O NÚMERO DE WHATSAPP DA SUA EMPRESA AQUI ABAIXO ⚠️
+    // Apenas números, com o código do país (55 para Brasil) e DDD.
+    const numeroWhatsApp = "558598239207"; 
+    
+    const textoMensagem = encodeURIComponent(`Olá! Tive dificuldade de anexar no site, então estou enviando por aqui o comprovante de pagamento da minha encomenda/fatura #${orderId}. Segue a foto abaixo:`);
+    
+    window.open(`https://wa.me/${numeroWhatsApp}?text=${textoMensagem}`, '_blank');
+}
+// ==============================================================
+// 🌟 RECEPTOR DE COMPROVANTES DIRETOS DO BANCO (WEB SHARE TARGET)
+// ==============================================================
+window.addEventListener('DOMContentLoaded', async () => {
+    // Verifica se a página foi aberta pelo compartilhamento do banco
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (urlParams.get('share_target') === 'true') {
+        try {
+            // 1. Lembra qual fatura o cliente estava pagando
+            const invoiceId = localStorage.getItem('fatura_pendente_id');
+            
+            if (!invoiceId) {
+                alert('⚠️ O comprovante foi recebido, mas não sabemos de qual fatura ele é. Por favor, envie manualmente pelo painel.');
+                window.location.href = '/dashboard-client.html';
+                return;
+            }
+
+            // 2. Abre a memória temporária (Cache) onde o Service Worker guardou a foto
+            const cache = await caches.open('comprovante-temp-cache');
+            const respostaFoto = await cache.match('/comprovante-salvo');
+
+            if (!respostaFoto) {
+                alert('⚠️ Não conseguimos ler o comprovante do banco. Tente enviar manualmente.');
+                window.location.href = '/dashboard-client.html';
+                return;
+            }
+
+            // Transforma a resposta em um arquivo que o servidor entenda
+            const blobFoto = await respostaFoto.blob();
+            const formData = new FormData();
+            
+            // O nome "receipt" é EXATAMENTE o que o seu backend espera (upload.single('receipt'))
+            // Colocamos a extensão '.png' genérica, o servidor aceita normalmente.
+            formData.append('receipt', blobFoto, 'comprovante_compartilhado.png');
+
+            alert("🔄 Recebemos seu comprovante do banco! Enviando para o sistema, por favor aguarde...");
+
+            // 3. Envia silenciosamente para a sua API original (a mesma do botão verde)
+            const res = await fetch(`/api/invoices/${invoiceId}/upload-receipt`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert("✅ Comprovante enviado com sucesso! O administrador já foi notificado no WhatsApp.");
+                
+                // Limpeza geral para não enviar duplicado depois
+                localStorage.removeItem('fatura_pendente_id');
+                await cache.delete('/comprovante-salvo');
+                
+                // Recarrega a página limpa
+                window.location.href = '/dashboard-client.html';
+            } else {
+                alert("❌ Erro ao enviar para o servidor: " + data.message);
+                window.location.href = '/dashboard-client.html';
+            }
+
+        } catch (erro) {
+            console.error("Erro no processamento do comprovante:", erro);
+            alert("❌ Erro ao processar o arquivo. Tente enviar manualmente.");
+            window.location.href = '/dashboard-client.html';
+        }
+    }
+});
