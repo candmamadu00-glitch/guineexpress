@@ -3029,6 +3029,24 @@ app.post('/api/orders/:code/deliver', (req, res) => {
         });
     });
 });
+// --- DESFAZER ENTREGA E APAGAR FOTO (NOVO) ---
+app.post('/api/orders/:code/undo-delivery', (req, res) => {
+    const orderCode = req.params.code;
+    
+    // Atualiza o status de volta para 'Pendente' e limpa (apaga) a foto de comprovante
+    const sqlUpdate = `UPDATE orders SET status = 'Pendente', proof_image = NULL WHERE code = ?`;
+    
+    db.run(sqlUpdate, [orderCode], function(err) {
+        if (err) return res.status(500).json({ success: false, message: "Erro no banco ao desfazer entrega" });
+        if (this.changes === 0) return res.status(404).json({ success: false, message: "Código não encontrado" });
+        
+        console.log(`🔄 [ENTREGA] Entrega desfeita para a encomenda ${orderCode}. Status voltou para Pendente e foto foi apagada.`);
+        
+        // Como o Zap já foi enviado para o cliente, não mandamos outra mensagem de "erro", 
+        // apenas deixamos o entregador corrigir a foto no sistema e enviar a nova entrega depois.
+        res.json({ success: true, message: "Entrega desfeita com sucesso!" });
+    });
+});
 // ==========================================
 // ROTA: EXCLUIR CLIENTE (Apenas Admin)
 // ==========================================

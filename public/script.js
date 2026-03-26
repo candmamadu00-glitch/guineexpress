@@ -4183,6 +4183,7 @@ const DeliveryProof = {
         const preview = document.getElementById('delivery-preview');
         const btnSnap = document.getElementById('btn-snap-photo');
         const btnConfirm = document.getElementById('btn-confirm-delivery');
+        const btnRetake = document.getElementById('btn-retake-photo'); // NOVO BOTÃO
         const title = document.querySelector('#delivery-photo-modal h3');
         const desc = document.querySelector('#delivery-photo-modal p');
 
@@ -4201,11 +4202,12 @@ const DeliveryProof = {
             btnConfirm.classList.add('btn-success'); // Botão verde
         }
 
-        // Reseta visual
+        // Reseta visual para a câmera ao vivo
         if(preview) preview.style.display = 'none';
         if(video) video.style.display = 'block';
         if(btnSnap) btnSnap.classList.remove('hidden');
         if(btnConfirm) btnConfirm.classList.add('hidden');
+        if(btnRetake) btnRetake.classList.add('hidden'); // Esconde o "Descartar"
         
         // Abre o modal
         if(modal) modal.classList.remove('hidden');
@@ -4226,7 +4228,7 @@ const DeliveryProof = {
             });
     },
 
-    // Tira a foto (Igual ao anterior)
+    // Tira a foto
     snap: function() {
         const video = document.getElementById('delivery-video');
         const canvas = document.getElementById('delivery-canvas');
@@ -4248,10 +4250,31 @@ const DeliveryProof = {
         
         video.style.display = 'none';
         document.getElementById('btn-snap-photo').classList.add('hidden');
+        
+        // Mostra os botões de Confirmar e Descartar
         document.getElementById('btn-confirm-delivery').classList.remove('hidden');
+        const btnRetake = document.getElementById('btn-retake-photo');
+        if(btnRetake) btnRetake.classList.remove('hidden');
     },
 
-    // Confirma e envia (Lógica diferente para Avaria)
+    // 🔄 NOVA FUNÇÃO: DESCARTA A FOTO E VOLTA PARA A CÂMERA
+    retake: function() {
+        this.capturedImage = null;
+        const video = document.getElementById('delivery-video');
+        const preview = document.getElementById('delivery-preview');
+        const btnSnap = document.getElementById('btn-snap-photo');
+        const btnConfirm = document.getElementById('btn-confirm-delivery');
+        const btnRetake = document.getElementById('btn-retake-photo');
+
+        if(preview) preview.style.display = 'none'; // Esconde a foto
+        if(video) video.style.display = 'block';    // Mostra a câmera
+
+        if(btnSnap) btnSnap.classList.remove('hidden');  // Mostra botão de tirar foto
+        if(btnConfirm) btnConfirm.classList.add('hidden'); // Esconde confirmar
+        if(btnRetake) btnRetake.classList.add('hidden');   // Esconde descartar
+    },
+
+    // Confirma e envia
     confirm: function() {
         if (!this.capturedImage || !this.pendingOrderId) return;
         
@@ -4287,7 +4310,25 @@ const DeliveryProof = {
         }
     }
 };
+// ==========================================
+// DESCARTAR FOTO DE ENTREGA
+// ==========================================
+function discardDeliveryImage() {
+    const fileInput = document.getElementById('camera-input');
+    const previewContainer = document.getElementById('preview-container');
+    const imagePreview = document.getElementById('image-preview');
+    const btnSubmit = document.getElementById('btn-submit-delivery');
 
+    // Limpa o arquivo selecionado e a imagem
+    if (fileInput) fileInput.value = ''; 
+    if (imagePreview) imagePreview.src = '';
+    
+    // Esconde a área de pré-visualização
+    if (previewContainer) previewContainer.style.display = 'none';
+    
+    // Bloqueia o botão de "Confirmar Entrega" novamente por segurança
+    if (btnSubmit) btnSubmit.disabled = true;
+}
 // --- FUNÇÃO DE UPDATE COM FOTO (Renomeada para ficar claro) ---
 async function updateOrderWithProof(id, status, location, proofBase64) {
     const btn = document.getElementById('btn-confirm-delivery');
@@ -6164,7 +6205,10 @@ async function loadDeliveryList() {
                 <td style="text-align: center;">
                     ${isDelivered 
                         ? `<span style="color: #27ae60; font-weight: bold;"><i class="fas fa-check-circle"></i> JÁ ENTREGUE</span>
-                           ${order.proof_image ? `<br><button onclick='viewDeliveryPhoto("${order.proof_image}")' style="margin-top:5px; color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;"><i class="fas fa-camera"></i> Ver Foto</button>` : ''}` 
+                           <div style="display:flex; justify-content:center; gap:5px; margin-top:8px;">
+                               ${order.proof_image ? `<button onclick='viewDeliveryPhoto("${order.proof_image}")' style="color:#6f42c1; border:1px solid #6f42c1; background:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;" title="Ver foto enviada"><i class="fas fa-camera"></i> Foto</button>` : ''}
+                               <button onclick="undoDelivery('${order.code}')" style="color:#dc3545; border:1px solid #dc3545; background:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;" title="Apagar foto e tentar de novo"><i class="fas fa-undo"></i> Desfazer</button>
+                           </div>` 
                         : `<button onclick="confirmDelivery('${order.code}')" class="btn" style="background: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">
                             <i class="fas fa-handshake"></i> CONFIRMAR ENTREGA
                            </button>`
@@ -6175,6 +6219,29 @@ async function loadDeliveryList() {
         });
     } catch (err) {
         console.error("Erro ao carregar lista de entregas:", err);
+    }
+}
+
+// ==========================================
+// FUNÇÃO PARA DESFAZER A ENTREGA
+// ==========================================
+async function undoDelivery(code) {
+    // Pede uma confirmação rápida para evitar clique sem querer
+    if (!confirm(`⚠️ Tem certeza que deseja DESFAZER a entrega da encomenda ${code}? A foto atual será apagada e você terá que tirar outra.`)) return;
+    
+    try {
+        const res = await fetch(`/api/orders/${code}/undo-delivery`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert('🔄 Entrega desfeita! A câmera foi liberada para você tirar a foto novamente.');
+            loadDeliveryList(); // Atualiza a lista na tela (o botão verde volta a aparecer)
+        } else {
+            alert('❌ Erro ao desfazer: ' + data.message);
+        }
+    } catch (err) {
+        console.error(err);
+        alert('❌ Erro de conexão ao tentar desfazer a entrega.');
     }
 }
 
