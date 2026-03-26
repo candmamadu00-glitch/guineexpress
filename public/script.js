@@ -2902,42 +2902,27 @@ async function loadHistory() {
 function filterHistory() {
     searchTable('history-search', 'history-list');
 }
-// ==========================================
-// CARREGAR LISTA PARA IMPRIMIR ETIQUETAS (OTIMIZADO 🚀)
-// ==========================================
+// ============================================================
+// LÓGICA DE ETIQUETAS (LABELS) CORRIGIDA E COMPLETA
+// ============================================================
 let labelsLimit = 50;
 
 async function loadLabels() {
-    if (currentUser.role === 'client') {
-        alert("Acesso restrito.");
-        showSection('orders-view');
-        return;
-    }
-
+    // Verifique se o ID no seu HTML é exatamente 'labels-list'
     const tbody = document.getElementById('labels-list');
-    if(!tbody) return;
+    if (!tbody) return; 
 
-    tbody.innerHTML = '<tr><td colspan="6" align="center">Carregando etiquetas...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" align="center">Carregando etiquetas... <i class="fas fa-spinner fa-spin"></i></td></tr>';
 
     try {
-        const [resOrders, resBoxes] = await Promise.all([
-            fetch('/api/orders'),
-            fetch('/api/boxes')
+        // Busca as Caixas (Boxes) e Encomendas (Orders) ao mesmo tempo
+        const [resBoxes, resOrders] = await Promise.all([
+            fetch('/api/boxes'),
+            fetch('/api/orders')
         ]);
-        
-        const orders = await resOrders.json();
-        const boxes = await resBoxes.json();
-        
-        if ((!orders || orders.length === 0) && (!boxes || boxes.length === 0)) {
-            tbody.innerHTML = '<tr><td colspan="6" align="center">Nenhuma etiqueta encontrada.</td></tr>';
-            return;
-        }
 
-        boxes.sort((a, b) => {
-            const boxA = a.box_code || '';
-            const boxB = b.box_code || '';
-            return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
-        });
+        const boxes = resBoxes.ok ? await resBoxes.json() : [];
+        const orders = resOrders.ok ? await resOrders.json() : [];
 
         let htmlBuffer = '';
         let renderizados = 0;
@@ -3030,7 +3015,7 @@ async function loadLabels() {
 
     } catch (err) {
         console.error("Erro ao carregar etiquetas:", err);
-        tbody.innerHTML = '<tr><td colspan="6" align="center">Erro ao carregar dados. Tente novamente.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" align="center" style="color:red;">Erro ao carregar dados. Verifique a conexão com o banco.</td></tr>';
     }
 }
 
