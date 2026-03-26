@@ -7020,67 +7020,49 @@ function sendPixViaWhatsApp() {
     window.open(`https://wa.me/${numeroWhatsApp}?text=${textoMensagem}`, '_blank');
 }
 // ==============================================================
-// 🌟 RECEPTOR DE COMPROVANTES DIRETOS DO BANCO (WEB SHARE TARGET)
+// 🌟 RECEPTOR DE COMPROVANTES DIRETOS DO BANCO (VIA SERVIDOR)
 // ==============================================================
 window.addEventListener('DOMContentLoaded', async () => {
-    // Verifica se a página foi aberta pelo compartilhamento do banco
     const urlParams = new URLSearchParams(window.location.search);
+    const sharedFile = urlParams.get('shared_file'); // O servidor mandou o nome da foto aqui!
     
-    if (urlParams.get('share_target') === 'true') {
+    // Se a URL tiver o nome do arquivo, é porque o cliente acabou de voltar do Banco!
+    if (sharedFile) {
+        // 1. Lembra qual fatura o cliente estava pagando
+        const invoiceId = localStorage.getItem('fatura_pendente_id');
+        
+        if (!invoiceId) {
+            alert('⚠️ Recebemos o comprovante, mas a fatura não foi encontrada na memória. Por favor, anexe manualmente no painel.');
+            window.location.href = '/dashboard-client.html';
+            return;
+        }
+
+        alert("🔄 Recebemos a foto do seu banco! Finalizando o envio para a Guineexpress...");
+
         try {
-            // 1. Lembra qual fatura o cliente estava pagando
-            const invoiceId = localStorage.getItem('fatura_pendente_id');
-            
-            if (!invoiceId) {
-                alert('⚠️ O comprovante foi recebido, mas não sabemos de qual fatura ele é. Por favor, envie manualmente pelo painel.');
-                window.location.href = '/dashboard-client.html';
-                return;
-            }
-
-            // 2. Abre a memória temporária (Cache) onde o Service Worker guardou a foto
-            const cache = await caches.open('comprovante-temp-cache');
-            const respostaFoto = await cache.match('/comprovante-salvo');
-
-            if (!respostaFoto) {
-                alert('⚠️ Não conseguimos ler o comprovante do banco. Tente enviar manualmente.');
-                window.location.href = '/dashboard-client.html';
-                return;
-            }
-
-            // Transforma a resposta em um arquivo que o servidor entenda
-            const blobFoto = await respostaFoto.blob();
-            const formData = new FormData();
-            
-            // O nome "receipt" é EXATAMENTE o que o seu backend espera (upload.single('receipt'))
-            // Colocamos a extensão '.png' genérica, o servidor aceita normalmente.
-            formData.append('receipt', blobFoto, 'comprovante_compartilhado.png');
-
-            alert("🔄 Recebemos seu comprovante do banco! Enviando para o sistema, por favor aguarde...");
-
-            // 3. Envia silenciosamente para a sua API original (a mesma do botão verde)
-            const res = await fetch(`/api/invoices/${invoiceId}/upload-receipt`, {
+            // 2. Avisa o servidor para colar a foto na Fatura certa
+            const res = await fetch(`/api/invoices/${invoiceId}/link-shared-receipt`, {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: sharedFile })
             });
+            
             const data = await res.json();
 
             if (data.success) {
-                alert("✅ Comprovante enviado com sucesso! O administrador já foi notificado no WhatsApp.");
+                alert("✅ Comprovante enviado e vinculado com sucesso! O administrador já foi notificado.");
                 
-                // Limpeza geral para não enviar duplicado depois
+                // Limpa a memória pra não bugar a próxima
                 localStorage.removeItem('fatura_pendente_id');
-                await cache.delete('/comprovante-salvo');
                 
-                // Recarrega a página limpa
+                // Limpa a URL e recarrega a página
                 window.location.href = '/dashboard-client.html';
             } else {
-                alert("❌ Erro ao enviar para o servidor: " + data.message);
+                alert("❌ Erro ao vincular comprovante: " + data.message);
                 window.location.href = '/dashboard-client.html';
             }
-
         } catch (erro) {
-            console.error("Erro no processamento do comprovante:", erro);
-            alert("❌ Erro ao processar o arquivo. Tente enviar manualmente.");
+            alert("❌ Erro de conexão com o sistema.");
             window.location.href = '/dashboard-client.html';
         }
     }

@@ -2011,6 +2011,58 @@ app.post('/api/invoices/:id/approve-receipt', (req, res) => {
         res.json({ success: true, message: 'Pagamento aprovado com sucesso!' });
     });
 });
+// ==============================================================
+// 🌟 ROTA PARA RECEBER O COMPROVANTE DIRETO DO BANCO (PWA SHARE TARGET)
+// ==============================================================
+app.post('/receber-comprovante', upload.single('comprovante_banco'), (req, res) => {
+    if (!req.file) {
+        // Se o celular não enviou a foto direito, devolve pro painel com erro
+        return res.redirect('/dashboard-client.html?erro_share=true');
+    }
+
+    // A MÁGICA: O Multer já salvou a foto na sua pasta /uploads automaticamente!
+    // Agora pegamos o nome da foto salva e mandamos o cliente de volta pro painel.
+    const nomeDaFoto = req.file.filename;
+    res.redirect(`/dashboard-client.html?shared_file=${nomeDaFoto}`);
+});
+
+// ==============================================================
+// 🌟 ROTA PARA VINCULAR A FOTO DO BANCO COM A FATURA DO CLIENTE
+// ==============================================================
+app.post('/api/invoices/:id/link-shared-receipt', express.json(), (req, res) => {
+    const invoiceId = req.params.id;
+    const filename = req.body.filename; // O nome da foto que o painel mandou
+
+    if (!filename) return res.json({ success: false, message: 'Nome da foto ausente.' });
+
+    const receiptPath = '/uploads/' + filename;
+    const sql = "UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?";
+    
+    db.run(sql, [receiptPath, invoiceId], async function(err) {
+        if (err) return res.json({ success: false, message: 'Erro ao salvar no banco.' });
+
+        // --- Notificação no WhatsApp do Admin ---
+        if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+            try {
+                const meuNumeroAdmin = "5585998239207"; // Seu número (pode mudar se precisar)
+                const msgAdmin = `🔔 *NOVO PAGAMENTO (DIRETO DO BANCO)*\n\nUm cliente compartilhou o comprovante direto do banco para a *Fatura #${invoiceId}*.`;
+                const idOficial = await clientZap.getNumberId(meuNumeroAdmin);
+                if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgAdmin);
+                else await clientZap.sendMessage(`${meuNumeroAdmin}@c.us`, msgAdmin);
+            } catch (zapErr) { console.error("Erro zap:", zapErr.message); }
+        }
+
+        // --- Notificação da Cicí ---
+        db.get("SELECT users.name FROM invoices JOIN users ON invoices.client_id = users.id WHERE invoices.id = ?", [invoiceId], (err, row) => {
+            const clientName = row ? row.name : "um cliente";
+            const mensagemCici = `Olá Lelo! O cliente **${clientName}** acabou de enviar o comprovante direto do App do Banco. Fatura: ${invoiceId}.`;
+            if (!global.ciciAvisos) global.ciciAvisos = [];
+            global.ciciAvisos.push(mensagemCici);
+        });
+
+        res.json({ success: true, message: 'Comprovante recebido com sucesso!' });
+    });
+});
 // 3. Excluir Cobrança (Admin)
 app.post('/api/invoices/delete', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({});
