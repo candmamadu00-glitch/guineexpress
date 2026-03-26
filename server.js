@@ -116,21 +116,7 @@ const videoStorage = multer.diskStorage({
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const uploadVideo = multer({ storage: videoStorage });
-// ==========================================
-// RADAR DA CICÍ: FILA DE AVISOS
-// ==========================================
-// 1. Caixinha de avisos global
-global.ciciAvisos = [];
 
-// 2. Rota para a Cicí perguntar se tem novidade
-app.get('/api/cici/avisos', (req, res) => {
-    // Só o Admin (Lelo) recebe esses avisos
-    if (req.session.role !== 'admin') return res.json([]);
-    
-    const avisos = [...global.ciciAvisos];
-    global.ciciAvisos = []; // A Cicí já leu, então esvaziamos a caixinha
-    res.json(avisos);
-});
 // ==================================================================
 // CONFIGURAÇÃO DE EMAIL (GMAIL)
 // ==================================================================
@@ -1923,6 +1909,22 @@ db.run("ALTER TABLE invoices ADD COLUMN receipt_url TEXT", (err) => { /* ignora 
 
 
 // ==========================================
+// RADAR DA CICÍ: FILA DE AVISOS
+// ==========================================
+// 1. Caixinha de avisos global
+global.ciciAvisos = [];
+
+// 2. Rota para a Cicí perguntar se tem novidade
+app.get('/api/cici/avisos', (req, res) => {
+    // Só o Admin (Lelo) recebe esses avisos
+    if (req.session.role !== 'admin') return res.json([]);
+    
+    const avisos = [...global.ciciAvisos];
+    global.ciciAvisos = []; // A Cicí já leu, então esvaziamos a caixinha
+    res.json(avisos);
+});
+
+// ==========================================
 // ROTA: UPLOAD DE COMPROVANTE (PIX/ECOBANK)
 // ==========================================
 app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (req, res) => {
@@ -1953,7 +1955,7 @@ app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (re
                 // Formata a mensagem
                 const msgAdmin = `🔔 *NOVO PAGAMENTO RECEBIDO*\n\nUm cliente acabou de enviar o comprovante para a *Fatura #${invoiceId}*.\n\nAcesse o painel administrativo para visualizar a foto e aprovar o pagamento.`;
                 
-                // Tenta pegar o ID oficial do WhatsApp (corrige a questão do 9º dígito)
+                // Tenta pegar o ID oficial do WhatsApp
                 const idOficial = await clientZap.getNumberId(meuNumeroAdmin);
                 
                 if (idOficial) {
@@ -1971,11 +1973,7 @@ app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (re
             console.log("⚠️ [ZAP] Admin não notificado: O Robô do WhatsApp está desconectado ou reiniciando.");
         }
 
-        res.json({ success: true, message: 'Comprovativo enviado com sucesso!' });
-    });
-});
-
-      // ---------------------------------------------------------
+        // ---------------------------------------------------------
         // NOTIFICAÇÃO PARA A CICÍ (RADAR DO LELO) 🤖
         // ---------------------------------------------------------
         db.get("SELECT users.name FROM invoices JOIN users ON invoices.client_id = users.id WHERE invoices.id = ?", [invoiceId], (err, row) => {
@@ -1984,14 +1982,18 @@ app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (re
             // Cria a mensagem personalizada
             const mensagemCici = `Olá Lelo! O cliente **${clientName}** acabou de anexar o comprovante de pagamento da Fatura número ${invoiceId}. Confira na aba Financeiro e dê baixa se tudo estiver certo!`;
             
-            // 🛡️ LINHA DE SEGURANÇA: Garante que a caixinha existe antes de colocar o aviso
+            // 🛡️ LINHA DE SEGURANÇA
             if (!global.ciciAvisos) global.ciciAvisos = [];
             
             // Coloca na caixinha para a Cicí ler nos próximos 10 segundos
             global.ciciAvisos.push(mensagemCici);
         });
 
+        // Só enviamos uma única resposta de sucesso no final
         res.json({ success: true, message: 'Comprovativo enviado com sucesso!' });
+    });
+});
+
 // 3. Rota para o ADMIN aprovar o comprovante
 app.post('/api/invoices/:id/approve-receipt', (req, res) => {
     // Segurança: Apenas administradores podem aprovar
