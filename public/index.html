@@ -206,6 +206,118 @@
 
         #register-form p { color: #fff; font-weight: 500; }
         #register-form p:hover { color: #d4af37; }
+        /* ==========================================
+   ESTILOS DO RASTREAMENTO RÁPIDO
+   ========================================== */
+.tracking-card {
+    background: rgba(255, 255, 255, 0.05); /* Fundo translúcido */
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(212, 175, 55, 0.2); /* Borda levemente dourada */
+    border-radius: 20px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.tracking-header h4 {
+    color: #fff;
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+}
+
+.tracking-input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+
+.tracking-input-group input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    padding: 12px 15px;
+    border-radius: 12px;
+    outline: none;
+    font-size: 14px;
+    transition: 0.3s;
+}
+
+.tracking-input-group input:focus {
+    border-color: #009ee3; /* Fica azul ao clicar */
+    box-shadow: 0 0 8px rgba(0, 158, 227, 0.3);
+}
+
+.tracking-input-group button {
+    background: #009ee3;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 0 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 158, 227, 0.3);
+}
+
+.tracking-input-group button:hover {
+    background: #007bb5;
+    transform: translateY(-2px);
+}
+
+.active-package-info {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 15px;
+    padding: 15px;
+    margin-top: 15px;
+    animation: fadeIn 0.5s ease;
+}
+
+.package-status-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.pkg-status {
+    color: #d4af37; /* Dourado para destacar o status */
+}
+
+.progress-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #009ee3, #00d2ff); /* Degradê azul */
+    border-radius: 10px;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.package-route {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #ccc;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
     </style>
 
 <script>
@@ -228,7 +340,34 @@
             <p>Logística Internacional</p>
             <p style="font-size: 11px; margin-top: 8px; color:#bbb;">📍 Av. Tristão Gonçalves, 1203 - (85) 98239-207</p>
         </div>
-
+<div class="tracking-card">
+    <div class="tracking-header">
+        <h4><i class="fa-solid fa-box-open" style="color: #d4af37;"></i> Rastrear Encomenda</h4>
+    </div>
+    
+    <div class="tracking-input-group">
+        <input type="text" id="track-code" placeholder="Digite o código (Ex: GX-1024)">
+        <button onclick="buscarPacote()"><i class="fa-solid fa-magnifying-glass"></i></button>
+    </div>
+    
+    <div id="active-package" class="active-package-info" style="display: none;">
+        <div class="package-status-header">
+            <span class="pkg-code" id="resultado-codigo">GX-1024</span>
+            <span class="pkg-status">Em trânsito ✈️</span>
+        </div>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="barra-progresso" style="width: 0%;"></div>
+        </div>
+        
+        <div class="package-route">
+            <span>🇧🇷 Brasil</span>
+            <i class="fa-solid fa-arrow-right" style="color: #009ee3;"></i>
+            <span>🇬🇼 Guiné-Bissau</span>
+        </div>
+        <p style="font-size: 11px; color: #888; text-align: center; margin-top: 10px; margin-bottom: 0;">Última atualização: Hoje, 14:30</p>
+    </div>
+</div>
         <div id="role-selector" class="form-group">
             <button onclick="setRole('client')" class="btn btn-primary" id="btn-client">Cliente</button>
             <button onclick="setRole('employee')" class="btn" id="btn-employee">Colaborador</button>
@@ -316,20 +455,15 @@
     </div>
 </div>
 
-<div id="install-banner" style="display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: #0a1931; color: white; padding: 15px; justify-content: space-between; align-items: center; z-index: 9999; box-shadow: 0 -4px 10px rgba(0,0,0,0.3); border-top-left-radius: 20px; border-top-right-radius: 20px;">
-    <div style="display: flex; align-items: center; gap: 12px;">
-        <img src="/logo.png" style="width: 45px; height: 45px; border-radius: 50%; border: 2px solid #d4af37; object-fit: cover;">
-        <div>
-            <h4 style="margin: 0; font-size: 15px; font-weight: bold;">Guineexpress App</h4>
-            <p style="margin: 0; font-size: 12px; color: #ccc;">Instale para acesso rápido</p>
-        </div>
-    </div>
-    <div style="display: flex; gap: 10px; align-items: center;">
-        <button onclick="hideInstallBanner()" style="background: transparent; border: none; color: #aaa; font-size: 13px; cursor: pointer;">Agora não</button>
-        <button onclick="installPWA()" class="btn-pill" style="background: #d4af37; color: #000; font-weight: bold; padding: 8px 20px; font-size: 14px; animation: pulse-dourado 2s infinite;">Instalar</button>
-    </div>
-</div>
+<button id="btn-install-fab" style="display: none; position: fixed; bottom: 30px; right: 30px; padding: 0 25px; height: 55px; border-radius: 50px; background: linear-gradient(135deg, #d4af37, #f1c40f); border: 2px solid #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.6); z-index: 9999; cursor: grab; align-items: center; justify-content: center; gap: 10px; animation: pulse-dourado 2s infinite; color: #0a1931; font-weight: 900; font-size: 16px; user-select: none; touch-action: none; text-transform: uppercase; letter-spacing: 0.5px;">
+    <i class="fas fa-download" style="font-size: 20px;"></i> Instalar App
+</button>
 
+<div id="modal-ios-install" style="display: none; position: fixed; bottom: 110px; right: 30px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 9998; width: 260px; text-align: center; border: 2px solid #009ee3;">
+    <h4 style="color: #0a1931; margin-top: 0; margin-bottom: 10px; font-size: 16px; font-weight: 800;">Instalar no iPhone 🍎</h4>
+    <p style="font-size: 14px; color: #333; margin-bottom: 15px; line-height: 1.4;">Para instalar, toque no ícone de <strong>Compartilhar</strong> <i class="fa-solid fa-arrow-up-from-bracket"></i> na barra do Safari e depois escolha:<br><br><strong>"Adicionar à Tela de Início"</strong> <i class="fa-solid fa-square-plus"></i></p>
+    <button onclick="document.getElementById('modal-ios-install').style.display='none'" class="btn-pill" style="background: #eee; color: #333; padding: 8px 15px; font-size: 13px; width: 100%; font-weight: bold;">Entendi</button>
+</div>
 <div id="modalApresentacao" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; justify-content: center; align-items: center; flex-direction: column;">
     <button onclick="fecharApresentacao()" style="position: absolute; top: 20px; right: 20px; background: #ff4757; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; z-index: 10001; box-shadow: 0 2px 10px rgba(0,0,0,0.5);">
         <i class="fa-solid fa-xmark"></i>

@@ -242,7 +242,32 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
         alert("Erro de conexão ao tentar fazer login.");
     }
 });
+// ==========================================
+// VERIFICAR CLIENTES ANTIGOS AO FAZER LOGIN
+// ==========================================
+function verificarClienteAntigoNoLogin(dadosDoCliente) {
+    const nome = dadosDoCliente.nome;
+    const email = dadosDoCliente.email;
+    const telefone = dadosDoCliente.telefone;
 
+    // Passamos os dados antigos dele pelo mesmo validador
+    const dadosCorretos = validarDadosCadastro(nome, email, telefone);
+
+    if (!dadosCorretos) {
+        // Se os dados estiverem bagunçados, nós forçamos ele a corrigir!
+        alert("⚠️ Notamos que os seus dados de contato (Nome, Email ou Celular) estão incorretos no nosso sistema. Para sua segurança e para receber atualizações das suas encomendas, por favor, atualize-os agora.");
+        
+        // AQUI VOCÊ PODE ABRIR UM MODAL DE "ATUALIZAR PERFIL" 
+        // Em vez de deixar ele ir pro painel, obriga ele a preencher um formulário de correção.
+        // abrirModalCorrecaoDados(); 
+        
+        return false; // Impede ele de ver o painel enquanto não arrumar
+    }
+
+    // Se estiver tudo ok, deixa ele entrar no painel
+    console.log("Dados antigos conferidos. Acesso Liberado!");
+    window.location.href = "painel.html"; // ou a rota do seu painel
+}
 // FUNÇÃO QUE CRIA O BALÃO DA CICI, FAZ PISCAR E FALA EM VOZ ALTA!
 function acionarAjudaDaCici(emailDigitado) {
     // 1. Cria o balão visual da Cici
@@ -340,7 +365,19 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
     
     // Pega o valor do documento direto do input (com ou sem máscara)
     const docInput = document.getElementById('reg-doc').value.trim();
-
+    // ========================================================
+    // 🛡️ NOVO: GUARDA-COSTAS DE NOME E EMAIL
+    // ========================================================
+    if (name.includes('@') || name.toLowerCase().includes('.com')) {
+        return alert("❌ O campo NOME está incorreto. Digite seu Nome e Sobrenome, não o seu email.");
+    }
+    if (name.trim().split(' ').length < 2) {
+        return alert("❌ Por favor, digite seu Nome e Sobrenome completos.");
+    }
+    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regexEmail.test(email)) {
+        return alert("❌ O EMAIL digitado é inválido. Digite um email correto (Ex: nome@gmail.com).");
+    }
     // --- A. Validação de Senha ---
     if (pass !== pass2) return alert('❌ As senhas não coincidem!');
     if (pass.length < 6) return alert('❌ A senha deve ter no mínimo 6 caracteres.');
@@ -5370,50 +5407,133 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2000);
     }
 });
-/* ==========================================
-   SISTEMA DE INSTALAÇÃO DO APLICATIVO (PWA)
-========================================== */
+// ============================================================
+// LÓGICA DO BOTÃO FLUTUANTE (INSTALAÇÃO + ARRASTAR)
+// ============================================================
 let deferredPrompt;
+const installBtn = document.getElementById('btn-install-fab');
+const iosModal = document.getElementById('modal-ios-install');
 
-// 1. O navegador avisa que o App está pronto para instalar
+// 1. Mostrar o botão imediatamente se não estiver instalado
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+if (!isStandalone) {
+    installBtn.style.display = 'flex';
+}
+
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Impede o aviso padrão (chato) do Google Chrome
     e.preventDefault();
-    // Salva o evento para usarmos quando o cliente clicar no botão
-    deferredPrompt = e;
+    deferredPrompt = e; 
+});
+
+// ==========================================
+// FÍSICA PARA ARRASTAR O BOTÃO PELA TELA
+// ==========================================
+let isDragging = false;
+let moved = false; // Diferencia um "clique" de um "arrasto"
+let startX, startY, initialX, initialY;
+
+// Eventos de Toque (Celular)
+installBtn.addEventListener('touchstart', dragStart, { passive: false });
+document.addEventListener('touchmove', drag, { passive: false });
+document.addEventListener('touchend', dragEnd);
+
+// Eventos de Mouse (Computador)
+installBtn.addEventListener('mousedown', dragStart);
+document.addEventListener('mousemove', drag);
+document.addEventListener('mouseup', dragEnd);
+
+function dragStart(e) {
+    if (e.type === "touchstart") {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+    } else {
+        startX = e.clientX;
+        startY = e.clientY;
+    }
     
-    // Mostra o nosso banner bonitão
-    const installBanner = document.getElementById('install-banner');
-    if (installBanner) {
-        installBanner.style.display = 'flex';
+    // Pega a posição exata do botão na tela antes de mover
+    const rect = installBtn.getBoundingClientRect();
+    initialX = rect.left;
+    initialY = rect.top;
+    
+    // Fixa o botão pelas coordenadas top/left para facilitar o cálculo
+    installBtn.style.left = initialX + 'px';
+    installBtn.style.top = initialY + 'px';
+    installBtn.style.bottom = 'auto';
+    installBtn.style.right = 'auto';
+
+    isDragging = true;
+    moved = false; // Resetamos a variável que checa se o usuário só clicou
+    installBtn.style.cursor = 'grabbing';
+    installBtn.style.animation = 'none'; // Pausa o brilho enquanto arrasta
+}
+
+function drag(e) {
+    if (!isDragging) return;
+    e.preventDefault(); // Impede a tela de rolar junto
+
+    let currentX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
+    let currentY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
+
+    let diffX = currentX - startX;
+    let diffY = currentY - startY;
+
+    // Se moveu mais de 5 pixels, nós consideramos um "arrasto" e não um "clique"
+    if (Math.abs(diffX) > 5 || Math.abs(diffY) > 5) {
+        moved = true;
+    }
+
+    let newX = initialX + diffX;
+    let newY = initialY + diffY;
+
+    // Limites da tela (para o botão não sumir pelas bordas)
+    let maxX = window.innerWidth - installBtn.offsetWidth;
+    let maxY = window.innerHeight - installBtn.offsetHeight;
+
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+
+    installBtn.style.left = newX + "px";
+    installBtn.style.top = newY + "px";
+}
+
+function dragEnd(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    installBtn.style.cursor = 'grab';
+    installBtn.style.animation = 'pulse-dourado 2s infinite'; // Volta a pulsar
+}
+
+// ==========================================
+// AÇÃO DE CLIQUE (INSTALAR O APP)
+// ==========================================
+installBtn.addEventListener('click', async (e) => {
+    // Se o cliente acabou de arrastar o botão, não faça a instalação!
+    if (moved) return; 
+
+    if (isIOS) {
+        iosModal.style.display = iosModal.style.display === 'block' ? 'none' : 'block';
+    } else {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                installBtn.style.display = 'none'; 
+            }
+            deferredPrompt = null;
+        } else {
+            alert("Para instalar agora, toque no menu do navegador e escolha 'Adicionar à tela inicial'.");
+        }
     }
 });
 
-// 2. O que acontece quando o cliente clica em "Instalar"
-async function installPWA() {
-    if (deferredPrompt) {
-        // Mostra a tela oficial de instalação do Android/iOS
-        deferredPrompt.prompt();
-        
-        // Espera o cliente dizer "Sim" ou "Não"
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            console.log('Cliente instalou o App!');
-        }
-        
-        // Limpa a memória e esconde o banner
-        deferredPrompt = null;
-        hideInstallBanner();
-    }
-}
-
-// 3. O que acontece se ele clicar em "Agora não"
-function hideInstallBanner() {
-    const installBanner = document.getElementById('install-banner');
-    if (installBanner) {
-        installBanner.style.display = 'none';
-    }
-}
+// Esconde o botão se o app for instalado com sucesso
+window.addEventListener('appinstalled', () => {
+    installBtn.style.display = 'none';
+    deferredPrompt = null;
+});
 async function registerNotificationSystem() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
         try {
@@ -7393,3 +7513,88 @@ function filterInvoices() {
         }
     }
 }
+// ==========================================
+// FUNÇÃO DE BUSCAR PACOTE (RASTREAMENTO)
+// ==========================================
+function buscarPacote() {
+    const inputField = document.getElementById('track-code');
+    const codigo = inputField.value.trim().toUpperCase(); // Pega o código e deixa em maiúsculo
+    const packageInfo = document.getElementById('active-package');
+    const barraProgresso = document.getElementById('barra-progresso');
+    const resultadoCodigo = document.getElementById('resultado-codigo');
+    
+    // Verifica se o cliente digitou algo
+    if(codigo === '') {
+        alert('Por favor, digite o código de rastreio da sua encomenda.');
+        inputField.focus();
+        return;
+    }
+    
+    // Atualiza o texto do código na tela
+    resultadoCodigo.innerText = codigo;
+    
+    // Mostra o cartão de resultado
+    packageInfo.style.display = 'block';
+    
+    // Zera a barra para fazer a animação
+    barraProgresso.style.width = '0%';
+    
+    // Faz a barra encher simulando que o pacote está no meio do caminho (60%)
+    setTimeout(() => {
+        barraProgresso.style.width = '60%'; 
+    }, 100); // 100 milissegundos de delay para a animação funcionar suavemente
+}
+// ==========================================
+// VALIDAÇÃO RIGOROSA DE CADASTRO
+// ==========================================
+function validarDadosCadastro(nome, email, telefone) {
+    // 1. Verifica se a pessoa botou email no lugar do nome (se tem '@' ou '.com' no nome)
+    if (nome.includes('@') || nome.toLowerCase().includes('.com')) {
+        alert("❌ O campo NOME está incorreto. Por favor, digite seu Nome e Sobrenome, não o seu email.");
+        return false;
+    }
+
+    // Exige pelo menos nome e sobrenome (duas palavras)
+    if (nome.trim().split(' ').length < 2) {
+        alert("❌ Por favor, digite seu Nome e Sobrenome completos.");
+        return false;
+    }
+
+    // 2. Verifica se o email é realmente um email válido
+    const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regexEmail.test(email)) {
+        alert("❌ O EMAIL digitado é inválido. Digite um email correto (Ex: nome@gmail.com ou nome@hotmail.com).");
+        return false;
+    }
+
+    // 3. Verifica se o telefone tem um tamanho mínimo aceitável (ignora espaços e traços)
+    const apenasNumeros = telefone.replace(/\D/g, ''); 
+    if (apenasNumeros.length < 8) {
+        alert("❌ O número de CELULAR parece estar incompleto ou incorreto. Por favor, corrija.");
+        return false;
+    }
+
+    return true; // Se passou por tudo, os dados estão ótimos!
+}
+
+// ==========================================
+// INTERCEPTANDO O BOTÃO DE CADASTRAR
+// ==========================================
+document.getElementById('register-form').addEventListener('submit', function(event) {
+    event.preventDefault(); // Impede o envio automático para podermos verificar
+
+    const nomeInput = document.getElementById('reg-name').value;
+    const emailInput = document.getElementById('reg-email').value;
+    const telefoneInput = document.getElementById('reg-phone').value;
+
+    // Chama o Guarda-Costas
+    const dadosEstaoCorretos = validarDadosCadastro(nomeInput, emailInput, telefoneInput);
+
+    if (dadosEstaoCorretos) {
+        // AQUI VOCÊ CONTINUA O CADASTRO NORMALMENTE
+        // Exemplo: enviarDadosParaOBanco();
+        console.log("Tudo certo! Criando a conta...");
+        
+        // Se você já tem uma função que cadastra, chame ela aqui!
+    }
+});
