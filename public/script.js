@@ -2606,9 +2606,9 @@ async function loadClientInvoices() {
             </tr>`;
         });
 
-        // 🧠 MEMÓRIA DA CICÍ: Só entra aqui se tiver fatura E se ELA AINDA NÃO AVISOU hoje
-        if (faturasPendentes > 0 && !window.ciciJaAvisouFatura) {
-            window.ciciJaAvisouFatura = true; // Grava na memória que ela já fez o trabalho!
+        // 🧠 MEMÓRIA PROFUNDA DA CICÍ: Usa sessionStorage para não avisar da fatura se a tela atualizar
+        if (faturasPendentes > 0 && sessionStorage.getItem('ciciJaAvisouFatura') !== 'sim') {
+            sessionStorage.setItem('ciciJaAvisouFatura', 'sim'); // Grava na memória!
             
             setTimeout(() => {
                 showSection('billing-view');
@@ -2616,7 +2616,8 @@ async function loadClientInvoices() {
                 setTimeout(() => {
                     CiciTour.focarElemento('.btn-pisca', `🚨 Ei! Vi que você tem fatura pendente.<br><br>Clique no botão azul que a seta está apontando para abrir o seu PIX.`);
                     
-                    document.getElementById('cici-overlay').onclick = () => CiciTour.limparFoco('.btn-pisca');
+                    const overlay = document.getElementById('cici-overlay');
+                    if (overlay) overlay.onclick = () => CiciTour.limparFoco('.btn-pisca');
                 }, 500);
             }, 8000); 
         }
@@ -2624,6 +2625,41 @@ async function loadClientInvoices() {
     } catch (err) {
         console.error(err);
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
+    }
+}
+
+
+// ==========================================
+// CICÍ COBRANDO DADOS DO RECEBEDOR (COM MEMÓRIA PROFUNDA)
+// ==========================================
+async function checkMissingReceiverInfo(clientId) {
+    if(!clientId) return;
+
+    try {
+        const res = await fetch('/api/boxes'); 
+        const allBoxes = await res.json();
+        const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
+        
+        const missingInfoBoxes = clientBoxes.filter(b => !b.receiver_name || !b.ticket_number);
+        
+        // 🧠 MEMÓRIA PROFUNDA DA CICÍ: Usa sessionStorage para não pedir os dados de Bissau repetidamente
+        if (missingInfoBoxes.length > 0 && sessionStorage.getItem('ciciJaAvisouBox') !== 'sim') {
+            sessionStorage.setItem('ciciJaAvisouBox', 'sim'); // Grava na memória!
+            
+            setTimeout(() => {
+                showSection('box-view'); 
+                
+                setTimeout(() => {
+                    CiciTour.focarElemento('#box-table-body', `📦 Atenção! Você precisa me dizer quem vai retirar a sua encomenda lá em Bissau.<br><br>Olhe para onde a seta está apontando, clique em <b>"Informar Recebedor"</b> e preencha o Nome e o Número do Bilhete do seu familiar.`);
+                    
+                    const overlay = document.getElementById('cici-overlay');
+                    if (overlay) overlay.onclick = () => CiciTour.limparFoco('#box-table-body');
+                }, 500);
+
+            }, 4000); 
+        }
+    } catch(err) {
+        console.error("Erro ao verificar recebedores: ", err);
     }
 }
 // ==========================================
@@ -2724,38 +2760,7 @@ function limparValor(valor) {
     // Se der NaN, retorna 0
     return isNaN(numero) ? 0 : numero;
 }
-// ==========================================
-// CICÍ COBRANDO DADOS DO RECEBEDOR (COM MEMÓRIA)
-// ==========================================
-async function checkMissingReceiverInfo(clientId) {
-    if(!clientId) return;
 
-    try {
-        const res = await fetch('/api/boxes'); 
-        const allBoxes = await res.json();
-        const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
-        
-        const missingInfoBoxes = clientBoxes.filter(b => !b.receiver_name || !b.ticket_number);
-        
-        // 🧠 MEMÓRIA DA CICÍ: Só entra se faltar dado E ela ainda não avisou
-        if (missingInfoBoxes.length > 0 && !window.ciciJaAvisouBox) {
-            window.ciciJaAvisouBox = true; // Grava na memória!
-            
-            setTimeout(() => {
-                showSection('box-view'); 
-                
-                setTimeout(() => {
-                    CiciTour.focarElemento('#box-table-body', `📦 Atenção! Você precisa me dizer quem vai retirar a sua encomenda lá em Bissau.<br><br>Olhe para onde a seta está apontando, clique em <b>"Informar Recebedor"</b> e preencha o Nome e o Número do Bilhete do seu familiar.`);
-                    
-                    document.getElementById('cici-overlay').onclick = () => CiciTour.limparFoco('#box-table-body');
-                }, 500);
-
-            }, 4000); 
-        }
-    } catch(err) {
-        console.error("Erro ao verificar recebedores: ", err);
-    }
-}
 async function recoverPassword() {
     // 1. Pergunta o e-mail ao usuário
     const email = prompt("🔒 RECUPERAÇÃO DE SENHA\n\nDigite seu E-mail ou Celular cadastrado:");
@@ -3360,7 +3365,7 @@ function loadMoreReceipts() {
     loadReceipts();
 }
 
-// 5. GERAR RECIBO A4 (Com Nota Fiscal e Total Corrigido)
+// 5. GERAR RECIBO A4 (Com CSS de Impressão Blindado)
 async function printReceipt(boxId) {
     const printArea = document.getElementById('print-area');
     
@@ -3396,11 +3401,22 @@ async function printReceipt(boxId) {
         
         receiptDiv.innerHTML = `
             <style>
+                /* O SEGREDO ESTÁ AQUI: Isso garante que apenas o recibo apareça na folha */
                 @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #print-area, #print-area * {
+                        visibility: visible;
+                    }
+                    #print-area {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        display: block !important;
+                    }
                     @page { margin: 5mm; }
-                    html, body { height: 99%; overflow: hidden; }
-                    .receipt-a4-container { page-break-after: avoid; page-break-inside: avoid; }
-                    #print-area { page-break-after: avoid; }
                 }
             </style>
 
@@ -3437,7 +3453,7 @@ async function printReceipt(boxId) {
                 
                 <div class="rec-box">
                     <h3>DADOS DO CLIENTE</h3>
-                    <div class="rec-line"><strong>Nome:</strong> ${d.client_name}</div>
+                    <div class="rec-line"><strong>Nome:</strong> ${d.client_name || 'Cliente'}</div>
                     <div class="rec-line"><strong>Telefone:</strong> ${d.phone || '-'}</div>
                     <div class="rec-line"><strong>Documento:</strong> ${d.document || '-'}</div>
                     <div class="rec-line"><strong>Email:</strong> ${d.email || '-'}</div>
@@ -3447,7 +3463,7 @@ async function printReceipt(boxId) {
                     <h3>DADOS DO ENVIO</h3>
                     <div class="rec-line"><strong>Destino:</strong> Guiné-Bissau</div>
                     <div class="rec-line"><strong>Ref. Encomenda:</strong> ${d.order_code || '-'}</div>
-                    <div class="rec-line"><strong>Peso:</strong> ${d.weight} kg</div>
+                    <div class="rec-line"><strong>Peso:</strong> ${d.weight || '0'} kg</div>
                     <div class="rec-line"><strong>Volumes (Qtd):</strong> ${d.volumes || '1'} volume(s)</div>
                     <div class="rec-line"><strong>Status:</strong> ${d.order_status || 'Processando'}</div>
                 </div>
@@ -3479,7 +3495,7 @@ async function printReceipt(boxId) {
                             <strong>Frete Aéreo/Marítimo Internacional</strong><br>
                             <small>Conteúdo: ${d.products || 'Diversos'}</small>
                         </td>
-                        <td style="text-align:center; border-bottom: 1px solid #eee;">${d.weight} kg</td>
+                        <td style="text-align:center; border-bottom: 1px solid #eee;">${d.weight || '0'} kg</td>
                         <td style="text-align:right; border-bottom: 1px solid #eee;">${valorFreteReais}</td>
                     </tr>
                     <tr>
@@ -3509,7 +3525,14 @@ async function printReceipt(boxId) {
         `;
 
         printArea.appendChild(receiptDiv);
-        setTimeout(() => { window.print(); }, 500);
+        
+        // Remove as classes que possam estar escondendo o print-area no HTML
+        printArea.classList.remove('hidden', 'hidden-print-area');
+        printArea.style.display = 'block';
+
+        setTimeout(() => { 
+            window.print(); 
+        }, 800);
 
     } catch (e) {
         console.error(e);
@@ -7077,3 +7100,30 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
     }
 });
+// ==========================================
+// CICÍ: ANÚNCIO DA NOVIDADE DE COMPARTILHAMENTO DE COMPROVANTE
+// ==========================================
+setTimeout(() => {
+    // 1. Verifica se quem está logado é realmente um cliente
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'client') {
+        
+        // 2. 🧠 MEMÓRIA DA CICÍ: Só avisa se ainda não avisou nesta visita
+        if (sessionStorage.getItem('ciciNovidadeShare') !== 'sim') {
+            sessionStorage.setItem('ciciNovidadeShare', 'sim'); // Grava que já avisou
+            
+            // 3. Verifica se a Cicí está pronta para falar
+            if (typeof CiciAI !== 'undefined') {
+                // Se a janela da Cicí estiver fechada, ela abre sozinha
+                if (!CiciAI.isOpen) CiciAI.toggle();
+                
+                // 4. A mensagem animada explicando como funciona!
+                const mensagemNovidade = "🚀 <b>NOVIDADE INCRÍVEL!</b><br><br>" +
+                                         "Agora ficou muito mais fácil enviar seus comprovantes!<br><br>" +
+                                         "Ao fazer o pagamento no aplicativo do seu banco, basta clicar no botão de <b>Compartilhar</b> e escolher o ícone da <b>Guineexpress</b>.<br><br>" +
+                                         "O comprovante entra direto no nosso sistema e vai para o administrador aprovar sua caixa na hora! Legal, né? ✨";
+                
+                CiciAI.addMessage(mensagemNovidade, "cici");
+            }
+        }
+    }
+}, 6000); // ⏳ Ela espera 6 segundos após o aplicativo carregar para dar a notícia!
