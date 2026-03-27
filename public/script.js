@@ -6009,7 +6009,9 @@ function updateBulkCounter() {
     }
 }
 
-// Disparar a atualização para o servidor
+// ==============================================================
+// FUNÇÃO: APLICAR STATUS EM MASSA (FRONT-END CORRIGIDO)
+// ==============================================================
 async function applyBulkStatus() {
     const checkboxes = document.querySelectorAll('.order-checkbox:checked');
     const newStatus = document.getElementById('bulk-status-select').value;
@@ -6022,30 +6024,38 @@ async function applyBulkStatus() {
     // Pega os IDs selecionados
     const orderIds = Array.from(checkboxes).map(cb => cb.value);
 
+    // Muda o texto do botão para dar feedback visual
+    const btnAplicar = document.querySelector('#bulk-action-container button');
+    if(btnAplicar) btnAplicar.innerText = "Atualizando...";
+
     try {
-        const response = await fetch('/api/orders/bulk-status', {
-            method: 'PUT',
+        // 🌟 NOME DA ROTA NOVA E MÉTODO POST
+        const response = await fetch('/api/orders/bulk-update-status', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: orderIds, status: newStatus })
         });
 
         const data = await response.json();
+        
         if (data.success) {
-            alert(`✅ ${data.updated} encomendas atualizadas com sucesso!`);
+            alert(`✅ ${data.updated} encomendas atualizadas com sucesso!\nO sistema está enviando as notificações.`);
             
             // Reseta a interface
             document.getElementById('selectAllOrders').checked = false;
             document.getElementById('bulk-status-select').value = "";
             document.getElementById('bulk-action-container').style.display = 'none';
             
-            // Recarrega a tabela
-            loadOrders(); 
+            // Atualiza a tabela imediatamente
+            if (typeof loadOrders === 'function') loadOrders(); 
         } else {
             alert("Erro: " + data.message);
         }
     } catch (error) {
         console.error(error);
         alert("Erro de conexão ao tentar atualizar em massa.");
+    } finally {
+        if(btnAplicar) btnAplicar.innerText = "Aplicar";
     }
 }
 // Alternar entre CNPJ e E-mail
