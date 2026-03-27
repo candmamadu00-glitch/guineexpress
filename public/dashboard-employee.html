@@ -538,26 +538,30 @@
         </form>
     </div>
 
-    <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>Status de Pagamentos</h3>
-            <button onclick="loadInvoices()" class="btn-secondary" style="width:auto;">🔄 Atualizar Lista</button>
-        </div>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Ref. Encomenda</th>
-                    <th>Cliente</th>
-                    <th>Box Ref</th>
-                    <th>Valor</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id="invoices-list"></tbody>
-        </table>
-    </div>
+    <div class="card" style="margin-top: 20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+        <h3 style="margin: 0;">Status de Pagamentos</h3>
+        
+       <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; width: 100%;">
+    <input type="text" id="search-invoices" placeholder="🔍 Buscar cliente, ref ou box..." onkeyup="filterInvoices()" style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
+    <button onclick="loadInvoices()" class="btn-secondary" style="flex-shrink: 0; margin: 0; white-space: nowrap;">🔄 Atualizar Lista</button>
+</div>
+    
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Ref. Encomenda</th> 
+                <th>Cliente</th>
+                <th>Box Ref</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="invoices-list"></tbody>
+    </table>
+</div>
 </section>
-
         <section id="labels-view" class="hidden">
             <div class="header-flex">
                 <h2>🏷️ Gerador de Etiquetas</h2>

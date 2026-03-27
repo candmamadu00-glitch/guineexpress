@@ -261,7 +261,36 @@
     </style>
 </head>
 <body>
+<div id="aviso-atualizacao-app" style="background: linear-gradient(135deg, #d4af37, #f1c40f); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #0a1931; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; z-index: 9999; margin-bottom: 20px;">
+    
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <i class="fas fa-rocket" style="font-size: 24px; color: #0a1931;"></i>
+        <div style="color: #0a1931;">
+            <strong style="display: block; font-size: 15px; margin-bottom: 3px; font-family: 'Nunito', sans-serif; font-weight: 900;">NOVA FUNÇÃO LIBERADA! 🚀</strong>
+            <span style="font-size: 12px; line-height: 1.4; display: block; font-family: 'Roboto', sans-serif; font-weight: 500;">
+                Lançamos uma nova versão do app Guineexpress! Agora você pode compartilhar o comprovantes do seu pagamento direto do seu banco para o nosso APP. Para a Essa nova função funcionar, exclua o APP Antigo,<br>
+                <strong>Desinstale este app, acesse nosso link pelo Google Chrome clique no link, vá nos 3 pontinhos e escolha 'Abrir no Chrome' para instalar a nova versão!"!</strong>
+            </span>
+        </div>
+    </div>
 
+    <button onclick="fecharAvisoApp()" style="background: rgba(10, 25, 49, 0.1); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #0a1931; transition: 0.3s;">
+        <i class="fas fa-times" style="font-size: 14px;"></i>
+    </button>
+</div>
+
+<script>
+    // Verifica se o cliente já fechou esse aviso antes
+    if(localStorage.getItem('avisoAppFechado') === 'true') {
+        document.getElementById('aviso-atualizacao-app').style.display = 'none';
+    }
+
+    // Função para fechar o aviso e não mostrar mais para este cliente
+    function fecharAvisoApp() {
+        document.getElementById('aviso-atualizacao-app').style.display = 'none';
+        localStorage.setItem('avisoAppFechado', 'true'); // Salva no celular do cliente que ele já leu
+    }
+</script>
     <nav class="dashboard-nav">
         <div style="font-weight:bold; font-size:18px;">
             GUINEEXPRESS <span style="font-size:12px; font-weight:normal;">| Cliente</span>

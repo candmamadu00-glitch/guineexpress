@@ -5,6 +5,34 @@ let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
+// ============================================================
+// BLOQUEADOR DE NAVEGADOR INTERNO (WHATSAPP, INSTAGRAM, ETC)
+// ============================================================
+function checkInAppBrowser() {
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    
+    // Verifica se está dentro do WhatsApp, Facebook ou Instagram
+    if (ua.indexOf('FBAN') > -1 || ua.indexOf('FBAV') > -1 || ua.indexOf('Instagram') > -1 || ua.indexOf('WhatsApp') > -1) {
+        
+        // Esconde tudo e mostra um aviso gigante para abrir no Chrome
+        document.body.innerHTML = `
+            <div style="padding: 30px; text-align: center; font-family: 'Arial', sans-serif; background: #0a1931; color: white; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box;">
+                <i class="fab fa-chrome" style="font-size: 60px; color: #d4af37; margin-bottom: 20px;"></i>
+                <h2 style="color: #d4af37; margin-bottom: 10px;">Atenção!</h2>
+                <p style="font-size: 16px; margin-bottom: 20px; line-height: 1.5;">Você abriu o nosso aplicativo por dentro do WhatsApp e isso limita algumas funções importantes (como o envio de comprovantes).</p>
+                
+                <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; border: 1px solid #d4af37;">
+                    <p style="font-size: 15px; margin: 0;">👉 Toque nos <strong>3 pontinhos</strong> (no canto superior da tela) e escolha:<br><br><strong style="color: #13d841;">"Abrir no Chrome"</strong> ou <strong>"Abrir no Navegador"</strong>.</p>
+                </div>
+            </div>
+        `;
+        return true;
+    }
+    return false;
+}
+
+// Roda a verificação assim que o script carrega
+checkInAppBrowser();
 // ==========================================
 // AUTO-LOGIN (Ao atualizar a página)
 // ==========================================
@@ -7340,3 +7368,28 @@ setTimeout(() => {
         }
     }
 }, 6000); // ⏳ Ela espera 6 segundos após o aplicativo carregar para dar a notícia!
+// ============================================================
+// FUNÇÃO DE PESQUISA NA TABELA DE FINANCEIRO (TEMPO REAL)
+// ============================================================
+function filterInvoices() {
+    // Pega o que foi digitado na barra de pesquisa
+    const input = document.getElementById('search-invoices');
+    const filter = input.value.toLowerCase(); // Tudo em minúsculo para facilitar a busca
+    
+    // Pega as linhas da tabela de faturas
+    const tbody = document.getElementById('invoices-list');
+    const rows = tbody.getElementsByTagName('tr');
+
+    // Passa por todas as linhas da tabela
+    for (let i = 0; i < rows.length; i++) {
+        // Pega o texto inteiro da linha (nome do cliente, ref, valor, etc)
+        const rowText = rows[i].textContent.toLowerCase();
+        
+        // Se a linha tiver o texto pesquisado, mostra. Se não, esconde.
+        if (rowText.includes(filter)) {
+            rows[i].style.display = '';
+        } else {
+            rows[i].style.display = 'none';
+        }
+    }
+}
