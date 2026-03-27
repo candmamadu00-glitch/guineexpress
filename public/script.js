@@ -1910,6 +1910,13 @@ function retakeVideo() {
     document.getElementById('record-ui').classList.remove('hidden');
     document.getElementById('upload-ui').classList.add('hidden');
 }
+// ==========================================
+// FUNÇÕES DA ABA DE VÍDEO (COM BUSCA BLINDADA)
+// ==========================================
+
+// Variável global para guardar a lista original de encomendas
+let allVideoOrders = [];
+
 // --- FUNÇÃO CORRIGIDA: CARREGAR ENCOMENDAS NA ABA DE VÍDEO ---
 async function loadOrdersForVideo() {
     const select = document.getElementById('video-client-select');
@@ -1927,29 +1934,15 @@ async function loadOrdersForVideo() {
     }
 
     try {
-        // Busca todas as encomendas (que já trazem dados do cliente graças ao JOIN no server)
+        // Busca todas as encomendas
         const res = await fetch('/api/orders');
         const orders = await res.json();
 
-        select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
+        // Filtra para não mostrar encomendas já entregues
+        allVideoOrders = orders.filter(o => o.status !== 'Entregue');
 
-        // Filtra para não mostrar encomendas já entregues (opcional)
-        // Se quiser ver todas, remova o .filter
-        const activeOrders = orders.filter(o => o.status !== 'Entregue');
-
-        activeOrders.forEach(o => {
-            const clientName = o.client_name || 'Cliente';
-            // Salva TUDO que precisamos nos atributos data-*
-            select.innerHTML += `
-                <option value="${o.client_id}" 
-                        data-code="${o.code}" 
-                        data-desc="${o.description || 'Sem descrição'}"
-                        data-name="${clientName}"
-                        data-weight="${o.weight || 0}">
-                    ${o.code} - ${clientName}
-                </option>
-            `;
-        });
+        // Renderiza a lista inicial (completa)
+        renderVideoOrdersList(allVideoOrders);
 
         // --- EVENTO: QUANDO O USUÁRIO SELECIONA UMA ENCOMENDA ---
         select.onchange = function() {
@@ -1957,11 +1950,8 @@ async function loadOrdersForVideo() {
             
             const option = select.options[select.selectedIndex];
             
-            // Elementos visuais onde vamos jogar os dados
-            const spanResumo = document.getElementById('info-desc');
-            
             // Se o usuário selecionou algo válido
-            if (select.value && spanResumo) {
+            if (select.value) {
                 const code = option.getAttribute('data-code');
                 const desc = option.getAttribute('data-desc');
                 const name = option.getAttribute('data-name');
@@ -1980,9 +1970,6 @@ async function loadOrdersForVideo() {
                         </div>
                     </div>
                 `;
-                // Atualiza também o span oculto caso precise
-                if(spanResumo) spanResumo.innerText = `Vídeo da Encomenda ${code}`;
-
             } else {
                 // Se desmarcou, limpa
                 infoBox.innerHTML = `<small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>`;
@@ -1993,6 +1980,56 @@ async function loadOrdersForVideo() {
         console.error("Erro ao carregar encomendas para vídeo:", error);
         select.innerHTML = '<option value="">Erro ao carregar lista</option>';
     }
+}
+
+// --- FUNÇÃO AUXILIAR PARA DESENHAR AS OPÇÕES NO SELECT ---
+function renderVideoOrdersList(ordersToRender) {
+    const select = document.getElementById('video-client-select');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Selecione a Encomenda...</option>';
+
+    ordersToRender.forEach(o => {
+        const clientName = o.client_name || 'Cliente';
+        select.innerHTML += `
+            <option value="${o.client_id}" 
+                    data-code="${o.code}" 
+                    data-desc="${o.description || 'Sem descrição'}"
+                    data-name="${clientName}"
+                    data-weight="${o.weight || 0}">
+                ${o.code} - ${clientName}
+            </option>
+        `;
+    });
+}
+
+// --- FUNÇÃO DE BUSCA BLINDADA ---
+function filterVideoClients() {
+    const input = document.getElementById("video-client-search");
+    const filter = input.value.toLowerCase().trim();
+    
+    // Se o campo de busca estiver vazio, mostra tudo de novo
+    if (filter === "") {
+        renderVideoOrdersList(allVideoOrders);
+        return;
+    }
+
+    // Filtra a lista original na memória (procurando no nome ou no código)
+    const filteredOrders = allVideoOrders.filter(o => {
+        const clientName = (o.client_name || 'Cliente').toLowerCase();
+        const code = (o.code || '').toLowerCase();
+        
+        return clientName.includes(filter) || code.includes(filter);
+    });
+
+    // Redesenha o select SÓ com as opções encontradas
+    renderVideoOrdersList(filteredOrders);
+
+    // Limpa a seleção e reseta a área de informações
+    const select = document.getElementById('video-client-select');
+    select.value = "";
+    document.getElementById('video-order-info').innerHTML = `<small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>`;
+    checkVideoPermission(); // Trava a câmera até selecionar de novo
 }
 
 // --- FUNÇÃO PARA LIBERAR O BOTÃO DA CÂMERA ---
