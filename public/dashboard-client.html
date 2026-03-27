@@ -280,15 +280,15 @@
 </div>
 
 <script>
-    // Verifica se o cliente já fechou esse aviso antes
-    if(localStorage.getItem('avisoAppFechado') === 'true') {
+    // Agora ele procura pela versão 2 do aviso
+    if(localStorage.getItem('avisoAppFechadoV2') === 'true') {
         document.getElementById('aviso-atualizacao-app').style.display = 'none';
     }
 
-    // Função para fechar o aviso e não mostrar mais para este cliente
     function fecharAvisoApp() {
         document.getElementById('aviso-atualizacao-app').style.display = 'none';
-        localStorage.setItem('avisoAppFechado', 'true'); // Salva no celular do cliente que ele já leu
+        // Salva que a versão 2 foi lida
+        localStorage.setItem('avisoAppFechadoV2', 'true'); 
     }
 </script>
     <nav class="dashboard-nav">

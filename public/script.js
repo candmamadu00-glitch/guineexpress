@@ -5595,34 +5595,43 @@ async function subscribeUser() {
     }
 }
 // ==========================================
-// FUNÇÃO EXCLUSIVA DO PAINEL DO ADMINISTRADOR
+// FUNÇÃO EXCLUSIVA DO PAINEL DO ADMINISTRADOR (COM 3 FILAS)
 // ==========================================
 async function loadInvoices() {
-    const tbody = document.getElementById('invoices-list');
-    if(!tbody) return;
+    const tbodyReview = document.getElementById('invoices-review-list');
+    const tbodyPending = document.getElementById('invoices-pending-list');
+    const tbodyPaid = document.getElementById('invoices-paid-list');
+    
+    if(!tbodyReview || !tbodyPending || !tbodyPaid) return;
+
+    // Coloca mensagem de carregando em todas
+    const loadingHtml = '<tr><td colspan="6" style="text-align:center;">Carregando...</td></tr>';
+    tbodyReview.innerHTML = loadingHtml;
+    tbodyPending.innerHTML = loadingHtml;
+    tbodyPaid.innerHTML = loadingHtml;
 
     try {
-        const res = await fetch('/api/invoices/list');
+        // ROTA CORRIGIDA!
+        const res = await fetch('/api/invoices/list'); 
         const list = await res.json();
 
-        tbody.innerHTML = '';
-        
+        // Limpa as tabelas para preencher
+        tbodyReview.innerHTML = '';
+        tbodyPending.innerHTML = '';
+        tbodyPaid.innerHTML = '';
+
+        let countReview = 0, countPending = 0, countPaid = 0;
+
         list.forEach(inv => {
             let statusHtml = '';
-            if(inv.status === 'approved' || inv.status === 'paid') statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
-            else if(inv.status === 'in_review') statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
-            else if(inv.status === 'pending') statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
-            else statusHtml = '<span style="color:red;">Cancelado</span>';
-
             let deleteBtn = '';
             let actionButtons = '';
 
-            // BOTÕES DO ADMIN
+            // Lógica dos Botões (Herdada do seu código original)
             if(currentUser && currentUser.role === 'admin') {
                 deleteBtn = `<button onclick="deleteInvoice(${inv.id})" style="color:red; background:none; border:none; cursor:pointer; margin-left:10px;" title="Excluir"><i class="fas fa-trash"></i></button>`;
                 
                 if (inv.status === 'pending') {
-                    // NOVO: Botão de Baixa Manual quando está pendente
                     actionButtons = `
                         <button onclick="forcePayInvoice(${inv.id})" style="background:#f39c12; color:white; border:none; padding:5px 8px; border-radius:3px; cursor:pointer; font-size:12px; font-weight:bold;" title="Marcar como Pago Manualmente">
                             💰 Lelo Confirma pagamento Manual
@@ -5639,36 +5648,65 @@ async function loadInvoices() {
                     `;
                 }
             } else {
-                actionButtons = '-'; // Funcionários comuns não aprovam
+                actionButtons = '-'; // Funcionário comum não tem botão de ação
+                deleteBtn = '';
             }
 
             const refCode = inv.order_code || inv.raw_order || inv.box_code || 'Sem Ref.';
+            const baseRowHTML = `
+                <td style="font-weight:bold; color:#0a1931; padding:12px;">${refCode}</td>
+                <td>${inv.client_name}</td>
+                <td>${inv.box_code || '-'}</td>
+                <td style="font-weight:bold;">R$ ${inv.amount}</td> 
+            `;
 
-            if (currentUser && currentUser.role === 'admin') {
-                tbody.innerHTML += `
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="font-weight:bold; color:#0a1931; padding:12px;">${refCode}</td>
-                    <td>${inv.client_name}</td>
-                    <td>${inv.box_code || '-'}</td>
-                    <td style="font-weight:bold;">R$ ${inv.amount}</td> 
-                    <td>${statusHtml}</td>
-                    <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
-                </tr>`;
-            } else {
-                // Tabela para funcionário comum ver (AGORA COM O VALOR)
-                tbody.innerHTML += `
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="font-weight:bold; color:#0a1931; padding:12px;">${refCode}</td>
-                    <td>${inv.client_name}</td>
-                    <td>${inv.box_code || '-'}</td>
-                    <td style="font-weight:bold;">R$ ${inv.amount}</td> 
-                    <td>${statusHtml}</td>
-                    <td>-</td>
-                </tr>`;
+            // DISTRIBUINDO NAS FILAS
+            if(inv.status === 'approved' || inv.status === 'paid') {
+                statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+                tbodyPaid.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        ${baseRowHTML}
+                        <td>${statusHtml}</td>
+                        <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
+                    </tr>`;
+                countPaid++;
+            } 
+            else if(inv.status === 'in_review') {
+                statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
+                tbodyReview.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        ${baseRowHTML}
+                        <td>${statusHtml}</td>
+                        <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
+                    </tr>`;
+                countReview++;
+            } 
+            else {
+                // Se for pending ou cancelado, cai na fila do meio
+                statusHtml = inv.status === 'pending' 
+                    ? '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>' 
+                    : '<span style="color:red;">Cancelado</span>';
+                
+                tbodyPending.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        ${baseRowHTML}
+                        <td>${statusHtml}</td>
+                        <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
+                    </tr>`;
+                countPending++;
             }
         });
+
+        // Mensagens caso alguma fila esteja vazia
+        if (countReview === 0) tbodyReview.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">Nenhuma fatura em análise.</td></tr>';
+        if (countPending === 0) tbodyPending.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">Nenhum cliente com pagamento pendente.</td></tr>';
+        if (countPaid === 0) tbodyPaid.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">Nenhuma fatura paga ainda.</td></tr>';
+
     } catch (err) {
         console.error("Erro ao carregar faturas:", err);
+        tbodyReview.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro ao carregar faturas. Tente atualizar a página.</td></tr>';
+        tbodyPending.innerHTML = '';
+        tbodyPaid.innerHTML = '';
     }
 }
 
@@ -7598,3 +7636,113 @@ document.getElementById('register-form').addEventListener('submit', function(eve
         // Se você já tem uma função que cadastra, chame ela aqui!
     }
 });
+// ==========================================
+// GERAR PDF BEM DESENHADO DAS FATURAS
+// ==========================================
+async function downloadInvoicesPDF() {
+    // Pega as ferramentas do jsPDF
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'pt', 'a4'); // Retrato, pontos, tamanho A4
+
+    // Título do Documento
+    doc.setFontSize(18);
+    doc.setTextColor(10, 25, 49); // Azul escuro do seu sistema
+    doc.text("Relatório de Status de Pagamentos", 40, 40);
+    
+    // Subtítulo com a data
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text("Gerado em: " + new Date().toLocaleString('pt-BR'), 40, 55);
+
+    try {
+        // Busca os dados fresquinhos do servidor
+        const res = await fetch('/api/invoices/list');
+        const list = await res.json();
+
+        // Prepara os dados para colocar na tabela
+        const tableData = list.map(inv => {
+            let statusText = '';
+            if(inv.status === 'approved' || inv.status === 'paid') statusText = 'PAGO';
+            else if(inv.status === 'in_review') statusText = 'EM ANALISE';
+            else if(inv.status === 'pending') statusText = 'PENDENTE';
+            else statusText = 'CANCELADO';
+
+            const refCode = inv.order_code || inv.raw_order || inv.box_code || 'Sem Ref.';
+            const valorFormatado = parseFloat(inv.amount || 0).toFixed(2);
+
+            // Retorna a linha da tabela
+            return [
+                refCode,
+                inv.client_name || '-',
+                inv.box_code || '-',
+                `R$ ${valorFormatado}`,
+                statusText
+            ];
+        });
+
+        // Desenha a tabela com design profissional
+        doc.autoTable({
+            startY: 70, // Começa abaixo do título
+            head: [['Ref.', 'Cliente', 'Box', 'Valor', 'Status']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [10, 25, 49], textColor: [255, 255, 255], fontStyle: 'bold' }, // Cabeçalho azul marinho
+            alternateRowStyles: { fillColor: [240, 248, 255] }, // Linhas zebradas azul clarinho
+            styles: { fontSize: 10, cellPadding: 5 },
+            didParseCell: function(data) {
+                // Colore apenas o texto da coluna de Status (índice 4)
+                if (data.section === 'body' && data.column.index === 4) {
+                    if (data.cell.raw === 'PAGO') {
+                        data.cell.styles.textColor = [0, 128, 0]; // Verde
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (data.cell.raw === 'EM ANALISE') {
+                        data.cell.styles.textColor = [0, 0, 255]; // Azul
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (data.cell.raw === 'PENDENTE') {
+                        data.cell.styles.textColor = [255, 140, 0]; // Laranja
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (data.cell.raw === 'CANCELADO') {
+                        data.cell.styles.textColor = [255, 0, 0]; // Vermelho
+                    }
+                }
+            }
+        });
+
+        // Baixa o arquivo para o computador
+        doc.save("Relatorio_Pagamentos.pdf");
+
+    } catch(err) {
+        console.error("Erro ao gerar PDF:", err);
+        alert("Erro ao buscar os dados para o PDF. Tente novamente.");
+    }
+}
+// ==========================================
+// FUNÇÃO PARA FILTRAR ENCOMENDAS NA ABA VÍDEO
+// ==========================================
+function filterVideoClients() {
+    // Pega o que foi digitado no campo de busca e transforma tudo em minúsculo
+    const input = document.getElementById("video-client-search");
+    const filter = input.value.toLowerCase();
+    
+    // Pega a lista de opções dentro do select
+    const select = document.getElementById("video-client-select");
+    const options = select.getElementsByTagName("option");
+
+    // Passa por todas as opções da lista (começando do 1 para pular o "Selecione...")
+    for (let i = 1; i < options.length; i++) {
+        const txtValue = options[i].textContent || options[i].innerText;
+        
+        // Se o texto da opção tiver o que foi digitado, mostra. Se não, esconde.
+        if (txtValue.toLowerCase().indexOf(filter) > -1) {
+            options[i].style.display = "";
+        } else {
+            options[i].style.display = "none";
+        }
+    }
+
+    // Se a opção que estava selecionada for escondida, limpa a seleção
+    if (select.selectedIndex > 0 && options[select.selectedIndex].style.display === "none") {
+        select.value = "";
+        checkVideoPermission(); // Chama sua função original para desativar o botão de câmera
+    }
+}
