@@ -351,22 +351,21 @@
     </div>
     
     <div id="active-package" class="active-package-info" style="display: none;">
-        <div class="package-status-header">
-            <span class="pkg-code" id="resultado-codigo">GX-1024</span>
-            <span class="pkg-status">Em trânsito ✈️</span>
-        </div>
-        
-        <div class="progress-container">
-            <div class="progress-bar" id="barra-progresso" style="width: 0%;"></div>
-        </div>
-        
-        <div class="package-route">
-            <span>🇧🇷 Brasil</span>
-            <i class="fa-solid fa-arrow-right" style="color: #009ee3;"></i>
-            <span>🇬🇼 Guiné-Bissau</span>
-        </div>
-        <p style="font-size: 11px; color: #888; text-align: center; margin-top: 10px; margin-bottom: 0;">Última atualização: Hoje, 14:30</p>
+    <div class="package-status-header">
+        <span class="pkg-code" id="resultado-codigo">GX-1024</span>
+        <span class="pkg-status" id="status-texto">Em trânsito ✈️</span>
     </div>
+    
+    <div class="progress-container">
+        <div class="progress-bar" id="barra-progresso" style="width: 0%;"></div>
+    </div>
+    
+    <div class="package-route">
+        <span>🇧🇷 Brasil</span>
+        <i class="fa-solid fa-arrow-right" style="color: #009ee3;"></i>
+        <span>🇬🇼 Guiné-Bissau</span>
+    </div>
+    <p id="status-data" style="font-size: 11px; color: #888; text-align: center; margin-top: 10px; margin-bottom: 0;">Última atualização: Hoje</p>
 </div>
         <div id="role-selector" class="form-group">
             <button onclick="setRole('client')" class="btn btn-primary" id="btn-client">Cliente</button>

@@ -7616,35 +7616,85 @@ function filterInvoices() {
     }
 }
 // ==========================================
-// FUNÇÃO DE BUSCAR PACOTE (RASTREAMENTO)
+// FUNÇÃO DE BUSCAR PACOTE (RASTREAMENTO REAL)
 // ==========================================
-function buscarPacote() {
+async function buscarPacote() {
     const inputField = document.getElementById('track-code');
-    const codigo = inputField.value.trim().toUpperCase(); // Pega o código e deixa em maiúsculo
+    const codigoDigitado = inputField.value.trim().toUpperCase(); // Ex: GX-1024
     const packageInfo = document.getElementById('active-package');
     const barraProgresso = document.getElementById('barra-progresso');
     const resultadoCodigo = document.getElementById('resultado-codigo');
+    const statusTexto = document.getElementById('status-texto');
+    const statusData = document.getElementById('status-data');
     
-    // Verifica se o cliente digitou algo
-    if(codigo === '') {
+    // 1. Verifica se o cliente digitou algo
+    if(codigoDigitado === '') {
         alert('Por favor, digite o código de rastreio da sua encomenda.');
         inputField.focus();
         return;
     }
     
-    // Atualiza o texto do código na tela
-    resultadoCodigo.innerText = codigo;
-    
-    // Mostra o cartão de resultado
-    packageInfo.style.display = 'block';
-    
-    // Zera a barra para fazer a animação
-    barraProgresso.style.width = '0%';
-    
-    // Faz a barra encher simulando que o pacote está no meio do caminho (60%)
-    setTimeout(() => {
-        barraProgresso.style.width = '60%'; 
-    }, 100); // 100 milissegundos de delay para a animação funcionar suavemente
+    try {
+        // 2. Busca as encomendas no servidor para checar se o código é verdadeiro
+        const res = await fetch('/api/orders');
+        const orders = await res.json();
+
+        // 3. Procura na lista se existe alguma encomenda com ESSE código
+        const encomendaReal = orders.find(o => (o.code || '').toUpperCase() === codigoDigitado);
+
+        // Se NÃO encontrou a encomenda:
+        if (!encomendaReal) {
+            alert('⚠️ Encomenda não encontrada! Verifique o código e tente novamente.');
+            packageInfo.style.display = 'none'; // Esconde o card
+            return;
+        }
+
+        // 4. SE ENCONTROU: Começa a preencher os dados reais
+        resultadoCodigo.innerText = codigoDigitado;
+        
+        // Vamos definir a % da barra e o ícone baseado no status real que veio do banco
+        let progresso = '20%';
+        let textoApresentacao = 'Processando...';
+        const statusBanco = (encomendaReal.status || '').toLowerCase();
+
+        if (statusBanco.includes('entregue')) {
+            textoApresentacao = 'Entregue ✅';
+            progresso = '100%';
+        } else if (statusBanco.includes('trânsito') || statusBanco.includes('enviado')) {
+            textoApresentacao = 'Em trânsito ✈️';
+            progresso = '60%';
+        } else if (statusBanco.includes('recebido') || statusBanco.includes('galpão')) {
+            textoApresentacao = 'No Galpão 📦';
+            progresso = '40%';
+        } else {
+            // Status padrão (Pendente, Aguardando, etc)
+            textoApresentacao = encomendaReal.status || 'Pendente ⏳';
+            progresso = '20%';
+        }
+
+        // Atualiza os textos na tela
+        statusTexto.innerText = textoApresentacao;
+        
+        // Pega a data que foi criada/atualizada (se tiver)
+        if (encomendaReal.created_at) {
+            const dataFormatada = new Date(encomendaReal.created_at).toLocaleDateString('pt-BR');
+            statusData.innerText = `Data de registro: ${dataFormatada}`;
+        } else {
+            statusData.innerText = 'Status atualizado recentemente';
+        }
+
+        // 5. Exibe o cartão e faz a animação da barra
+        packageInfo.style.display = 'block';
+        barraProgresso.style.width = '0%';
+        
+        setTimeout(() => {
+            barraProgresso.style.width = progresso; 
+        }, 100);
+
+    } catch (error) {
+        console.error("Erro ao buscar rastreamento:", error);
+        alert("Erro de conexão ao buscar a encomenda. Tente novamente.");
+    }
 }
 // ==========================================
 // VALIDAÇÃO RIGOROSA DE CADASTRO
