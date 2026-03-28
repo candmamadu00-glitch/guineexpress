@@ -59,54 +59,99 @@
             GUINEEXPRESS 
             <span id="user-role-display" style="font-size:12px; font-weight:normal; opacity:0.8;"></span>
         </div>
-        <div class="nav-links">
-            <button onclick="showSection('delivery-view'); loadDeliveryList();">
-    <i class="fas fa-shipping-fast"></i> Entregas
-</button>
-    <button onclick="showSection('price-section')" style="background: #20c997; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">💰 Preço</button>
-    
-    <button onclick="showSection('orders-view')" style="background: #007bff; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-box"></i> Encomendas</button>
-    
-    <button onclick="showSection('box-view')" style="background: #6610f2; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📦 Box</button>
-    
-    <button onclick="showSection('videos-section')" style="background: #e83e8c; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🎥 Vídeos</button>
-    
-    <button onclick="showSection('billing-view')" style="background: #28a745; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">💲 Financeiro</button>
-    
-    <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn" style="background: #fd7e14; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-tags"></i> Etiquetas</button>
+      <div class="nav-links">
+    <button onclick="showSection('delivery-view'); loadDeliveryList();" style="background: #1abc9c; color: white;">
+        <i class="fas fa-shipping-fast"></i> Entregas
     </button>
     
-    <button onclick="showSection('receipts-view')" style="background: #17a2b8; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-file-invoice"></i> Recibos</button>
-    
-    <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn" style="background: #0d6efd; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-file-invoice-dollar"></i> 💸 Faturas</button>
-    
-    <button onclick="showSection('shipments-view')" style="background: #d35400; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-shipping-fast"></i> Embarques</button>
-    
-    <button onclick="showSection('schedule-view')" style="background: #8e44ad; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📅 Agendamentos</button>
-    
-    <button onclick="openBroadcastModal()" class="btn" style="background-color: #6f42c1; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📢 Novo Comunicado</button>
-    
-    <button onclick="showSection('dashboard-home')" class="nav-btn" style="background: #34495e; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-chart-line"></i> Visão Geral</button>
-    
-    <button onclick="exportSmartPDF()" class="btn" style="background-color: #dc3545; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
-    
-    <button onclick="showSection('expenses-view')" style="background: #c0392b; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">💸 Despesas</button>
-    
-    <button onclick="showSection('logs-view')" style="background: #ffc107; color: #000; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-shield-alt"></i> Auditoria</button>
-    
-    <button onclick="showSection('employees-view'); loadEmployees();" style="background: #2c3e50; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-users-cog"></i> Funcionários</button>
-    
-    <button onclick="startScanner()" class="btn" style="background: #f1c40f; color: #000; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-qrcode"></i> Escanear</button>
-    
-    <button onclick="showSection('history-view')" class="nav-btn" style="background: #7f8c8d; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-history"></i> Histórico</button> 
-    
-    <button onclick="showSection('clients-view')" style="background: #d81b60; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-users"></i> Clientes</button>
-<button onclick="showSection('manifest-view'); loadManifest();" style="background: #e67e22; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-clipboard-list"></i> Lista de Embarque
+    <button onclick="showSection('price-section')" style="background: #20c997; color: white;">
+        <i class="fas fa-tags"></i> Preço
     </button>
-    <button onclick="showSection('logs-view'); loadAccessLogs()" class="btn-menu" style="background: #111111; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-user-shield"></i> Histórico de Acessos</button>
+    
+    <button onclick="showSection('orders-view')" style="background: #007bff; color: white;">
+        <i class="fas fa-box"></i> Encomendas
+    </button>
+    
+    <button onclick="showSection('box-view')" style="background: #6610f2; color: white;">
+        <i class="fas fa-box-open"></i> Box
+    </button>
+    
+    <button onclick="showSection('videos-section')" style="background: #e83e8c; color: white;">
+        <i class="fas fa-video"></i> Vídeos
+    </button>
+    
+    <button onclick="showSection('billing-view')" style="background: #28a745; color: white;">
+        <i class="fas fa-wallet"></i> Financeiro
+    </button>
+    
+    <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn" style="background: #fd7e14; color: white;">
+        <i class="fas fa-tag"></i> Etiquetas
+    </button>
+    
+    <button onclick="showSection('receipts-view')" style="background: #17a2b8; color: white;">
+        <i class="fas fa-file-invoice"></i> Recibos
+    </button>
+    
+    <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn" style="background: #0d6efd; color: white;">
+        <i class="fas fa-file-invoice-dollar"></i> Faturas
+    </button>
+    
+    <button onclick="showSection('shipments-view')" style="background: #d35400; color: white;">
+        <i class="fas fa-plane-departure"></i> Embarques
+    </button>
+    
+    <button onclick="showSection('schedule-view')" style="background: #8e44ad; color: white;">
+        <i class="far fa-calendar-alt"></i> Agendamentos
+    </button>
+    
+    <button onclick="openBroadcastModal()" class="btn" style="background: #6f42c1; color: white;">
+        <i class="fas fa-bullhorn"></i> Novo Comunicado
+    </button>
+    
+    <button onclick="showSection('dashboard-home')" class="nav-btn" style="background: #34495e; color: white;">
+        <i class="fas fa-chart-line"></i> Visão Geral
+    </button>
+    
+    <button onclick="exportSmartPDF()" class="btn" style="background: #dc3545; color: white;">
+        <i class="fas fa-file-pdf"></i> Baixar PDF
+    </button>
+    
+    <button onclick="showSection('expenses-view')" style="background: #c0392b; color: white;">
+        <i class="fas fa-money-bill-wave"></i> Despesas
+    </button>
+    
+    <button onclick="showSection('logs-view')" style="background: #ffc107; color: #000;">
+        <i class="fas fa-shield-alt"></i> Auditoria
+    </button>
+    
+    <button onclick="showSection('employees-view'); loadEmployees();" style="background: #2c3e50; color: white;">
+        <i class="fas fa-users-cog"></i> Funcionários
+    </button>
+    
+    <button onclick="startScanner()" class="btn" style="background: #f1c40f; color: #000;">
+        <i class="fas fa-qrcode"></i> Escanear
+    </button>
+    
+    <button onclick="showSection('history-view')" class="nav-btn" style="background: #7f8c8d; color: white;">
+        <i class="fas fa-history"></i> Histórico
+    </button> 
+    
+    <button onclick="showSection('clients-view')" style="background: #d81b60; color: white;">
+        <i class="fas fa-users"></i> Clientes
+    </button>
 
-   <button onclick="logout()" style="color:#ff4d4d;"><i class="fas fa-sign-out-alt"></i> Sair</button>
-        </div>
+    <button onclick="showSection('manifest-view'); loadManifest();" style="background: #e67e22; color: white;">
+        <i class="fas fa-clipboard-list"></i> Lista de Embarque
+    </button>
+    
+    <button onclick="showSection('logs-view'); loadAccessLogs()" class="btn-menu" style="background: #111111; color: white;">
+        <i class="fas fa-user-shield"></i> Histórico de Acessos
+    </button>
+
+    <button onclick="logout()" style="color:#ff4d4d; font-weight: bold;">
+        <i class="fas fa-sign-out-alt"></i> Sair
+    </button>
+</div>
     </nav>
 
     <div class="container">

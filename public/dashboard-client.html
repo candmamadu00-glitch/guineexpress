@@ -280,15 +280,10 @@
 </div>
 
 <script>
-    // Agora ele procura pela versão 2 do aviso
-    if(localStorage.getItem('avisoAppFechadoV2') === 'true') {
-        document.getElementById('aviso-atualizacao-app').style.display = 'none';
-    }
-
     function fecharAvisoApp() {
+        // Esconde o aviso apenas naquele momento. 
+        // Como tiramos o localStorage, ele voltará ao recarregar a página!
         document.getElementById('aviso-atualizacao-app').style.display = 'none';
-        // Salva que a versão 2 foi lida
-        localStorage.setItem('avisoAppFechadoV2', 'true'); 
     }
 </script>
     <nav class="dashboard-nav">

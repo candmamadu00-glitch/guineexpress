@@ -595,9 +595,24 @@ async function initDashboard() {
             document.getElementById('profile-email').value = currentUser.email || '';
             document.getElementById('profile-phone').value = currentUser.phone || '';
 
+            // --- ATUALIZA A FOTO NAS DUAS TELAS ---
             const imgDisplay = document.getElementById('profile-img-display');
             if(currentUser.profile_pic && imgDisplay) {
-                imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
+                const urlFoto = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
+                
+                // 1. Atualiza na aba Perfil
+                imgDisplay.src = urlFoto;
+                
+                // 2. Atualiza na aba Início (O bonequinho do topo!)
+                const vipImg = document.getElementById('vip-profile-img');
+                if (vipImg) vipImg.src = urlFoto;
+            }
+
+            // --- BÔNUS: ATUALIZA O NOME NA TELA INICIAL ---
+            const nameDisplay = document.getElementById('user-name-display');
+            if (nameDisplay && currentUser.name) {
+                // Pega só o primeiro nome da pessoa (ex: "Mamadu") para ficar amigável
+                nameDisplay.innerText = currentUser.name.split(' ')[0];
             }
         }
 
