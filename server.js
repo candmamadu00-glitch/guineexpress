@@ -2100,18 +2100,72 @@ app.post('/api/invoices/:id/approve-receipt', (req, res) => {
     });
 });
 // ==============================================================
-// 🌟 ROTA PARA RECEBER O COMPROVANTE DIRETO DO BANCO (PWA SHARE TARGET)
+// 🌟 ROTA INTELIGENTE: RECEBE COMPROVANTE DO BANCO E AUTO-VINCULA
 // ==============================================================
 app.post('/receber-comprovante', upload.single('comprovante_banco'), (req, res) => {
-    if (!req.file) {
-        // Se o celular não enviou a foto direito, devolve pro painel com erro
-        return res.redirect('/dashboard-client.html?erro_share=true');
-    }
+    try {
+        if (!req.file) {
+            return res.redirect('/dashboard-client.html?erro_share=sem_arquivo');
+        }
 
-    // A MÁGICA: O Multer já salvou a foto na sua pasta /uploads automaticamente!
-    // Agora pegamos o nome da foto salva e mandamos o cliente de volta pro painel.
-    const nomeDaFoto = req.file.filename;
-    res.redirect(`/dashboard-client.html?shared_file=${nomeDaFoto}`);
+        // 1. Verifica quem é o dono do celular (sessão)
+        const clientId = req.session.userId;
+        if (!clientId) {
+            // Se o app "deslogou" no fundo, manda ele fazer login de novo
+            return res.redirect('/index.html?erro=precisa_logar');
+        }
+
+        const nomeDaFoto = req.file.filename;
+        const receiptPath = '/uploads/' + nomeDaFoto;
+
+        // 2. Procura quantas faturas pendentes esse cliente tem
+        db.all("SELECT id FROM invoices WHERE client_id = ? AND status = 'pending'", [clientId], async (err, faturas) => {
+            if (err) {
+                return res.redirect(`/dashboard-client.html?shared_file=${nomeDaFoto}`);
+            }
+
+            // CENÁRIO A: Cliente tem EXATAMENTE UMA fatura pendente (O mais comum!)
+            if (faturas.length === 1) {
+                const invoiceId = faturas[0].id;
+                
+                // Já vincula a foto na fatura certa e manda pro Lelo (Admin)
+                db.run("UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?", [receiptPath, invoiceId], async (err) => {
+                    
+                    // --- Manda a notificação no Zap do Admin ---
+                    if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                        try {
+                            const msgAdmin = `🚀 *PAGAMENTO EXPRESSO!*\n\nUm cliente compartilhou um comprovante direto do App do Banco.\nO sistema vinculou automaticamente à *Fatura #${invoiceId}*. Acesse o painel para aprovar!`;
+                            const idOficial = await clientZap.getNumberId("5585998239207"); // Seu número
+                            if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgAdmin);
+                            else await clientZap.sendMessage(`5585998239207@c.us`, msgAdmin);
+                        } catch (zapErr) { console.error("Erro zap:", zapErr.message); }
+                    }
+
+                    // --- Aciona a Cicí para o painel ---
+                    db.get("SELECT name FROM users WHERE id = ?", [clientId], (err, row) => {
+                        const clientName = row ? row.name : "um cliente";
+                        const mensagemCici = `⚡ **Auto-Match!** Lelo, o cliente **${clientName}** compartilhou um comprovante pelo app do banco. Como ele só tinha a Fatura #${invoiceId} pendente, eu já vinculei automaticamente para você! <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#17a2b8; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Comprovante</button>`;
+                        if (!global.ciciAvisos) global.ciciAvisos = [];
+                        global.ciciAvisos.push(mensagemCici);
+                    });
+
+                    // Redireciona o cliente para o painel com aviso de SUCESSO!
+                    return res.redirect('/dashboard-client.html?sucesso_share=auto_match');
+                });
+            } 
+            
+            // CENÁRIO B: Cliente tem 2 ou mais faturas (ou zero faturas)
+            else {
+                // Como não sabemos qual ele pagou, devolvemos pro painel com a foto salva, 
+                // e o JavaScript do front-end vai abrir a tela pra ele escolher.
+                return res.redirect(`/dashboard-client.html?shared_file=${nomeDaFoto}`);
+            }
+        });
+
+    } catch (error) {
+        console.error("Erro ao receber comprovante PWA:", error);
+        res.redirect('/dashboard-client.html?erro_share=falha');
+    }
 });
 
 // ==============================================================

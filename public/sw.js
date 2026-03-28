@@ -1,4 +1,4 @@
-const CACHE_NAME = 'guineexpress-v4';
+const CACHE_NAME = 'guineexpress-v2';
 const urlsToCache = [
   '/',
   '/index.html',
