@@ -942,12 +942,24 @@
             </div>
             
             <div class="card" style="margin-top: 20px;">
-                <h3>Histórico de Vídeos Enviados</h3>
-                <table class="data-table">
-                    <thead><tr><th>ID</th><th>Cliente</th><th>Data</th><th>Ação</th></tr></thead>
-                    <tbody id="admin-video-list"></tbody>
-                </table>
-            </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+        <h3 style="margin: 0;">Histórico de Vídeos Enviados</h3>
+        
+        <input type="text" id="search-video-history" placeholder="🔍 Buscar ID, cliente ou data..." onkeyup="filterVideoHistory()" style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
+    </div>
+
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Data</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody id="admin-video-list"></tbody>
+    </table>
+</div>
         </section>
 
         <section id="receipts-view" class="hidden">

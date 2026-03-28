@@ -2461,7 +2461,34 @@ function closeModal(modalId) {
         modal.style.display = 'none';
     }
 }
+// ==========================================
+// FILTRO DO HISTÓRICO DE VÍDEOS ENVIADOS
+// ==========================================
+function filterVideoHistory() {
+    // Pega o texto digitado na busca
+    const input = document.getElementById("search-video-history");
+    const filter = input.value.toLowerCase().trim();
+    
+    // Pega o corpo da tabela onde estão os vídeos
+    const tbody = document.getElementById("admin-video-list");
+    
+    // Pega todas as linhas (<tr>) dentro dessa tabela
+    const trs = tbody.getElementsByTagName("tr");
 
+    // Passa por todas as linhas uma por uma
+    for (let i = 0; i < trs.length; i++) {
+        // Pega todo o texto que existe dentro dessa linha (ID, Nome, Data, etc)
+        const rowText = trs[i].textContent || trs[i].innerText;
+        
+        // Se o texto da linha contiver o que foi digitado, mostra a linha
+        if (rowText.toLowerCase().indexOf(filter) > -1) {
+            trs[i].style.display = "";
+        } else {
+            // Se não contiver, esconde a linha
+            trs[i].style.display = "none";
+        }
+    }
+}
 // Update the existing openBoxModal to use the new generic openModal
 async function openBoxModal() {
     // Ensure the ID matches your HTML ('modal-box')
