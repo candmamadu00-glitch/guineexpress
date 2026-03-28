@@ -195,6 +195,8 @@ db.serialize(() => {
     // 👤 LINHAS NOVAS: NOME E DOCUMENTO DO RECEBEDOR EM BISSAU
     db.run("ALTER TABLE boxes ADD COLUMN receiver_name TEXT", () => {});
     db.run("ALTER TABLE boxes ADD COLUMN receiver_doc TEXT", () => {});
+    // 🔐 LINHA NOVA PARA ANTI-FRAUDE DE COMPROVANTES:
+    db.run("ALTER TABLE invoices ADD COLUMN transaction_id TEXT", () => {});
     // Adicione isso junto com os outros db.run de Patch Forçado no server.js
     db.run("ALTER TABLE boxes ADD COLUMN gross_weight REAL DEFAULT 0", (err) => {
         if (!err) console.log("✅ Coluna 'gross_weight' (Peso Bruto) criada na tabela boxes!");

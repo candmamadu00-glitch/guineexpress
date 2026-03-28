@@ -30,6 +30,70 @@ function checkInAppBrowser() {
     }
     return false;
 }
+// ==========================================
+// CICÍ TOUR GUIDE (EFEITOS VISUAIS E SETAS)
+// ==========================================
+const CiciTour = {
+    overlay: null,
+    arrow: null,
+
+    // Cria a camada escura e a seta
+    initEfeitos: function() {
+        if (!document.getElementById('cici-overlay')) {
+            this.overlay = document.createElement('div');
+            this.overlay.id = 'cici-overlay';
+            this.overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9990; display:none; pointer-events:none; transition: all 0.3s;';
+            document.body.appendChild(this.overlay);
+        }
+        if (!document.getElementById('cici-arrow')) {
+            this.arrow = document.createElement('div');
+            this.arrow.id = 'cici-arrow';
+            this.arrow.innerHTML = '👉'; // Seta piscando
+            this.arrow.style.cssText = 'position:fixed; z-index:9995; font-size:40px; display:none; animation: bounceX 1s infinite; pointer-events:none;';
+            document.body.appendChild(this.arrow);
+            
+            // Adiciona a animação da seta no CSS
+            const style = document.createElement('style');
+            style.innerHTML = `@keyframes bounceX { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-15px); } }`;
+            document.head.appendChild(style);
+        }
+    },
+
+    // Ilumina um elemento específico e aponta a seta
+    focarElemento: function(elementId, mensagemCici) {
+        this.initEfeitos();
+        const el = document.getElementById(elementId) || document.querySelector(elementId);
+        
+        if (!el) return;
+
+        // Traz o elemento para frente do overlay
+        el.style.position = 'relative';
+        el.style.zIndex = '9991';
+        el.style.background = '#fff'; // Garante que fique visível
+
+        this.overlay.style.display = 'block';
+
+        // Calcula a posição para colocar a seta ao lado esquerdo do elemento
+        const rect = el.getBoundingClientRect();
+        this.arrow.style.top = `${rect.top + (rect.height / 2) - 20}px`;
+        this.arrow.style.left = `${rect.left - 50}px`;
+        this.arrow.style.display = 'block';
+
+        // Faz a Cicí falar
+        if (!CiciAI.isOpen) CiciAI.toggle();
+        CiciAI.addMessage(mensagemCici, 'cici');
+    },
+
+    limparFoco: function(elementId) {
+        const el = document.getElementById(elementId) || document.querySelector(elementId);
+        if (el) {
+            el.style.zIndex = '';
+            el.style.position = '';
+        }
+        if(this.overlay) this.overlay.style.display = 'none';
+        if(this.arrow) this.arrow.style.display = 'none';
+    }
+};
 
 // Roda a verificação assim que o script carrega
 checkInAppBrowser();
@@ -7416,70 +7480,6 @@ async function excluirCliente(id, nome) {
     }
 }
 // ==========================================
-// CICÍ TOUR GUIDE (EFEITOS VISUAIS E SETAS)
-// ==========================================
-const CiciTour = {
-    overlay: null,
-    arrow: null,
-
-    // Cria a camada escura e a seta
-    initEfeitos: function() {
-        if (!document.getElementById('cici-overlay')) {
-            this.overlay = document.createElement('div');
-            this.overlay.id = 'cici-overlay';
-            this.overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9990; display:none; pointer-events:none; transition: all 0.3s;';
-            document.body.appendChild(this.overlay);
-        }
-        if (!document.getElementById('cici-arrow')) {
-            this.arrow = document.createElement('div');
-            this.arrow.id = 'cici-arrow';
-            this.arrow.innerHTML = '👉'; // Seta piscando
-            this.arrow.style.cssText = 'position:fixed; z-index:9995; font-size:40px; display:none; animation: bounceX 1s infinite; pointer-events:none;';
-            document.body.appendChild(this.arrow);
-            
-            // Adiciona a animação da seta no CSS
-            const style = document.createElement('style');
-            style.innerHTML = `@keyframes bounceX { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-15px); } }`;
-            document.head.appendChild(style);
-        }
-    },
-
-    // Ilumina um elemento específico e aponta a seta
-    focarElemento: function(elementId, mensagemCici) {
-        this.initEfeitos();
-        const el = document.getElementById(elementId) || document.querySelector(elementId);
-        
-        if (!el) return;
-
-        // Traz o elemento para frente do overlay
-        el.style.position = 'relative';
-        el.style.zIndex = '9991';
-        el.style.background = '#fff'; // Garante que fique visível
-
-        this.overlay.style.display = 'block';
-
-        // Calcula a posição para colocar a seta ao lado esquerdo do elemento
-        const rect = el.getBoundingClientRect();
-        this.arrow.style.top = `${rect.top + (rect.height / 2) - 20}px`;
-        this.arrow.style.left = `${rect.left - 50}px`;
-        this.arrow.style.display = 'block';
-
-        // Faz a Cicí falar
-        if (!CiciAI.isOpen) CiciAI.toggle();
-        CiciAI.addMessage(mensagemCici, 'cici');
-    },
-
-    limparFoco: function(elementId) {
-        const el = document.getElementById(elementId) || document.querySelector(elementId);
-        if (el) {
-            el.style.zIndex = '';
-            el.style.position = '';
-        }
-        if(this.overlay) this.overlay.style.display = 'none';
-        if(this.arrow) this.arrow.style.display = 'none';
-    }
-};
-// ==========================================
 // FUNÇÕES NOVAS PARA FACILITAR O ENVIO DO PIX
 // ==========================================
 
@@ -7859,4 +7859,46 @@ function filterVideoClients() {
         select.value = "";
         checkVideoPermission(); // Chama sua função original para desativar o botão de câmera
     }
+}
+// ==========================================
+// RADAR DO LELO: ESCUTANDO A CICÍ (RODA A CADA 5 SEGS)
+// ==========================================
+setInterval(async () => {
+    try {
+        const res = await fetch('/api/cici-avisos');
+        const data = await res.json();
+        
+        if (data.avisos && data.avisos.length > 0) {
+            data.avisos.forEach(mensagemHtml => {
+                // Toca um sonzinho de notificação (Opcional, se você tiver um áudio)
+                // new Audio('/sons/alerta.mp3').play().catch(()=>console.log("Sem som"));
+                
+                // Exibe a mensagem da Cicí na tela usando um Toast ou Alert estilizado
+                mostrarAlertaDaCici(mensagemHtml);
+            });
+        }
+    } catch (err) {
+        // Ignora erros silenciosamente para não atrapalhar o Lelo se a net cair
+    }
+}, 5000);
+
+// Função para desenhar a mensagem na tela
+function mostrarAlertaDaCici(htmlContent) {
+    const alerta = document.createElement('div');
+    alerta.style.cssText = "position:fixed; top:20px; right:20px; background:rgba(10, 25, 49, 0.95); border:2px solid #009ee3; color:#fff; padding:20px; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,0.5); z-index:9999; max-width:350px; animation: slideIn 0.5s;";
+    
+    alerta.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="font-size:30px; margin-right:15px;">🤖</div>
+            <div style="flex-grow:1; font-size:14px; line-height:1.5;">${htmlContent}</div>
+            <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:#ff4d4d; font-size:18px; cursor:pointer; margin-left:10px; font-weight:bold;">X</button>
+        </div>
+    `;
+    
+    document.body.appendChild(alerta);
+
+    // Some sozinho depois de 30 segundos se o Lelo não clicar
+    setTimeout(() => {
+        if(document.body.contains(alerta)) alerta.remove();
+    }, 30000);
 }
