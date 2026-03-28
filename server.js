@@ -2100,70 +2100,141 @@ app.post('/api/invoices/:id/approve-receipt', (req, res) => {
     });
 });
 // ==============================================================
-// 🌟 ROTA INTELIGENTE: RECEBE COMPROVANTE DO BANCO E AUTO-VINCULA
+// 🌟 ROTA INTELIGENTE: COMPROVANTE DIRETO DO BANCO + ANÁLISE IA DA CICÍ
 // ==============================================================
-app.post('/receber-comprovante', upload.single('comprovante_banco'), (req, res) => {
+app.post('/receber-comprovante', upload.single('comprovante_banco'), async (req, res) => {
     try {
         if (!req.file) {
             return res.redirect('/dashboard-client.html?erro_share=sem_arquivo');
         }
 
-        // 1. Verifica quem é o dono do celular (sessão)
         const clientId = req.session.userId;
         if (!clientId) {
-            // Se o app "deslogou" no fundo, manda ele fazer login de novo
             return res.redirect('/index.html?erro=precisa_logar');
         }
 
         const nomeDaFoto = req.file.filename;
         const receiptPath = '/uploads/' + nomeDaFoto;
+        const fullFilePath = req.file.path; // Caminho completo para a IA ler
 
-        // 2. Procura quantas faturas pendentes esse cliente tem
-        db.all("SELECT id FROM invoices WHERE client_id = ? AND status = 'pending'", [clientId], async (err, faturas) => {
-            if (err) {
+        // 1. Procura faturas pendentes do cliente
+        db.all("SELECT id, amount FROM invoices WHERE client_id = ? AND status = 'pending'", [clientId], async (err, faturas) => {
+            if (err || faturas.length !== 1) {
+                // Se der erro ou se ele tiver mais de 1 fatura, devolve pro painel pra ele escolher.
                 return res.redirect(`/dashboard-client.html?shared_file=${nomeDaFoto}`);
             }
 
-            // CENÁRIO A: Cliente tem EXATAMENTE UMA fatura pendente (O mais comum!)
-            if (faturas.length === 1) {
-                const invoiceId = faturas[0].id;
-                
-                // Já vincula a foto na fatura certa e manda pro Lelo (Admin)
-                db.run("UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?", [receiptPath, invoiceId], async (err) => {
-                    
+            // CENÁRIO A: Auto-Match! Cliente tem SÓ UMA fatura pendente
+            const invoiceId = faturas[0].id;
+            const expectedAmount = parseFloat(faturas[0].amount);
+
+            // Vincula a foto na fatura certa e muda o status
+            db.run("UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?", [receiptPath, invoiceId], async (err) => {
+                if (err) return res.redirect('/dashboard-client.html?erro_share=banco');
+
+                // Busca o nome do cliente para a mensagem
+                db.get("SELECT name FROM users WHERE id = ?", [clientId], async (err, row) => {
+                    const clientName = row ? row.name : "um cliente";
+                    let mensagemCici = "";
+
+                    // ==========================================
+                    // 🤖 2. A CICÍ ENTRA EM AÇÃO PARA ANALISAR O COMPROVANTE DO APP DO BANCO
+                    // ==========================================
+                    try {
+                        const arquivoPart = fileToGenerativePart(fullFilePath, req.file.mimetype);
+                        const dataHoje = new Date().toLocaleDateString('pt-BR');
+                        
+                        const prompt = `
+                        Você é um auditor financeiro rigoroso. Analise este arquivo.
+                        Hoje é dia ${dataHoje}. O valor exato cobrado é R$ ${expectedAmount}.
+                        
+                        Responda APENAS em formato JSON:
+                        {"eh_comprovante": true, "agendado": false, "valor_bate": true, "data_pagamento": "DD/MM/AAAA", "id_transacao": "codigo", "alerta_data": false, "motivo": "..."}
+                        
+                        Regras:
+                        1. "eh_comprovante": É um comprovante bancário real?
+                        2. "agendado": É um agendamento futuro?
+                        3. "valor_bate": O valor pago é EXATAMENTE R$ ${expectedAmount}?
+                        4. "data_pagamento": Extraia a data do pagamento.
+                        5. "id_transacao": Extraia o Código de Autenticação/Transação. Se não achar, escreva "Nao_Encontrado".
+                        6. "alerta_data": Marque true SE a data for MAIS VELHA que 10 dias de hoje (${dataHoje}).
+                        7. "motivo": Explique brevemente.
+                        `;
+
+                        const result = await model.generateContent([prompt, arquivoPart]);
+                        const iaRespostaText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
+                        const analise = JSON.parse(iaRespostaText);
+
+                        // 🛡️ VERIFICAÇÃO ANTI-FRAUDE
+                        let comprovanteReciclado = false;
+                        let idFaturaAntiga = null;
+
+                        if (analise.id_transacao && analise.id_transacao !== "Nao_Encontrado" && analise.id_transacao.length > 5) {
+                            db.run("UPDATE invoices SET transaction_id = ? WHERE id = ?", [analise.id_transacao, invoiceId]);
+
+                            const checkFraude = await new Promise((resolve, reject) => {
+                                db.get("SELECT id FROM invoices WHERE transaction_id = ? AND id != ? AND status != 'canceled'", [analise.id_transacao, invoiceId], (err, row_fraude) => {
+                                    resolve(row_fraude);
+                                });
+                            });
+
+                            if (checkFraude) {
+                                comprovanteReciclado = true;
+                                idFaturaAntiga = checkFraude.id;
+                            }
+                        }
+
+                        // 3. A CICÍ DECIDE O QUE FALAR PARA O LELO (Com o prefixo de Auto-Match)
+                        const prefixo = `⚡ **Auto-Match (App do Banco)!** `;
+                        
+                        if (comprovanteReciclado) {
+                            mensagemCici = `${prefixo} 🚨 **GOLPE DETECTADO!** Lelo, o cliente **${clientName}** enviou direto do banco um comprovante para a Fatura #${invoiceId} que **JÁ FOI USADO** antes na Fatura #${idFaturaAntiga}! Não aprove! <br>💳 *ID Reciclado:* ${analise.id_transacao} <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Prova do Golpe</button>`;
+                        
+                        } else if (!analise.eh_comprovante) {
+                            mensagemCici = `${prefixo} ❌ **ARQUIVO INVÁLIDO!** Lelo, o cliente **${clientName}** compartilhou para a Fatura #${invoiceId}, mas a foto **não é um recibo bancário**. Motivo: ${analise.motivo}. <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Foto</button>`;
+                        
+                        } else if (analise.agendado) {
+                            mensagemCici = `${prefixo} 🚨 **ALERTA!** Lelo, o cliente **${clientName}** enviou para a Fatura #${invoiceId}, mas a IA detectou que é um **AGENDAMENTO**. Cuidado! <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Arquivo Suspeito</button>`;
+                        
+                        } else if (!analise.valor_bate) {
+                            mensagemCici = `${prefixo} ⚠️ **VALOR INCORRETO!** Lelo, o cliente **${clientName}** mandou o comprovante (Fatura #${invoiceId}), mas o **valor não bate** com os R$ ${expectedAmount}. Motivo: ${analise.motivo}. <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#f39c12; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Analisar Manualmente</button>`;
+                        
+                        } else if (analise.alerta_data) {
+                            mensagemCici = `${prefixo} ⏳ **COMPROVANTE ANTIGO!** Lelo, o cliente **${clientName}** mandou o valor certo na Fatura #${invoiceId}, mas a data é antiga (${analise.data_pagamento}). Verifique! <br>💳 *ID:* ${analise.id_transacao} <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#e67e22; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Analisar Manualmente</button>`;
+
+                        } else {
+                            mensagemCici = `${prefixo} ✅ **TUDO CERTO!** Lelo, analisei o comprovante de **${clientName}** (Fatura #${invoiceId}). O valor (R$ ${expectedAmount}) está correto e é novo (${analise.data_pagamento})! Nenhuma fraude. Posso dar baixa? <br>💳 *ID:* ${analise.id_transacao} <br><br> <button onclick="approveInvoice(${invoiceId})" style="background:#28a745; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold;">👍 Sim, Aprovar Agora</button> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#6c757d; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; margin-left:5px;">Ver Arquivo</button>`;
+                        }
+
+                    } catch (iaErr) {
+                        console.error("Erro na leitura da Cicí pelo PWA:", iaErr);
+                        mensagemCici = `⚡ **Auto-Match!** Lelo, vinculei o comprovante do banco do cliente **${clientName}** à Fatura #${invoiceId}, mas a IA teve dificuldade em ler a foto. Analise manualmente. <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#17a2b8; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Comprovante</button>`;
+                    }
+
+                    // Envia a notificação da Cicí
+                    if (!global.ciciAvisos) global.ciciAvisos = [];
+                    global.ciciAvisos.push(mensagemCici);
+
+                    // ==========================================
                     // --- Manda a notificação no Zap do Admin ---
+                    // ==========================================
                     if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                         try {
-                            const msgAdmin = `🚀 *PAGAMENTO EXPRESSO!*\n\nUm cliente compartilhou um comprovante direto do App do Banco.\nO sistema vinculou automaticamente à *Fatura #${invoiceId}*. Acesse o painel para aprovar!`;
+                            const msgAdmin = `🚀 *PAGAMENTO EXPRESSO*\n\nComprovante direto do banco vinculado à *Fatura #${invoiceId}*. A Cicí já analisou no painel!`;
                             const idOficial = await clientZap.getNumberId("5585998239207"); // Seu número
                             if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgAdmin);
                             else await clientZap.sendMessage(`5585998239207@c.us`, msgAdmin);
                         } catch (zapErr) { console.error("Erro zap:", zapErr.message); }
                     }
 
-                    // --- Aciona a Cicí para o painel ---
-                    db.get("SELECT name FROM users WHERE id = ?", [clientId], (err, row) => {
-                        const clientName = row ? row.name : "um cliente";
-                        const mensagemCici = `⚡ **Auto-Match!** Lelo, o cliente **${clientName}** compartilhou um comprovante pelo app do banco. Como ele só tinha a Fatura #${invoiceId} pendente, eu já vinculei automaticamente para você! <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#17a2b8; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Comprovante</button>`;
-                        if (!global.ciciAvisos) global.ciciAvisos = [];
-                        global.ciciAvisos.push(mensagemCici);
-                    });
-
                     // Redireciona o cliente para o painel com aviso de SUCESSO!
                     return res.redirect('/dashboard-client.html?sucesso_share=auto_match');
                 });
-            } 
-            
-            // CENÁRIO B: Cliente tem 2 ou mais faturas (ou zero faturas)
-            else {
-                // Como não sabemos qual ele pagou, devolvemos pro painel com a foto salva, 
-                // e o JavaScript do front-end vai abrir a tela pra ele escolher.
-                return res.redirect(`/dashboard-client.html?shared_file=${nomeDaFoto}`);
-            }
+            });
         });
 
     } catch (error) {
-        console.error("Erro ao receber comprovante PWA:", error);
+        console.error("Erro geral na rota receber-comprovante:", error);
         res.redirect('/dashboard-client.html?erro_share=falha');
     }
 });
