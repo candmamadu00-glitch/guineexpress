@@ -1079,15 +1079,6 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
     .catch(err => console.error("Erro ao carregar perfil:", err));
 </script>
 <script>
-    if (window.location.href.startsWith('blob:')) {
-        window.onload = function() {
-            setTimeout(function() { 
-                window.print(); 
-            }, 500);
-        };
-    }
-</script>
-<script>
     // --- EFEITO RIPPLE (ONDA) NOS BOTÕES ---
     document.addEventListener('click', function (e) {
         // Verifica se o elemento clicado (ou pai) é um botão
@@ -1117,6 +1108,7 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         }
     });
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="cici.js"></script>
 </body>

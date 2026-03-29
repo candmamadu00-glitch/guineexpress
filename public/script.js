@@ -3599,7 +3599,6 @@ async function printReceipt(boxId) {
         const dataHoje = new Date().toLocaleDateString('pt-BR');
         const stampStatus = d.is_paid ? 'PAGO' : 'PENDENTE';
         
-        // Cores da marca d'água (Ajustadas para ficarem perfeitas por cima do texto)
         const stampColor = d.is_paid ? 'rgba(40, 167, 69, 0.25)' : 'rgba(220, 53, 69, 0.25)';
         const stampBorder = d.is_paid ? 'rgba(40, 167, 69, 0.4)' : 'rgba(216, 30, 49, 0.4)';
 
@@ -3636,6 +3635,7 @@ async function printReceipt(boxId) {
                         border-radius: 10px;
                         position: relative;
                         overflow: hidden;
+                        min-height: 950px; /* Força o PDF a não cortar o final */
                     }
                     
                     .watermark {
@@ -3650,15 +3650,14 @@ async function printReceipt(boxId) {
                         border: 8px solid ${stampBorder}; 
                         padding: 15px 60px; 
                         text-transform: uppercase; 
-                        z-index: 9999; /* DEIXA O CARIMBO TOTALMENTE POR CIMA */
+                        z-index: 9999;
                         border-radius: 20px;
-                        pointer-events: none; /* Permite clicar e selecionar textos embaixo do carimbo */
+                        pointer-events: none; 
                         letter-spacing: 10px;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
 
-                    /* --- CABEÇALHO --- */
                     .header { 
                         display: flex; 
                         justify-content: space-between; 
@@ -3675,7 +3674,6 @@ async function printReceipt(boxId) {
                     .header-contact { text-align: right; font-size: 11px; line-height: 1.6; color: #695a5a; }
                     .header-contact strong { color: var(--azul-oficial); font-size: 12px; }
 
-                    /* --- BARRA DE TÍTULO PRINCIPAL --- */
                     .title-bar {
                         background: var(--azul-oficial);
                         color: #fff;
@@ -3695,7 +3693,6 @@ async function printReceipt(boxId) {
                     .info-badge span { display: block; font-size: 9px; color: var(--dourado-luxo); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
                     .info-badge strong { font-size: 14px; letter-spacing: 0.5px; }
 
-                    /* --- CARDS DE INFORMAÇÃO (3 COLUNAS) --- */
                     .cards-grid { 
                         display: grid; 
                         grid-template-columns: repeat(3, 1fr); 
@@ -3710,25 +3707,12 @@ async function printReceipt(boxId) {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
-                    .info-card h3 { 
-                        margin: 0 0 12px 0; 
-                        font-size: 13px; 
-                        color: var(--azul-oficial); 
-                        text-transform: uppercase;
-                        font-weight: 800;
-                    }
-                    .data-row { 
-                        display: flex; 
-                        justify-content: space-between; 
-                        border-bottom: 1px dashed var(--borda-clara);
-                        padding: 6px 0;
-                        font-size: 11px;
-                    }
+                    .info-card h3 { margin: 0 0 12px 0; font-size: 13px; color: var(--azul-oficial); text-transform: uppercase; font-weight: 800; }
+                    .data-row { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--borda-clara); padding: 6px 0; font-size: 11px; }
                     .data-row:last-child { border-bottom: none; }
                     .data-row span:first-child { font-weight: 700; color: #666; }
                     .data-row span:last-child { font-weight: 600; color: var(--texto-escuro); text-align: right; }
 
-                    /* Alerta de Recebedor */
                     .alert-receiver {
                         background: #fff3cd;
                         border: 1px solid #ffeeba;
@@ -3742,7 +3726,6 @@ async function printReceipt(boxId) {
                     }
                     .alert-receiver strong { color: #d32f2f; display: block; margin-bottom: 4px; font-size: 11px; }
 
-                    /* --- TABELA DE SERVIÇOS --- */
                     .table-container { border-radius: 8px; overflow: hidden; border: 1px solid var(--borda-clara); margin-bottom: 30px; }
                     table { width: 100%; border-collapse: collapse; }
                     th { 
@@ -3757,67 +3740,62 @@ async function printReceipt(boxId) {
                     }
                     th:not(:first-child) { text-align: center; }
                     th:first-child { text-align: left; }
-                    
                     td { padding: 12px; font-size: 12px; border-bottom: 1px solid var(--borda-clara); }
                     td:not(:first-child) { text-align: center; font-weight: 600; }
                     tr:nth-child(even) { background-color: #fafbfc; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                    
                     .service-title { font-weight: 700; color: var(--azul-oficial); display: block; margin-bottom: 4px; font-size: 13px;}
                     .service-desc { font-size: 11px; color: #5c4242; }
 
-                    /* --- ÁREA DE TOTAIS --- */
+                    /* ======================================================== */
+                    /* --- ÁREA DE TOTAIS (CORRIGIDO PARA O CELULAR LER BEM) -- */
+                    /* ======================================================== */
                     .checkout-area {
-                        display: flex;
-                        justify-content: flex-end;
+                        text-align: right;
+                        margin-top: 20px;
                         margin-bottom: 40px;
+                        width: 100%;
                     }
-                    .totals-box { width: 300px; text-align: right; }
+                    .totals-box { 
+                        display: inline-block; 
+                        width: 320px; 
+                    }
                     .total-pill {
-                        background: linear-gradient(135deg, var(--vermelho-total), #a70000);
+                        background-color: #d32f2f;
                         color: #fff;
                         padding: 12px 25px;
                         border-radius: 30px;
-                        display: inline-flex;
-                        justify-content: space-between;
-                        align-items: center;
                         width: 100%;
                         box-sizing: border-box;
                         box-shadow: 0 5px 15px rgba(211, 47, 47, 0.3);
+                        display: table;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
-                    .total-pill span:first-child { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;}
-                    .total-pill span:last-child { font-size: 22px; font-weight: 900; }
+                    .total-pill span {
+                        display: table-cell;
+                        vertical-align: middle;
+                    }
+                    .total-pill-left {
+                        text-align: left;
+                        font-size: 14px; 
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                    }
+                    .total-pill-right {
+                        text-align: right;
+                        font-size: 22px; 
+                        font-weight: 900;
+                    }
 
-                    /* --- RODAPÉ E ASSINATURAS --- */
-                    .footer-terms {
-                        text-align: center;
-                        font-size: 11px;
-                        color: #886e6e;
-                        margin-bottom: 50px;
-                        padding: 0 40px;
-                        font-style: italic;
-                    }
-                    .signatures {
-                        display: flex;
-                        justify-content: space-around;
-                        margin-top: 50px;
-                        padding-bottom: 20px;
-                    }
+                    .footer-terms { text-align: center; font-size: 11px; color: #886e6e; margin-bottom: 50px; padding: 0 40px; font-style: italic; }
+                    .signatures { display: flex; justify-content: space-around; margin-top: 50px; padding-bottom: 20px; }
                     .sign-box { width: 40%; text-align: center; }
-                    .sign-line {
-                        border-bottom: 1px solid var(--texto-escuro);
-                        margin-bottom: 8px;
-                        height: 30px;
-                    }
+                    .sign-line { border-bottom: 1px solid var(--texto-escuro); margin-bottom: 8px; height: 30px; }
                     .sign-box span { font-size: 12px; font-weight: 700; color: var(--texto-escuro); }
 
-                    /* FORÇAR CORES NA HORA DE SALVAR PDF NO CELULAR */
                     @media print { 
-                        body { 
-                            -webkit-print-color-adjust: exact !important; 
-                            print-color-adjust: exact !important; 
-                        }
+                        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                         @page { size: A4 portrait; margin: 5mm; }
                     }
                 </style>
@@ -3924,8 +3902,8 @@ async function printReceipt(boxId) {
                     <div class="checkout-area">
                         <div class="totals-box">
                             <div class="total-pill">
-                                <span>TOTAL A PAGAR:</span>
-                                <span>${valorTotalReais}</span>
+                                <span class="total-pill-left">TOTAL A PAGAR:</span>
+                                <span class="total-pill-right">${valorTotalReais}</span>
                             </div>
                         </div>
                     </div>
@@ -3945,39 +3923,30 @@ async function printReceipt(boxId) {
                             <span>ASSINATURA DO CLIENTE</span>
                         </div>
                     </div>
-
                 </div>
-
-                <script>
-                    if (window.location.href.startsWith('blob:')) {
-                        window.onload = function() {
-                            setTimeout(function() { 
-                                window.print(); 
-                            }, 500);
-                        };
-                    }
-                </script>
             </body>
             </html>
         `;
 
         // =========================================================================
-// 🚀 NOVA LÓGICA DE GERAÇÃO: DIFERENCIA CELULAR DE COMPUTADOR AUTOMATICAMENTE
-// =========================================================================
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        // 🚀 LÓGICA DE GERAÇÃO: DOWNLOAD DIRETO E INVISÍVEL
+        // =========================================================================
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-if (isMobile) {
-    // No Celular: Cria um arquivo virtual e abre. Isso força o Android/iOS a abrir a opção "Salvar em PDF" nativa.
-    const blob = new Blob([receiptHTML], { type: 'text/html;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    const win = window.open(blobUrl, '_blank');
-    
-    // Se o navegador do celular bloquear a nova aba, ele abre na mesma aba
-    if (!win) { 
-        window.location.href = blobUrl;
-    }
-} else {
-            // No Computador: Mantém a lógica do Iframe oculto que não pisca a tela
+        if (isMobile) {
+            // No Celular: Usa html2pdf com configuração avançada para não cortar o rodapé
+            const configuracaoPdf = {
+                margin:       [0.1, 0.1, 0.5, 0.1], // Deixamos uma margem extra embaixo
+                filename:     `Recibo_Guineexpress_${d.box_code || '00'}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 }, // scrollY:0 força a leitura desde o topo
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(configuracaoPdf).from(receiptHTML).save();
+
+        } else {
+            // No Computador: Mantém a lógica do Iframe oculto 
             let printIframe = document.getElementById('print-iframe');
             if (!printIframe) {
                 printIframe = document.createElement('iframe');
@@ -3994,7 +3963,6 @@ if (isMobile) {
             iframeDoc.write(receiptHTML);
             iframeDoc.close();
 
-            // Aguarda carregar as fontes e logo antes de abrir a janela de impressão
             setTimeout(() => {
                 printIframe.contentWindow.focus();
                 printIframe.contentWindow.print();
