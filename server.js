@@ -2328,6 +2328,195 @@ app.get('/api/invoices/my_invoices', (req, res) => {
         res.json(rows);
     });
 });
+// ==============================================================
+// 📱 🤖 CICI: OUVINTE DE NOTIFICAÇÕES DO CELULAR (MERCADO PAGO via MACRODROID)
+// ==============================================================
+app.post('/api/cici-macrodroid', express.json(), (req, res) => {
+    // 🛡️ Senha secreta para ninguém na internet forjar um pagamento falso
+    const tokenSecreto = "senha_guineexpress_secreta_123"; 
+    
+    if (req.body.token !== tokenSecreto) {
+        console.log("⚠️ Tentativa de acesso negada na rota do MacroDroid.");
+        return res.status(403).json({ erro: 'Token inválido' });
+    }
+
+    // Pega o texto que o aplicativo leu da tela do seu celular
+    const textoNotificacao = req.body.texto || "";
+    console.log(`📱 Cicí leu a notificação do seu celular: "${textoNotificacao}"`);
+
+    // 1. A Cicí procura o valor em dinheiro no texto da notificação
+    const matchValor = textoNotificacao.match(/R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/);
+    
+    if (matchValor) {
+        let valorString = matchValor[1].replace('.', '').replace(',', '.'); // Converte "5,00" para 5.00
+        const valorRecebido = parseFloat(valorString);
+        console.log(`💰 Valor lido do Mercado Pago: R$ ${valorRecebido}`);
+
+        // 2. Procura faturas pendentes COM ESSE VALOR EXATO
+        db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending' AND CAST(amount AS REAL) = ?", [valorRecebido], async (err, faturas) => {
+            if (err) return res.status(500).json({ erro: 'Erro no banco de dados' });
+
+            // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
+            if (faturas.length === 1) {
+                const invoiceId = faturas[0].id;
+                const clientId = faturas[0].client_id;
+
+                db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], async (updateErr) => {
+                    if (updateErr) return console.error('Erro ao aprovar fatura pelo celular:', updateErr);
+
+                    // Busca o nome do cliente para te avisar
+                    db.get("SELECT name FROM users WHERE id = ?", [clientId], async (userErr, row) => {
+                        const clientName = row ? row.name : "um cliente";
+                        
+                        // Manda notificação no Zap para o Lelo
+                        if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                            try {
+                                const msgZap = `📱 *MERCADO PAGO (AUTO)*\n\nLelo, a notificação do Mercado Pago apitou no seu celular e a Cicí já deu baixa! Pix de R$ ${valorRecebido} aprovado na *Fatura #${invoiceId}* de *${clientName}*! ✅`;
+                                const idOficial = await clientZap.getNumberId("5585998239207"); 
+                                if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgZap);
+                                else await clientZap.sendMessage(`5585998239207@c.us`, msgZap);
+                            } catch (zapErr) { console.error("Erro zap MacroDroid:", zapErr.message); }
+                        }
+                    });
+                });
+            } 
+            // CENÁRIO B: Mais de uma fatura ou nenhuma (Pede ajuda)
+            else {
+                if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                    try {
+                        const msgZap = faturas.length > 1 
+                            ? `📱 *CICI PRECISA DE AJUDA!*\n\nLelo, o Mercado Pago avisou no celular de um Pix de *R$ ${valorRecebido}*, mas tem ${faturas.length} pessoas devendo esse valor exato. Aprovação manual necessária no painel!`
+                            : `📱 *PIX SEM DONO (Mercado Pago)!*\n\nLelo, notificação de *R$ ${valorRecebido}* recebida, mas ninguém deve esse valor no sistema. Verifique o app!`;
+                        
+                        const idOficial = await clientZap.getNumberId("5585998239207"); 
+                        if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgZap);
+                        else await clientZap.sendMessage(`5585998239207@c.us`, msgZap);
+                    } catch (zapErr) { console.error("Erro zap MacroDroid ajuda:", zapErr.message); }
+                }
+            }
+        });
+    }
+
+    // Responde pro celular que a mensagem foi recebida com sucesso
+    res.json({ success: true, message: 'Notificação recebida pela Cicí' });
+});
+// ==============================================================
+// 🏦 🤖 CICI: MONITORAMENTO DE E-MAIL DO NUBANK (AUTO-APROVAÇÃO)
+// ==============================================================
+const { ImapFlow } = require('imapflow');
+const simpleParser = require('mailparser').simpleParser;
+
+// Suas credenciais oficiais do Google configuradas!
+const EMAIL_USER = 'Comercialguineexpress245@gmail.com'; 
+const EMAIL_PASS = 'pzbqkufiwqyppovw'; 
+
+const clientImap = new ImapFlow({
+    host: 'imap.gmail.com',
+    port: 993,
+    secure: true,
+    auth: {
+        user: EMAIL_USER,
+        pass: EMAIL_PASS
+    },
+    logger: false // Mude para true se quiser ver os detalhes da conexão no terminal
+});
+
+const startEmailMonitor = async () => {
+    try {
+        await clientImap.connect();
+        console.log('🤖 Cicí: Conectada ao Gmail com sucesso. Vigiando Pix do Nubank...');
+
+        // Abre a Caixa de Entrada
+        let lock = await clientImap.getMailboxLock('INBOX');
+        try {
+            // Fica escutando a chegada de NOVOS e-mails
+            clientImap.on('exists', async (data) => {
+                console.log(`📥 Novo e-mail recebido! Total na caixa: ${data.count}`);
+                
+                // Pega o último e-mail que chegou
+                let message = await clientImap.fetchOne('*', { source: true });
+                if (!message) return;
+
+                let parsed = await simpleParser(message.source);
+                const remetente = parsed.from.value[0].address;
+                const assunto = parsed.subject;
+                const corpo = parsed.text || parsed.html || '';
+
+                // Verifica se o e-mail é do Nubank avisando de transferência/Pix recebido
+                if (remetente.includes('nubank.com.br') && (assunto.includes('Pix') || assunto.includes('transferência'))) {
+                    console.log('👀 Cicí: E-mail do Nubank detectado! Analisando...');
+
+                    // 1. Extrai o Valor do corpo do e-mail usando RegEx (Ex: R$ 5,00)
+                    const matchValor = corpo.match(/R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/);
+                    if (matchValor) {
+                        let valorString = matchValor[1].replace('.', '').replace(',', '.'); // Converte "5,00" para 5.00
+                        const valorRecebido = parseFloat(valorString);
+                        console.log(`💰 Valor do Pix lido: R$ ${valorRecebido}`);
+
+                        // 2. Procura faturas pendentes COM ESSE VALOR EXATO
+                        db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending' AND CAST(amount AS REAL) = ?", [valorRecebido], async (err, faturas) => {
+                            if (err) {
+                                console.error('Erro ao buscar faturas por valor:', err);
+                                return;
+                            }
+
+                            // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
+                            if (faturas.length === 1) {
+                                const invoiceId = faturas[0].id;
+                                const clientId = faturas[0].client_id;
+
+                                // Aprova a fatura no banco de dados
+                                db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], async (updateErr) => {
+                                    if (updateErr) return console.error('Erro ao aprovar fatura pelo email:', updateErr);
+
+                                    // Busca o nome do cliente para te avisar
+                                    db.get("SELECT name FROM users WHERE id = ?", [clientId], async (userErr, row) => {
+                                        const clientName = row ? row.name : "um cliente";
+                                        
+                                        // Manda notificação no Zap para o Lelo
+                                        if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                                            try {
+                                                const msgZap = `🤖 *CICÍ APROVOU SOZINHA!*\n\nLelo, o Pix de R$ ${valorRecebido} do Nubank acabou de cair. Como só tinha uma fatura com esse valor no sistema, eu já dei baixa na *Fatura #${invoiceId}* do cliente *${clientName}*! ✅`;
+                                                const idOficial = await clientZap.getNumberId("5585998239207"); 
+                                                if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgZap);
+                                                else await clientZap.sendMessage(`5585998239207@c.us`, msgZap);
+                                            } catch (zapErr) { console.error("Erro zap da Cicí Email:", zapErr.message); }
+                                        }
+                                        console.log(`✅ Cicí aprovou a Fatura #${invoiceId} via e-mail do Nubank!`);
+                                    });
+                                });
+                            } 
+                            // CENÁRIO B: Achou NENHUMA ou MAIS DE UMA fatura. Pede ajuda humana!
+                            else {
+                                console.log(`⚠️ Alerta: Existem ${faturas.length} faturas com valor R$ ${valorRecebido}. Aprovação manual necessária.`);
+                                if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                                    try {
+                                        let msgErro = '';
+                                        if (faturas.length > 1) {
+                                            msgErro = `🤖 *CICI PRECISA DE AJUDA!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}* na conta. Mas existem ${faturas.length} clientes devendo exatamente esse valor! Por segurança, não dei baixa. Confira no extrato de quem foi e aprove no painel.`;
+                                        } else {
+                                            msgErro = `🤖 *PIX SEM DONO!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*, mas não encontrei *nenhuma* fatura pendente com esse valor no sistema. Verifique o app do Nubank!`;
+                                        }
+                                        const idOficial = await clientZap.getNumberId("5585998239207"); 
+                                        if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgErro);
+                                        else await clientZap.sendMessage(`5585998239207@c.us`, msgErro);
+                                    } catch (zapErr) { console.error("Erro zap da Cicí Email (Ajuda):", zapErr.message); }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        } finally {
+            lock.release();
+        }
+    } catch (err) {
+        console.error('Erro na conexão do IMAP da Cicí:', err);
+    }
+};
+
+// Liga o monitor de e-mail assim que o servidor iniciar
+startEmailMonitor();
 // --- ROTA: RECUPERAR SENHA (CORRIGIDA) ---
 app.post('/api/recover-password', (req, res) => {
     // Pegamos apenas o email. Não importa a 'role' que veio do front,
