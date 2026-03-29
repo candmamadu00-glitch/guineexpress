@@ -645,11 +645,11 @@
         <span onclick="closePaymentModal()" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px; color:#999;">&times;</span>
         
         <h3 style="color:#0a1931; margin-bottom:10px;">Pagamento via PIX </h3>
-        <p id="pay-desc" style="margin-bottom:20px; font-weight:bold; color:#555;"></p>
+        <p id="pay-desc" style="margin-bottom:20px; font-weight:bold; color:#0f0f0f;"></p>
 
         <div style="margin-bottom: 20px; background: #e6f9f6; padding: 15px; border-radius: 8px; border: 1px solid #00bfa5;">
-            <p style="font-size:14px; color:#00796b; margin-bottom:10px; font-weight:bold;">✨ Recomendado: Aprovação na hora!</p>
-            <p style="font-size:12px; color:#555; margin-bottom:10px;">Copie o código abaixo, pague no seu banco e o sistema aprova sozinho. Escolha o banco:</p>
+            <p style="font-size:14px; color:#013f35; margin-bottom:10px; font-weight:bold;">✨Aprovação na hora!</p>
+            <p style="font-size:12px; color:#141414; margin-bottom:10px;">Copie o código abaixo, pague no seu banco e o sistema aprova sozinho. Escolha o banco:</p>
             
             <div style="display: flex; gap: 10px;">
                 <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'nubank')" style="flex:1; background:#8A05BE; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(138,5,190,0.3);">
@@ -660,37 +660,7 @@
             </div>
         </div>
 
-        <p style="font-size: 12px; color: #999; margin-bottom: 15px;">Ou pague pela chave manual (requer envio de comprovante):</p>
-
-        <div style="display:flex; border-bottom:1px solid #ddd; margin-bottom:15px;">
-            <button onclick="togglePixKey('cnpj')" id="tab-cnpj" style="flex:1; padding:10px; border:none; background:#0a1931; color:white; cursor:pointer; font-weight:bold;">Opção 1 (CNPJ)</button>
-
-        </div>
-
-        <div id="area-pix-manual" style="text-align:center;">
-            <p style="font-size:14px; color:#333; margin-bottom:10px;">Copie a chave abaixo, pague no seu App e anexe o comprovante:</p>
-            
-            <div style="background:#f1f1f1; padding:15px; border-radius:8px; border:2px dashed #0a1931; margin-bottom:15px;">
-                <span id="txt-chave" style="font-weight:bold; font-size:18px; color:#0a1931;">49356085000134</span>
-                <br>
-                <small id="tipo-chave" style="color:#666;">(Chave CNPJ)</small>
-            </div>
-
-            <button onclick="copyManualPix()" style="background:#0a1931; color:white; border:none; padding:12px; border-radius:5px; width:100%; cursor:pointer; margin-bottom:20px; font-weight:bold;">
-                <i class="far fa-copy"></i> COPIAR CHAVE PIX
-            </button>
-
-            <hr style="border:0; border-top:1px solid #eee; margin-bottom:20px;">
-
-            <p style="font-weight:bold; color:#28a745; margin-bottom:10px;">Enviar Comprovante Clica Nesse Espaço:</p>
-            
-            <input type="file" id="pix-file-input" accept="image/*,application/pdf" style="display:none;" onchange="handleAutoSubmitPix()">
-            
-            <button id="btn-auto-submit-pix" onclick="document.getElementById('pix-file-input').click()" style="background:#28a745; color:rgb(228, 9, 100); border:none; padding:15px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-size:16px; margin-bottom:12px; box-shadow: 0 4px 6px rgba(40,167,69,0.3);">
-                <i class="fas fa-camera"></i> ANEXAR E ENVIAR
-            </button>
-        </div>
-
+       
         <input type="hidden" id="pay-order-id">
         <input type="hidden" id="pay-amount">
     </div>
@@ -1107,6 +1077,15 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         }
     })
     .catch(err => console.error("Erro ao carregar perfil:", err));
+</script>
+<script>
+    if (window.location.href.startsWith('blob:')) {
+        window.onload = function() {
+            setTimeout(function() { 
+                window.print(); 
+            }, 500);
+        };
+    }
 </script>
 <script>
     // --- EFEITO RIPPLE (ONDA) NOS BOTÕES ---

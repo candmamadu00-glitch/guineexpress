@@ -3599,9 +3599,9 @@ async function printReceipt(boxId) {
         const dataHoje = new Date().toLocaleDateString('pt-BR');
         const stampStatus = d.is_paid ? 'PAGO' : 'PENDENTE';
         
-        // Cores da marca d'água
-        const stampColor = d.is_paid ? 'rgba(40, 167, 69, 0.15)' : 'rgba(220, 53, 69, 0.1)';
-        const stampBorder = d.is_paid ? 'rgba(40, 167, 69, 0.3)' : 'rgba(216, 30, 49, 0.2)';
+        // Cores da marca d'água (Ajustadas para ficarem perfeitas por cima do texto)
+        const stampColor = d.is_paid ? 'rgba(40, 167, 69, 0.25)' : 'rgba(220, 53, 69, 0.25)';
+        const stampBorder = d.is_paid ? 'rgba(40, 167, 69, 0.4)' : 'rgba(216, 30, 49, 0.4)';
 
         // MONTANDO O HTML EXCLUSIVO DA IMPRESSÃO
         const receiptHTML = `
@@ -3650,10 +3650,12 @@ async function printReceipt(boxId) {
                         border: 8px solid ${stampBorder}; 
                         padding: 15px 60px; 
                         text-transform: uppercase; 
-                        z-index: -1;
+                        z-index: 9999; /* DEIXA O CARIMBO TOTALMENTE POR CIMA */
                         border-radius: 20px;
-                        pointer-events: none;
+                        pointer-events: none; /* Permite clicar e selecionar textos embaixo do carimbo */
                         letter-spacing: 10px;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
 
                     /* --- CABEÇALHO --- */
@@ -3684,6 +3686,8 @@ async function printReceipt(boxId) {
                         align-items: center;
                         margin-bottom: 25px;
                         box-shadow: 0 4px 10px rgba(10, 25, 49, 0.15);
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                     .title-bar h2 { margin: 0; font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--dourado-luxo); font-weight: 900; }
                     .title-info { display: flex; gap: 20px; }
@@ -3703,6 +3707,8 @@ async function printReceipt(boxId) {
                         border-radius: 8px; 
                         border-top: 4px solid var(--azul-oficial);
                         padding: 15px;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                     .info-card h3 { 
                         margin: 0 0 12px 0; 
@@ -3731,6 +3737,8 @@ async function printReceipt(boxId) {
                         border-radius: 6px;
                         margin-top: 8px;
                         font-size: 11px;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                     .alert-receiver strong { color: #d32f2f; display: block; margin-bottom: 4px; font-size: 11px; }
 
@@ -3744,13 +3752,15 @@ async function printReceipt(boxId) {
                         font-size: 12px;
                         text-transform: uppercase;
                         letter-spacing: 1px;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                     th:not(:first-child) { text-align: center; }
                     th:first-child { text-align: left; }
                     
                     td { padding: 12px; font-size: 12px; border-bottom: 1px solid var(--borda-clara); }
                     td:not(:first-child) { text-align: center; font-weight: 600; }
-                    tr:nth-child(even) { background-color: #fafbfc; }
+                    tr:nth-child(even) { background-color: #fafbfc; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     
                     .service-title { font-weight: 700; color: var(--azul-oficial); display: block; margin-bottom: 4px; font-size: 13px;}
                     .service-desc { font-size: 11px; color: #5c4242; }
@@ -3773,6 +3783,8 @@ async function printReceipt(boxId) {
                         width: 100%;
                         box-sizing: border-box;
                         box-shadow: 0 5px 15px rgba(211, 47, 47, 0.3);
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                     .total-pill span:first-child { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;}
                     .total-pill span:last-child { font-size: 22px; font-weight: 900; }
@@ -3800,7 +3812,14 @@ async function printReceipt(boxId) {
                     }
                     .sign-box span { font-size: 12px; font-weight: 700; color: var(--texto-escuro); }
 
-                    @page { size: A4 portrait; margin: 5mm; }
+                    /* FORÇAR CORES NA HORA DE SALVAR PDF NO CELULAR */
+                    @media print { 
+                        body { 
+                            -webkit-print-color-adjust: exact !important; 
+                            print-color-adjust: exact !important; 
+                        }
+                        @page { size: A4 portrait; margin: 5mm; }
+                    }
                 </style>
             </head>
             <body>
@@ -3928,32 +3947,59 @@ async function printReceipt(boxId) {
                     </div>
 
                 </div>
+
+                <script>
+                    if (window.location.href.startsWith('blob:')) {
+                        window.onload = function() {
+                            setTimeout(function() { 
+                                window.print(); 
+                            }, 500);
+                        };
+                    }
+                </script>
             </body>
             </html>
         `;
 
-        // LÓGICA DO IFRAME (Garante que só vai imprimir essa folha)
-        let printIframe = document.getElementById('print-iframe');
-        if (!printIframe) {
-            printIframe = document.createElement('iframe');
-            printIframe.id = 'print-iframe';
-            printIframe.style.position = 'absolute';
-            printIframe.style.width = '0px';
-            printIframe.style.height = '0px';
-            printIframe.style.border = 'none';
-            document.body.appendChild(printIframe);
+        // =========================================================================
+// 🚀 NOVA LÓGICA DE GERAÇÃO: DIFERENCIA CELULAR DE COMPUTADOR AUTOMATICAMENTE
+// =========================================================================
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+if (isMobile) {
+    // No Celular: Cria um arquivo virtual e abre. Isso força o Android/iOS a abrir a opção "Salvar em PDF" nativa.
+    const blob = new Blob([receiptHTML], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank');
+    
+    // Se o navegador do celular bloquear a nova aba, ele abre na mesma aba
+    if (!win) { 
+        window.location.href = blobUrl;
+    }
+} else {
+            // No Computador: Mantém a lógica do Iframe oculto que não pisca a tela
+            let printIframe = document.getElementById('print-iframe');
+            if (!printIframe) {
+                printIframe = document.createElement('iframe');
+                printIframe.id = 'print-iframe';
+                printIframe.style.position = 'absolute';
+                printIframe.style.width = '0px';
+                printIframe.style.height = '0px';
+                printIframe.style.border = 'none';
+                document.body.appendChild(printIframe);
+            }
+
+            const iframeDoc = printIframe.contentWindow.document;
+            iframeDoc.open();
+            iframeDoc.write(receiptHTML);
+            iframeDoc.close();
+
+            // Aguarda carregar as fontes e logo antes de abrir a janela de impressão
+            setTimeout(() => {
+                printIframe.contentWindow.focus();
+                printIframe.contentWindow.print();
+            }, 800);
         }
-
-        const iframeDoc = printIframe.contentWindow.document;
-        iframeDoc.open();
-        iframeDoc.write(receiptHTML);
-        iframeDoc.close();
-
-        // Aguarda carregar as fontes e logo antes de abrir a janela de impressão
-        setTimeout(() => {
-            printIframe.contentWindow.focus();
-            printIframe.contentWindow.print();
-        }, 800);
 
     } catch (e) {
         console.error(e);
