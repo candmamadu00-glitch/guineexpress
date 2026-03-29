@@ -95,7 +95,50 @@ if (!fs.existsSync(videosFolder)) fs.mkdirSync(videosFolder, { recursive: true }
 
 // 4. Libera o acesso para o navegador poder ver as fotos e vídeos
 app.use('/uploads', express.static(uploadsFolder));
+// ==============================================================
+// 🏦 🪄 GERADOR DE PIX COPIA E COLA DINÂMICO (CUSTO ZERO)
+// ==============================================================
+function gerarPixCopiaECola(chavePix, nomeTitular, cidadeTitular, valorFatura, idFatura) {
+    function pad(str, length) { return str.toString().padStart(length, '0'); }
 
+    // Limpa os dados para evitar erros no banco
+    const nome = nomeTitular.substring(0, 25).normalize("NFD").replace(/[^a-zA-Z0-9 ]/g, "").toUpperCase();
+    const cidade = cidadeTitular.substring(0, 15).normalize("NFD").replace(/[^a-zA-Z0-9 ]/g, "").toUpperCase();
+    const txid = idFatura ? idFatura.toString().substring(0, 25) : "***";
+
+    const payloadFormat = "000201";
+    const merchantAccount = `0014br.gov.bcb.pix01${pad(chavePix.length, 2)}${chavePix}`;
+    const merchantAccountField = `26${pad(merchantAccount.length, 2)}${merchantAccount}`;
+    const merchantCategory = "52040000";
+    const transactionCurrency = "5303986";
+    
+    // Trava o valor no código
+    const valorStr = parseFloat(valorFatura).toFixed(2);
+    const transactionAmount = `54${pad(valorStr.length, 2)}${valorStr}`;
+    
+    const countryCode = "5802BR";
+    const merchantNameField = `59${pad(nome.length, 2)}${nome}`;
+    const merchantCityField = `60${pad(cidade.length, 2)}${cidade}`;
+    
+    const additionalData = `05${pad(txid.length, 2)}${txid}`;
+    const additionalDataField = `62${pad(additionalData.length, 2)}${additionalData}`;
+    
+    // Junta tudo
+    let payload = `${payloadFormat}${merchantAccountField}${merchantCategory}${transactionCurrency}${transactionAmount}${countryCode}${merchantNameField}${merchantCityField}${additionalDataField}6304`;
+
+    // Calcula a assinatura digital (CRC16) obrigatória do Banco Central
+    let crc = 0xFFFF;
+    for (let c = 0; c < payload.length; c++) {
+        crc ^= payload.charCodeAt(c) << 8;
+        for (let i = 0; i < 8; i++) {
+            if (crc & 0x8000) crc = (crc << 1) ^ 0x1021;
+            else crc = crc << 1;
+        }
+    }
+    let hex = (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+    
+    return payload + hex;
+}
 // ==================================================================
 // CONFIGURAÇÃO DO MULTER (SALVAR ARQUIVOS)
 // ==================================================================
@@ -3642,6 +3685,44 @@ app.get('/api/cici-avisos', (req, res) => {
     global.ciciAvisos = []; 
     
     res.json({ avisos: mensagens });
+});
+// ==============================================================
+// 🏦 ROTA PARA GERAR PIX (NUBANK OU MERCADO PAGO)
+// ==============================================================
+app.get('/api/gerar-pix/:banco/:id_fatura', (req, res) => {
+    const { banco, id_fatura } = req.params;
+
+    // Busca o valor da fatura no banco de dados
+    db.get("SELECT amount FROM invoices WHERE id = ?", [id_fatura], (err, fatura) => {
+        if (err || !fatura) {
+            return res.status(404).json({ erro: 'Fatura não encontrada' });
+        }
+
+        let chavePix, nomeTitular;
+
+        // Verifica qual banco o botão enviou
+        if (banco === 'mp') {
+            chavePix = "49356085000134"; // Mercado Pago
+            nomeTitular = "LELO JOSE GOMES";
+        } else {
+            chavePix = "comercialguineexpress245@gmail.com"; // Nubank
+            nomeTitular = "GUINE EXPRESS LTDA";
+        }
+
+        const valorFatura = fatura.amount; 
+        const cidadeTitular = "FORTALEZA";
+
+        // Fabrica o código mágico na hora!
+        const codigoPronto = gerarPixCopiaECola(chavePix, nomeTitular, cidadeTitular, valorFatura, `FAT${id_fatura}`);
+
+        // Devolve pro cliente
+        res.json({ 
+            sucesso: true, 
+            pix_copia_cola: codigoPronto,
+            valor: valorFatura,
+            banco_escolhido: banco
+        });
+    });
 });
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)

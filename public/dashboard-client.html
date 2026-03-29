@@ -647,9 +647,24 @@
         <h3 style="color:#0a1931; margin-bottom:10px;">Pagamento via PIX </h3>
         <p id="pay-desc" style="margin-bottom:20px; font-weight:bold; color:#555;"></p>
 
+        <div style="margin-bottom: 20px; background: #e6f9f6; padding: 15px; border-radius: 8px; border: 1px solid #00bfa5;">
+            <p style="font-size:14px; color:#00796b; margin-bottom:10px; font-weight:bold;">✨ Recomendado: Aprovação na hora!</p>
+            <p style="font-size:12px; color:#555; margin-bottom:10px;">Copie o código abaixo, pague no seu banco e o sistema aprova sozinho. Escolha o banco:</p>
+            
+            <div style="display: flex; gap: 10px;">
+                <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'nubank')" style="flex:1; background:#8A05BE; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(138,5,190,0.3);">
+                    🟣 Copiar (Nubank)
+                </button>
+                
+                
+            </div>
+        </div>
+
+        <p style="font-size: 12px; color: #999; margin-bottom: 15px;">Ou pague pela chave manual (requer envio de comprovante):</p>
+
         <div style="display:flex; border-bottom:1px solid #ddd; margin-bottom:15px;">
             <button onclick="togglePixKey('cnpj')" id="tab-cnpj" style="flex:1; padding:10px; border:none; background:#0a1931; color:white; cursor:pointer; font-weight:bold;">Opção 1 (CNPJ)</button>
-            <button onclick="togglePixKey('email')" id="tab-email" style="flex:1; padding:10px; border:none; background:#eee; color:#333; cursor:pointer; font-weight:bold;">Opção 2 (E-mail)</button>
+
         </div>
 
         <div id="area-pix-manual" style="text-align:center;">
@@ -674,10 +689,37 @@
             <button id="btn-auto-submit-pix" onclick="document.getElementById('pix-file-input').click()" style="background:#28a745; color:rgb(228, 9, 100); border:none; padding:15px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; font-size:16px; margin-bottom:12px; box-shadow: 0 4px 6px rgba(40,167,69,0.3);">
                 <i class="fas fa-camera"></i> ANEXAR E ENVIAR
             </button>
+        </div>
+
         <input type="hidden" id="pay-order-id">
         <input type="hidden" id="pay-amount">
     </div>
 </div>
+
+<script>
+async function copiarPixExato(idFatura, banco) {
+    if (!idFatura) {
+        alert("❌ Erro: Fatura não identificada.");
+        return;
+    }
+
+    try {
+        const resposta = await fetch(`/api/gerar-pix/${banco}/${idFatura}`);
+        const dados = await resposta.json();
+
+        if (dados.sucesso) {
+            await navigator.clipboard.writeText(dados.pix_copia_cola);
+            const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
+            alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor travado: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.\n\nAprovação automática em instantes!`);
+        } else {
+            alert("❌ Erro ao gerar o Pix automático. Use a chave manual abaixo.");
+        }
+    } catch (erro) {
+        console.error("Erro ao gerar Pix:", erro);
+        alert("❌ Erro de conexão. Use a chave manual abaixo.");
+    }
+}
+</script>
 
     <div id="print-area" class="hidden-print-area"></div>
 
