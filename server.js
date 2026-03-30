@@ -63,10 +63,11 @@ app.use('/api/admin/register-client', authLimiter);
 const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
 
 let clientZap = null;
+// Configuração de identidade para as Notificações
 webpush.setVapidDetails(
-    'mailto:candemamadu00@gmail.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
+    'mailto:candemamadu00@gmail.com', 
+    'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY', // Public Key
+    'o7cuX6wivGgnxOoLwa__pYUFH66B3R16hzwtr3yavV4' // Private Key
 );
 
 // ========================================================
@@ -1225,6 +1226,9 @@ app.post('/api/schedule/create-availability', (req, res) => {
                                 await clientZap.sendMessage(numberId._serialized, zapMsg);
                                 console.log(`✅ [ZAP] Aviso de agenda enviada para ${cliente.name}`);
                             }
+                            if (cliente.id) {
+                                enviarNotificacaoNaTela(cliente.id, "📅 Novas Vagas de Agendamento!", `Abrimos vagas na agenda para o dia ${dataFormatada}. Corra e garanta o seu horário!`, "/dashboard-client.html");
+                            }
                         } catch(e) {
                             console.log(`⚠️ Erro ao avisar ${cliente.name} sobre a agenda.`);
                         }
@@ -1539,6 +1543,10 @@ app.post('/api/orders/create', (req, res) => {
                     if (err) {
                         return res.json({ success: false, msg: err.message });
                     }
+                    
+                    // 🔔 COLE A NOTIFICAÇÃO AQUI:
+                    enviarNotificacaoNaTela(client_id, "📦 Nova Encomenda Registrada!", "Sua encomenda foi registrada no sistema. Clique para conferir os detalhes.", "/dashboard-client.html");
+
                     res.json({ success: true, id: this.lastID });
                 });
             });
@@ -1787,7 +1795,8 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                 if(err) return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
                 
                 console.log(`✅ Vídeo MP4 salvo no banco!`);
-
+// 🔔 COLE A NOTIFICAÇÃO DE VÍDEO AQUI:
+                enviarNotificacaoNaTela(client_id, "🎥 Novo Vídeo Disponível!", "Acabamos de subir um vídeo mostrando os detalhes da sua encomenda.", "/dashboard-client.html");
                 // 4. Fluxo do WhatsApp
                 db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
                     if (err || !user || !user.phone) {
@@ -1889,7 +1898,8 @@ app.post('/api/invoices/create', async (req, res) => {
                         console.error("Erro SQL ao criar fatura:", err);
                         return res.json({success: false, msg: 'Erro ao salvar fatura'});
                     }
-
+// 🔔 COLE A NOTIFICAÇÃO DE FATURA AQUI:
+            enviarNotificacaoNaTela(client_id, "Nova Fatura Gerada 🧾", "Uma nova fatura acabou de ser disponibilizada no seu painel. Clique para pagar.", "/dashboard-client.html");
                     const novaFaturaId = this.lastID;
 
                     // B. BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO PARA AVISAR
@@ -3072,7 +3082,8 @@ app.put('/api/orders/bulk-status', express.json(), (req, res) => {
                     const msgAviso = `Sua encomenda ${row.code} mudou para: ${status}`;
                     db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)", 
                           [row.client_id, tituloAviso, msgAviso], function(err) {});
-
+          // 🔔 COLE A NOTIFICAÇÃO DE TELA (VIBRA O CELULAR) AQUI:
+            enviarNotificacaoNaTela(row.client_id, tituloAviso, msgAviso, "/dashboard-client.html");
                     // Disparo Zap
                     if (row.phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                         try {
@@ -3724,6 +3735,66 @@ app.get('/api/gerar-pix/:banco/:id_fatura', (req, res) => {
         });
     });
 });
+// ==================================================================
+// 🔔 1. ROTA PARA SALVAR O CELULAR DO CLIENTE (PERMISSÃO)
+// ==================================================================
+// Garante que o banco de dados tem a coluna para salvar o "endereço" do celular
+db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
+    if (!err) console.log("✅ Coluna 'push_subscription' criada na tabela users!");
+});
+
+app.post('/api/notifications/subscribe', (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ success: false, msg: 'Não logado' });
+    
+    const subscription = req.body;
+    const subString = JSON.stringify(subscription);
+
+    // Salva a permissão diretamente na conta do cliente
+    db.run("UPDATE users SET push_subscription = ? WHERE id = ?", [subString, req.session.userId], (err) => {
+        if (err) {
+            console.error("Erro ao salvar inscrição de notificação:", err);
+            return res.status(500).json({ success: false });
+        }
+        console.log(`📱 Celular do cliente ID ${req.session.userId} cadastrado para notificações!`);
+        res.status(201).json({ success: true, msg: "Celular cadastrado com sucesso!" });
+    });
+});
+
+// ==================================================================
+// 🔔 2. FUNÇÃO MÁGICA PARA DISPARAR A NOTIFICAÇÃO NA TELA
+// ==================================================================
+async function enviarNotificacaoNaTela(userId, titulo, mensagem, linkDestino = '/dashboard-client.html') {
+    db.get("SELECT push_subscription FROM users WHERE id = ?", [userId], async (err, user) => {
+        // Se o cliente não ativou as notificações ou não achou o usuário, apenas ignora
+        if (err || !user || !user.push_subscription) return; 
+
+        try {
+            const subscription = JSON.parse(user.push_subscription);
+            
+            // Monta como a notificação vai aparecer na tela do cliente
+            const payload = JSON.stringify({
+                title: titulo,
+                body: mensagem,
+                url: linkDestino,
+                icon: '/logo.png', // Aparece a logo da Guineexpress na notificação
+                badge: '/logo.png' // Ícone pequeno da barra de tarefas
+            });
+
+            // Dispara via Google/Apple direto pro celular!
+            await webpush.sendNotification(subscription, payload);
+            console.log(`🔔 Notificação de tela enviada com sucesso para o User ID: ${userId}`);
+            
+        } catch (error) {
+            console.error(`❌ Erro ao enviar notificação para o User ID ${userId}:`, error.message);
+            
+            // Se o erro for 410, significa que o cliente desinstalou o app ou bloqueou. Limpamos do banco.
+            if (error.statusCode === 410) {
+                db.run("UPDATE users SET push_subscription = NULL WHERE id = ?", [userId]);
+                console.log(`🗑️ Permissão de notificação removida (Cliente ID ${userId} bloqueou/revogou).`);
+            }
+        }
+    });
+}
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================

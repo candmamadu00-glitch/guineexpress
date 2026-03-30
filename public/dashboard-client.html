@@ -268,7 +268,7 @@
         <div style="color: #010408;">
             <strong style="display: block; font-size: 15px; margin-bottom: 3px; font-family: 'Nunito', sans-serif; font-weight: 900;">NOVA FUNÇÃO DE PAGAMENTO LIBERADA! 🚀</strong>
             <span style="font-size: 12px; line-height: 1.4; display: block; font-family: 'Roboto', sans-serif; font-weight: 500;">
-                Lançamos, uma nova versão do app Guineexpress! Agora você Não prcisa compartilhar o comprovantes dos seus pagamento.<br>
+                Lançamos, uma nova versão do app Guineexpress! Agora você Não precisa compartilhar o comprovantes dos seus pagamento.<br>
                 <strong>Acesse a sua fatura no seu painel e copia o chave Pix e faz o pagamento, agora tudo Mais facil o nosso sistema reconhece o pagamento automatico na hora!</strong>
             </span>
         </div>
@@ -1049,6 +1049,55 @@ async function copiarPixExato(idFatura, banco) {
             observer.observe(targetNode, { childList: true });
         }
     });
+</script>
+<script>
+    // ✅ APENAS A PUBLIC KEY AQUI!
+    const publicVapidKey = 'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY'; 
+
+    // Função de segurança exigida pelo Google/Apple
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
+    }
+
+    async function ativarNotificacoes() {
+        // Verifica se o celular suporta notificações
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            try {
+                // 1. Pede permissão pro cliente (aparece aquele aviso na tela)
+                const permissao = await Notification.requestPermission();
+                if (permissao !== 'granted') {
+                    console.log('Cliente bloqueou as notificações.');
+                    return;
+                }
+
+                // 2. Registra o arquivo "service-worker.js" no celular dele
+                const registro = await navigator.serviceWorker.register('/service-worker.js');
+                
+                // 3. Cria a "Assinatura" com a sua Chave Pública
+                const subscription = await registro.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+                });
+
+                // 4. Envia essa assinatura pro seu banco de dados
+                await fetch('/api/notifications/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(subscription)
+                });
+
+                console.log('✅ Celular pronto para receber notificações da Guineexpress!');
+            } catch (erro) {
+                console.error('Erro ao ligar notificações:', erro);
+            }
+        }
+    }
+
+    // Chama a função de permissão assim que a página carrega
+    window.addEventListener('load', ativarNotificacoes);
 </script>
 <script>
 fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu mandei ela nos passos anteriores)
