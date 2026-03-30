@@ -1050,55 +1050,7 @@ async function copiarPixExato(idFatura, banco) {
         }
     });
 </script>
-<script>
-    // ✅ APENAS A PUBLIC KEY AQUI!
-    const publicVapidKey = 'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY'; 
 
-    // Função de segurança exigida pelo Google/Apple
-    function urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const rawData = window.atob(base64);
-        return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
-    }
-
-    async function ativarNotificacoes() {
-        // Verifica se o celular suporta notificações
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
-            try {
-                // 1. Pede permissão pro cliente (aparece aquele aviso na tela)
-                const permissao = await Notification.requestPermission();
-                if (permissao !== 'granted') {
-                    console.log('Cliente bloqueou as notificações.');
-                    return;
-                }
-
-                // 2. Registra o arquivo "service-worker.js" no celular dele
-                const registro = await navigator.serviceWorker.register('/service-worker.js');
-                
-                // 3. Cria a "Assinatura" com a sua Chave Pública
-                const subscription = await registro.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
-                });
-
-                // 4. Envia essa assinatura pro seu banco de dados
-                await fetch('/api/notifications/subscribe', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(subscription)
-                });
-
-                console.log('✅ Celular pronto para receber notificações da Guineexpress!');
-            } catch (erro) {
-                console.error('Erro ao ligar notificações:', erro);
-            }
-        }
-    }
-
-    // Chama a função de permissão assim que a página carrega
-    window.addEventListener('load', ativarNotificacoes);
-</script>
 <script>
 fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu mandei ela nos passos anteriores)
     .then(response => response.json())
@@ -1126,6 +1078,83 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         }
     })
     .catch(err => console.error("Erro ao carregar perfil:", err));
+</script>
+<script>
+    // ==============================================================
+    // 🔔 SISTEMA DE NOTIFICAÇÕES VIP (COM INSISTÊNCIA INTELIGENTE)
+    // ==============================================================
+    
+    // COLE A SUA CHAVE PÚBLICA DO RENDER AQUI DENTRO DAS ASPAS! 👇
+    const CHAVE_PUBLICA_VAPID = 'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY';
+
+    // Função que converte a chave para o formato que o navegador exige
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    // Função principal que pede a permissão e envia pro servidor
+    async function ativarNotificacoes() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            return; // Navegador antigo, não faz nada
+        }
+
+        try {
+            // Pede a permissão pro cliente (A janelinha do navegador)
+            const permission = await Notification.requestPermission();
+            
+            if (permission === 'granted') {
+                // Ele aceitou! Vamos registrar ele com a CHAVE NOVA
+                const register = await navigator.serviceWorker.register('/sw.js');
+                await navigator.serviceWorker.ready;
+
+                const subscription = await register.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(CHAVE_PUBLICA_VAPID)
+                });
+
+                // Envia a assinatura pro seu server.js salvar no banco
+                await fetch('/subscribe', {
+                    method: 'POST',
+                    body: JSON.stringify(subscription),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                console.log('✅ Inscrição Push atualizada com a chave nova!');
+                
+            } else if (permission === 'denied') {
+                // Ele clicou em BLOQUEAR! O navegador não deixa pedir de novo.
+                // Então mostramos um alerta na tela dele!
+                alert("⚠️ AVISO: Você bloqueou as notificações! Para saber quando sua encomenda chegar, clique no cadeado ao lado do link do site e mude Notificações para 'Permitir'.");
+            }
+        } catch (error) {
+            console.error('❌ Erro na assinatura Push:', error);
+        }
+    }
+
+    // ==============================================================
+    // 🚀 A MÁGICA DA INSISTÊNCIA: Roda toda vez que ele abre o painel
+    // ==============================================================
+    window.addEventListener('load', () => {
+        // Se a permissão for 'default' (ele não escolheu ainda ou fechou no X), pede de novo!
+        if (Notification.permission === 'default') {
+            setTimeout(() => {
+                ativarNotificacoes();
+            }, 2000); // Espera 2 segundos após logar para pedir
+        } 
+        // Se ele já tinha permitido antes, roda de novo em modo silencioso
+        // APENAS para forçar o navegador a usar a sua CHAVE NOVA!
+        else if (Notification.permission === 'granted') {
+            ativarNotificacoes();
+        }
+        // Se for 'denied' (bloqueado), o alerta lá de cima já deu o recado ou você pode adicionar outro aqui.
+    });
 </script>
 <script>
     // --- EFEITO RIPPLE (ONDA) NOS BOTÕES ---
