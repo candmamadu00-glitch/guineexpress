@@ -640,7 +640,7 @@
         <h3><i class="fas fa-file-invoice-dollar"></i> Gerar Nova Cobrança</h3>
         <p style="font-size:13px; color:#666; margin-bottom:15px;">Selecione um cliente e um box para gerar o QR Code Pix e link de pagamento.</p>
         
-        <form onsubmit="createInvoice(event)" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+        <form onsubmit="verificarConflitoDeValor(event)" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
             <div class="form-group" style="flex: 1 1 250px; min-width: 250px;">
                 <label>1. Selecione o Cliente</label>
                 <input type="text" id="bill-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesFinanceiroDropdown()" style="margin-bottom: 8px;">
@@ -1337,6 +1337,62 @@
 
         doc.save(`Guineexpress_Relatorio_${Date.now()}.pdf`);
     }
+</script>
+<script>
+// Função que trava a geração da fatura se o valor for repetido
+async function verificarConflitoDeValor(event) {
+    event.preventDefault(); // Impede o envio imediato
+
+    // Pega o valor total que foi calculado na tela
+    const valorTotal = document.getElementById('bill-amount').value;
+
+    if (!valorTotal || valorTotal <= 0) return;
+
+    // Muda o botão para mostrar que está pensando...
+    const btnSubmit = event.target.querySelector('button[type="submit"]');
+    const textoOriginal = btnSubmit.innerHTML;
+    btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+    btnSubmit.disabled = true;
+
+    try {
+        // Pergunta ao servidor (Render) se já tem alguém devendo esse valor
+        const resposta = await fetch(`/api/invoices/check_amount?amount=${valorTotal}`);
+        const dados = await resposta.json();
+
+        if (dados.conflito) {
+            // 🚨 ALERTA VERMELHO DISPARADO! 🚨
+            alert(`⚠️ ALERTA DA CICÍ!\n\nJá existe uma fatura PENDENTE com o valor exato de R$ ${valorTotal}.\n\nPara a baixa automática do Pix funcionar, adicione ou remova alguns centavos na Nota Fiscal (Exemplo: altere para R$ ${valorTotal}1).`);
+            
+            // Pinta as caixas de vermelho para chamar a atenção
+            document.getElementById('bill-amount').style.color = "red";
+            document.getElementById('bill-nf-amount').style.borderColor = "red";
+            document.getElementById('bill-nf-amount').focus();
+            
+            // Devolve o botão ao normal
+            btnSubmit.innerHTML = textoOriginal;
+            btnSubmit.disabled = false;
+        } else {
+            // ✅ TUDO LIMPO! Restaura o layout e chama a sua função original para criar a fatura
+            document.getElementById('bill-amount').style.color = "#d32f2f";
+            document.getElementById('bill-nf-amount').style.borderColor = "#ccc";
+            
+            // Chama a função que você já tinha no sistema para salvar no banco!
+            createInvoice(event);
+            
+            // Devolve o botão ao normal após um tempinho
+            setTimeout(() => {
+                btnSubmit.innerHTML = textoOriginal;
+                btnSubmit.disabled = false;
+            }, 2000);
+        }
+    } catch (erro) {
+        console.error("Erro ao verificar valor com a Cicí:", erro);
+        // Se a internet falhar, ele cria a fatura mesmo assim para não travar o trabalho
+        createInvoice(event);
+        btnSubmit.innerHTML = textoOriginal;
+        btnSubmit.disabled = false;
+    }
+}
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

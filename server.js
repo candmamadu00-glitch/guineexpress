@@ -1872,6 +1872,30 @@ app.post('/api/videos/delete', (req, res) => {
     });
 });
 // ==========================================
+// ROTA: VERIFICAR SE O VALOR JÁ EXISTE PENDENTE (ALERTA VERMELHO DA CICÍ)
+// ==========================================
+app.get('/api/invoices/check_amount', (req, res) => {
+    const valor = req.query.amount;
+
+    if (!valor) return res.json({ conflito: false });
+
+    // Procura na tabela de faturas se já existe alguma pendente com este valor exato
+    const sql = `SELECT COUNT(*) as total FROM invoices WHERE amount = ? AND status = 'pending'`;
+    
+    db.get(sql, [valor], (err, row) => {
+        if (err) {
+            console.error("Erro ao verificar valor da fatura:", err);
+            return res.status(500).json({ erro: "Erro interno" });
+        }
+        
+        if (row.total > 0) {
+            res.json({ conflito: true }); // Opa, achou conflito!
+        } else {
+            res.json({ conflito: false }); // Caminho livre!
+        }
+    });
+});
+// ==========================================
 // ROTA: CRIAR FATURA (PIX MANUAL) E AVISAR CLIENTE
 // ==========================================
 app.post('/api/invoices/create', async (req, res) => {
@@ -3386,34 +3410,7 @@ app.post('/api/save-game-points', (req, res) => {
         res.json({ success: true });
     });
 });
-app.get('/api/get-passport', (req, res) => {
-    if (!req.session.userId) {
-        return res.status(401).json({ success: false, message: "Sessão expirada" });
-    }
 
-    const userId = req.session.userId;
-
-    // Usamos um bloco try/catch e verificamos se a coluna existe
-    const query = "SELECT DISTINCT destino FROM orders WHERE client_id = ? AND status = 'Entregue'";
-
-    db.all(query, [userId], (err, rows) => {
-        if (err) {
-            console.error("❌ Erro SQL no Passaporte:", err.message);
-            // Se der erro porque a coluna não existe, enviamos uma lista vazia em vez de travar o site
-            return res.json({ success: true, nome: "Explorador", destinos: [] });
-        }
-
-        const destinos = rows ? rows.map(row => row.destino).filter(d => d != null) : [];
-        
-        db.get("SELECT name FROM users WHERE id = ?", [userId], (err, user) => {
-            res.json({
-                success: true,
-                nome: user ? user.name : "Explorador",
-                destinos: destinos
-            });
-        });
-    });
-});
 // Rota para marcar a encomenda como impressa no banco de dados
 app.post('/api/orders/mark-printed', (req, res) => {
     const { orderId } = req.body;
