@@ -3735,13 +3735,6 @@ app.get('/api/gerar-pix/:banco/:id_fatura', (req, res) => {
         });
     });
 });
-// ==================================================================
-// 🔔 1. ROTA PARA SALVAR O CELULAR DO CLIENTE (PERMISSÃO)
-// ==================================================================
-// Garante que o banco de dados tem a coluna para salvar o "endereço" do celular
-db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
-    if (!err) console.log("✅ Coluna 'push_subscription' criada na tabela users!");
-});
 
 app.post('/api/notifications/subscribe', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ success: false, msg: 'Não logado' });

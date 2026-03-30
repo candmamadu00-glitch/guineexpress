@@ -180,7 +180,13 @@ db.serialize(() => {
     db.run("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP", (err) => {
         if (!err) console.log("✅ Coluna 'created_at' adicionada a users!");
     });
-    
+    // ==================================================================
+// 🔔 1. ROTA PARA SALVAR O CELULAR DO CLIENTE (PERMISSÃO)
+// ==================================================================
+// Garante que o banco de dados tem a coluna para salvar o "endereço" do celular
+db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
+    if (!err) console.log("✅ Coluna 'push_subscription' criada na tabela users!");
+});
     db.run("ALTER TABLE orders ADD COLUMN delivery_proof TEXT", () => {}); 
     db.run("ALTER TABLE orders ADD COLUMN proof_image TEXT", () => {});      
     db.run("ALTER TABLE orders ADD COLUMN delivery_location TEXT", () => {}); 

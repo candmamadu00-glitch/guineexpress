@@ -1207,6 +1207,63 @@
         
     </script>
     <script>
+    function aplicarFiltroLimpeza() {
+        // IDs dos botões de 'olho' e as respetivas tabelas que eles limpam
+        const sessoes = [
+            { checkboxId: 'toggle-orders', tabelaId: 'orders-list' },
+            { checkboxId: 'toggle-boxes', tabelaId: 'box-table-body' },
+            { checkboxId: 'toggle-deliveries', tabelaId: 'delivery-list' }
+        ];
+
+        // PALAVRAS MÁGICAS: 
+        // Oculta tudo o que tiver esta palavra. 
+        // Se no futuro quiser ocultar também as que estão em viagem, 
+        // basta mudar para: ['entregue', 'enviado', 'em trânsito']
+        const palavrasParaOcultar = ['entregue'];
+
+        sessoes.forEach(sessao => {
+            const checkbox = document.getElementById(sessao.checkboxId);
+            const tabela = document.getElementById(sessao.tabelaId);
+            
+            if (checkbox && tabela) {
+                const mostrarTudo = checkbox.checked; // Verifica se o utilizador clicou no "👀"
+                const linhas = tabela.getElementsByTagName('tr');
+
+                for (let i = 0; i < linhas.length; i++) {
+                    // Pega em todo o texto da linha (Nome, Status, Código) e transforma em minúsculas
+                    const textoDaLinha = linhas[i].innerText.toLowerCase();
+                    
+                    // Verifica se a linha tem a palavra "entregue"
+                    const linhaFinalizada = palavrasParaOcultar.some(palavra => textoDaLinha.includes(palavra));
+                    
+                    // Se a encomenda está concluída e o botão de mostrar NÃO está marcado -> Esconde a linha!
+                    if (linhaFinalizada && !mostrarTudo) {
+                        linhas[i].style.display = 'none';
+                    } else {
+                        linhas[i].style.display = ''; // Mostra a linha normalmente
+                    }
+                }
+            }
+        });
+    }
+
+    // O VIGILANTE: Fica a monitorizar as tabelas. 
+    // Assim que o seu código antigo puxar os dados do servidor, ele aplica a limpeza na mesma hora!
+    window.addEventListener('load', () => {
+        const tabelasParaVigiar = ['orders-list', 'box-table-body', 'delivery-list'];
+        
+        tabelasParaVigiar.forEach(idTabela => {
+            const tabela = document.getElementById(idTabela);
+            if (tabela) {
+                const observer = new MutationObserver(() => {
+                    aplicarFiltroLimpeza();
+                });
+                observer.observe(tabela, { childList: true, subtree: true }); // Vigia qualquer nova linha adicionada
+            }
+        });
+    });
+</script>
+    <script>
     window.exportSmartPDF = function() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
