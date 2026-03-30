@@ -261,15 +261,15 @@
     </style>
 </head>
 <body>
-<div id="aviso-atualizacao-app" style="background: linear-gradient(135deg, #d4af37, #f1c40f); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #0a1931; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; z-index: 9999; margin-bottom: 20px;">
+<div id="aviso-atualizacao-app" style="background: linear-gradient(135deg, #34ee05, #d35050); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #0a1931; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; z-index: 9999; margin-bottom: 20px;">
     
     <div style="display: flex; align-items: center; gap: 15px;">
-        <i class="fas fa-rocket" style="font-size: 24px; color: #0a1931;"></i>
-        <div style="color: #0a1931;">
-            <strong style="display: block; font-size: 15px; margin-bottom: 3px; font-family: 'Nunito', sans-serif; font-weight: 900;">NOVA FUNÇÃO LIBERADA! 🚀</strong>
+        <i class="fas fa-rocket" style="font-size: 24px; color: #000000;"></i>
+        <div style="color: #010408;">
+            <strong style="display: block; font-size: 15px; margin-bottom: 3px; font-family: 'Nunito', sans-serif; font-weight: 900;">NOVA FUNÇÃO DE PAGAMENTO LIBERADA! 🚀</strong>
             <span style="font-size: 12px; line-height: 1.4; display: block; font-family: 'Roboto', sans-serif; font-weight: 500;">
-                Lançamos, uma nova versão do app Guineexpress! Agora você pode compartilhar o comprovantes do seu pagamento direto do seu banco para o nosso APP. Para que Essa nova função funcione, Desistale o APP Antigo,<br>
-                <strong>Acesse nosso link pelo Google Chrome clique no link,' quando Abrir no Chrome Clica no botao Amarelo' Para instalar a nova versão!"!</strong>
+                Lançamos, uma nova versão do app Guineexpress! Agora você Não prcisa compartilhar o comprovantes dos seus pagamento.<br>
+                <strong>Acesse a sua fatura no seu painel e copia o chave Pix e faz o pagamento, agora tudo Mais facil o nosso sistema reconhece o pagamento automatico na hora!</strong>
             </span>
         </div>
     </div>
@@ -640,6 +640,7 @@
                 </button>
             </div>
         </section>
+        
 <div id="modal-payment" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
     <div class="modal-content" style="background:#fff; margin:10% auto; padding:25px; border-radius:8px; width:90%; max-width:450px; text-align:center; position:relative;">
         <span onclick="closePaymentModal()" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px; color:#999;">&times;</span>
@@ -647,12 +648,12 @@
         <h3 style="color:#0a1931; margin-bottom:10px;">Pagamento via PIX </h3>
         <p id="pay-desc" style="margin-bottom:20px; font-weight:bold; color:#0f0f0f;"></p>
 
-        <div style="margin-bottom: 20px; background: #e6f9f6; padding: 15px; border-radius: 8px; border: 1px solid #00bfa5;">
+        <div style="margin-bottom: 20px; background: #e6f9f6; padding: 15px; border-radius: 8px; border: 1px solid #39dac4c7;">
             <p style="font-size:14px; color:#013f35; margin-bottom:10px; font-weight:bold;">✨Aprovação na hora!</p>
             <p style="font-size:12px; color:#141414; margin-bottom:10px;">Copie o código abaixo, pague no seu banco e o sistema aprova sozinho. Escolha o banco:</p>
             
             <div style="display: flex; gap: 10px;">
-                <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'nubank')" style="flex:1; background:#8A05BE; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(138,5,190,0.3);">
+                <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'nubank')" style="flex:1; background:#a203e0; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(138,5,190,0.3);">
                     🟣 Copiar (Nubank)
                 </button>
                 
@@ -660,8 +661,7 @@
             </div>
         </div>
 
-       
-        <input type="hidden" id="pay-order-id">
+       <input type="hidden" id="pay-order-id">
         <input type="hidden" id="pay-amount">
     </div>
 </div>
