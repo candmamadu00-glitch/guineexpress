@@ -2388,15 +2388,17 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
     // 🛡️ Senha secreta para ninguém na internet forjar um pagamento falso
     const tokenSecreto = "senha_guineexpress_secreta_123"; 
     
+    // RAIO-X: Vai mostrar no painel tudo o que o celular mandou
+    console.log("📥 Dados recebidos do celular:", req.body);
+    
     if (req.body.token !== tokenSecreto) {
-        console.log("⚠️ Tentativa de acesso negada na rota do MacroDroid.");
+        console.log(`⚠️ Acesso negado. A Cicí recebeu a senha: '${req.body.token}'`);
         return res.status(403).json({ erro: 'Token inválido' });
     }
 
     // Pega o texto que o aplicativo leu da tela do seu celular
     const textoNotificacao = req.body.texto || "";
     console.log(`📱 Cicí leu a notificação do seu celular: "${textoNotificacao}"`);
-
     // 1. A Cicí procura o valor em dinheiro no texto da notificação
     const matchValor = textoNotificacao.match(/R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/);
     
