@@ -684,7 +684,7 @@ function savePrice() {
 }
 
 // --- SISTEMA DE ENCOMENDAS E CAIXAS INTELIGENTE (TURBINADO) ---
-let boxLimit = 50; // Quantas caixas mostrar por vez (variável global)
+let boxLimit = 50; // Quantas caixas mostrar por vez
 
 async function loadBoxes() {
     try {
@@ -692,43 +692,63 @@ async function loadBoxes() {
         let list = await res.json(); 
         const tbody = document.getElementById('box-table-body');
         const summaryContainer = document.getElementById('box-summary-container');
-        
         const toggleBtn = document.getElementById('toggle-boxes');
         const showCompleted = toggleBtn ? toggleBtn.checked : false;
         
-        if(!tbody) return;
+        // 🧠 CÉREBRO DO FILTRO DE LOTES 🧠
+        const filterSelect = document.getElementById('filter-box-lote');
+        const loteSelecionado = filterSelect ? filterSelect.value : 'Todos';
         
-        // Coloca um aviso de carregando rápido
+        // Aprende quais lotes existem e cria os botões do filtro
+        if (filterSelect) {
+            const lotesUnicos = [...new Set(list.map(b => b.lote || 'Sem Lote'))];
+            let htmlFiltro = '<option value="Todos">📦 Todos os Envios</option>';
+            lotesUnicos.sort().forEach(l => htmlFiltro += `<option value="${l}">✈️ ${l}</option>`);
+            filterSelect.innerHTML = htmlFiltro;
+            if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === 'Todos') filterSelect.value = loteSelecionado;
+        }
+
+        // Filtra a lista inteira baseada no Lote escolhido
+        if (loteSelecionado !== 'Todos') {
+            list = list.filter(b => (b.lote || 'Sem Lote') === loteSelecionado);
+        }
+        
+        if(!tbody) return;
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Carregando caixas...</td></tr>';
         if(summaryContainer) summaryContainer.innerHTML = '';
 
-        // 1. FAZ A MATEMÁTICA COM TODAS AS CAIXAS (Para não quebrar o resumo)
+        // 1. FAZ A MATEMÁTICA COM TODAS AS CAIXAS (SEPARANDO POR LOTE E BOX)
         const boxTotals = {};
-
         list.forEach(b => {
             const status = b.status || b.order_status || '';
             if ((status === 'Entregue' || status === 'Pago') && currentUser.role !== 'client' && !showCompleted) return;
-
+            
             const code = b.box_code || 'SEM-BOX';
-            const weight = parseFloat(b.order_weight) || 0;
+            if (code === 'SEM-BOX') return;
 
-            if (!boxTotals[code]) {
-                boxTotals[code] = 0;
+            const lote = b.lote || 'Sem Lote';
+            const weight = parseFloat(b.order_weight) || 0;
+            
+            // Cria uma chave única: "1º Envio - BOX-001"
+            const chaveUnica = `${lote} | ${code}`;
+
+            if (!boxTotals[chaveUnica]) {
+                boxTotals[chaveUnica] = { lote: lote, code: code, peso: 0 };
             }
-            boxTotals[code] += weight; 
+            boxTotals[chaveUnica].peso += weight; 
         });
 
         // 2. CRIA OS CARTÕES DE RESUMO
         if (summaryContainer && Object.keys(boxTotals).length > 0) {
             let cardsHTML = '';
-            for (const [code, totalWeight] of Object.entries(boxTotals)) {
-                if (code === 'SEM-BOX') continue;
+            // Agora ele usa a chave única para não misturar envios diferentes
+            for (const [chave, dados] of Object.entries(boxTotals)) {
                 cardsHTML += `
                     <div style="background: #f4f9ff; border-left: 4px solid #00b1ea; padding: 10px 15px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 150px; flex: 1;">
-                        <span style="font-size: 11px; color: #555; text-transform: uppercase;">📦 Caixa:</span> <br>
-                        <strong style="font-size: 18px; color: #0a1931;">${code}</strong><br>
+                        <span style="font-size: 11px; color: #555; text-transform: uppercase;">📦 ${dados.lote}</span> <br>
+                        <strong style="font-size: 18px; color: #0a1931;">${dados.code}</strong><br>
                         <span style="font-size: 11px; color: #555;">Peso Total:</span> 
-                        <strong style="font-size: 16px; color: #d4af37;">${totalWeight.toFixed(2)} KG</strong>
+                        <strong style="font-size: 16px; color: #d4af37;">${dados.peso.toFixed(2)} KG</strong>
                     </div>
                 `;
             }
@@ -736,34 +756,26 @@ async function loadBoxes() {
         }
 
         // Ordena a lista
-        list.sort((a, b) => {
-            const boxA = a.box_code || '';
-            const boxB = b.box_code || '';
-            return boxA.localeCompare(boxB, undefined, {numeric: true, sensitivity: 'base'});
-        });
+        list.sort((a, b) => (a.box_code || '').localeCompare((b.box_code || ''), undefined, {numeric: true, sensitivity: 'base'}));
 
-        // 3. A MÁGICA DA VELOCIDADE: Usar um "Buffer" e limitar na tela
+        // 3. A MÁGICA DA VELOCIDADE
         let htmlBuffer = '';
         let itensRenderizados = 0;
-        let totalValidos = 0; // Conta quantos itens reais existem para mostrar o botão certo
+        let totalValidos = 0; 
 
         for (let i = 0; i < list.length; i++) {
             const b = list[i];
             const status = b.status || b.order_status || '';
             
-            // Ignora os completos se a chave estiver desligada
             if ((status === 'Entregue' || status === 'Pago') && currentUser.role !== 'client' && !showCompleted) continue;
 
-            totalValidos++; // Conta que achou um item válido para mostrar
-
-            // PARA DE DESENHAR SE CHEGAR NO LIMITE PARA NÃO TRAVAR O CELULAR
-            if (itensRenderizados >= boxLimit) continue; // Continua o loop só para contar o totalValidos
+            totalValidos++;
+            if (itensRenderizados >= boxLimit) continue; 
 
             const individualWeight = parseFloat(b.order_weight) || 0;
             const freightValue = individualWeight * globalPricePerKg;
             const nfValue = parseFloat(b.nf_amount) || 0;
             const finalTotal = parseFloat(b.amount) || (freightValue + nfValue);
-
             const isAdmin = currentUser.role !== 'client';
 
             let act = '-';
@@ -777,16 +789,13 @@ async function loadBoxes() {
                 const textoBtn = b.receiver_name ? `✅ Destinatario: ${b.receiver_name.split(' ')[0]}` : '👤 Informar Destinatario';
                 const corBtn = b.receiver_name ? '#28a745' : '#f1c40f';
                 const corTexto = b.receiver_name ? '#fff' : '#000';
-                
                 act = `<button onclick="openReceiverModal(${b.id}, '${b.receiver_name || ''}', '${b.receiver_doc || ''}')" 
                         style="background:${corBtn}; color:${corTexto}; border:none; padding:5px 10px; cursor:pointer; border-radius:4px; font-weight:bold; font-size:12px;">
                         ${textoBtn}
                        </button>`;
             }
 
-            const clientCell = isAdmin ? 
-                `<td>${b.client_name || '-'}</td>` : 
-                `<td style="display:none;">${b.client_name || '-'}</td>`;
+            const clientCell = isAdmin ? `<td>${b.client_name || '-'}</td>` : `<td style="display:none;">${b.client_name || '-'}</td>`;
 
             htmlBuffer += `
             <tr>
@@ -798,11 +807,9 @@ async function loadBoxes() {
                 <td>${b.products || '-'}</td>
                 <td>${act}</td>
             </tr>`; 
-            
             itensRenderizados++;
         }
         
-        // 4. ADICIONA O BOTÃO "CARREGAR MAIS" SE HOUVER MAIS ITENS
         if (totalValidos > boxLimit) {
             htmlBuffer += `
             <tr>
@@ -814,7 +821,6 @@ async function loadBoxes() {
             </tr>`;
         }
 
-        // Joga todo o código HTML na tabela DE UMA VEZ SÓ (extremamente rápido)
         tbody.innerHTML = htmlBuffer;
         if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
 
@@ -835,7 +841,7 @@ document.getElementById('toggle-boxes')?.addEventListener('change', () => {
     loadBoxes();
 });
 // ==========================================
-// FUNÇÃO CRIAR ENCOMENDA
+// FUNÇÃO CRIAR ENCOMENDA (AGORA COM LOTES/ENVIOS 📦✈️)
 // ==========================================
 async function createOrder() {
     // 1. Pega os dados do formulário
@@ -845,13 +851,17 @@ async function createOrder() {
     const desc = document.getElementById('order-desc').value;
     const weight = document.getElementById('order-weight').value;
     const status = document.getElementById('order-status').value;
+    
+    // PEGANDO O LOTE (1º Envio, 2º Envio, etc)
+    const loteSelect = document.getElementById('order-lote');
+    const lote = loteSelect ? loteSelect.value : 'Sem Lote';
 
     // 2. Validação simples
     if (!clientId || !code || !weight) {
         return alert("Preencha Cliente, Código e Peso!");
     }
 
-    // --- NOVIDADE: A TRAVA DE SEGURANÇA! ---
+    // --- A TRAVA DE SEGURANÇA! ---
     // Pega o texto da opção que foi selecionada para checar se tem o símbolo de alerta
     const clienteTexto = clientSelect.options[clientSelect.selectedIndex].text;
     if (clienteTexto.includes('⚠️')) {
@@ -865,7 +875,8 @@ async function createOrder() {
         code: code,
         description: desc,
         weight: weight,
-        status: status
+        status: status,
+        lote: lote // <-- MÁGICA: O LOTE AGORA VAI PARA O SERVIDOR!
     };
 
     try {
@@ -879,7 +890,7 @@ async function createOrder() {
         const json = await res.json();
 
         if (json.success) {
-            alert("✅ Encomenda criada com sucesso!");
+            alert("✅ Encomenda criada com sucesso no " + lote + "!");
             
             // 4. Limpa e fecha
             document.getElementById('new-order-form').reset();
@@ -908,6 +919,9 @@ async function createBox(e) {
     const codeEl = document.getElementById('box-code');
     const prodEl = document.getElementById('box-products');
     const amountEl = document.getElementById('box-amount'); // <--- Esse pode ser null no painel de funcionário
+    
+    // PEGANDO O NOVO CAMPO DE LOTE 📦✈️
+    const loteEl = document.getElementById('box-lote');
 
     // Se por acaso o HTML não carregou direito, evita erro
     if(!clientEl || !codeEl) {
@@ -920,10 +934,11 @@ async function createBox(e) {
     const orderVal = orderEl ? orderEl.value : ""; // Se não existir, vazio
     const prodVal = prodEl ? prodEl.value : "";   // Se não existir, vazio
     
-    // --- A CORREÇÃO PRINCIPAL ESTÁ AQUI ---
     // Se o campo de valor (amountEl) existir, pega o valor. Se não existir (funcionário), usa 0.
     const amountVal = amountEl ? amountEl.value : 0; 
-    // --------------------------------------
+
+    // Se o campo Lote existir, pega o valor, senão usa 'Sem Lote'
+    const loteVal = loteEl && loteEl.value.trim() !== "" ? loteEl.value.trim() : "Sem Lote";
 
     if(!clientVal || !codeVal) {
         return alert("Erro: O Cliente e o Número do Box são obrigatórios.");
@@ -934,7 +949,8 @@ async function createBox(e) {
         order_id: orderVal === "" ? null : orderVal, 
         box_code: codeVal,
         products: prodVal,
-        amount: amountVal === "" ? 0 : amountVal 
+        amount: amountVal === "" ? 0 : amountVal,
+        lote: loteVal // <--- MÁGICA: O LOTE AGORA VIAJA PARA O BANCO DE DADOS!
     };
 
     try {
@@ -953,8 +969,8 @@ async function createBox(e) {
             const form = document.getElementById('new-box-form');
             if(form) form.reset();
             
-            loadBoxes();
-            alert("✅ Box criado com sucesso!");
+            loadBoxes(); // O filtro inteligente que fizemos antes vai rodar aqui!
+            alert("✅ Box criado com sucesso no " + loteVal + "!");
         } else {
             console.error("Erro servidor:", json);
             const msg = json.err ? json.err.message : (json.msg || "Erro desconhecido");
@@ -1517,7 +1533,52 @@ async function toggleClient(id, active) { await fetch('/api/clients/toggle', {me
 
 async function openBoxModal() { document.getElementById('box-modal').classList.remove('hidden'); loadClientsBox(); }
 async function loadClientsBox() { const res = await fetch('/api/clients'); const list = await res.json(); const sel = document.getElementById('box-client-select'); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`); }
-async function loadClientOrdersInBox(cid) { const sel = document.getElementById('box-order-select'); if(!cid) { sel.disabled=true; return; } const res = await fetch(`/api/orders/by-client/${cid}`); const list = await res.json(); sel.innerHTML='<option value="">Selecione...</option>'; list.forEach(o => sel.innerHTML+=`<option value="${o.id}" data-desc="${o.description}">${o.code}</option>`); sel.disabled=false; }
+async function loadClientOrdersInBox(cid) { 
+    const sel = document.getElementById('box-order-select'); 
+    const loteInput = document.getElementById('box-lote'); 
+
+    if(!cid) { 
+        sel.disabled=true; 
+        if(loteInput) loteInput.value = ''; 
+        return; 
+    } 
+
+    const res = await fetch(`/api/orders/by-client/${cid}`); 
+    const list = await res.json(); 
+    sel.innerHTML='<option value="">Selecione...</option>'; 
+    
+    list.forEach(o => {
+        const loteDaEncomenda = o.lote || 'Sem Lote';
+        sel.innerHTML += `<option value="${o.id}" data-desc="${o.description}" data-lote="${loteDaEncomenda}">${o.code}</option>`;
+    }); 
+    
+    sel.disabled=false; 
+
+    // 🚀 A NOVA MÁGICA: Caçador de Lotes!
+    if (list.length > 0 && loteInput) {
+        // Ele procura na lista do cliente alguma encomenda que já tenha um Lote de verdade
+        const encomendaComLote = list.find(o => o.lote && o.lote !== 'Sem Lote' && o.lote.trim() !== '');
+        
+        if (encomendaComLote) {
+            loteInput.value = encomendaComLote.lote; // Achou! Puxa o lote.
+        } else {
+            loteInput.value = list[0].lote || 'Sem Lote'; // Não achou nenhuma, bota o padrão.
+        }
+    } else if (loteInput) {
+        loteInput.value = 'Sem Lote';
+    }
+}
+
+function autoFillBoxData(sel) { 
+    // Preenche os produtos
+    document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; 
+    
+    // MÁGICA 2: Preenche o lote automaticamente!
+    const loteBoxInput = document.getElementById('box-lote');
+    if (loteBoxInput) {
+        loteBoxInput.value = sel.options[sel.selectedIndex].getAttribute('data-lote') || '';
+    }
+}
 function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
 // ==============================================================
 // 1. FUNÇÃO DA TIMELINE VISUAL (CORRIGIDA E ALINHADA)
@@ -1586,12 +1647,15 @@ async function loadOrders() {
         const res = await fetch('/api/orders');
         const list = await res.json();
         
-        // Salva na memória e atualiza o número no topo do painel
+       // Salva na memória e atualiza o número no topo do painel
         window.todasEncomendas = list;
         window.limiteEncomendas = 50; 
         
         const dashCount = document.getElementById('dash-orders-count');
         if (dashCount) dashCount.innerText = list.length; 
+        
+        // CHAMA O CÉREBRO DO FILTRO AQUI 👇
+        atualizarFiltroLotes();
         
         // Chama a função turbo para desenhar a tabela
         renderizarTabelaEncomendas();
@@ -1601,7 +1665,34 @@ async function loadOrders() {
         console.error("Erro ao carregar encomendas:", error);
     }
 }
+// ==============================================================
+// FUNÇÃO MÁGICA: CRIA O FILTRO DE LOTES AUTOMATICAMENTE
+// ==============================================================
+function atualizarFiltroLotes() {
+    const select = document.getElementById('filter-envio');
+    if (!select) return;
 
+    // Guarda o que estava selecionado para não desmarcar sozinho
+    const loteAtual = select.value;
+
+    // Vasculha TODAS as encomendas e descobre quais Lotes existem (sem repetir)
+    const lotesUnicos = [...new Set(window.todasEncomendas.map(o => o.lote || 'Sem Lote'))];
+
+    // Recria a lista de opções do zero
+    let html = '<option value="Todos">📦 Todos os Envios</option>';
+    
+    // Organiza em ordem alfabética (1º, 2º, 3º...) e cria os botões
+    lotesUnicos.sort().forEach(lote => {
+        html += `<option value="${lote}">✈️ ${lote}</option>`;
+    });
+
+    select.innerHTML = html;
+
+    // Devolve a seleção que o usuário estava vendo
+    if (lotesUnicos.includes(loteAtual) || loteAtual === 'Todos') {
+        select.value = loteAtual;
+    }
+}
 // --------------------------------------------------------------
 // FUNÇÃO TURBO: DESENHA A TABELA SEM TRAVAR O NAVEGADOR
 // --------------------------------------------------------------
@@ -1613,12 +1704,29 @@ function renderizarTabelaEncomendas() {
     if(!tbody) return;
     
     if(window.todasEncomendas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada.</td></tr>';
         return;
     }
 
-    // Pega apenas as primeiras encomendas até o limite atual
-    const encomendasVisiveis = window.todasEncomendas.slice(0, window.limiteEncomendas);
+    // --- NOVA MÁGICA: VERIFICA O FILTRO DE ENVIO ---
+    const selectFiltro = document.getElementById('filter-envio');
+    const loteEscolhido = selectFiltro ? selectFiltro.value : 'Todos';
+
+    let encomendasFiltradas = window.todasEncomendas;
+
+    if (loteEscolhido !== 'Todos') {
+        // Se o administrador escolheu um envio específico, filtra a lista!
+        // Nota: O banco de dados vai passar a devolver o campo "lote" em breve.
+        encomendasFiltradas = encomendasFiltradas.filter(o => o.lote === loteEscolhido);
+    }
+
+    if(encomendasFiltradas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:20px;">Nenhuma encomenda encontrada no ${loteEscolhido}.</td></tr>`;
+        return;
+    }
+
+    // Pega apenas as primeiras encomendas até o limite atual (da lista já filtrada)
+    const encomendasVisiveis = encomendasFiltradas.slice(0, window.limiteEncomendas);
     
     // O SEGREDO DA VELOCIDADE: Cria o HTML na memória antes de jogar na tela
     let htmlDasLinhas = '';
@@ -1704,7 +1812,7 @@ function renderizarTabelaEncomendas() {
     if (window.todasEncomendas.length > window.limiteEncomendas) {
         htmlDasLinhas += `
         <tr>
-            <td colspan="8" style="text-align:center; padding: 15px;">
+            <td colspan="9" style="text-align:center; padding: 15px;">
                 <button onclick="carregarMaisEncomendas()" style="background:#0a1931; color:white; font-weight:bold; padding:10px 20px; border-radius:5px; border:none; cursor:pointer; width: 100%; max-width: 300px;">
                     Carregar Mais Encomendas ⬇️
                 </button>
@@ -4491,7 +4599,9 @@ async function updateOrder(id) {
         code: document.getElementById('order-code').value,
         description: document.getElementById('order-desc').value,
         weight: document.getElementById('order-weight').value,
-        status: document.getElementById('order-status').value
+        status: document.getElementById('order-status').value,
+        // ENVIANDO O LOTE PARA O BACKEND
+        lote: document.getElementById('order-lote') ? document.getElementById('order-lote').value : 'Sem Lote'
     };
 
     try {

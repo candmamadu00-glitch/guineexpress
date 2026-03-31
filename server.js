@@ -1532,7 +1532,7 @@ app.get('/api/finances/all', async (req, res) => {
 });
 // --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CAÇA-FANTASMAS DA LIXEIRA ANTIGA) ---
 app.post('/api/orders/create', (req, res) => {
-    const { client_id, code, description, weight, status } = req.body;
+const { client_id, code, description, weight, status, lote } = req.body;
 
     // Removemos espaços vazios que possam ter sido digitados sem querer
     const cleanCode = code.trim();
@@ -1569,12 +1569,16 @@ app.post('/api/orders/create', (req, res) => {
             db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
                 const pricePerKg = row ? parseFloat(row.value) : 0;
                 const totalPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
+                
+                // MÁGICA: Define 'Sem Lote' caso o admin esqueça de selecionar
+                const loteFinal = lote || 'Sem Lote';
 
-                console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice}`);
+                console.log(`Criando encomenda: ${weight}kg * R$${pricePerKg} = R$${totalPrice} | Lote: ${loteFinal}`);
 
-                const sql = `INSERT INTO orders (client_id, code, description, weight, status, price) VALUES (?, ?, ?, ?, ?, ?)`;
+                // ADICIONAMOS A COLUNA 'lote' NO INSERT
+                const sql = `INSERT INTO orders (client_id, code, description, weight, status, price, lote) VALUES (?, ?, ?, ?, ?, ?, ?)`;
                              
-                db.run(sql, [client_id, cleanCode, description, weight, status, totalPrice], function(err) {
+                db.run(sql, [client_id, cleanCode, description, weight, status, totalPrice, loteFinal], function(err) {
                     if (err) {
                         return res.json({ success: false, msg: err.message });
                     }
@@ -1595,17 +1599,20 @@ app.put('/api/orders/:id', (req, res) => {
         return res.status(403).json({ success: false, msg: 'Sem permissão' });
     }
     
-    const { code, description, weight, status } = req.body;
+    // PEGANDO O NOVO CAMPO 'LOTE' NA EDIÇÃO
+    const { code, description, weight, status, lote } = req.body;
     const id = req.params.id;
 
-    // Atualiza o preço automaticamente caso o peso tenha sido editado
     db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
         const pricePerKg = row ? parseFloat(row.value) : 0;
         const newPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
-
-        const sql = `UPDATE orders SET code = ?, description = ?, weight = ?, status = ?, price = ? WHERE id = ?`;
         
-        db.run(sql, [code, description, weight, status, newPrice, id], function(err) {
+        const loteFinal = lote || 'Sem Lote';
+
+        // ADICIONAMOS O LOTE NO UPDATE
+        const sql = `UPDATE orders SET code = ?, description = ?, weight = ?, status = ?, price = ?, lote = ? WHERE id = ?`;
+        
+        db.run(sql, [code, description, weight, status, newPrice, loteFinal, id], function(err) {
             if (err) return res.json({ success: false, msg: err.message });
             res.json({ success: true });
         });
@@ -1706,17 +1713,21 @@ app.post('/api/orders/update', (req, res) => {
 });
 
 app.post('/api/boxes/create', (req, res) => {
-    const {client_id, order_id, box_code, products, amount} = req.body;
+    // Agora pegamos o 'lote' também
+    const {client_id, order_id, box_code, products, amount, lote} = req.body;
     
     // A MÁGICA AQUI: Transforma em maiúsculo e tira os espaços!
     const cleanBoxCode = box_code ? box_code.trim().toUpperCase() : '';
+    const loteFinal = lote || 'Sem Lote'; // Se vier vazio, põe "Sem Lote"
 
+    // Adicionamos a coluna lote no INSERT
     db.run(
-        "INSERT INTO boxes (client_id, order_id, box_code, products, amount) VALUES (?,?,?,?,?)", 
-        [client_id, order_id, cleanBoxCode, products, amount], 
-        (err) => res.json({success: !err})
+        "INSERT INTO boxes (client_id, order_id, box_code, products, amount, lote) VALUES (?,?,?,?,?,?)", 
+        [client_id, order_id, cleanBoxCode, products, amount, loteFinal], 
+        (err) => res.json({success: !err, msg: err ? err.message : null})
     );
-});// ROTA NOVA: Salvar a quantidade de volumes (Para Encomendas e Caixas)
+});
+// ROTA NOVA: Salvar a quantidade de volumes (Para Encomendas e Caixas)
 app.post('/api/update-volumes', (req, res) => {
     const { id, type, volumes } = req.body;
     
@@ -3065,22 +3076,22 @@ app.get('/api/orders/:id', (req, res) => {
 app.get('/api/orders/by-client/:clientId', (req, res) => {
     const clientId = req.params.clientId;
     
-    // Busca as encomendas do cliente que NÃO foram apagadas definitivamente
+    // MÁGICA: Adicionamos ORDER BY id DESC para pegar a mais nova primeiro!
     const sql = `
-        SELECT id, code, description 
+        SELECT id, code, description, lote 
         FROM orders 
         WHERE client_id = ? AND (deleted = 0 OR deleted IS NULL)
+        ORDER BY id DESC
     `;
     
     db.all(sql, [clientId], (err, rows) => {
         if (err) {
             console.error("Erro ao buscar encomendas do cliente:", err);
-            return res.json([]); // Retorna lista vazia em caso de erro
+            return res.json([]); 
         }
         res.json(rows || []);
     });
 });
-
 // ==========================================================
 // ROTA: ATUALIZAÇÃO EM MASSA (COM RASTREADOR DE ERRO)
 // ==========================================================
@@ -3822,6 +3833,24 @@ async function enviarNotificacaoNaTela(userId, titulo, mensagem, linkDestino = '
         }
     });
 }
+// ==========================================
+// ROTA TRATOR 2.0: CRIANDO A COLUNA DE LOTE
+// ==========================================
+app.get('/api/add-lote', (req, res) => {
+    db.run("ALTER TABLE orders ADD COLUMN lote TEXT DEFAULT 'Sem Lote'", (err) => {
+        if (err) return res.json({ status: "Erro", mensagem: err.message });
+        res.json({ status: "Feito!", mensagem: "A coluna de Lote foi criada com sucesso nas encomendas." });
+    });
+});
+// ==========================================
+// ROTA TRATOR 3.0: CRIANDO A COLUNA DE LOTE NAS CAIXAS
+// ==========================================
+app.get('/api/add-lote-box', (req, res) => {
+    db.run("ALTER TABLE boxes ADD COLUMN lote TEXT DEFAULT 'Sem Lote'", (err) => {
+        if (err) return res.json({ status: "Erro", mensagem: err.message });
+        res.json({ status: "Feito!", mensagem: "A coluna de Lote foi criada com sucesso nas CAIXAS (boxes)." });
+    });
+});
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================
