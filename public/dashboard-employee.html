@@ -322,8 +322,16 @@
         <div style="overflow-x:auto;">
             <table class="data-table">
                 <thead>
-                <tr><th>Foto</th><th>Nome</th><th>Email</th><th>Tel</th><th>País</th><th>Data de Cadastro</th><th>Status</th><th>Ações</th></tr>
-            </thead>
+    <tr>
+        <th>Foto</th>
+        <th>Nome</th>
+        <th>Email</th>
+        <th>Telefone</th>
+        <th>País</th>
+        <th>Data de Cadastro</th> <th>Status</th>
+        <th>Ações</th>
+    </tr>
+</thead>
                 <tbody id="clients-list"></tbody>
             </table>
         </div>
@@ -573,16 +581,16 @@
         </div>
 
         <div style="margin-top: 20px; background: rgba(0, 128, 0, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid green;">
-            <h4 style="color: green; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-check-circle"></i> ✅ Pagos (Finalizados)</h4>
-            <table class="data-table" style="width: 100%;">
-                <thead>
-                    <tr>
-                        <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Status</th> <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="invoices-paid-list"></tbody>
-            </table>
-        </div>
+    <h4 style="color: green; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-check-circle"></i> ✅ Pagos (Finalizados)</h4>
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Data</th> <th>Status</th> <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="invoices-paid-list"></tbody>
+    </table>
+</div>
     </div>
 </section>
         <section id="labels-view" class="hidden">

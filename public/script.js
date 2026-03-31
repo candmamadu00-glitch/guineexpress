@@ -5820,9 +5820,18 @@ async function loadInvoices() {
             // DISTRIBUINDO NAS FILAS
             if(inv.status === 'approved' || inv.status === 'paid') {
                 statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+                
+                // 📅 NOVIDADE: Pega a data do banco e formata para o padrão Brasil/Guiné (DD/MM/AAAA)
+                let dataFormatada = "Sem data";
+                if (inv.created_at) {
+                    const dataBanco = new Date(inv.created_at);
+                    dataFormatada = dataBanco.toLocaleDateString('pt-BR');
+                }
+
                 tbodyPaid.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee;">
                         ${baseRowHTML}
+                        <td style="color:#555; font-weight:bold;">${dataFormatada}</td>
                         <td>${statusHtml}</td>
                         <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
                     </tr>`;
@@ -7211,7 +7220,8 @@ async function iniciarAssistente() {
 
     // 2. Checar Faturas
     try {
-        const res = await fetch('/api/invoices/list');
+        // ROTA CORRIGIDA DE VERDADE AGORA!
+        const res = await fetch('/api/invoices');
         if (res.ok) {
             const invoices = await res.json();
             const pendentes = invoices.filter(i => i.status === 'pending');

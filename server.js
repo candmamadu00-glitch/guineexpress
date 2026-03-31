@@ -919,6 +919,41 @@ app.get('/api/admin/logs', (req, res) => {
         res.json(rows);
     });
 });
+// ==========================================
+// ROTA SECRETA PARA CONSERTAR O BANCO DE DADOS (VERSÃO AVANÇADA)
+// ==========================================
+app.get('/api/consertar-banco', (req, res) => {
+    // 1. Adicionamos a coluna de forma simples, sem o relógio automático (o SQLite aceita isso)
+    db.run("ALTER TABLE users ADD COLUMN created_at DATETIME", (err) => {
+        // Se der erro aqui, é porque a coluna já foi criada antes, não tem problema.
+        
+        // 2. Preenchemos todos os clientes antigos com a data/hora de agora (para não ficarem com o "-")
+        db.run("UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL", () => {
+            
+            // 3. Criamos o "Gatilho" Mágico! 
+            // Ele avisa ao banco: "Toda vez que um cliente novo entrar, carimba a data de hoje nele!"
+            const triggerSql = `
+                CREATE TRIGGER IF NOT EXISTS carimbar_data_novo_cliente
+                AFTER INSERT ON users
+                FOR EACH ROW
+                WHEN NEW.created_at IS NULL
+                BEGIN
+                    UPDATE users SET created_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+                END;
+            `;
+            
+            db.run(triggerSql, (errTrigger) => {
+                if (errTrigger) {
+                    return res.json({ status: "Erro no Gatilho", erro: errTrigger.message });
+                }
+                res.json({ 
+                    status: "Sucesso Absoluto! 🚀", 
+                    mensagem: "Coluna corrigida, clientes antigos atualizados e gatilho automático ativado!" 
+                });
+            });
+        });
+    });
+});
 // --- ROTA DE CLIENTES (À PROVA DE FALHAS) ---
 app.get('/api/clients', (req, res) => {
     // 1. Tenta buscar os clientes organizados pela data nova

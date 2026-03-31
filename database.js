@@ -175,9 +175,8 @@ db.serialize(() => {
         FOREIGN KEY(client_id) REFERENCES users(id)
     )`);
 
-    // --- PATCH DE CORREÇÃO (ALTER TABLE) ---
-    // AQUI É A CORREÇÃO PRINCIPAL: Tentamos adicionar a coluna na tabela existente ignorando se já existir
-    db.run("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP", (err) => {
+   // AQUI É A CORREÇÃO PRINCIPAL: Tentamos adicionar a coluna sem o relógio automático para o SQLite não chorar
+    db.run("ALTER TABLE users ADD COLUMN created_at DATETIME", (err) => {
         if (!err) console.log("✅ Coluna 'created_at' adicionada a users!");
     });
     // ==================================================================
