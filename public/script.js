@@ -2360,7 +2360,35 @@ function discardVideo() {
     // PARA O LOOP DO RELÓGIO (CRÍTICO)
     if(typeof recInterval !== 'undefined') clearInterval(recInterval);
 }
+// ==========================================
+// FUNÇÃO PARA APAGAR O VÍDEO (A QUE FALTAVA!)
+// ==========================================
+async function deleteVideo(id, filename) {
+    // 1. Pede confirmação antes de apagar
+    if (!confirm(`⚠️ Tem certeza que deseja excluir o vídeo #${id}? Essa ação não tem volta.`)) {
+        return;
+    }
 
+    try {
+        // 2. Manda a ordem de exclusão para o servidor
+        const res = await fetch(`/api/videos/${id}`, {
+            method: 'DELETE'
+        });
+
+        // 3. Verifica se deu certo
+        if (res.ok) {
+            alert("🗑️ Vídeo apagado com sucesso!");
+            // 4. Recarrega a lista na tela para o vídeo sumir imediatamente
+            if (typeof loadAdminVideos === 'function') loadAdminVideos();
+        } else {
+            const data = await res.json();
+            throw new Error(data.error || "Erro desconhecido ao apagar.");
+        }
+    } catch (error) {
+        console.error("Erro ao deletar vídeo:", error);
+        alert("❌ Erro ao tentar apagar o vídeo: " + error.message);
+    }
+}
 async function loadClientInfoForVideo(clientId) {
     const divInfo = document.getElementById('video-order-info');
     if(!clientId) {
@@ -5624,47 +5652,7 @@ function urlBase64ToUint8Array(base64String) {
     return outputArray;
 }
 
-// NO SEU SCRIPT.JS (Frontend)
-async function registerPush() {
-    if (!('serviceWorker' in navigator)) return;
 
-    try {
-        const register = await navigator.serviceWorker.register('/sw.js');
-        const permission = await Notification.requestPermission();
-        
-        if (permission === 'granted') {
-            const urlBase64ToUint8Array = (base64String) => {
-                const padding = '='.repeat((4 - base64String.length % 4) % 4);
-                const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-                const rawData = window.atob(base64);
-                const outputArray = new Uint8Array(rawData.length);
-                for (let i = 0; i < rawData.length; ++i) {
-                    outputArray[i] = rawData.charCodeAt(i);
-                }
-                return outputArray;
-            };
-
-            const publicVapidKey = 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY';
-            const convertedKey = urlBase64ToUint8Array(publicVapidKey);
-
-            const subscription = await register.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: convertedKey
-            });
-
-            await fetch('/api/notifications/subscribe', {
-                method: 'POST',
-                body: JSON.stringify(subscription),
-                headers: { 'Content-Type': 'application/json' },
-                // ADICIONEI ESTA LINHA ABAIXO:
-                credentials: 'same-origin' 
-            });
-            console.log("Push ativado com sucesso!");
-        }
-    } catch (e) {
-        console.error("Erro no processo de push:", e);
-    }
-}
 // Forçar o registro ao carregar a página
 document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) {
@@ -5801,64 +5789,63 @@ window.addEventListener('appinstalled', () => {
     installBtn.style.display = 'none';
     deferredPrompt = null;
 });
-async function registerNotificationSystem() {
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-        try {
-            const swReg = await navigator.serviceWorker.ready;
-            const permission = await Notification.requestPermission();
-            
-            if (permission === 'granted') {
-                // SUA CHAVE PÚBLICA QUE ESTÁ NO .ENV
-                const publicKey = 'BA_H_d0E7KaJSgex51WxeAchwC9XI6graWVeazPjv2o_CWgi93iQ0ckagGQeSOcZcndzhrHC0jWNIuFIGQJ3BdY';
-                
-                let subscription = await swReg.pushManager.getSubscription();
 
-                if (!subscription) {
-                    subscription = await swReg.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: publicKey
-                    });
-                }
-
-                // Salva no seu banco de dados
-                await fetch('/api/notifications/subscribe', {
-                    method: 'POST',
-                    body: JSON.stringify(subscription),
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                console.log("✅ Dispositivo pronto para notificações!");
-            }
-        } catch (e) {
-            console.error("Erro ao registrar notificações:", e);
-        }
-    }
-}
 
 // Rodar ao carregar a página
 document.addEventListener('DOMContentLoaded', registerNotificationSystem);
 
 // Chama a função assim que o site carregar
 document.addEventListener('DOMContentLoaded', registerNotificationSystem);
-async function subscribeUser() {
-    if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready;
-        
-        // Verifica se já tem permissão
+// ==========================================
+// 🔔 SISTEMA DE NOTIFICAÇÕES WEB-PUSH (DEFINITIVO)
+// ==========================================
+async function registerPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn("Push não suportado neste navegador.");
+        return;
+    }
+
+    try {
+        const register = await navigator.serviceWorker.register('/sw.js');
         const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return;
+        
+        if (permission === 'granted') {
+            // Função obrigatória para converter a chave VAPID para o Chrome
+            const urlBase64ToUint8Array = (base64String) => {
+                const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+                const rawData = window.atob(base64);
+                const outputArray = new Uint8Array(rawData.length);
+                for (let i = 0; i < rawData.length; ++i) {
+                    outputArray[i] = rawData.charCodeAt(i);
+                }
+                return outputArray;
+            };
 
-        // Cria a assinatura para enviar ao seu banco de dados
-        const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: 'SUA_CHAVE_VAPID_PUBLICA_AQUI'
-        });
+            // ⚠️ A CHAVE EXATA DO SEU .ENV VAI AQUI!
+            const publicVapidKey = 'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY';
+            const convertedKey = urlBase64ToUint8Array(publicVapidKey);
 
-        // ENVIA PARA O SERVIDOR SALVAR
-        await fetch('/api/notifications/subscribe', {
-            method: 'POST',
-            body: JSON.stringify(subscription),
-            headers: { 'Content-Type': 'application/json' }
-        });
+            // Tenta se inscrever
+            const subscription = await register.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: convertedKey
+            });
+
+            // Envia para o nosso servidor salvar
+            await fetch('/api/notifications/subscribe', {
+                method: 'POST',
+                body: JSON.stringify(subscription),
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin' 
+            });
+            
+            console.log("✅ Push ativado e salvo com sucesso!");
+        } else {
+            console.warn("Permissão de notificação negada pelo usuário.");
+        }
+    } catch (e) {
+        console.error("❌ Erro no processo de push:", e);
     }
 }
 // ==========================================

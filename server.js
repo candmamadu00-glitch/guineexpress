@@ -65,7 +65,7 @@ const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session
 let clientZap = null;
 // Configuração de identidade para as Notificações
 webpush.setVapidDetails(
-    'mailto:candemamadu00@gmail.com', 
+    'mailto:candemamadu09@gmail.com', 
     'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY', // Public Key
     'o7cuX6wivGgnxOoLwa__pYUFH66B3R16hzwtr3yavV4' // Private Key
 );
@@ -3849,6 +3849,49 @@ app.get('/api/add-lote-box', (req, res) => {
     db.run("ALTER TABLE boxes ADD COLUMN lote TEXT DEFAULT 'Sem Lote'", (err) => {
         if (err) return res.json({ status: "Erro", mensagem: err.message });
         res.json({ status: "Feito!", mensagem: "A coluna de Lote foi criada com sucesso nas CAIXAS (boxes)." });
+    });
+});
+// ==========================================
+// ROTA: APAGAR VÍDEO (BANCO E ARQUIVO FÍSICO)
+// ==========================================
+app.delete('/api/videos/:id', (req, res) => {
+    const videoId = req.params.id;
+    const fs = require('fs');
+    const path = require('path');
+
+    // 1. Primeiro, buscamos o nome do arquivo no banco
+    db.get(`SELECT filename FROM videos WHERE id = ?`, [videoId], (err, row) => {
+        if (err) {
+            console.error("Erro ao buscar vídeo:", err);
+            return res.status(500).json({ error: "Erro no banco de dados." });
+        }
+        
+        if (!row) {
+            return res.status(404).json({ error: "Vídeo não encontrado no banco." });
+        }
+
+        // 2. Apagamos o registro do banco de dados
+        db.run(`DELETE FROM videos WHERE id = ?`, [videoId], function(err) {
+            if (err) {
+                console.error("Erro ao deletar vídeo do banco:", err);
+                return res.status(500).json({ error: "Erro ao excluir do banco." });
+            }
+
+            // 3. Apagamos o arquivo de vídeo real da pasta
+            const videoPath = path.join(__dirname, 'uploads/videos', row.filename);
+            
+            try {
+                if (fs.existsSync(videoPath)) {
+                    fs.unlinkSync(videoPath); // Deleta o arquivo
+                }
+            } catch (fsErr) {
+                console.error("Erro ao apagar o arquivo de vídeo do HD:", fsErr);
+                // Não paramos o processo aqui porque o banco já foi apagado
+            }
+
+            // 4. Avisamos o painel que deu tudo certo!
+            res.json({ success: true, message: "Vídeo excluído com sucesso!" });
+        });
     });
 });
 // =====================================================
