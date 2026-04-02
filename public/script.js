@@ -5797,7 +5797,7 @@ document.addEventListener('DOMContentLoaded', registerNotificationSystem);
 // Chama a função assim que o site carregar
 document.addEventListener('DOMContentLoaded', registerNotificationSystem);
 // ==========================================
-// 🔔 SISTEMA DE NOTIFICAÇÕES WEB-PUSH (DEFINITIVO)
+// 🔔 SISTEMA DE NOTIFICAÇÕES WEB-PUSH (COM FAXINA AUTOMÁTICA)
 // ==========================================
 async function registerPush() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -5807,10 +5807,17 @@ async function registerPush() {
 
     try {
         const register = await navigator.serviceWorker.register('/sw.js');
+        
+        // 🧹 CAÇADOR DE CHAVE VELHA: Se existir uma inscrição antiga, ele deleta sozinho!
+        const existingSubscription = await register.pushManager.getSubscription();
+        if (existingSubscription) {
+            await existingSubscription.unsubscribe();
+            console.log("🧹 Inscrição antiga removida automaticamente pelo sistema!");
+        }
+
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted') {
-            // Função obrigatória para converter a chave VAPID para o Chrome
             const urlBase64ToUint8Array = (base64String) => {
                 const padding = '='.repeat((4 - base64String.length % 4) % 4);
                 const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -5822,17 +5829,17 @@ async function registerPush() {
                 return outputArray;
             };
 
-            // ⚠️ A CHAVE EXATA DO SEU .ENV VAI AQUI!
+            // ⚠️ A CHAVE EXATA DO SEU .ENV
             const publicVapidKey = 'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY';
             const convertedKey = urlBase64ToUint8Array(publicVapidKey);
 
-            // Tenta se inscrever
+            // Cria a nova inscrição limpinha
             const subscription = await register.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: convertedKey
             });
 
-            // Envia para o nosso servidor salvar
+            // Envia para o servidor salvar no banco
             await fetch('/api/notifications/subscribe', {
                 method: 'POST',
                 body: JSON.stringify(subscription),
@@ -5840,9 +5847,7 @@ async function registerPush() {
                 credentials: 'same-origin' 
             });
             
-            console.log("✅ Push ativado e salvo com sucesso!");
-        } else {
-            console.warn("Permissão de notificação negada pelo usuário.");
+            console.log("✅ Push ativado e chave nova salva com sucesso!");
         }
     } catch (e) {
         console.error("❌ Erro no processo de push:", e);
