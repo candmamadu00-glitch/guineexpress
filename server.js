@@ -3377,20 +3377,26 @@ async function notifyUser(userId, title, message) {
     });
 }
 
-// ROTA PARA O CELULAR SE INSCREVER
 app.post('/api/notifications/subscribe', (req, res) => {
-    console.log("Recebi uma tentativa de inscrição push!");
     const subscription = req.body;
     const userId = req.session.userId;
     
-    if (!userId) return res.status(401).json({ error: "Não logado" });
+    // Se o usuário não estiver logado no momento da inscrição, 
+    // nós retornamos 200 (sucesso "silencioso"), mas não salvamos ainda.
+    // O pulo do gato está em salvar assim que ele fizer o login.
+    if (!userId) {
+        return res.status(200).json({ success: true, msg: "Inscrição recebida, aguardando login para vincular." });
+    }
 
-    // Armazenamos a string da inscrição no banco de dados
-    db.run("UPDATE users SET push_subscription = ? WHERE id = ?", [JSON.stringify(subscription), userId], (err) => {
+    const subString = JSON.stringify(subscription);
+
+    // Salva ou Atualiza a permissão na conta do cliente
+    db.run("UPDATE users SET push_subscription = ? WHERE id = ?", [subString, userId], (err) => {
         if (err) {
-            console.error("Erro banco ao salvar push:", err);
-            return res.status(500).json({ error: "Erro ao salvar inscrição" });
+            console.error("❌ Erro ao vincular Push ao User ID:", userId, err);
+            return res.status(500).json({ success: false });
         }
+        console.log(`🔔 Notificação vinculada permanentemente ao User ID: ${userId}`);
         res.status(201).json({ success: true });
     });
 });

@@ -1974,29 +1974,37 @@ function closeFullscreenCamera() {
     if(btnStop) btnStop.classList.add('hidden');
 }
 
-// 4. Inicia o Stream da Câmera
 async function startCamera(facingMode) {
     const video = document.getElementById('camera-feed');
     
-    // Para stream anterior se existir
-    if(currentStream) {
+    // 1. Limpeza total de streams antigos
+    if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
     }
 
+    // 2. Configurações mais compatíveis para celular
+    const constraints = {
+        video: { 
+            facingMode: facingMode,
+            width: { ideal: 640 }, // Reduzi um pouco para garantir que abra em qualquer celular
+            height: { ideal: 480 }
+        }, 
+        audio: true 
+    };
+
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                facingMode: facingMode,
-                width: { ideal: 1280 }, // Tenta HD
-                height: { ideal: 720 }
-            }, 
-            audio: true 
-        });
+        // Importante: Isso DEVE ser disparado por um clique de botão
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         currentStream = stream;
         video.srcObject = stream;
+        
+        // Garante que o vídeo comece a tocar
+        await video.play();
+        console.log("✅ Câmera iniciada com sucesso!");
     } catch (err) {
-        alert("Erro ao acessar câmera: " + err);
-        closeFullscreenCamera();
+        console.error("Erro detalhado da câmera:", err);
+        alert("Atenção: Ative a permissão de câmera no cadeado do navegador.");
     }
 }
 
