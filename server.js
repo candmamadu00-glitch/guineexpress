@@ -1476,13 +1476,13 @@ app.get('/api/boxes', (req, res) => {
     
     db.all(sql, params, (err, rows) => res.json(rows));
 });
-// ROTA DO PAINEL FINANCEIRO (Junta Encomendas e Faturas)
+// ROTA DO PAINEL FINANCEIRO (Junta Encomendas e Faturas com Lotes)
 app.get('/api/finances/all', async (req, res) => {
     const isAdminOrEmployee = req.session.role === 'admin' || req.session.role === 'employee';
     if (!isAdminOrEmployee) return res.json([]);
 
     try {
-        // 1. Busca Encomendas (Agora com LEFT JOIN, 100% garantido que puxa a Box)
+        // 1. Busca Encomendas (Agora puxando o lote direto da tabela orders ou boxes)
         const orders = await new Promise((resolve, reject) => {
             const sql = `SELECT 
                             o.code as id_code, 
@@ -1491,7 +1491,8 @@ app.get('/api/finances/all', async (req, res) => {
                             o.description, 
                             o.weight, 
                             o.status, 
-                            COALESCE(MAX(b.volumes), o.volumes, 1) as volumes 
+                            COALESCE(MAX(b.volumes), o.volumes, 1) as volumes,
+                            COALESCE(b.lote, o.lote, 'Sem Lote') as lote -- 🚀 CORREÇÃO AQUI
                          FROM orders o 
                          JOIN users u ON o.client_id = u.id 
                          LEFT JOIN boxes b ON b.order_id = o.id
@@ -1502,7 +1503,7 @@ app.get('/api/finances/all', async (req, res) => {
             });
         });
 
-        // 2. Busca Faturas do Financeiro
+        // 2. Busca Faturas do Financeiro (Agora puxando o lote direto da tabela boxes ou orders)
         const invoices = await new Promise((resolve, reject) => {
             const sql = `SELECT 
                             o.code as id_code, 
@@ -1511,7 +1512,8 @@ app.get('/api/finances/all', async (req, res) => {
                             'Caixa ' || b.box_code as description, 
                             NULL as weight, 
                             i.status, 
-                            COALESCE(b.volumes, o.volumes, 1) as volumes 
+                            COALESCE(b.volumes, o.volumes, 1) as volumes,
+                            COALESCE(b.lote, o.lote, 'Sem Lote') as lote -- 🚀 CORREÇÃO AQUI
                          FROM invoices i 
                          LEFT JOIN users u ON i.client_id = u.id 
                          LEFT JOIN boxes b ON i.box_id = b.id 
@@ -1526,7 +1528,7 @@ app.get('/api/finances/all', async (req, res) => {
         res.json(combined);
 
     } catch (err) {
-        console.error(err);
+        console.error("Erro na rota /api/finances/all:", err);
         res.status(500).json({ error: "Erro ao gerar relatório financeiro" });
     }
 });
@@ -1809,7 +1811,8 @@ app.post('/api/config/price', (req, res) => {
 app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
     if(!req.file) return res.status(400).json({success: false, msg: "Nenhum vídeo enviado."});
     
-    const { client_id, description } = req.body;
+    // 🚀 AQUI: Adicionado o order_code para receber do front-end
+    const { client_id, description, order_code } = req.body;
     if(!client_id) return res.status(400).json({success: false, msg: "Cliente não identificado."});
 
     // 1. Caminhos do arquivo
@@ -1835,14 +1838,15 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                 if (err) console.error("⚠️ Erro ao apagar arquivo .webm antigo:", err);
             });
 
-            // 3. Salva no banco de dados com o NOVO nome (.mp4)
-            db.run("INSERT INTO videos (client_id, filename, description) VALUES (?, ?, ?)", 
-            [client_id, nomeArquivoMp4, description], function(err) {
+            // 3. 🚀 AQUI: Salva no banco de dados com a nova coluna order_code
+            db.run("INSERT INTO videos (client_id, order_code, filename, description) VALUES (?, ?, ?, ?)", 
+            [client_id, order_code, nomeArquivoMp4, description], function(err) {
                 if(err) return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
                 
                 console.log(`✅ Vídeo MP4 salvo no banco!`);
-// 🔔 COLE A NOTIFICAÇÃO DE VÍDEO AQUI:
+                // 🔔 COLE A NOTIFICAÇÃO DE VÍDEO AQUI:
                 enviarNotificacaoNaTela(client_id, "🎥 Novo Vídeo Disponível!", "Acabamos de subir um vídeo mostrando os detalhes da sua encomenda.", "/dashboard-client.html");
+                
                 // 4. Fluxo do WhatsApp
                 db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
                     if (err || !user || !user.phone) {
@@ -1888,18 +1892,27 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
             res.status(500).json({success: false, msg: "Erro ao converter vídeo para MP4."});
         });
 });
-// 2. Listar Vídeos
+// 2. Listar Vídeos (COM LOTES CORRIGIDOS! 🚀)
 app.get('/api/videos/list', (req, res) => {
-    // Se for admin, vê tudo (ou filtra por cliente se quiser). Se for cliente, vê só os dele.
     if(req.session.role === 'client') {
         db.all("SELECT * FROM videos WHERE client_id = ? ORDER BY id DESC", [req.session.userId], (err, rows) => {
             res.json(rows);
         });
     } else {
-        // Admin vê vídeos com nome do cliente
-        db.all(`SELECT videos.*, users.name as client_name 
-                FROM videos LEFT JOIN users ON videos.client_id = users.id 
+        // 🚀 O ADMIN AGORA BUSCA O LOTE FAZENDO A BUSCA NO LUGAR CERTO!
+        db.all(`SELECT 
+                    videos.*, 
+                    users.name as client_name,
+                    COALESCE(b.lote, o.lote, 'Sem Lote') as lote -- 🚀 A CORREÇÃO ESTÁ AQUI
+                FROM videos 
+                LEFT JOIN users ON videos.client_id = users.id 
+                LEFT JOIN orders o ON videos.order_code = o.code
+                LEFT JOIN boxes b ON b.order_id = o.id
                 ORDER BY videos.id DESC`, (err, rows) => {
+            if (err) {
+                console.error("Erro ao buscar vídeos:", err);
+                return res.status(500).json({ error: "Erro ao buscar vídeos" });
+            }
             res.json(rows);
         });
     }
@@ -2041,25 +2054,34 @@ app.post('/api/invoices/:id/force-pay', (req, res) => {
         res.json({ success: true, message: 'Fatura marcada como paga manualmente.' });
     });
 });
+// ==========================================
+// ROTA PARA LISTAR AS FATURAS COM LOTE (AGORA VAI! 🚀)
+// ==========================================
 app.get('/api/invoices/list', (req, res) => {
-    // Se não for admin nem funcionário nem cliente, bloqueia
-    if(!req.session.role) return res.status(401).json([]);
-
-    let sql = `SELECT invoices.*, users.name as client_name, boxes.box_code 
-               FROM invoices 
-               LEFT JOIN users ON invoices.client_id = users.id 
-               LEFT JOIN boxes ON invoices.box_id = boxes.id`;
+    const sql = `
+        SELECT 
+            invoices.*,
+            users.name as client_name,
+            boxes.box_code,
+            -- 🚀 A MÁGICA: Ele puxa o texto do Lote que você salvou direto na Caixa, ou da Encomenda!
+            COALESCE(boxes.lote, orders.lote, 'Sem Lote') as lote,
+            CASE 
+                WHEN boxes.volumes > 1 THEN boxes.volumes 
+                WHEN orders.volumes > 1 THEN orders.volumes 
+                ELSE 1 
+            END as volumes
+        FROM invoices
+        LEFT JOIN users ON invoices.client_id = users.id
+        LEFT JOIN boxes ON invoices.box_id = boxes.id
+        LEFT JOIN orders ON boxes.order_id = orders.id
+        ORDER BY invoices.id DESC
+    `;
     
-    let params = [];
-    if(req.session.role === 'client') {
-        sql += " WHERE invoices.client_id = ?";
-        params.push(req.session.userId);
-    } 
-    // Para Admin e Employee, o SQL continua sem WHERE (vê tudo)
-
-    sql += " ORDER BY invoices.id DESC";
-    db.all(sql, params, (err, rows) => {
-        if(err) return res.json([]);
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            console.error("Erro ao buscar faturas:", err.message);
+            return res.status(500).json({ error: "Erro no banco de dados." });
+        }
         res.json(rows);
     });
 });

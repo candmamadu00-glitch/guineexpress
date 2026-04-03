@@ -273,11 +273,17 @@
     👀 Mostrar encomendas já entregues
 </label>
     <div class="card">
-        <div style="margin-bottom: 20px; position: relative;">
-            <i class="fas fa-search" style="position: absolute; left: 12px; top: 12px; color: #888;"></i>
-            <input type="text" id="search-delivery" onkeyup="searchTable('search-delivery', 'delivery-list')" 
-                   placeholder="Digite o código da encomenda ou nome do cliente..." 
-                   style="width: 100%; padding: 12px 12px 12px 40px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px;">
+        <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="delivery-lot-filter" onchange="loadDeliveryList()" class="form-control" style="flex: 1; min-width: 200px; padding: 12px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; color: #0a1931;">
+                <option value="">📦 Todos os Envios/Lotes</option>
+            </select>
+
+            <div style="position: relative; flex: 2; min-width: 250px;">
+                <i class="fas fa-search" style="position: absolute; left: 12px; top: 16px; color: #888;"></i>
+                <input type="text" id="search-delivery" onkeyup="searchTable('search-delivery', 'delivery-list')" 
+                       placeholder="Digite o código ou cliente..." 
+                       style="width: 100%; height: 100%; padding: 12px 12px 12px 40px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px;">
+            </div>
         </div>
 
         <div class="table-responsive">
@@ -427,12 +433,19 @@
                     Recibos gerados automaticamente a partir das Boxes cadastradas.
                 </p>
 
+                <div style="margin-bottom: 20px;">
+                    <select id="receipts-lot-filter" onchange="loadReceipts()" class="form-control" style="width: 100%; max-width: 400px; padding: 10px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; color: #0a1931;">
+                        <option value="">📦 Todos os Envios/Lotes</option>
+                    </select>
+                </div>
+
                 <div style="overflow-x:auto;">
                     <table class="data-table">
                         <thead>
                             <tr>
                                 <th>N° Box</th>
-                                <th id="rec-col-client">Cliente</th> <th>Conteúdo</th>
+                                <th id="rec-col-client">Cliente</th> 
+                                <th>Conteúdo</th>
                                 <th>Peso</th>
                                 <th>Valor</th>
                                 <th>Ação</th>
@@ -584,15 +597,21 @@
     </div>
 
     <div class="card" style="margin-top: 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
-    <h3 style="margin: 0;">Status de Pagamentos</h3>
-    
-    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; width: 100%;">
-        <input type="text" id="search-invoices" placeholder="🔍 Buscar cliente, ref ou box..." onkeyup="filterInvoices()" style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
-        <button onclick="loadInvoices()" class="btn-secondary" style="flex-shrink: 0; margin: 0; white-space: nowrap;">🔄 Atualizar</button>
-        <button onclick="downloadInvoicesPDF()" class="btn-primary" style="background-color: #d32f2f; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; flex-shrink: 0; white-space: nowrap;">📄 Baixar PDF</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+        <h3 style="margin: 0;">Status de Pagamentos</h3>
+        
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; width: 100%;">
+            
+            <select id="invoice-lot-filter" onchange="loadInvoices()" class="form-control" style="flex: 1; min-width: 180px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold; cursor: pointer; background-color: #fff;">
+                <option value="">📦 Todos os Envios/Lotes</option>
+            </select>
+
+            <input type="text" id="search-invoices" placeholder="🔍 Buscar cliente, ref ou box..." onkeyup="filterInvoices()" style="flex: 2; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
+            
+            <button onclick="loadInvoices()" class="btn-secondary" style="flex-shrink: 0; margin: 0; white-space: nowrap;">🔄 Atualizar</button>
+            <button onclick="downloadInvoicesPDF()" class="btn-primary" style="background-color: #d32f2f; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; flex-shrink: 0; white-space: nowrap;">📄 Baixar PDF</button>
+        </div>
     </div>
-</div>
 
         <div style="margin-top: 20px; background: rgba(0, 0, 255, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid blue;">
             <h4 style="color: blue; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-eye"></i> 👀 Em Análise (Aguardando sua conferência)</h4>
@@ -640,8 +659,12 @@
                     </button>
                 </div>
             </div>
-            <div class="card" style="margin-bottom: 20px;">
-                <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control">
+            <div class="card" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <select id="label-lot-filter" onchange="loadLabels()" class="form-control" style="flex: 1; min-width: 200px; font-weight: bold; cursor: pointer;">
+                    <option value="">📦 Todos os Envios/Lotes</option>
+                </select>
+
+                <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control" style="flex: 2; min-width: 200px;">
             </div>
             <div class="card">
                 <div style="overflow-x:auto;">
@@ -709,7 +732,11 @@
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
         <h3 style="margin: 0;">Histórico de Vídeos Enviados</h3>
         
-        <input type="text" id="search-video-history" placeholder="🔍 Buscar ID, cliente ou data..." onkeyup="filterVideoHistory()" style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
+        <select id="video-lot-filter" onchange="loadAdminVideos()" class="form-control" style="flex: 1; min-width: 180px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold; cursor: pointer; background-color: #fff;">
+            <option value="">📦 Todos os Envios/Lotes</option>
+        </select>
+
+        <input type="text" id="search-video-history" placeholder="🔍 Buscar ID, cliente ou data..." onkeyup="filterVideoHistory()" style="flex: 2; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
     </div>
 
     <table class="data-table" style="width: 100%;">
@@ -795,9 +822,15 @@
                 </div>
             </div>
             <div class="card">
-                <div style="margin: 15px 0; position: relative;">
-                    <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-                    <input type="text" id="search-finances" onkeyup="searchTable('search-finances', 'finances-list')" placeholder="Buscar faturas..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <div style="margin: 15px 0; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <select id="finances-lot-filter" onchange="loadFinances()" class="form-control" style="flex: 1; min-width: 200px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-weight: bold; cursor: pointer; color: #0a1931;">
+                        <option value="">📦 Todos os Envios/Lotes</option>
+                    </select>
+
+                    <div style="position: relative; flex: 2; min-width: 250px;">
+                        <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+                        <input type="text" id="search-finances" onkeyup="searchTable('search-finances', 'finances-list')" placeholder="Buscar faturas..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
                 </div>
                 <div class="table-responsive">
             <table class="data-table" id="finances-table">

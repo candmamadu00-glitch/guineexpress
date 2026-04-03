@@ -166,14 +166,20 @@ db.serialize(() => {
     )`);
 
     // Tabela de Vídeos
-    db.run(`CREATE TABLE IF NOT EXISTS videos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id INTEGER,
-        filename TEXT,
-        description TEXT, 
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(client_id) REFERENCES users(id)
-    )`);
+db.run(`CREATE TABLE IF NOT EXISTS videos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER,
+    order_code TEXT, -- 🚀 NOVA COLUNA AQUI
+    filename TEXT,
+    description TEXT, 
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+)`);
+
+// 🚀 Mágica para não quebrar o banco atual (adiciona a coluna se ela não existir)
+db.run(`ALTER TABLE videos ADD COLUMN order_code TEXT`, (err) => {
+    // Ignoramos o erro se a coluna já existir, é normal!
+});
 
    // AQUI É A CORREÇÃO PRINCIPAL: Tentamos adicionar a coluna sem o relógio automático para o SQLite não chorar
     db.run("ALTER TABLE users ADD COLUMN created_at DATETIME", (err) => {

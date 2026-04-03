@@ -2258,10 +2258,6 @@ async function loadClientsForVideoSelect() {
         sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
     });
 }
-// ==========================================
-// CORREÇÃO DO UPLOAD E TIMER
-// ==========================================
-
 async function confirmUpload() {
     // 1. Validações Iniciais
     if(!currentBlob) return alert("Erro: Nenhum vídeo gravado.");
@@ -2269,7 +2265,11 @@ async function confirmUpload() {
     const clientSelect = document.getElementById('video-client-select');
     const clientId = clientSelect ? clientSelect.value : null;
     
-    if (!clientId) return alert("⚠️ Erro: Selecione um Cliente/Encomenda na lista antes de enviar!");
+    // PEGANDO O CÓDIGO DA ENCOMENDA 🚀
+    const selectedOption = clientSelect.options[clientSelect.selectedIndex];
+    const orderCode = selectedOption ? selectedOption.getAttribute('data-code') : null;
+    
+    if (!clientId || !orderCode) return alert("⚠️ Erro: Selecione um Cliente/Encomenda na lista antes de enviar!");
 
     // 2. Prepara Dados
     const descEl = document.getElementById('info-desc');
@@ -2277,8 +2277,8 @@ async function confirmUpload() {
     
     const formData = new FormData();
     formData.append('client_id', clientId);
+    formData.append('order_code', orderCode); // ENVIANDO O CÓDIGO PRO SERVIDOR 🚀
     formData.append('description', descText);
-    // Adiciona o nome do arquivo para garantir que o servidor entenda a extensão
     formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
 
     // 3. Feedback Visual (Bloqueia botão)
@@ -2428,13 +2428,13 @@ async function loadClientInfoForVideo(clientId) {
 let adminVideoLimit = 50;
 let clientVideoLimit = 50;
 
-// --- VÍDEOS DO ADMIN (RÁPIDO E COM BOTÕES BONITOS 🎨) ---
+// --- VÍDEOS DO ADMIN (COM FILTRO DE LOTE 🎨🚀) ---
 async function loadAdminVideos() {
     const tbody = document.getElementById('admin-video-list');
     if(!tbody) return;
 
     // Aviso de carregamento
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregando vídeos...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregando vídeos... <i class="fas fa-spinner fa-spin"></i></td></tr>';
 
     try {
         const res = await fetch('/api/videos/list');
@@ -2445,16 +2445,45 @@ async function loadAdminVideos() {
             return;
         }
 
+        // ==========================================
+        // 🧠 CÉREBRO DO FILTRO DE LOTES (Aprende sozinho!)
+        // ==========================================
+        const filterSelect = document.getElementById('video-lot-filter');
+        const loteSelecionado = filterSelect ? filterSelect.value : '';
+
+        if (filterSelect) {
+            // Pega todos os nomes de lotes salvos nos vídeos (tira os vazios/nulos)
+            const todosOsLotes = list.map(v => v.lote || v.shipment_id || 'Sem Lote');
+            const lotesUnicos = [...new Set(todosOsLotes)];
+
+            let htmlFiltro = '<option value="">📦 Todos os Envios/Lotes</option>';
+            lotesUnicos.sort().forEach(l => {
+                htmlFiltro += `<option value="${l}">✈️ ${l}</option>`;
+            });
+            
+            filterSelect.innerHTML = htmlFiltro;
+            
+            // Mantém selecionado o lote que estava antes
+            if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === '') {
+                filterSelect.value = loteSelecionado;
+            }
+        }
+        // ==========================================
+
         let htmlBuffer = '';
         let renderizados = 0;
         let totalValidos = 0;
 
         for (let i = 0; i < list.length; i++) {
+            const v = list[i];
+
+            // MÁGICA DO FREIO: Se não for do lote escolhido, pula e oculta!
+            const loteDesteVideo = v.lote || v.shipment_id || 'Sem Lote';
+            if (loteSelecionado !== '' && String(loteDesteVideo) !== String(loteSelecionado)) continue;
+
             totalValidos++;
 
             if (renderizados >= adminVideoLimit) continue; // Trava de segurança 
-
-            const v = list[i];
             
             // A MÁGICA DOS BOTÕES AQUI 👇
             htmlBuffer += `
@@ -2491,7 +2520,11 @@ async function loadAdminVideos() {
             </tr>`;
         }
 
-        tbody.innerHTML = htmlBuffer;
+        if (renderizados === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum vídeo encontrado para este envio.</td></tr>';
+        } else {
+            tbody.innerHTML = htmlBuffer;
+        }
 
     } catch (error) {
         console.error("Erro ao carregar vídeos admin:", error);
@@ -3265,19 +3298,45 @@ function filterHistory() {
     searchTable('history-search', 'history-list');
 }
 // ============================================================
-// LÓGICA DE ETIQUETAS (LABELS) CORRIGIDA E COMPLETA
+// LÓGICA DE ETIQUETAS (LABELS) CORRIGIDA E COMPLETA (COM FILTRO DE LOTE)
 // ============================================================
 let labelsLimit = 50;
 
+// PREENCHE A CAIXA DE LOTES NA ABA ETIQUETAS
+async function loadLabelLots() {
+    const select = document.getElementById('label-lot-filter');
+    if (!select) return;
+    try {
+        const res = await fetch('/api/shipments/list'); // Puxa os embarques
+        const lots = await res.json();
+        
+        let html = '<option value="">📦 Todos os Envios/Lotes</option>';
+        lots.forEach(lot => {
+            html += `<option value="${lot.id}">✈️ ${lot.code} - ${lot.type}</option>`;
+        });
+        select.innerHTML = html;
+    } catch(e) {
+        console.error("Erro ao carregar lotes para etiquetas:", e);
+    }
+}
+
+// Carrega os lotes automaticamente ao abrir a página
+document.addEventListener('DOMContentLoaded', () => {
+    loadLabelLots();
+});
+
+// ============================================================
+// LÓGICA DE ETIQUETAS (LABELS) COM FILTRO DE LOTE DINÂMICO
+// ============================================================
+
 async function loadLabels() {
-    // Verifique se o ID no seu HTML é exatamente 'labels-list'
     const tbody = document.getElementById('labels-list');
     if (!tbody) return; 
 
     tbody.innerHTML = '<tr><td colspan="6" align="center">Carregando etiquetas... <i class="fas fa-spinner fa-spin"></i></td></tr>';
 
     try {
-        // Busca as Caixas (Boxes) e Encomendas (Orders) ao mesmo tempo
+        // Busca as Caixas e Encomendas
         const [resBoxes, resOrders] = await Promise.all([
             fetch('/api/boxes'),
             fetch('/api/orders')
@@ -3286,12 +3345,48 @@ async function loadLabels() {
         const boxes = resBoxes.ok ? await resBoxes.json() : [];
         const orders = resOrders.ok ? await resOrders.json() : [];
 
+        // ==========================================
+        // 🧠 CÉREBRO DO FILTRO DE LOTES (IGUAL DA ABA BOX)
+        // ==========================================
+        const filterSelect = document.getElementById('label-lot-filter');
+        const loteSelecionado = filterSelect ? filterSelect.value : '';
+
+        // Aprende quais lotes existem olhando para as caixas e encomendas
+        if (filterSelect) {
+            const lotesCaixas = boxes.map(b => b.lote || 'Sem Lote');
+            const lotesOrders = orders.map(o => o.lote || 'Sem Lote');
+            
+            // Junta tudo e tira os nomes repetidos
+            const lotesUnicos = [...new Set([...lotesCaixas, ...lotesOrders])];
+
+            let htmlFiltro = '<option value="">📦 Todos os Envios/Lotes</option>';
+            lotesUnicos.sort().forEach(l => {
+                htmlFiltro += `<option value="${l}">✈️ ${l}</option>`;
+            });
+            
+            filterSelect.innerHTML = htmlFiltro;
+            
+            // Mantém selecionado o lote que você clicou
+            if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === '') {
+                filterSelect.value = loteSelecionado;
+            }
+        }
+        // ==========================================
+
+        // Inverte a ordem das caixas para as mais novas ficarem no topo
+        boxes.sort((a, b) => b.id - a.id);
+
         let htmlBuffer = '';
         let renderizados = 0;
         let totalValidos = 0;
 
         // PARTE 1: MOSTRAR AS CAIXAS (BOXES) PRIMEIRO
         for (let i = 0; i < boxes.length; i++) {
+            const loteDaCaixa = boxes[i].lote || 'Sem Lote';
+            
+            // FREIO: Se tiver um lote selecionado e a caixa não for dele, pula ela!
+            if (loteSelecionado !== '' && loteDaCaixa !== loteSelecionado) continue;
+
             totalValidos++;
             if (renderizados >= labelsLimit) continue;
 
@@ -3329,6 +3424,11 @@ async function loadLabels() {
         ordersWithoutBox.sort((a, b) => b.id - a.id);
 
         for (let i = 0; i < ordersWithoutBox.length; i++) {
+            const loteDaOrder = ordersWithoutBox[i].lote || 'Sem Lote';
+
+            // FREIO: Se um lote estiver selecionado e a encomenda não for dele, pula ela!
+            if (loteSelecionado !== '' && loteDaOrder !== loteSelecionado) continue;
+
             totalValidos++;
             if (renderizados >= labelsLimit) continue;
 
@@ -3624,7 +3724,7 @@ async function printSelectedLabels() {
     }
 }
 // ============================================================
-// LÓGICA DE RECIBOS PROFISSIONAIS (OTIMIZADA 🚀)
+// LÓGICA DE RECIBOS PROFISSIONAIS (COM FILTRO DE LOTE 🚀)
 // ============================================================
 let receiptsLimit = 50;
 
@@ -3632,7 +3732,7 @@ async function loadReceipts() {
     const list = document.getElementById('receipts-list');
     if (!list) return;
 
-    list.innerHTML = '<tr><td colspan="6" align="center">Carregando recibos...</td></tr>';
+    list.innerHTML = '<tr><td colspan="6" align="center">Carregando recibos... <i class="fas fa-spinner fa-spin"></i></td></tr>';
 
     try {
         const response = await fetch('/api/boxes');
@@ -3647,6 +3747,31 @@ async function loadReceipts() {
             return;
         }
 
+        // ==========================================
+        // 🧠 CÉREBRO DO FILTRO DE LOTES (Aprende sozinho!)
+        // ==========================================
+        const filterSelect = document.getElementById('receipts-lot-filter');
+        const loteSelecionado = filterSelect ? filterSelect.value : '';
+
+        if (filterSelect) {
+            // Aprende quais lotes existem nas caixas (boxes)
+            const todosOsLotes = boxes.map(b => b.lote || 'Sem Lote');
+            const lotesUnicos = [...new Set(todosOsLotes)];
+
+            let htmlFiltro = '<option value="">📦 Todos os Envios/Lotes</option>';
+            lotesUnicos.sort().forEach(l => {
+                htmlFiltro += `<option value="${l}">✈️ ${l}</option>`;
+            });
+            
+            filterSelect.innerHTML = htmlFiltro;
+            
+            // Mantém selecionado o lote que estava antes
+            if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === '') {
+                filterSelect.value = loteSelecionado;
+            }
+        }
+        // ==========================================
+
         boxes.sort((a, b) => b.id - a.id);
 
         let htmlBuffer = '';
@@ -3654,11 +3779,16 @@ async function loadReceipts() {
         let totalValidos = 0;
 
         for (let i = 0; i < boxes.length; i++) {
+            const box = boxes[i];
+            const loteDaCaixa = box.lote || 'Sem Lote';
+
+            // MÁGICA DO FREIO: Se um lote estiver selecionado e a caixa não for dele, pula!
+            if (loteSelecionado !== '' && loteDaCaixa !== loteSelecionado) continue;
+
             totalValidos++;
             
             if (renderizados >= receiptsLimit) continue; // Limite para não travar
 
-            const box = boxes[i];
             const peso = parseFloat(box.order_weight || 0);
             const freteEstimado = peso * globalPricePerKg;
             const valorFrete = parseFloat(box.freight_amount) || parseFloat(box.amount) || freteEstimado;
@@ -3669,7 +3799,7 @@ async function loadReceipts() {
             const produtos = box.products || '---';
             
             let clientCol = '';
-            if (currentUser.role !== 'client') {
+            if (currentUser && currentUser.role !== 'client') {
                 clientCol = `<td>${box.client_name || 'Desconhecido'}</td>`;
             }
 
@@ -3701,14 +3831,18 @@ async function loadReceipts() {
             </tr>`;
         }
 
-        list.innerHTML = htmlBuffer;
+        if (renderizados === 0) {
+            list.innerHTML = '<tr><td colspan="6" align="center">Nenhum recibo encontrado para este envio.</td></tr>';
+        } else {
+            list.innerHTML = htmlBuffer;
+        }
         
         const thClient = document.getElementById('rec-col-client');
-        if(thClient && currentUser.role === 'client') thClient.style.display = 'none';
+        if(thClient && currentUser && currentUser.role === 'client') thClient.style.display = 'none';
 
     } catch (err) {
-        console.error(err);
-        list.innerHTML = '<tr><td colspan="6">Erro ao carregar dados.</td></tr>';
+        console.error("Erro ao carregar recibos:", err);
+        list.innerHTML = '<tr><td colspan="6" align="center" style="color:red;">Erro ao carregar dados.</td></tr>';
     }
 }
 
@@ -5415,7 +5549,7 @@ async function loadAccessLogs() {
     }
 }
 // ==========================================
-// ABA FINANCEIRO (TURBINADA 🚀)
+// ABA FINANCEIRO (TURBINADA 🚀 COM FILTRO DE LOTE)
 // ==========================================
 let financesLimit = 50;
 
@@ -5427,7 +5561,7 @@ async function loadFinances() {
         
         if (!tbody) return;
 
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Carregando financeiro...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Carregando financeiro... <i class="fas fa-spinner fa-spin"></i></td></tr>';
 
         const toggleBtn = document.getElementById('toggle-finances');
         const showCompleted = toggleBtn ? toggleBtn.checked : false;
@@ -5436,6 +5570,32 @@ async function loadFinances() {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registro encontrado.</td></tr>`;
             return;
         }
+
+        // ==========================================
+        // 🧠 CÉREBRO DO FILTRO DE LOTES (Aprende sozinho!)
+        // ==========================================
+        const filterSelect = document.getElementById('finances-lot-filter');
+        const loteSelecionado = filterSelect ? filterSelect.value : '';
+
+        if (filterSelect) {
+            // Pega todos os nomes de lotes salvos no financeiro (tira os vazios/nulos)
+            // Usa 'lote' ou 'shipment_id' dependendo de como a rota manda os dados
+            const todosOsLotes = finances.map(f => f.lote || f.shipment_id || 'Sem Lote');
+            const lotesUnicos = [...new Set(todosOsLotes)];
+
+            let htmlFiltro = '<option value="">📦 Todos os Envios/Lotes</option>';
+            lotesUnicos.sort().forEach(l => {
+                htmlFiltro += `<option value="${l}">✈️ ${l}</option>`;
+            });
+            
+            filterSelect.innerHTML = htmlFiltro;
+            
+            // Mantém selecionado o lote que estava antes
+            if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === '') {
+                filterSelect.value = loteSelecionado;
+            }
+        }
+        // ==========================================
 
         let htmlBuffer = '';
         let itensRenderizados = 0;
@@ -5453,7 +5613,12 @@ async function loadFinances() {
             if (statusLower === 'paid' || statusLower === 'approved') statusPt = 'Pago'; 
             if (statusLower === 'cancelled' || statusLower === 'rejected') statusPt = 'Cancelado';
 
+            // MÁGICA 1: Oculta pagos se o checkbox não estiver marcado
             if (statusPt === 'Pago' && !showCompleted) continue;
+
+            // MÁGICA 2: Freio do Lote! Se não for do lote escolhido, pula!
+            const loteDesteItem = item.lote || item.shipment_id || 'Sem Lote';
+            if (loteSelecionado !== '' && String(loteDesteItem) !== String(loteSelecionado)) continue;
 
             totalValidos++;
 
@@ -5490,7 +5655,7 @@ async function loadFinances() {
         }
 
         if (itensRenderizados === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registro pendente para exibir.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum registro encontrado para este envio.</td></tr>`;
         } else {
             tbody.innerHTML = htmlBuffer;
         }
@@ -5862,7 +6027,7 @@ async function registerPush() {
     }
 }
 // ==========================================
-// FUNÇÃO EXCLUSIVA DO PAINEL DO ADMINISTRADOR (COM 3 FILAS)
+// FUNÇÃO EXCLUSIVA DO PAINEL DO ADMINISTRADOR (COM 3 FILAS E FILTRO DE LOTE 🚀)
 // ==========================================
 async function loadInvoices() {
     const tbodyReview = document.getElementById('invoices-review-list');
@@ -5878,8 +6043,7 @@ async function loadInvoices() {
     tbodyPaid.innerHTML = loadingHtml;
 
     try {
-        // ROTA CORRIGIDA!
-        const res = await fetch('/api/invoices/list'); 
+        const res = await fetch('/api/invoices/list'); // Certifique-se que o nome bate com o servidor
         const list = await res.json();
 
         // Limpa as tabelas para preencher
@@ -5887,9 +6051,37 @@ async function loadInvoices() {
         tbodyPending.innerHTML = '';
         tbodyPaid.innerHTML = '';
 
+        // ==========================================
+        // 🧠 CÉREBRO DO FILTRO DE LOTES (Aprende sozinho!)
+        // ==========================================
+        const filterSelect = document.getElementById('invoice-lot-filter');
+        const loteSelecionado = filterSelect ? filterSelect.value : '';
+
+        if (filterSelect) {
+            // Pega todos os nomes de lotes e remove os vazios/repetidos
+            const todosOsLotes = list.map(inv => inv.lote || 'Sem Lote');
+            const lotesUnicos = [...new Set(todosOsLotes)];
+
+            let htmlFiltro = '<option value="">📦 Todos os Envios/Lotes</option>';
+            lotesUnicos.sort().forEach(l => {
+                htmlFiltro += `<option value="${l}">✈️ ${l}</option>`;
+            });
+            
+            filterSelect.innerHTML = htmlFiltro;
+            
+            if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === '') {
+                filterSelect.value = loteSelecionado;
+            }
+        }
+        // ==========================================
+
         let countReview = 0, countPending = 0, countPaid = 0;
 
         list.forEach(inv => {
+            // MÁGICA DO FREIO: Se não for do lote escolhido, pula e esconde! 🚀
+            const loteDestaFatura = inv.lote || 'Sem Lote';
+            if (loteSelecionado !== '' && String(loteDestaFatura) !== String(loteSelecionado)) return;
+
             let statusHtml = '';
             let deleteBtn = '';
             let actionButtons = '';
@@ -5930,8 +6122,6 @@ async function loadInvoices() {
             // DISTRIBUINDO NAS FILAS
             if(inv.status === 'approved' || inv.status === 'paid') {
                 statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
-                
-                // 📅 NOVIDADE: Pega a data do banco e formata para o padrão Brasil/Guiné (DD/MM/AAAA)
                 let dataFormatada = "Sem data";
                 if (inv.created_at) {
                     const dataBanco = new Date(inv.created_at);
@@ -5958,7 +6148,6 @@ async function loadInvoices() {
                 countReview++;
             } 
             else {
-                // Se for pending ou cancelado, cai na fila do meio
                 statusHtml = inv.status === 'pending' 
                     ? '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>' 
                     : '<span style="color:red;">Cancelado</span>';
@@ -5981,8 +6170,6 @@ async function loadInvoices() {
     } catch (err) {
         console.error("Erro ao carregar faturas:", err);
         tbodyReview.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro ao carregar faturas. Tente atualizar a página.</td></tr>';
-        tbodyPending.innerHTML = '';
-        tbodyPaid.innerHTML = '';
     }
 }
 
@@ -6879,24 +7066,55 @@ function filtrarClientesFinanceiroDropdown() {
     }
 }
 // ==========================================
-// 1. ABA DE ENTREGAS INTELIGENTE
+// 1. ABA DE ENTREGAS INTELIGENTE (COM FILTRO DE LOTE)
 // ==========================================
 async function loadDeliveryList() {
     try {
         const response = await fetch('/api/orders'); 
         const orders = await response.json();
         const list = document.getElementById('delivery-list');
+        if(!list) return;
+        
         list.innerHTML = '';
 
-        // Verifica se o usuário quer ver o histórico (se o botão não existir, esconde por padrão)
+        // Verifica se o usuário quer ver o histórico
         const toggleBtn = document.getElementById('toggle-deliveries');
         const showCompleted = toggleBtn ? toggleBtn.checked : false;
+
+        // ==========================================
+        // 🧠 CÉREBRO DO FILTRO DE LOTES (Aprende sozinho!)
+        // ==========================================
+        const filterSelect = document.getElementById('delivery-lot-filter');
+        const loteSelecionado = filterSelect ? filterSelect.value : '';
+
+        if (filterSelect) {
+            // Pega todos os nomes de lotes salvos nas encomendas (tira os vazios/nulos)
+            const todosOsLotes = orders.map(o => o.lote || 'Sem Lote');
+            const lotesUnicos = [...new Set(todosOsLotes)];
+
+            let htmlFiltro = '<option value="">📦 Todos os Envios/Lotes</option>';
+            lotesUnicos.sort().forEach(l => {
+                htmlFiltro += `<option value="${l}">✈️ ${l}</option>`;
+            });
+            
+            filterSelect.innerHTML = htmlFiltro;
+            
+            // Mantém selecionado o lote que estava antes
+            if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === '') {
+                filterSelect.value = loteSelecionado;
+            }
+        }
+        // ==========================================
 
         orders.forEach(order => {
             const isDelivered = order.status === 'Entregue';
             
-            // A MÁGICA AQUI: Se for entregue e o botão não estiver marcado, pula e oculta!
+            // MÁGICA 1: Se for entregue e o botão não estiver marcado, pula e oculta!
             if (isDelivered && !showCompleted) return;
+
+            // MÁGICA 2: Freio do Lote! Se não for do lote escolhido, pula e oculta!
+            const loteDestaOrder = order.lote || 'Sem Lote';
+            if (loteSelecionado !== '' && loteDestaOrder !== loteSelecionado) return;
 
             const volumeExibicao = order.volumes_reais || order.volumes || '1';
 
@@ -7740,29 +7958,32 @@ setTimeout(() => {
     }
 }, 6000); // ⏳ Ela espera 6 segundos após o aplicativo carregar para dar a notícia!
 // ============================================================
-// FUNÇÃO DE PESQUISA NA TABELA DE FINANCEIRO (TEMPO REAL)
+// FUNÇÃO DE PESQUISA (CORRIGIDA PARA AS 3 TABELAS 🐞✅)
 // ============================================================
 function filterInvoices() {
-    // Pega o que foi digitado na barra de pesquisa
     const input = document.getElementById('search-invoices');
-    const filter = input.value.toLowerCase(); // Tudo em minúsculo para facilitar a busca
+    const filter = input.value.toLowerCase();
     
-    // Pega as linhas da tabela de faturas
-    const tbody = document.getElementById('invoices-list');
-    const rows = tbody.getElementsByTagName('tr');
+    // Agora o sistema pesquisa nas 3 tabelas de uma vez!
+    const tabelas = [
+        document.getElementById('invoices-review-list'),
+        document.getElementById('invoices-pending-list'),
+        document.getElementById('invoices-paid-list')
+    ];
 
-    // Passa por todas as linhas da tabela
-    for (let i = 0; i < rows.length; i++) {
-        // Pega o texto inteiro da linha (nome do cliente, ref, valor, etc)
-        const rowText = rows[i].textContent.toLowerCase();
-        
-        // Se a linha tiver o texto pesquisado, mostra. Se não, esconde.
-        if (rowText.includes(filter)) {
-            rows[i].style.display = '';
-        } else {
-            rows[i].style.display = 'none';
+    tabelas.forEach(tbody => {
+        if (!tbody) return;
+        const rows = tbody.getElementsByTagName('tr');
+
+        for (let i = 0; i < rows.length; i++) {
+            const rowText = rows[i].textContent.toLowerCase();
+            if (rowText.includes(filter)) {
+                rows[i].style.display = '';
+            } else {
+                rows[i].style.display = 'none';
+            }
         }
-    }
+    });
 }
 // ==========================================
 // FUNÇÃO DE BUSCAR PACOTE (RASTREAMENTO REAL)
@@ -8059,3 +8280,27 @@ function scrollNav(amount) {
         nav.scrollBy({ left: amount, behavior: 'smooth' });
     }
 }
+// ==========================================
+// PREENCHE A CAIXA DE LOTES NA ABA ETIQUETAS
+// ==========================================
+async function loadLabelLots() {
+    const select = document.getElementById('label-lot-filter');
+    if (!select) return;
+    try {
+        const res = await fetch('/api/shipments/list'); // Puxa os embarques
+        const lots = await res.json();
+        
+        let html = '<option value="">📦 Todos os Envios/Lotes</option>';
+        lots.forEach(lot => {
+            html += `<option value="${lot.id}">✈️ ${lot.code} - ${lot.type}</option>`;
+        });
+        select.innerHTML = html;
+    } catch(e) {
+        console.error("Erro ao carregar lotes para etiquetas:", e);
+    }
+}
+
+// Faz os lotes carregarem assim que a tela abre
+document.addEventListener('DOMContentLoaded', () => {
+    loadLabelLots();
+});
