@@ -8051,3 +8051,11 @@ function mostrarAlertaDaCici(htmlContent) {
         if(document.body.contains(alerta)) alerta.remove();
     }, 30000);
 }
+// Função para rolar as abas do menu
+function scrollNav(amount) {
+    // Busca o menu que está na tela atual
+    const nav = document.querySelector('.nav-links');
+    if (nav) {
+        nav.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+}

@@ -2469,17 +2469,24 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
     // Pega o texto que o aplicativo leu da tela do seu celular
     const textoNotificacao = req.body.texto || "";
     console.log(`📱 Cicí leu a notificação do seu celular: "${textoNotificacao}"`);
-    // 1. A Cicí procura o valor em dinheiro no texto da notificação
-    const matchValor = textoNotificacao.match(/R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/);
+    // 1. A Cicí procura o valor em dinheiro (Blindado para qualquer formato)
+    const matchValor = textoNotificacao.match(/R\$\s?([\d\.,]+)/);
     
     if (matchValor) {
-        let valorString = matchValor[1].replace('.', '').replace(',', '.'); // Converte "5,00" para 5.00
-        const valorRecebido = parseFloat(valorString);
+        // Limpa pontos de milhar e arruma a vírgula dos centavos
+        let valorLimpo = matchValor[1].replace(/\.(?=\d{3})/g, '').replace(',', '.'); 
+        const valorRecebido = parseFloat(valorLimpo);
         console.log(`💰 Valor lido do Mercado Pago: R$ ${valorRecebido}`);
 
-        // 2. Procura faturas pendentes COM ESSE VALOR EXATO
-        db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending' AND CAST(amount AS REAL) = ?", [valorRecebido], async (err, faturas) => {
+        // 2. Busca TODAS as faturas pendentes e filtra com precisão no Javascript
+        db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending'", [], async (err, todasFaturas) => {
             if (err) return res.status(500).json({ erro: 'Erro no banco de dados' });
+
+            // A MÁGICA: Limpa o valor do banco e compara ignorando zeros ou formatações bobas
+            const faturas = todasFaturas.filter(f => {
+                let valorBanco = parseFloat(String(f.amount).replace(',', '.'));
+                return Math.abs(valorBanco - valorRecebido) < 0.01; // Aceita diferença de até 1 centavo
+            });
 
             // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
             if (faturas.length === 1) {
@@ -2578,12 +2585,18 @@ const startEmailMonitor = async () => {
                         const valorRecebido = parseFloat(valorString);
                         console.log(`💰 Valor do Pix lido: R$ ${valorRecebido}`);
 
-                        // 2. Procura faturas pendentes COM ESSE VALOR EXATO
-                        db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending' AND CAST(amount AS REAL) = ?", [valorRecebido], async (err, faturas) => {
+                        // 2. Busca TODAS as faturas pendentes e filtra com precisão no Javascript
+                        db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending'", [], async (err, todasFaturas) => {
                             if (err) {
                                 console.error('Erro ao buscar faturas por valor:', err);
                                 return;
                             }
+
+                            // A MÁGICA: Limpa o valor do banco e compara ignorando zeros ou formatações bobas
+                            const faturas = todasFaturas.filter(f => {
+                                let valorBanco = parseFloat(String(f.amount).replace(',', '.'));
+                                return Math.abs(valorBanco - valorRecebido) < 0.01; // Aceita diferença de até 1 centavo
+                            });
 
                             // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
                             if (faturas.length === 1) {

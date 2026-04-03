@@ -46,6 +46,11 @@
             GUINEEXPRESS 
             <span style="font-size:12px; font-weight:normal; opacity:0.8;">| FUNCIONÁRIO</span>
         </div>
+        <div class="nav-wrapper">
+    
+    <button class="scroll-btn left" onclick="scrollNav(-250)">
+        <i class="fas fa-chevron-left"></i>
+    </button>
         <div class="nav-links">    
     <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn" style="background: #010203; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
         <i class="fas fa-file-invoice-dollar"></i> 💸 Faturas
@@ -96,6 +101,11 @@
     
     <button onclick="logout()" style="background: #dc3545; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
         <i class="fas fa-sign-out-alt"></i> Sair
+    </button>
+
+</div>
+<button class="scroll-btn right" onclick="scrollNav(250)">
+        <i class="fas fa-chevron-right"></i>
     </button>
 
 </div>

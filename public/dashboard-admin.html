@@ -59,7 +59,13 @@
             GUINEEXPRESS 
             <span id="user-role-display" style="font-size:12px; font-weight:normal; opacity:0.8;"></span>
         </div>
+        <div class="nav-wrapper">
+    
+    <button class="scroll-btn left" onclick="scrollNav(-250)">
+        <i class="fas fa-chevron-left"></i>
+    </button>
       <div class="nav-links">
+
     <button onclick="showSection('delivery-view'); loadDeliveryList();" style="background: #1abc9c; color: white;">
         <i class="fas fa-shipping-fast"></i> Entregas
     </button>
@@ -152,6 +158,10 @@
         <i class="fas fa-sign-out-alt"></i> Sair
     </button>
 </div>
+<button class="scroll-btn right" onclick="scrollNav(250)">
+        <i class="fas fa-chevron-right"></i>
+    </button>
+    </div>
     </nav>
 
     <div class="container">

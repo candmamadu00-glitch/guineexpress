@@ -2006,3 +2006,59 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     50% { transform: scale(1.03); box-shadow: 0 0 0 8px rgba(0, 177, 234, 0); }
     100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 177, 234, 0); }
 }
+/* =========================================
+   SISTEMA DE ROLAGEM DO MENU (DESKTOP)
+   ========================================= */
+.nav-wrapper {
+    display: flex;
+    align-items: center;
+    position: relative;
+    width: 100%;
+    /* margin-bottom: 15px; (Descomente se precisar de espaço embaixo) */
+}
+
+/* Estilo dos botões de Setas */
+.scroll-btn {
+    background: #34495e;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    z-index: 10;
+    margin: 0 10px;
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+.scroll-btn:hover {
+    background: #00c6ff;
+    transform: scale(1.1);
+}
+
+/* Deixa o scroll do menu suave e esconde a barra nativa */
+.nav-links {
+    display: flex;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none; /* Esconde no Firefox */
+    -ms-overflow-style: none; /* Esconde no Edge */
+    width: 100%;
+    gap: 10px; /* Espaço entre os botões */
+}
+
+.nav-links::-webkit-scrollbar {
+    display: none; /* Esconde no Chrome/Safari/Edge */
+}
+
+/* Esconde as setas no celular (pois o dedo já faz o trabalho) */
+@media (max-width: 768px) {
+    .scroll-btn {
+        display: none;
+    }
+}
