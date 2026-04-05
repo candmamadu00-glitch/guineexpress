@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css"/>
@@ -383,7 +384,7 @@
             <div class="form-group">
                 <input type="password" id="login-pass" class="form-control" placeholder="Sua Senha" required autocomplete="current-password">
             </div>
-
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAAC1GuHDOIt0TfTqe" style="margin-bottom: 15px; display: flex; justify-content: center;"></div>
             <button type="submit" class="btn-pill" style="width: 100%; font-weight: 800; background: #009ee3; color: white; margin-top: 5px; font-size: 16px; animation: pulse-azul 2.5s infinite;">ENTRAR</button>
             
             <button id="btn-biometria-login" type="button" onclick="loginComBiometria()" class="btn-pill" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: bold; background: #0a1931; border: 1px solid #d4af37; color: #d4af37; margin-top: 15px; font-size: 15px;">
@@ -434,7 +435,8 @@
             <div class="form-group">
                 <input type="password" id="reg-pass2" class="form-control" placeholder="Confirmar Senha" required autocomplete="new-password">
             </div>
-            
+            <div class="cf-turnstile" data-sitekey="0x4AAAAAAC1GuHDOIt0TfTqe" style="margin-bottom: 15px; display: flex; justify-content: center;"></div>
+
             <button type="submit" class="btn-pill" style="width: 100%; background: #28a745; color: white; font-weight: bold; font-size: 16px; margin-top: 10px; animation: pulse-verde 2s infinite;">CADASTRAR</button>
             <p onclick="showLogin()" style="text-align:center; margin-top:20px; font-size:14px; cursor:pointer;"><i class="fa-solid fa-arrow-left"></i> Voltar para Login</p>
         </form>

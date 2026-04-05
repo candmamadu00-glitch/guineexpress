@@ -486,14 +486,22 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
         }
     }
 
+   // Pega o token da caixinha do Cloudflare no formulário de cadastro
+    const turnstileToken = document.querySelector('#register-form .cf-turnstile input[name="cf-turnstile-response"]')?.value;
+
+    if (!turnstileToken) {
+        return alert("🛡️ Segurança: Por favor, confirme que você não é um robô antes de cadastrar.");
+    }
+
     // --- D. Envio dos Dados ---
     const formData = {
         name: name,
         email: email,
         phone: finalPhone, 
         country: country,
-        document: country === 'BR' ? finalDoc : finalDoc.toUpperCase(), // Maiúsculo para passaportes
-        password: pass
+        document: country === 'BR' ? finalDoc : finalDoc.toUpperCase(),
+        password: pass,
+        'cf-turnstile-response': turnstileToken // <-- AQUI ENVIAMOS O TOKEN!
     };
 
     const btn = e.target.querySelector('button');
