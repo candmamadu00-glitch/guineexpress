@@ -269,20 +269,11 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     const loginInput = document.getElementById('login-user').value;
     const passInput = document.getElementById('login-pass').value;
     
-    // 🛡️ NOVO: Pega o passe livre que o Cloudflare gerou na tela
-    const turnstileToken = document.querySelector('[name="cf-turnstile-response"]')?.value;
-
     // Tenta fazer o login
     try {
         const res = await fetch('/api/login', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            // 👇 Olha o token ('cf-turnstile-response') entrando aqui no final do pacote! 👇
-            body: JSON.stringify({ 
-                login: loginInput, 
-                password: passInput, 
-                role: currentRole,
-                'cf-turnstile-response': turnstileToken 
-            })
+            body: JSON.stringify({ login: loginInput, password: passInput, role: currentRole })
         });
         
         const data = await res.json();
@@ -495,22 +486,14 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
         }
     }
 
-   // Pega o token da caixinha do Cloudflare no formulário de cadastro
-    const turnstileToken = document.querySelector('#register-form .cf-turnstile input[name="cf-turnstile-response"]')?.value;
-
-    if (!turnstileToken) {
-        return alert("🛡️ Segurança: Por favor, confirme que você não é um robô antes de cadastrar.");
-    }
-
     // --- D. Envio dos Dados ---
     const formData = {
         name: name,
         email: email,
         phone: finalPhone, 
         country: country,
-        document: country === 'BR' ? finalDoc : finalDoc.toUpperCase(),
-        password: pass,
-        'cf-turnstile-response': turnstileToken // <-- AQUI ENVIAMOS O TOKEN!
+        document: country === 'BR' ? finalDoc : finalDoc.toUpperCase(), // Maiúsculo para passaportes
+        password: pass
     };
 
     const btn = e.target.querySelector('button');

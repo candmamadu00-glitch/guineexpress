@@ -513,73 +513,61 @@ function logAccess(req, userInput, status, reason) {
 }
 
 // ==================================================================
-// ROTA: LOGIN INTELIGENTE (COM PROTEÇÃO CLOUDFLARE TURNSTILE 🛡️)
+// ROTA: LOGIN INTELIGENTE (COM RASTREAMENTO)
 // ==================================================================
-app.post('/api/login', async (req, res) => {
-    // Pegamos os dados e o token que o Cloudflare gerou no navegador
-    const { login, password, role, 'cf-turnstile-response': turnstileToken } = req.body;
+app.post('/api/login', (req, res) => {
+    const { login, password, role } = req.body;
 
-    // 🛡️ 1. VERIFICAÇÃO DE SEGURANÇA (ANTIBOT)
-    if (!turnstileToken) {
-        return res.status(400).json({ success: false, msg: '🛡️ Por favor, complete o desafio de segurança.' });
-    }
-
-    // Buscamos a chave secreta das variáveis de ambiente (Segurança Máxima 🔒)
-    const SECRET_KEY = process.env.TURNSTILE_SECRET_KEY; 
-
-    try {
-        const formData = new URLSearchParams();
-        formData.append('secret', SECRET_KEY);
-        formData.append('response', turnstileToken);
-
-        const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-            body: formData,
-            method: 'POST',
-        });
-        
-        const outcome = await result.json();
-        
-        // Se o Cloudflare disser que o acesso é suspeito, barramos aqui!
-        if (!outcome.success) {
-            logAccess(req, login, 'Falha (Bot)', 'Bloqueado pelo Cloudflare');
-            return res.status(400).json({ success: false, msg: '🛡️ Falha na verificação de segurança.' });
-        }
-    } catch (err) {
-        console.error("Erro Cloudflare:", err);
-        // Se houver erro no Cloudflare, decidimos se deixamos passar ou não. 
-        // Geralmente deixamos passar para não travar o cliente se o Cloudflare cair.
-    }
-
-    // 2. BUSCA O USUÁRIO (Continuação normal do seu código...)
+    // 1. Busca o usuário
     const sql = "SELECT * FROM users WHERE email = ? OR phone = ?";
+    
     db.get(sql, [login, login], (err, user) => {
-        if (err) return res.status(500).json({ success: false, msg: 'Erro interno.' });
+        if (err) {
+            logAccess(req, login, 'Erro', 'Erro interno no Banco');
+            return res.status(500).json({ success: false, msg: 'Erro interno.' });
+        }
 
+        // 2. Se não achou o usuário (A Cici entra em ação)
         if (!user) {
+            logAccess(req, login, 'Falha', 'Usuário não encontrado');
             return res.status(400).json({ 
                 success: false, 
-                msg: '🙋‍♀️ Oi, Cici aqui! Ainda não te encontrei. Clique em "CRIAR CONTA" para se cadastrar!',
-                falaCici: true 
+                msg: '🙋‍♀️ Oi, Cici aqui! Ainda não encontrei o seu número no nosso sistema. Por favor, clique no botão dourado "CRIAR CONTA" logo abaixo para se cadastrar primeiro!',
+                falaCici: true // <-- SINAL PARA O NAVEGADOR FALAR
             });
         }
 
-        if (user.active !== 1) return res.status(400).json({ success: false, msg: 'Conta desativada.' });
+        // 3. Verifica se a conta está ativa
+        if (user.active !== 1) {
+            logAccess(req, login, 'Falha', 'Conta Desativada');
+            return res.status(400).json({ success: false, msg: 'Conta desativada. Fale com o suporte.' });
+        }
 
+        // 4. Verifica a Senha
         if (!bcrypt.compareSync(password, user.password)) {
+            // AQUI ESTÁ O PULO DO GATO: Salvamos que alguém tentou invadir
             logAccess(req, login, 'Falha', 'Senha Incorreta 🔒');
             return res.status(400).json({ success: false, msg: 'Senha incorreta.' });
         }
 
+        // 5. Verifica o Cargo
         if (user.role !== role) {
-            return res.status(400).json({ success: false, msg: `Você tentou entrar como ${role} mas é ${user.role}.` });
+            logAccess(req, login, 'Falha', `Cargo Errado (Tentou ${role} sendo ${user.role})`);
+            return res.status(400).json({ 
+                success: false, 
+                msg: `Login incorreto! Você é ${user.role}, mas tentou entrar como ${role}.` 
+            });
         }
 
-        // Sucesso
+        // 6. Sucesso Absoluto
         req.session.userId = user.id;
         req.session.role = user.role;
-        req.session.user = user;
+        req.session.user = user; // Salva o objeto user inteiro na sessão para facilitar
         
-        logAccess(req, login, 'Sucesso', `Login OK ✅`);
+        // Registra o sucesso
+        logAccess(req, login, 'Sucesso', `Login Realizado (${user.role}) ✅`);
+        
+        console.log(`✅ Login Sucesso: ${user.name}`);
         res.json({ success: true, role: user.role, name: user.name });
     });
 });
@@ -1012,78 +1000,53 @@ app.get('/api/full-receipt/:orderId', (req, res) => {
         });
     });
 });
-// --- ROTA DE CADASTRO (COM PROTEÇÃO CLOUDFLARE 🛡️) ---
-app.post('/api/register', async (req, res) => { // <-- Transformamos em async
-    // Pegamos os dados, incluindo o token
-    const {name, email, phone, country, document, password, 'cf-turnstile-response': turnstileToken} = req.body;
+// --- ROTA DE CADASTRO (COM VALIDAÇÃO DE SEGURANÇA CORRIGIDA) ---
+app.post('/api/register', (req, res) => {
+    const {name, email, phone, country, document, password} = req.body;
 
-    // 🛡️ 1. VERIFICAÇÃO CLOUDFLARE (ANTIBOT)
-    if (!turnstileToken) {
-        return res.status(400).json({success: false, msg: '🛡️ Bloqueado: Desafio de segurança pendente.'});
-    }
-
-    const SECRET_KEY = process.env.TURNSTILE_SECRET_KEY; // Usa a mesma chave do .env
-
-    try {
-        const formData = new URLSearchParams();
-        formData.append('secret', SECRET_KEY);
-        formData.append('response', turnstileToken);
-
-        const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-            body: formData,
-            method: 'POST',
-        });
-        
-        const outcome = await result.json();
-        
-        // Se for um bot tentando inundar o banco de dados com contas falsas, barramos!
-        if (!outcome.success) {
-            return res.status(400).json({ success: false, msg: '🛡️ Falha de segurança ao criar conta. Tente novamente.' });
-        }
-    } catch (err) {
-        console.error("Erro na verificação Cloudflare Cadastro:", err);
-    }
-
-    // 2. Validação de Campos Vazios
+    // 1. Validação de Campos Vazios
     if (!name || !email || !password || !phone || !document || !country) {
         return res.json({success: false, msg: 'Preencha todos os campos obrigatórios.'});
     }
 
-    // 3. Validação de Senha (Mínimo 6 caracteres)
+    // 2. Validação de Senha (Mínimo 6 caracteres)
     if (password.length < 6) {
         return res.json({success: false, msg: 'A senha deve ter no mínimo 6 caracteres.'});
     }
 
-    // 4. Validação e Limpeza do Documento (A Mágica para Estrangeiros)
-    let finalDoc = document.trim(); 
+    // 3. Validação e Limpeza do Documento (A Mágica para Estrangeiros)
+    let finalDoc = document.trim(); // Pega o documento do jeito que a pessoa digitou
 
+    // SE FOR BRASIL: Aplica a regra rigorosa (apenas números e valida tamanho 11 ou 14)
     if (country === 'BR') {
-        finalDoc = document.replace(/\D/g, ''); 
+        finalDoc = document.replace(/\D/g, ''); // Tira pontos e traços
         if (finalDoc.length !== 11 && finalDoc.length !== 14) {
             return res.json({success: false, msg: 'Documento brasileiro inválido. Digite um CPF (11) ou CNPJ (14) válido.'});
         }
     } else {
+        // SE FOR OUTRO PAÍS: Deixa passar do jeito que está, apenas verifica se não é muito curto
         if (finalDoc.length < 4) {
             return res.json({success: false, msg: 'Documento internacional muito curto. Verifique o número digitado.'});
         }
     }
 
-    // 5. Validação de Telefone 
-    const cleanPhone = phone.replace(/[^\d+]/g, ''); 
+    // 4. Validação de Telefone (Apenas tira os caracteres especiais)
+    const cleanPhone = phone.replace(/[^\d+]/g, ''); // Mantém apenas números e o sinal de '+' se houver
     if (cleanPhone.length < 8) {
         return res.json({success: false, msg: 'Telefone inválido. Verifique o número digitado.'});
     }
 
-    // 6. Validação de Email 
+    // 5. Validação de Email (Formato básico)
     if (!email.includes('@') || !email.includes('.')) {
         return res.json({success: false, msg: 'E-mail inválido.'});
     }
 
-    // 7. Se passou por tudo, criptografa e salva
-    const bcrypt = require('bcryptjs'); // Usando bcryptjs que já está no topo do seu server.js
+    // 6. Se passou por tudo, criptografa e salva
+    const bcrypt = require('bcrypt');
+    // 6. Se passou por tudo, criptografa e salva
     const hash = bcrypt.hashSync(password, 10);
     
-    // Salva no banco 
+    // Salva no banco (usando finalDoc para respeitar a regra do país)
     db.run(`INSERT INTO users (role, name, email, phone, country, document, password) VALUES ('client', ?, ?, ?, ?, ?, ?)`, 
         [name, email, cleanPhone, country, finalDoc, hash], (err) => {
             if (err) {
