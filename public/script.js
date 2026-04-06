@@ -269,11 +269,20 @@ document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     const loginInput = document.getElementById('login-user').value;
     const passInput = document.getElementById('login-pass').value;
     
+    // 🛡️ NOVO: Pega o passe livre que o Cloudflare gerou na tela
+    const turnstileToken = document.querySelector('[name="cf-turnstile-response"]')?.value;
+
     // Tenta fazer o login
     try {
         const res = await fetch('/api/login', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: loginInput, password: passInput, role: currentRole })
+            // 👇 Olha o token ('cf-turnstile-response') entrando aqui no final do pacote! 👇
+            body: JSON.stringify({ 
+                login: loginInput, 
+                password: passInput, 
+                role: currentRole,
+                'cf-turnstile-response': turnstileToken 
+            })
         });
         
         const data = await res.json();
