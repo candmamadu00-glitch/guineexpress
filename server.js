@@ -3333,38 +3333,105 @@ const queryDB = (sql, params = []) => {
         });
     });
 };
+// ==================================================================
+// 🧠 NOVO CÉREBRO DA CICÍ: AGORA ELA CRIA ENCOMENDAS E BOXES
+// ==================================================================
 app.post('/api/cici/chat', async (req, res) => {
     try {
         const { text, userContext, image, isFirstMessage, lang } = req.body;
         const userId = req.session.userId; 
+        const userRole = req.session.role; 
 
-        // 1. Contexto de Logística (Busca no Banco)
         let dadosExtras = "";
         if (userId) {
             const orders = await new Promise((resolve) => {
-                db.all("SELECT code, status FROM orders WHERE client_id = ? ORDER BY id DESC LIMIT 3", [userId], (err, rows) => {
+                db.all("SELECT code, status FROM orders WHERE client_id = ? AND (deleted = 0 OR deleted IS NULL) ORDER BY id DESC LIMIT 3", [userId], (err, rows) => {
                     resolve(rows || []);
                 });
             });
             if (orders.length > 0) {
-                dadosExtras = "\nENCOMENDAS ATUAIS:\n" + orders.map(o => `- ${o.code}: ${o.status}`).join('\n');
+                dadosExtras = "\nENCOMENDAS ATUAIS DO USUÁRIO:\n" + orders.map(o => `- ${o.code}: ${o.status}`).join('\n');
             }
         }
 
-        // 2. Prompt Mestre
-        const systemPrompt = `Você é a Cicí 18.0, a IA suprema da Guineexpress. 
-        Usuário: ${userContext.name || 'Cliente'}. Tela: ${userContext.currentPage}.
+        // 2. DEFININDO AS FERRAMENTAS (O Cinto de Utilidades da Cicí)
+        let ferramentasCici = [];
+        
+        if (userRole !== 'client') {
+            ferramentasCici = [{
+                functionDeclarations: [
+                    {
+                        name: "buscarCliente",
+                        description: "Busca clientes pelo nome. Retorna o client_id e os dados da última encomenda dele (order_id, products, amount).",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                nomeBusca: { type: "STRING", description: "Nome ou parte do nome do cliente" }
+                            },
+                            required: ["nomeBusca"]
+                        }
+                    },
+                    {
+                        name: "criarEncomenda",
+                        description: "Cria uma nova encomenda no sistema.",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                client_id: { type: "INTEGER" },
+                                code: { type: "STRING" },
+                                description: { type: "STRING" },
+                                weight: { type: "NUMBER" },
+                                status: { type: "STRING" },
+                                lote: { type: "STRING" }
+                            },
+                            required: ["client_id", "code", "weight", "status"]
+                        }
+                    },
+                    // 👇 NOVA FERRAMENTA: CRIAR BOX
+                    {
+                        name: "criarBox",
+                        description: "Cria um box/caixa para uma encomenda.",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                client_id: { type: "INTEGER" },
+                                order_id: { type: "INTEGER" },
+                                box_code: { type: "STRING", description: "O número do box (ex: Box 1, Box 2)" },
+                                products: { type: "STRING" },
+                                amount: { type: "NUMBER" },
+                                lote: { type: "STRING" }
+                            },
+                            required: ["client_id", "order_id", "box_code"]
+                        }
+                    }
+                ]
+            }];
+        }
+
+        // 3. PROMPT MESTRE (As Leis da Cicí)
+        const systemPrompt = `Você é a Cicí 18.0, a IA suprema e Agente Autônoma da Guineexpress. 
+        Usuário atual: ${userContext.name || 'Desconhecido'} (Nível: ${userRole}). Tela: ${userContext.currentPage}.
         ${dadosExtras}
         Idioma: ${lang || 'pt-BR'}
 
-        AÇÕES DISPONÍVEIS:
-        - Para instalar o PWA: [ACTION:install]
-        - Para notificações: [ACTION:push]
-        - Para redirecionar: [ACTION:redirect:/url]
+        REGRAS DE BANCO DE DADOS (FERRAMENTAS):
+        1. CRIAR ENCOMENDA: Use a ferramenta 'buscarCliente' para achar o ID, depois use 'criarEncomenda'.
+        2. CRIAR BOX: Use 'buscarCliente' para achar o cliente. DEPOIS PERGUNTE: "Para qual número de box?". Só crie o box com a ferramenta 'criarBox' APÓS o Lelo responder o número.
 
-        PERSONALIDADE: Eficiente, humana e técnica. Use linguagem clara para síntese de voz.`;
+        PODERES DE CONTROLE DE TELA (TAGS SECRETAS):
+        Você pode controlar a tela do usuário inserindo estas TAGS no final da sua frase de resposta. Use exatamente o formato abaixo:
+        - Imprimir Etiqueta: [ACTION:print:CODIGO] (Ex: "Imprimindo... [ACTION:print:123]")
+        - Abrir aba/menu: [ACTION:nav:ID_DA_ABA] (Ex: "Abrindo clientes... [ACTION:nav:tab-clientes]")
+        - Pesquisar na tela: [ACTION:search:NOME] (Ex: "Buscando o Lelo... [ACTION:search:Lelo]")
+        - Novo Registro: [ACTION:new_record]
+        - Rolar a tela: [ACTION:scroll:bottom] ou [ACTION:scroll:top]
+        - Sair/Logout: [ACTION:logout]
 
-        let messageParts = [{ text: text || "Analisando imagem ou início de conversa." }];
+        IMPORTANTE: 
+        - Não explique ou avise que está usando as tags. Apenas as insira ocultas no final da resposta.
+        - Seja sempre muito natural, simpática e não use termos técnicos nas respostas de texto.`;
+
+        let messageParts = [{ text: text || "Olá!" }];
         if (image) {
             messageParts.push({ 
                 inlineData: { 
@@ -3374,29 +3441,95 @@ app.post('/api/cici/chat', async (req, res) => {
             });
         }
 
-        const chat = model.startChat({
+        const chatParams = {
             history: [
                 { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Entendido. Cicí 18.0 pronta para operar." }] }
+                { role: "model", parts: [{ text: "Entendido. Cicí pronta para operar encomendas e boxes." }] }
             ]
-        });
+        };
+        if (ferramentasCici.length > 0) chatParams.tools = ferramentasCici;
 
-        const result = await chat.sendMessage(messageParts);
+        const chat = model.startChat(chatParams);
+        let result = await chat.sendMessage(messageParts);
+
+        // ==============================================================
+        // ⚙️ O MOTOR DE EXECUÇÃO DAS FERRAMENTAS
+        // ==============================================================
+        const functionCalls = result.response.functionCalls();
+        
+        if (functionCalls) {
+            const call = functionCalls[0]; 
+            let functionResult = {};
+
+            console.log(`🤖 [CICÍ] Acionou a ferramenta: ${call.name}`, call.args);
+
+            if (call.name === "buscarCliente") {
+                // 👇 Buscamos o cliente E a última encomenda dele de uma vez só!
+                const clientesInfo = await new Promise((resolve) => {
+                    const sql = `
+                        SELECT u.id as client_id, u.name, o.id as order_id, o.description as products, o.price as amount, o.lote 
+                        FROM users u 
+                        LEFT JOIN orders o ON u.id = o.client_id AND (o.deleted = 0 OR o.deleted IS NULL)
+                        WHERE u.role = 'client' AND u.name LIKE ? 
+                        ORDER BY o.id DESC LIMIT 1
+                    `;
+                    db.all(sql, [`%${call.args.nomeBusca}%`], (err, rows) => {
+                        resolve(rows || []);
+                    });
+                });
+                functionResult = { resultado: clientesInfo.length > 0 ? clientesInfo : "Nenhum cliente ou encomenda encontrada." };
+            } 
+            
+            else if (call.name === "criarEncomenda") {
+                const args = call.args;
+                functionResult = await new Promise((resolve) => {
+                    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+                        const pricePerKg = row ? parseFloat(row.value) : 0;
+                        const totalPrice = (parseFloat(args.weight) * pricePerKg).toFixed(2);
+                        const loteFinal = args.lote || 'Sem Lote';
+
+                        const sql = `INSERT INTO orders (client_id, code, description, weight, status, price, lote) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                        db.run(sql, [args.client_id, args.code, args.description, args.weight, args.status, totalPrice, loteFinal], function(err) {
+                            if (err) resolve({ erro: err.message });
+                            else resolve({ sucesso: true, mensagem: `Encomenda criada com ID ${this.lastID}` });
+                        });
+                    });
+                });
+            }
+
+            // 👇 NOVA FUNÇÃO: Executando o INSERT do Box
+            else if (call.name === "criarBox") {
+                const args = call.args;
+                functionResult = await new Promise((resolve) => {
+                    const cleanBoxCode = args.box_code ? args.box_code.trim().toUpperCase() : '';
+                    const loteFinal = args.lote || 'Sem Lote';
+                    const prod = args.products || 'Diversos';
+                    const valor = args.amount || 0;
+
+                    db.run(
+                        "INSERT INTO boxes (client_id, order_id, box_code, products, amount, lote) VALUES (?,?,?,?,?,?)",
+                        [args.client_id, args.order_id, cleanBoxCode, prod, valor, loteFinal],
+                        function(err) {
+                            if (err) resolve({ erro: err.message });
+                            else resolve({ sucesso: true, mensagem: `Box ${cleanBoxCode} criado com sucesso!` });
+                        }
+                    );
+                });
+            }
+
+            result = await chat.sendMessage([{
+                functionResponse: { name: call.name, response: functionResult }
+            }]);
+        }
+
         const replyText = result.response.text();
-
         res.json({ reply: replyText, lang: lang || 'pt-BR' });
 
     } catch (error) {
-        console.error("Erro Cicí:", error.message);
-
-        // Verifica se o erro é de quota (429)
+        console.error("❌ Erro Cicí:", error.message);
         if (error.status === 429 || error.message.includes('429')) {
-            return res.status(429).json({ 
-                reply: "Estou recebendo muitas mensagens agora! 😅 Pode tentar de novo em cerca de 1 minuto? Minha 'bateria' de processamento gratuito precisa de um descanso rápido.",
-                isQuotaError: true 
-            });
+            return res.status(429).json({ reply: "Estou superaquecida com muitos pedidos ao mesmo tempo! 😅 Espere 1 minutinho e me fale de novo.", isQuotaError: true });
         }
-
         res.status(500).json({ reply: "Tive um soluço técnico aqui no meu servidor." });
     }
 });

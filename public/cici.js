@@ -323,15 +323,68 @@ const CiciAI = {
             if(data.lang) this.currentLang = data.lang;
             let reply = data.reply;
 
-            // Execução de Ações enviadas pelo Back-end
-            if(reply.includes('[ACTION:install]')) { this.showInstallGuide(); reply = reply.replace(/\[ACTION:install\]/g, ''); }
-            if(reply.includes('[ACTION:push]')) { this.enableNotifications(); reply = reply.replace(/\[ACTION:push\]/g, ''); }
+            // ====================================================
+            // ⚡ MOTOR UNIVERSAL DE AÇÕES DA CICÍ
+            // ====================================================
+            const actionRegex = /\[ACTION:([a-zA-Z0-9_]+)(?::(.*?))?\]/g;
+            let match;
             
-            const redMatch = reply.match(/\[ACTION:redirect:(.*?)\]/);
-            if(redMatch) {
-                setTimeout(() => window.location.href = redMatch[1], 2500);
-                reply = reply.replace(/\[ACTION:redirect:.*?\]/g, '<br>🔄 Redirecionando...');
+            // Vai rodar em loop caso a Cicí mande mais de um comando na mesma frase!
+            while ((match = actionRegex.exec(reply)) !== null) {
+                const comando = match[1];
+                const valor = match[2] ? match[2].trim() : null;
+
+                setTimeout(() => {
+                    switch(comando) {
+                        case 'install': this.showInstallGuide(); break;
+                        case 'push': if(typeof enableNotifications === 'function') enableNotifications(); break;
+                        case 'redirect': window.location.href = valor; break;
+                        case 'print': if(typeof window.imprimirEtiquetaPelaCici === 'function') window.imprimirEtiquetaPelaCici(valor); break;
+                        
+                        // 🧭 NAVEGAÇÃO DE ABAS
+                        case 'nav': 
+                            // Ex: [ACTION:nav:tab-faturas]
+                            const tab = document.getElementById(valor) || document.querySelector(`[onclick*="${valor}"]`);
+                            if(tab) tab.click();
+                            break;
+
+                        // 🔍 BUSCA AUTOMÁTICA
+                        case 'search':
+                            // Ex: [ACTION:search:Carlos]
+                            const inputBusca = document.getElementById('search-input') || document.querySelector('input[type="search"]');
+                            if(inputBusca) { 
+                                inputBusca.value = valor; 
+                                inputBusca.dispatchEvent(new Event('input')); // Faz a lista filtrar na hora
+                            }
+                            break;
+
+                        // 📝 CRIAR NOVA FATURA / REGISTRO
+                        case 'new_record':
+                            // Ex: [ACTION:new_record]
+                            // Procura botões com esses IDs ou classes padrões
+                            const btnNovo = document.getElementById('btn-new-invoice') || 
+                                            document.getElementById('btn-add-client') || 
+                                            document.querySelector('button[onclick*="showModal"]');
+                            if(btnNovo) btnNovo.click();
+                            break;
+
+                        // 📜 ROLAGEM DE TELA
+                        case 'scroll':
+                            if(valor === 'bottom') window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                            if(valor === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
+                            break;
+
+                        // 🚪 SAIR DO SISTEMA
+                        case 'logout':
+                            window.location.href = '/logout'; // ou o link que você usa para sair
+                            break;
+                    }
+                }, 500); // 0.5s de delay para parecer que ela está "pensando e clicando"
             }
+
+            // 🧹 Limpa os códigos secretos do texto para a Cicí não falar os colchetes em voz alta!
+            reply = reply.replace(/\[ACTION:[a-zA-Z0-9_]+(?::.*?)?\]/g, '').trim();
+            // ====================================================
 
             this.addMessage(reply, 'cici');
             this.clearImage(); 
