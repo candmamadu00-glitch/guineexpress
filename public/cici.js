@@ -6,6 +6,10 @@ const CiciAI = {
     isOpen: false,
     userRole: 'visitor',
     userName: '',
+    // 👇 ADICIONE ESTAS TRÊS LINHAS:
+    isListening: false,
+    recognition: null,
+    silenceTimer: null,
     deviceInfo: 'Dispositivo Desconhecido',
     currentPage: 'Página Desconhecida',
     hasGreeted: false,
@@ -415,15 +419,73 @@ const CiciAI = {
     
     listen: function() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) return this.addMessage("Reconhecimento de voz não suportado.", 'cici');
-        const recognition = new SpeechRec();
-        recognition.lang = this.currentLang;
-        recognition.onstart = () => document.getElementById('cici-input').placeholder = "🎤 Ouvindo..."; 
-        recognition.onresult = (e) => {
-            document.getElementById('cici-input').value = e.results[0][0].transcript;
-            this.handleSend(); 
+        if (!SpeechRec) return this.addMessage("Reconhecimento de voz não suportado neste navegador.", 'cici');
+
+        // Se já estiver gravando, o botão funciona como um "Desligar Microfone"
+        if (this.isListening) {
+            if(this.recognition) this.recognition.stop();
+            return;
+        }
+
+        this.recognition = new SpeechRec();
+        this.recognition.lang = this.currentLang;
+        this.recognition.continuous = true; // Permite pausas longas sem cortar
+        this.recognition.interimResults = true; // Pega o texto enquanto a pessoa ainda está falando
+
+        const inputEl = document.getElementById('cici-input');
+        const micBtn = document.querySelector('.cici-mic-btn .fa-microphone'); 
+
+        this.recognition.onstart = () => {
+            this.isListening = true;
+            inputEl.placeholder = "🎤 Ouvindo... pode falar.";
+            if(micBtn) micBtn.style.color = "#ff4757"; // Deixa o microfone vermelho para mostrar que tá gravando
+            
+            // Faz a Cicí calar a boca se ela estiver falando, para ela poder te ouvir
+            window.speechSynthesis.cancel(); 
         };
-        recognition.start();
+
+        this.recognition.onresult = (e) => {
+            let partialTranscript = '';
+            let finalTranscript = '';
+
+            for (let i = e.resultIndex; i < e.results.length; ++i) {
+                if (e.results[i].isFinal) {
+                    finalTranscript += e.results[i][0].transcript;
+                } else {
+                    partialTranscript += e.results[i][0].transcript;
+                }
+            }
+
+            // Vai mostrando no input o que ela está entendendo
+            inputEl.value = finalTranscript || partialTranscript;
+
+            // ⏱️ FREIO DE ANSIEDADE: Toda vez que você fala uma palavra, o relógio zera
+            clearTimeout(this.silenceTimer);
+            
+            // Se você ficar 2.5 segundos em silêncio, ela entende que você terminou a frase
+            this.silenceTimer = setTimeout(() => {
+                this.recognition.stop(); 
+            }, 2500); 
+        };
+
+        this.recognition.onend = () => {
+            this.isListening = false;
+            inputEl.placeholder = "Diga oi para a Cicí...";
+            if(micBtn) micBtn.style.color = ""; // Volta a cor do microfone ao normal
+            
+            // Só envia a mensagem se tiver algo escrito e se ela não estiver enviando uma imagem
+            if(inputEl.value.trim() !== '') {
+                this.handleSend();
+            }
+        };
+
+        this.recognition.onerror = (e) => {
+            this.isListening = false;
+            if(micBtn) micBtn.style.color = "";
+            inputEl.placeholder = "Diga oi para a Cicí...";
+        };
+
+        this.recognition.start();
     },
 
     handleInput: function(e) { if(e.key === 'Enter') this.handleSend(); },
