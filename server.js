@@ -2474,11 +2474,6 @@ app.get('/api/invoices/my_invoices', (req, res) => {
     });
 });
 // ==============================================================
-// 🧠 MEMÓRIA DE CURTO PRAZO DA CICÍ (Fica fora da rota, lá no topo do código)
-// ==============================================================
-const pagamentosRecentes = new Set();
-
-// ==============================================================
 // 📱 🤖 CICI: OUVINTE DE NOTIFICAÇÕES DO CELULAR E TABLET (MERCADO PAGO via MACRODROID)
 // ==============================================================
 app.post('/api/cici-macrodroid', express.json(), (req, res) => {
@@ -2530,10 +2525,10 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                 return res.status(500).json({ erro: 'Erro no banco de dados' });
             }
 
-            // A MÁGICA: Limpa o valor do banco e compara ignorando zeros ou formatações bobas
+            // 🛡️ CORRIGIDO: Agora aceita com segurança diferenças de até 2 centavos
             const faturas = todasFaturas.filter(f => {
                 let valorBanco = parseFloat(String(f.amount).replace(',', '.'));
-                return Math.abs(valorBanco - valorRecebido) < 0.01; // Aceita diferença de até 1 centavo
+                return Math.abs(valorBanco - valorRecebido) < 0.03; 
             });
 
             // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
@@ -2567,7 +2562,7 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                 if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                     try {
                         const msgZap = faturas.length > 1 
-                            ? `📱 *CICI PRECISA DE AJUDA!*\n\nLelo, o Mercado Pago avisou no celular de um Pix de *R$ ${valorRecebido}*, mas tem ${faturas.length} pessoas devendo esse valor exato. Aprovação manual necessária no painel!`
+                            ? `📱 *CICI PRECISA DE AJUDA!*\n\nLelo, o Mercado Pago avisou no celular de um Pix de *R$ ${valorRecebido}*, mas tem ${faturas.length} pessoas devendo valor muito próximo. Aprovação manual necessária no painel!`
                             : `📱 *PIX SEM DONO (Mercado Pago)!*\n\nLelo, notificação de *R$ ${valorRecebido}* recebida, mas ninguém deve esse valor no sistema. Verifique o app!`;
                         
                         const idOficial = await clientZap.getNumberId("5585998239207"); 
@@ -2627,10 +2622,11 @@ const startEmailMonitor = async () => {
                 if (remetente.includes('nubank.com.br') && (assunto.includes('Pix') || assunto.includes('transferência'))) {
                     console.log('👀 Cicí: E-mail do Nubank detectado! Analisando...');
 
-                    // 1. Extrai o Valor do corpo do e-mail usando RegEx (Ex: R$ 5,00)
-                    const matchValor = corpo.match(/R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/);
+                    // 1. Extrai o Valor do corpo do e-mail usando RegEx
+                    const matchValor = corpo.match(/R\$\s?([\d\.,]+)/);
                     if (matchValor) {
-                        let valorString = matchValor[1].replace('.', '').replace(',', '.'); // Converte "5,00" para 5.00
+                        // Limpeza inteligente: remove todos os pontos de milhar e troca a vírgula por ponto
+                        let valorString = matchValor[1].replace(/\.(?=\d{3})/g, '').replace(',', '.'); 
                         const valorRecebido = parseFloat(valorString);
                         console.log(`💰 Valor do Pix lido: R$ ${valorRecebido}`);
 
@@ -2641,10 +2637,10 @@ const startEmailMonitor = async () => {
                                 return;
                             }
 
-                            // A MÁGICA: Limpa o valor do banco e compara ignorando zeros ou formatações bobas
+                            // 🛡️ CORRIGIDO: Agora aceita com segurança diferenças de até 2 centavos
                             const faturas = todasFaturas.filter(f => {
                                 let valorBanco = parseFloat(String(f.amount).replace(',', '.'));
-                                return Math.abs(valorBanco - valorRecebido) < 0.01; // Aceita diferença de até 1 centavo
+                                return Math.abs(valorBanco - valorRecebido) < 0.03; 
                             });
 
                             // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
@@ -2675,12 +2671,12 @@ const startEmailMonitor = async () => {
                             } 
                             // CENÁRIO B: Achou NENHUMA ou MAIS DE UMA fatura. Pede ajuda humana!
                             else {
-                                console.log(`⚠️ Alerta: Existem ${faturas.length} faturas com valor R$ ${valorRecebido}. Aprovação manual necessária.`);
+                                console.log(`⚠️ Alerta: Existem ${faturas.length} faturas com valor aproximado a R$ ${valorRecebido}. Aprovação manual necessária.`);
                                 if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                                     try {
                                         let msgErro = '';
                                         if (faturas.length > 1) {
-                                            msgErro = `🤖 *CICI PRECISA DE AJUDA!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}* na conta. Mas existem ${faturas.length} clientes devendo exatamente esse valor! Por segurança, não dei baixa. Confira no extrato de quem foi e aprove no painel.`;
+                                            msgErro = `🤖 *CICI PRECISA DE AJUDA!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}* na conta. Mas existem ${faturas.length} clientes devendo valores parecidos! Por segurança, não dei baixa. Confira no extrato de quem foi e aprove no painel.`;
                                         } else {
                                             msgErro = `🤖 *PIX SEM DONO!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*, mas não encontrei *nenhuma* fatura pendente com esse valor no sistema. Verifique o app do Nubank!`;
                                         }
