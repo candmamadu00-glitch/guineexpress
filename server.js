@@ -2519,21 +2519,19 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                 return res.status(500).json({ erro: 'Erro no banco de dados' });
             }
 
-            // 🛡️ A MÁGICA CORRIGIDA PARA OS CENTAVOS
+            // 🛡️ A MÁGICA DO VALOR EXATO (Mercado Pago)
             const faturas = todasFaturas.filter(f => {
-                // Remove tudo que não for número, ponto ou vírgula (limpa "R$" ou espaços ocultos)
                 let valorBancoStr = String(f.amount).replace(/[^\d.,]/g, '');
                 let valorBanco = 0;
                 
-                // Arruma a formatação brasileira vs americana
                 if (valorBancoStr.includes(',')) {
                     valorBanco = parseFloat(valorBancoStr.replace(/\./g, '').replace(',', '.'));
                 } else {
                     valorBanco = parseFloat(valorBancoStr);
                 }
                 
-                // 🎯 Aceita variação de até 5 centavos (cobre 139.75 vs 139.76 tranquilamente)
-                return Math.abs(valorBanco - valorRecebido) <= 0.05; 
+                // 🎯 EXIGE VALOR EXATO! Sem margem de erro.
+                return valorBanco === valorRecebido; 
             });
 
             // CENÁRIO A: Uma fatura exata
@@ -2563,8 +2561,8 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                 if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                     try {
                         const msgZap = faturas.length > 1 
-                            ? `📱 *CICI PRECISA DE AJUDA!*\n\nLelo, o Mercado Pago avisou no celular de um Pix de *R$ ${valorRecebido}*, mas tem ${faturas.length} pessoas devendo valores parecidos. Aprovação manual necessária no painel!`
-                            : `📱 *PIX SEM DONO (Mercado Pago)!*\n\nLelo, notificação de *R$ ${valorRecebido}* recebida, mas ninguém deve esse valor no sistema. Verifique o app!`;
+                            ? `📱 *CICI PRECISA DE AJUDA!*\n\nLelo, o Mercado Pago avisou no celular de um Pix EXATO de *R$ ${valorRecebido}*, mas o sistema falhou e gerou ${faturas.length} faturas com esse mesmo valor. Aprovação manual necessária no painel!`
+                            : `📱 *PIX SEM DONO (Mercado Pago)!*\n\nLelo, notificação de *R$ ${valorRecebido}* recebida, mas não achei nenhuma fatura com esse valor exato. Verifique o app!`;
                         
                         const idOficial = await clientZap.getNumberId("5585998239207"); 
                         if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgZap);
@@ -2628,7 +2626,7 @@ const startEmailMonitor = async () => {
                         db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending'", [], async (err, todasFaturas) => {
                             if (err) return console.error('Erro ao buscar faturas por valor:', err);
 
-                            // 🛡️ A MÁGICA CORRIGIDA PARA OS CENTAVOS (Nubank)
+                            // 🛡️ A MÁGICA DO VALOR EXATO (Nubank)
                             const faturas = todasFaturas.filter(f => {
                                 let valorBancoStr = String(f.amount).replace(/[^\d.,]/g, '');
                                 let valorBanco = 0;
@@ -2637,7 +2635,9 @@ const startEmailMonitor = async () => {
                                 } else {
                                     valorBanco = parseFloat(valorBancoStr);
                                 }
-                                return Math.abs(valorBanco - valorRecebido) <= 0.05; // 🎯 Aceita variação de até 5 centavos
+                                
+                                // 🎯 EXIGE VALOR EXATO! Sem margem de erro.
+                                return valorBanco === valorRecebido; 
                             });
 
                             if (faturas.length === 1) {
@@ -2652,7 +2652,7 @@ const startEmailMonitor = async () => {
                                         
                                         if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                                             try {
-                                                const msgZap = `🤖 *CICÍ APROVOU SOZINHA!*\n\nLelo, o Pix de R$ ${valorRecebido} do Nubank acabou de cair. Como só tinha uma fatura com valor parecido no sistema, eu já dei baixa na *Fatura #${invoiceId}* do cliente *${clientName}*! ✅`;
+                                                const msgZap = `🤖 *CICÍ APROVOU SOZINHA!*\n\nLelo, o Pix de R$ ${valorRecebido} do Nubank acabou de cair. Como eu achei a fatura com o valor EXATO, já dei baixa na *Fatura #${invoiceId}* do cliente *${clientName}*! ✅`;
                                                 const idOficial = await clientZap.getNumberId("5585998239207"); 
                                                 if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgZap);
                                                 else await clientZap.sendMessage(`5585998239207@c.us`, msgZap);
@@ -2663,14 +2663,14 @@ const startEmailMonitor = async () => {
                                 });
                             } 
                             else {
-                                console.log(`⚠️ Alerta: Existem ${faturas.length} faturas com valor próximo a R$ ${valorRecebido}. Aprovação manual necessária.`);
+                                console.log(`⚠️ Alerta: Existem ${faturas.length} faturas com o valor exato de R$ ${valorRecebido}. Aprovação manual necessária.`);
                                 if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                                     try {
                                         let msgErro = '';
                                         if (faturas.length > 1) {
-                                            msgErro = `🤖 *CICI PRECISA DE AJUDA!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}* na conta. Mas existem ${faturas.length} clientes devendo valores parecidos! Por segurança, não dei baixa. Confira no extrato de quem foi e aprove no painel.`;
+                                            msgErro = `🤖 *CICI PRECISA DE AJUDA!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*. Mas existem ${faturas.length} clientes devendo EXATAMENTE esse mesmo valor (o sistema de centavos falhou!). Por segurança, não dei baixa. Confira no extrato de quem foi e aprove no painel.`;
                                         } else {
-                                            msgErro = `🤖 *PIX SEM DONO!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*, mas não encontrei *nenhuma* fatura pendente com esse valor no sistema. Verifique o app do Nubank!`;
+                                            msgErro = `🤖 *PIX SEM DONO!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*, mas não encontrei *nenhuma* fatura pendente com esse valor EXATO no sistema. Verifique o app do Nubank!`;
                                         }
                                         const idOficial = await clientZap.getNumberId("5585998239207"); 
                                         if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgErro);
