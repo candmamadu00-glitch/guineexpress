@@ -11,10 +11,14 @@ const CiciAI = {
     hasGreeted: false,
     currentLang: 'pt-BR', 
     currentImageBase64: null,
-    avatarUrl: 'https://img.freepik.com/fotos-gratis/jovem-mulher-confiante-com-oculos_1098-20868.jpg?w=200',
+    isDragging: false,
+    xOffset: 0,
+    yOffset: 0,
+    // 👇 Link atualizado com o avatar da mulher negra de corpo inteiro
+    avatarUrl: '/cici.png', 
     languageSet: false,
 
-    // 🌟 Voz Masculina Humana e Expressiva (Suporte Poliglota)
+    // 🌟 Voz Feminina Humana e Expressiva (Suporte Poliglota)
     speak: function(text) {
         if (!window.speechSynthesis) return;
         window.speechSynthesis.cancel(); 
@@ -25,10 +29,10 @@ const CiciAI = {
         
         const langPrefix = this.currentLang.split('-')[0];
 
-        // Busca voz masculina específica do idioma ou fallback
+        // Busca voz feminina específica do idioma ou fallback
         let targetVoice = voices.find(v => 
             v.lang.startsWith(langPrefix) && 
-            (v.name.includes('Male') || v.name.includes('Masc') || v.name.includes('Daniel') || v.name.includes('David'))
+            (v.name.includes('Female') || v.name.includes('Fem') || v.name.includes('Maria') || v.name.includes('Zira') || v.name.includes('Google português do Brasil'))
         ) || voices.find(v => v.lang.startsWith(langPrefix));
 
         if (targetVoice) utterance.voice = targetVoice;
@@ -47,10 +51,11 @@ const CiciAI = {
         let nomeUsuario = this.userName ? `, <b>${this.userName}</b>` : "";
         let saudacao = "";
         
+        // 👇 Textos atualizados com o aceno de mão e sorriso para todos os idiomas
         const templates = {
-            'pt-BR': `Excelente${nomeUsuario}! Vejo que você está acessando a Guineexpress através de um <b>${this.deviceInfo}</b>. Como posso ajudar sua logística hoje?`,
-            'en-US': `Excellent${nomeUsuario}! I see you're accessing Guineexpress from a <b>${this.deviceInfo}</b>. How can I help today?`,
-            'fr-FR': `Super${nomeUsuario}! Je vois que vous accédez depuis un <b>${this.deviceInfo}</b>. Comment puis-je vous aider?`
+            'pt-BR': `Olá${nomeUsuario}! 👋🏾 Dou-lhe as boas-vindas com um grande sorriso e um aceno de mão!<br><br>Vejo que você está acessando a Guineexpress através de um <b>${this.deviceInfo}</b>. Como posso ajudar sua logística hoje?`,
+            'en-US': `Hello${nomeUsuario}! 👋🏾 I welcome you with a big smile and a wave!<br><br>I see you're accessing Guineexpress from a <b>${this.deviceInfo}</b>. How can I help today?`,
+            'fr-FR': `Bonjour${nomeUsuario}! 👋🏾 Je vous accueille avec un grand sourire et un signe de la main !<br><br>Je vois que vous accédez depuis un <b>${this.deviceInfo}</b>. Comment puis-je vous aider?`
         };
 
         saudacao = templates[code] || `Ok! I switched to ${name}. I see you're on a ${this.deviceInfo}. Let's chat!`;
@@ -77,34 +82,37 @@ const CiciAI = {
             }
         }
     },
-     // 🌟 NOVA FUNÇÃO: Tornar o ícone arrastável
-    makeDraggable: function() {
+     // 🌟 NOVA FUNÇÃO: Arrastável e com Vida Própria (Movimento Autônomo)
+    makeDraggableAndAlive: function() {
         const avatar = document.getElementById('cici-avatar');
         if (!avatar) return;
 
-        let isDragging = false;
         let currentX, currentY, initialX, initialY;
-        let xOffset = 0, yOffset = 0;
 
+        // --- LÓGICA DE ARRASTAR (MANUAL) ---
         const dragStart = (e) => {
             if (e.type === "touchstart") {
-                initialX = e.touches[0].clientX - xOffset;
-                initialY = e.touches[0].clientY - yOffset;
+                initialX = e.touches[0].clientX - this.xOffset;
+                initialY = e.touches[0].clientY - this.yOffset;
             } else {
-                initialX = e.clientX - xOffset;
-                initialY = e.clientY - yOffset;
+                initialX = e.clientX - this.xOffset;
+                initialY = e.clientY - this.yOffset;
             }
-            if (e.target === avatar || avatar.contains(e.target)) isDragging = true;
+            if (e.target === avatar || avatar.contains(e.target)) {
+                this.isDragging = true;
+                avatar.style.transition = 'none'; // Tira o movimento suave para não travar o mouse
+            }
         };
 
         const dragEnd = () => {
+            if (!this.isDragging) return;
             initialX = currentX;
             initialY = currentY;
-            isDragging = false;
+            this.isDragging = false;
         };
 
         const drag = (e) => {
-            if (isDragging) {
+            if (this.isDragging) {
                 e.preventDefault();
                 if (e.type === "touchmove") {
                     currentX = e.touches[0].clientX - initialX;
@@ -113,8 +121,8 @@ const CiciAI = {
                     currentX = e.clientX - initialX;
                     currentY = e.clientY - initialY;
                 }
-                xOffset = currentX;
-                yOffset = currentY;
+                this.xOffset = currentX;
+                this.yOffset = currentY;
                 avatar.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
             }
         };
@@ -125,6 +133,32 @@ const CiciAI = {
         document.addEventListener("mouseup", dragEnd, false);
         document.addEventListener("touchmove", drag, { passive: false });
         document.addEventListener("mousemove", drag, false);
+
+        // --- 🌟 A MÁGICA: MOVIMENTO INDEPENDENTE (COM LIMITES CORRIGIDOS) ---
+        setInterval(() => {
+            // Só passeia sozinha se o chat estiver FECHADO e ninguém estiver arrastando ela
+            if (!this.isOpen && !this.isDragging) {
+                // Tamanho atual da Cicí + margem de segurança de 40px para não encostar na borda
+                const ciciWidth = 80; 
+                const ciciHeight = 160; 
+
+                // Calcula os limites da tela com precisão
+                const maxEsquerda = -(window.innerWidth - ciciWidth - 40); 
+                const maxCima = -(window.innerHeight - ciciHeight - 40);
+
+                // Sorteia um novo lugar garantindo que não passe do limite
+                // Como ela começa no canto direito inferior, o movimento para esquerda e cima é negativo
+                const randomX = Math.min(0, Math.max(maxEsquerda, Math.floor(Math.random() * maxEsquerda)));
+                const randomY = Math.min(0, Math.max(maxCima, Math.floor(Math.random() * maxCima)));
+
+                this.xOffset = randomX;
+                this.yOffset = randomY;
+
+                // Aplica uma transição bem suave de 6 segundos para ela "flutuar" até lá
+                avatar.style.transition = 'transform 6s ease-in-out';
+                avatar.style.transform = `translate3d(${this.xOffset}px, ${this.yOffset}px, 0)`;
+           }
+        }, 30000); // A cada 8 segundos ela decide dar um passeio
     },
     // 🌟 Tutorial de Instalação (PWA Dinâmico)
     showInstallGuide: function() {
@@ -190,7 +224,7 @@ const CiciAI = {
                     <div class="cici-header">
                         <div class="cici-info">
                             <div style="display:flex; align-items:center; gap:12px;">
-                                <div style="width:40px; height:40px; background:url('${this.avatarUrl}') center/cover; border-radius:50%; border:2px solid #fff;"></div>
+                                <div style="width:40px; height:40px; background:url('${this.avatarUrl}') top center/cover; border-radius:50%; border:2px solid #fff;"></div>
                                 <div><h4 style="margin:0; font-size:15px; font-weight:700;">Cicí Pro 18.0</h4><small>Logística Inteligente</small></div>
                             </div>
                         </div>
@@ -209,8 +243,19 @@ const CiciAI = {
                         <button onclick="CiciAI.handleSend()" class="cici-send-btn"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
-                <div id="cici-avatar" onclick="CiciAI.toggle()" style="background-image: url('${this.avatarUrl}');">
-                    <div id="cici-badge" class="cici-badge hidden">1</div>
+                <div id="cici-avatar" onclick="CiciAI.toggle()" style="
+                    background-image: url('${this.avatarUrl}');
+                    background-size: contain;
+                    background-repeat: no-repeat;
+                    background-position: bottom center;
+                    background-color: transparent !important;
+                    border-radius: 0 !important;
+                    box-shadow: none !important;
+                    width: 80px !important;
+                    height: 160px !important;
+                    border: none !important;
+                ">
+                    <div id="cici-badge" class="cici-badge hidden" style="top: 10px; right: 10px;">1</div>
                 </div>
             </div>`;
         document.body.insertAdjacentHTML('beforeend', html);
@@ -342,7 +387,7 @@ const CiciAI = {
         this.renderWidget();
         
         // Chamada para ativar o movimento
-        setTimeout(() => this.makeDraggable(), 500); 
+        setTimeout(() => this.makeDraggableAndAlive(), 500);
 
         // LIGANDO O RADAR DO ADMIN 📡
         this.startRadarAdmin();
