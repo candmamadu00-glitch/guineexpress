@@ -2474,14 +2474,19 @@ app.get('/api/invoices/my_invoices', (req, res) => {
     });
 });
 // ==============================================================
-// 📱 🤖 CICI: OUVINTE DE NOTIFICAÇÕES DO CELULAR (MERCADO PAGO via MACRODROID)
+// 🧠 MEMÓRIA DE CURTO PRAZO DA CICÍ (Fica fora da rota, lá no topo do código)
+// ==============================================================
+const pagamentosRecentes = new Set();
+
+// ==============================================================
+// 📱 🤖 CICI: OUVINTE DE NOTIFICAÇÕES DO CELULAR E TABLET (MERCADO PAGO via MACRODROID)
 // ==============================================================
 app.post('/api/cici-macrodroid', express.json(), (req, res) => {
     // 🛡️ Senha secreta para ninguém na internet forjar um pagamento falso
     const tokenSecreto = "senha_guineexpress_secreta_123"; 
     
     // RAIO-X: Vai mostrar no painel tudo o que o celular mandou
-    console.log("📥 Dados recebidos do celular:", req.body);
+    console.log("📥 Dados recebidos do aparelho:", req.body);
     
     if (req.body.token !== tokenSecreto) {
         console.log(`⚠️ Acesso negado. A Cicí recebeu a senha: '${req.body.token}'`);
@@ -2490,7 +2495,8 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
 
     // Pega o texto que o aplicativo leu da tela do seu celular
     const textoNotificacao = req.body.texto || "";
-    console.log(`📱 Cicí leu a notificação do seu celular: "${textoNotificacao}"`);
+    console.log(`📱 Cicí leu a notificação: "${textoNotificacao}"`);
+    
     // 1. A Cicí procura o valor em dinheiro (Blindado para qualquer formato)
     const matchValor = textoNotificacao.match(/R\$\s?([\d\.,]+)/);
     
@@ -2498,11 +2504,31 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
         // Limpa pontos de milhar e arruma a vírgula dos centavos
         let valorLimpo = matchValor[1].replace(/\.(?=\d{3})/g, '').replace(',', '.'); 
         const valorRecebido = parseFloat(valorLimpo);
+        
+        // 🛑 ESCUDO ANTI-GRITO DUPLO (Celular + Tablet)
+        const chavePix = `mp_${valorRecebido}`;
+        if (pagamentosRecentes.has(chavePix)) {
+            console.log(`🔄 Pix de R$ ${valorRecebido} ignorado. O outro aparelho já avisou agorinha!`);
+            return res.json({ success: true, message: 'Já processado pelo outro aparelho' });
+        }
+        
+        // Salva na memória que esse valor está sendo processado
+        pagamentosRecentes.add(chavePix);
+        
+        // Limpa a memória depois de 2 minutos (120000 milissegundos)
+        setTimeout(() => {
+            pagamentosRecentes.delete(chavePix);
+        }, 120000);
+        // 🛑 FIM DO ESCUDO
+
         console.log(`💰 Valor lido do Mercado Pago: R$ ${valorRecebido}`);
 
         // 2. Busca TODAS as faturas pendentes e filtra com precisão no Javascript
         db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending'", [], async (err, todasFaturas) => {
-            if (err) return res.status(500).json({ erro: 'Erro no banco de dados' });
+            if (err) {
+                pagamentosRecentes.delete(chavePix); // Libera em caso de erro
+                return res.status(500).json({ erro: 'Erro no banco de dados' });
+            }
 
             // A MÁGICA: Limpa o valor do banco e compara ignorando zeros ou formatações bobas
             const faturas = todasFaturas.filter(f => {
@@ -2525,7 +2551,7 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                         // Manda notificação no Zap para o Lelo
                         if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                             try {
-                                const msgZap = `📱 *MERCADO PAGO (AUTO)*\n\nLelo, a notificação do Mercado Pago apitou no seu celular e a Cicí já deu baixa! Pix de R$ ${valorRecebido} aprovado na *Fatura #${invoiceId}* de *${clientName}*! ✅`;
+                                const msgZap = `📱 *MERCADO PAGO (AUTO)*\n\nLelo, o Mercado Pago apitou no aparelho e a Cicí já deu baixa! Pix de R$ ${valorRecebido} aprovado na *Fatura #${invoiceId}* de *${clientName}*! ✅`;
                                 const idOficial = await clientZap.getNumberId("5585998239207"); 
                                 if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgZap);
                                 else await clientZap.sendMessage(`5585998239207@c.us`, msgZap);
@@ -2536,6 +2562,8 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
             } 
             // CENÁRIO B: Mais de uma fatura ou nenhuma (Pede ajuda)
             else {
+                pagamentosRecentes.delete(chavePix); // Remove da memória se não deu certo, para tentar de novo
+                
                 if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                     try {
                         const msgZap = faturas.length > 1 
@@ -2549,10 +2577,9 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                 }
             }
         });
+    } else {
+        res.json({ success: true, message: 'Nenhum valor encontrado na notificação' });
     }
-
-    // Responde pro celular que a mensagem foi recebida com sucesso
-    res.json({ success: true, message: 'Notificação recebida pela Cicí' });
 });
 // ==============================================================
 // 🏦 🤖 CICI: MONITORAMENTO DE E-MAIL DO NUBANK (AUTO-APROVAÇÃO)
