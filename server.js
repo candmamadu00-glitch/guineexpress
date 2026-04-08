@@ -2474,13 +2474,17 @@ app.get('/api/invoices/my_invoices', (req, res) => {
     });
 });
 // ==============================================================
+// 🧠 MEMÓRIA DE CURTO PRAZO DA CICÍ (Fica fora da rota, lá no topo do código)
+// ==============================================================
+const pagamentosRecentes = new Set();
+
+// ==============================================================
 // 📱 🤖 CICI: OUVINTE DE NOTIFICAÇÕES DO CELULAR E TABLET (MERCADO PAGO via MACRODROID)
 // ==============================================================
 app.post('/api/cici-macrodroid', express.json(), (req, res) => {
     // 🛡️ Senha secreta para ninguém na internet forjar um pagamento falso
     const tokenSecreto = "senha_guineexpress_secreta_123"; 
     
-    // RAIO-X: Vai mostrar no painel tudo o que o celular mandou
     console.log("📥 Dados recebidos do aparelho:", req.body);
     
     if (req.body.token !== tokenSecreto) {
@@ -2488,50 +2492,51 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
         return res.status(403).json({ erro: 'Token inválido' });
     }
 
-    // Pega o texto que o aplicativo leu da tela do seu celular
     const textoNotificacao = req.body.texto || "";
     console.log(`📱 Cicí leu a notificação: "${textoNotificacao}"`);
     
-    // 1. A Cicí procura o valor em dinheiro (Blindado para qualquer formato)
     const matchValor = textoNotificacao.match(/R\$\s?([\d\.,]+)/);
     
     if (matchValor) {
-        // Limpa pontos de milhar e arruma a vírgula dos centavos
         let valorLimpo = matchValor[1].replace(/\.(?=\d{3})/g, '').replace(',', '.'); 
         const valorRecebido = parseFloat(valorLimpo);
         
-        // 🛑 ESCUDO ANTI-GRITO DUPLO (Celular + Tablet)
+        // 🛑 ESCUDO ANTI-GRITO DUPLO
         const chavePix = `mp_${valorRecebido}`;
         if (pagamentosRecentes.has(chavePix)) {
             console.log(`🔄 Pix de R$ ${valorRecebido} ignorado. O outro aparelho já avisou agorinha!`);
             return res.json({ success: true, message: 'Já processado pelo outro aparelho' });
         }
         
-        // Salva na memória que esse valor está sendo processado
         pagamentosRecentes.add(chavePix);
-        
-        // Limpa a memória depois de 2 minutos (120000 milissegundos)
-        setTimeout(() => {
-            pagamentosRecentes.delete(chavePix);
-        }, 120000);
-        // 🛑 FIM DO ESCUDO
+        setTimeout(() => { pagamentosRecentes.delete(chavePix); }, 120000);
 
         console.log(`💰 Valor lido do Mercado Pago: R$ ${valorRecebido}`);
 
-        // 2. Busca TODAS as faturas pendentes e filtra com precisão no Javascript
         db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending'", [], async (err, todasFaturas) => {
             if (err) {
-                pagamentosRecentes.delete(chavePix); // Libera em caso de erro
+                pagamentosRecentes.delete(chavePix); 
                 return res.status(500).json({ erro: 'Erro no banco de dados' });
             }
 
-            // 🛡️ CORRIGIDO: Agora aceita com segurança diferenças de até 2 centavos
+            // 🛡️ A MÁGICA CORRIGIDA PARA OS CENTAVOS
             const faturas = todasFaturas.filter(f => {
-                let valorBanco = parseFloat(String(f.amount).replace(',', '.'));
-                return Math.abs(valorBanco - valorRecebido) < 0.03; 
+                // Remove tudo que não for número, ponto ou vírgula (limpa "R$" ou espaços ocultos)
+                let valorBancoStr = String(f.amount).replace(/[^\d.,]/g, '');
+                let valorBanco = 0;
+                
+                // Arruma a formatação brasileira vs americana
+                if (valorBancoStr.includes(',')) {
+                    valorBanco = parseFloat(valorBancoStr.replace(/\./g, '').replace(',', '.'));
+                } else {
+                    valorBanco = parseFloat(valorBancoStr);
+                }
+                
+                // 🎯 Aceita variação de até 5 centavos (cobre 139.75 vs 139.76 tranquilamente)
+                return Math.abs(valorBanco - valorRecebido) <= 0.05; 
             });
 
-            // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
+            // CENÁRIO A: Uma fatura exata
             if (faturas.length === 1) {
                 const invoiceId = faturas[0].id;
                 const clientId = faturas[0].client_id;
@@ -2539,11 +2544,8 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                 db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], async (updateErr) => {
                     if (updateErr) return console.error('Erro ao aprovar fatura pelo celular:', updateErr);
 
-                    // Busca o nome do cliente para te avisar
                     db.get("SELECT name FROM users WHERE id = ?", [clientId], async (userErr, row) => {
                         const clientName = row ? row.name : "um cliente";
-                        
-                        // Manda notificação no Zap para o Lelo
                         if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                             try {
                                 const msgZap = `📱 *MERCADO PAGO (AUTO)*\n\nLelo, o Mercado Pago apitou no aparelho e a Cicí já deu baixa! Pix de R$ ${valorRecebido} aprovado na *Fatura #${invoiceId}* de *${clientName}*! ✅`;
@@ -2555,14 +2557,13 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
                     });
                 });
             } 
-            // CENÁRIO B: Mais de uma fatura ou nenhuma (Pede ajuda)
+            // CENÁRIO B: Pede ajuda
             else {
-                pagamentosRecentes.delete(chavePix); // Remove da memória se não deu certo, para tentar de novo
-                
+                pagamentosRecentes.delete(chavePix); 
                 if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                     try {
                         const msgZap = faturas.length > 1 
-                            ? `📱 *CICI PRECISA DE AJUDA!*\n\nLelo, o Mercado Pago avisou no celular de um Pix de *R$ ${valorRecebido}*, mas tem ${faturas.length} pessoas devendo valor muito próximo. Aprovação manual necessária no painel!`
+                            ? `📱 *CICI PRECISA DE AJUDA!*\n\nLelo, o Mercado Pago avisou no celular de um Pix de *R$ ${valorRecebido}*, mas tem ${faturas.length} pessoas devendo valores parecidos. Aprovação manual necessária no painel!`
                             : `📱 *PIX SEM DONO (Mercado Pago)!*\n\nLelo, notificação de *R$ ${valorRecebido}* recebida, mas ninguém deve esse valor no sistema. Verifique o app!`;
                         
                         const idOficial = await clientZap.getNumberId("5585998239207"); 
@@ -2576,13 +2577,13 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
         res.json({ success: true, message: 'Nenhum valor encontrado na notificação' });
     }
 });
+
 // ==============================================================
 // 🏦 🤖 CICI: MONITORAMENTO DE E-MAIL DO NUBANK (AUTO-APROVAÇÃO)
 // ==============================================================
 const { ImapFlow } = require('imapflow');
 const simpleParser = require('mailparser').simpleParser;
 
-// Suas credenciais oficiais do Google configuradas!
 const EMAIL_USER = 'Comercialguineexpress245@gmail.com'; 
 const EMAIL_PASS = 'pzbqkufiwqyppovw'; 
 
@@ -2594,7 +2595,7 @@ const clientImap = new ImapFlow({
         user: EMAIL_USER,
         pass: EMAIL_PASS
     },
-    logger: false // Mude para true se quiser ver os detalhes da conexão no terminal
+    logger: false 
 });
 
 const startEmailMonitor = async () => {
@@ -2602,14 +2603,11 @@ const startEmailMonitor = async () => {
         await clientImap.connect();
         console.log('🤖 Cicí: Conectada ao Gmail com sucesso. Vigiando Pix do Nubank...');
 
-        // Abre a Caixa de Entrada
         let lock = await clientImap.getMailboxLock('INBOX');
         try {
-            // Fica escutando a chegada de NOVOS e-mails
             clientImap.on('exists', async (data) => {
                 console.log(`📥 Novo e-mail recebido! Total na caixa: ${data.count}`);
                 
-                // Pega o último e-mail que chegou
                 let message = await clientImap.fetchOne('*', { source: true });
                 if (!message) return;
 
@@ -2618,48 +2616,43 @@ const startEmailMonitor = async () => {
                 const assunto = parsed.subject;
                 const corpo = parsed.text || parsed.html || '';
 
-                // Verifica se o e-mail é do Nubank avisando de transferência/Pix recebido
                 if (remetente.includes('nubank.com.br') && (assunto.includes('Pix') || assunto.includes('transferência'))) {
                     console.log('👀 Cicí: E-mail do Nubank detectado! Analisando...');
 
-                    // 1. Extrai o Valor do corpo do e-mail usando RegEx
-                    const matchValor = corpo.match(/R\$\s?([\d\.,]+)/);
+                    const matchValor = corpo.match(/R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/);
                     if (matchValor) {
-                        // Limpeza inteligente: remove todos os pontos de milhar e troca a vírgula por ponto
-                        let valorString = matchValor[1].replace(/\.(?=\d{3})/g, '').replace(',', '.'); 
+                        let valorString = matchValor[1].replace('.', '').replace(',', '.'); 
                         const valorRecebido = parseFloat(valorString);
                         console.log(`💰 Valor do Pix lido: R$ ${valorRecebido}`);
 
-                        // 2. Busca TODAS as faturas pendentes e filtra com precisão no Javascript
                         db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending'", [], async (err, todasFaturas) => {
-                            if (err) {
-                                console.error('Erro ao buscar faturas por valor:', err);
-                                return;
-                            }
+                            if (err) return console.error('Erro ao buscar faturas por valor:', err);
 
-                            // 🛡️ CORRIGIDO: Agora aceita com segurança diferenças de até 2 centavos
+                            // 🛡️ A MÁGICA CORRIGIDA PARA OS CENTAVOS (Nubank)
                             const faturas = todasFaturas.filter(f => {
-                                let valorBanco = parseFloat(String(f.amount).replace(',', '.'));
-                                return Math.abs(valorBanco - valorRecebido) < 0.03; 
+                                let valorBancoStr = String(f.amount).replace(/[^\d.,]/g, '');
+                                let valorBanco = 0;
+                                if (valorBancoStr.includes(',')) {
+                                    valorBanco = parseFloat(valorBancoStr.replace(/\./g, '').replace(',', '.'));
+                                } else {
+                                    valorBanco = parseFloat(valorBancoStr);
+                                }
+                                return Math.abs(valorBanco - valorRecebido) <= 0.05; // 🎯 Aceita variação de até 5 centavos
                             });
 
-                            // CENÁRIO A: Achou exatamente UMA fatura com esse valor. APROVA!
                             if (faturas.length === 1) {
                                 const invoiceId = faturas[0].id;
                                 const clientId = faturas[0].client_id;
 
-                                // Aprova a fatura no banco de dados
                                 db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], async (updateErr) => {
                                     if (updateErr) return console.error('Erro ao aprovar fatura pelo email:', updateErr);
 
-                                    // Busca o nome do cliente para te avisar
                                     db.get("SELECT name FROM users WHERE id = ?", [clientId], async (userErr, row) => {
                                         const clientName = row ? row.name : "um cliente";
                                         
-                                        // Manda notificação no Zap para o Lelo
                                         if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                                             try {
-                                                const msgZap = `🤖 *CICÍ APROVOU SOZINHA!*\n\nLelo, o Pix de R$ ${valorRecebido} do Nubank acabou de cair. Como só tinha uma fatura com esse valor no sistema, eu já dei baixa na *Fatura #${invoiceId}* do cliente *${clientName}*! ✅`;
+                                                const msgZap = `🤖 *CICÍ APROVOU SOZINHA!*\n\nLelo, o Pix de R$ ${valorRecebido} do Nubank acabou de cair. Como só tinha uma fatura com valor parecido no sistema, eu já dei baixa na *Fatura #${invoiceId}* do cliente *${clientName}*! ✅`;
                                                 const idOficial = await clientZap.getNumberId("5585998239207"); 
                                                 if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgZap);
                                                 else await clientZap.sendMessage(`5585998239207@c.us`, msgZap);
@@ -2669,9 +2662,8 @@ const startEmailMonitor = async () => {
                                     });
                                 });
                             } 
-                            // CENÁRIO B: Achou NENHUMA ou MAIS DE UMA fatura. Pede ajuda humana!
                             else {
-                                console.log(`⚠️ Alerta: Existem ${faturas.length} faturas com valor aproximado a R$ ${valorRecebido}. Aprovação manual necessária.`);
+                                console.log(`⚠️ Alerta: Existem ${faturas.length} faturas com valor próximo a R$ ${valorRecebido}. Aprovação manual necessária.`);
                                 if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                                     try {
                                         let msgErro = '';
@@ -2698,7 +2690,6 @@ const startEmailMonitor = async () => {
     }
 };
 
-// Liga o monitor de e-mail assim que o servidor iniciar
 startEmailMonitor();
 // --- ROTA: RECUPERAR SENHA (CORRIGIDA) ---
 app.post('/api/recover-password', (req, res) => {
