@@ -3333,12 +3333,9 @@ const queryDB = (sql, params = []) => {
         });
     });
 };
-// ==================================================================
-// 🧠 NOVO CÉREBRO DA CICÍ: AGORA ELA CRIA ENCOMENDAS E BOXES
-// ==================================================================
 app.post('/api/cici/chat', async (req, res) => {
     try {
-        const { text, userContext, image, isFirstMessage, lang } = req.body;
+        const { text, userContext, image, isFirstMessage, lang, history } = req.body;
         const userId = req.session.userId; 
         const userRole = req.session.role; 
 
@@ -3354,7 +3351,6 @@ app.post('/api/cici/chat', async (req, res) => {
             }
         }
 
-        // 2. DEFININDO AS FERRAMENTAS (O Cinto de Utilidades da Cicí)
         let ferramentasCici = [];
         
         if (userRole !== 'client') {
@@ -3362,7 +3358,7 @@ app.post('/api/cici/chat', async (req, res) => {
                 functionDeclarations: [
                     {
                         name: "buscarCliente",
-                        description: "Busca clientes pelo nome. Retorna o client_id e os dados da última encomenda dele (order_id, products, amount).",
+                        description: "Busca clientes pelo nome. Retorna dados do cliente e da última encomenda dele.",
                         parameters: {
                             type: "OBJECT",
                             properties: {
@@ -3387,7 +3383,6 @@ app.post('/api/cici/chat', async (req, res) => {
                             required: ["client_id", "code", "weight", "status"]
                         }
                     },
-                    // 👇 NOVA FERRAMENTA: CRIAR BOX
                     {
                         name: "criarBox",
                         description: "Cria um box/caixa para uma encomenda.",
@@ -3408,28 +3403,29 @@ app.post('/api/cici/chat', async (req, res) => {
             }];
         }
 
-        // 3. PROMPT MESTRE (As Leis da Cicí)
+        // 🧠 O CÉREBRO DA CICÍ REFORMULADO
         const systemPrompt = `Você é a Cicí 18.0, a IA suprema e Agente Autônoma da Guineexpress. 
         Usuário atual: ${userContext.name || 'Desconhecido'} (Nível: ${userRole}). Tela: ${userContext.currentPage}.
         ${dadosExtras}
         Idioma: ${lang || 'pt-BR'}
 
         REGRAS DE BANCO DE DADOS (FERRAMENTAS):
-        1. CRIAR ENCOMENDA: Use a ferramenta 'buscarCliente' para achar o ID, depois use 'criarEncomenda'.
-        2. CRIAR BOX: Use 'buscarCliente' para achar o cliente. DEPOIS PERGUNTE: "Para qual número de box?". Só crie o box com a ferramenta 'criarBox' APÓS o Lelo responder o número.
+        1. CRIAR ENCOMENDA: Use 'buscarCliente' para achar o ID, depois 'criarEncomenda'.
+        2. CRIAR BOX: Use 'buscarCliente', PERGUNTE o número do box, e só depois use 'criarBox'.
 
-        PODERES DE CONTROLE DE TELA (TAGS SECRETAS):
-        Você pode controlar a tela do usuário inserindo estas TAGS no final da sua frase de resposta. Use exatamente o formato abaixo:
-        - Imprimir Etiqueta: [ACTION:print:CODIGO] (Ex: "Imprimindo... [ACTION:print:123]")
-        - Abrir aba/menu: [ACTION:nav:ID_DA_ABA] (Ex: "Abrindo clientes... [ACTION:nav:tab-clientes]")
-        - Pesquisar na tela: [ACTION:search:NOME] (Ex: "Buscando o Lelo... [ACTION:search:Lelo]")
-        - Novo Registro: [ACTION:new_record]
-        - Rolar a tela: [ACTION:scroll:bottom] ou [ACTION:scroll:top]
-        - Sair/Logout: [ACTION:logout]
+        ⚡ PODERES DE CONTROLE DE TELA E IMPRESSÃO (OBRIGATÓRIO):
+        As palavras não fazem nada. Para o sistema do Lelo funcionar, você DEVE escrever as TAGS ocultas no final da sua frase.
+        - Abrir Aba Etiquetas: [ACTION:nav:labels-view]
+        - Imprimir: [ACTION:print:CODIGO:QUANTIDADE]
+        
+        ⚠️ COMO IMPRIMIR ETIQUETAS PERFEITAMENTE (SIGA A ORDEM):
+        Se o usuário pedir para imprimir (Ex: "imprima 1 etiqueta do mamadu"):
+        1º PASSO: Use a ferramenta 'buscarCliente' para encontrar o "code" da encomenda.
+        2º PASSO: Se o usuário NÃO disser a quantidade (Ex: "imprima a etiqueta do mamadu"), pergunte a quantidade primeiro.
+        3º PASSO: Quando você souber a QUANTIDADE e a ferramenta 'buscarCliente' te devolver o "code" (ex: GX-5555), a sua resposta FINAL DEVE ser a confirmação + as duas tags.
+        Exemplo Exato da Resposta Final: "Com certeza! Abrindo o gerador e imprimindo 1 etiqueta para o Mamadu. [ACTION:nav:labels-view] [ACTION:print:GX-5555:1]"
 
-        IMPORTANTE: 
-        - Não explique ou avise que está usando as tags. Apenas as insira ocultas no final da resposta.
-        - Seja sempre muito natural, simpática e não use termos técnicos nas respostas de texto.`;
+        IMPORTANTE: Nunca explique as tags.`;
 
         let messageParts = [{ text: text || "Olá!" }];
         if (image) {
@@ -3441,20 +3437,21 @@ app.post('/api/cici/chat', async (req, res) => {
             });
         }
 
-        const chatParams = {
-            history: [
-                { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: "Entendido. Cicí pronta para operar encomendas e boxes." }] }
-            ]
-        };
+        let historicoCompleto = [
+            { role: "user", parts: [{ text: systemPrompt }] },
+            { role: "model", parts: [{ text: "Entendido. Serei estrita com as tags de ACTION." }] }
+        ];
+
+        if (history && Array.isArray(history)) {
+            historicoCompleto = historicoCompleto.concat(history);
+        }
+
+        const chatParams = { history: historicoCompleto };
         if (ferramentasCici.length > 0) chatParams.tools = ferramentasCici;
 
         const chat = model.startChat(chatParams);
         let result = await chat.sendMessage(messageParts);
-
-        // ==============================================================
-        // ⚙️ O MOTOR DE EXECUÇÃO DAS FERRAMENTAS
-        // ==============================================================
+        
         const functionCalls = result.response.functionCalls();
         
         if (functionCalls) {
@@ -3464,10 +3461,9 @@ app.post('/api/cici/chat', async (req, res) => {
             console.log(`🤖 [CICÍ] Acionou a ferramenta: ${call.name}`, call.args);
 
             if (call.name === "buscarCliente") {
-                // 👇 Buscamos o cliente E a última encomenda dele de uma vez só!
                 const clientesInfo = await new Promise((resolve) => {
                     const sql = `
-                        SELECT u.id as client_id, u.name, o.id as order_id, o.description as products, o.price as amount, o.lote 
+                        SELECT u.id as client_id, u.name, o.id as order_id, o.code, o.description as products, o.price as amount, o.lote 
                         FROM users u 
                         LEFT JOIN orders o ON u.id = o.client_id AND (o.deleted = 0 OR o.deleted IS NULL)
                         WHERE u.role = 'client' AND u.name LIKE ? 
@@ -3477,10 +3473,16 @@ app.post('/api/cici/chat', async (req, res) => {
                         resolve(rows || []);
                     });
                 });
-                functionResult = { resultado: clientesInfo.length > 0 ? clientesInfo : "Nenhum cliente ou encomenda encontrada." };
+                
+                // 👇 HACK: Colocamos uma ordem expressa dentro do retorno da ferramenta!
+                functionResult = { 
+                    resultado: clientesInfo.length > 0 ? clientesInfo : "Nenhum cliente ou encomenda encontrada.",
+                    ORDEM_DO_SISTEMA: "Responda o usuário e COLOQUE OBRIGATORIAMENTE as tags [ACTION:nav:labels-view] e [ACTION:print:CÓDIGO_ENCONTRADO:QUANTIDADE] no final do texto."
+                };
             } 
             
             else if (call.name === "criarEncomenda") {
+                // ... (Mantido exatamente como o seu código)
                 const args = call.args;
                 functionResult = await new Promise((resolve) => {
                     db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
@@ -3497,8 +3499,8 @@ app.post('/api/cici/chat', async (req, res) => {
                 });
             }
 
-            // 👇 NOVA FUNÇÃO: Executando o INSERT do Box
             else if (call.name === "criarBox") {
+                // ... (Mantido exatamente como o seu código)
                 const args = call.args;
                 functionResult = await new Promise((resolve) => {
                     const cleanBoxCode = args.box_code ? args.box_code.trim().toUpperCase() : '';
@@ -3517,12 +3519,14 @@ app.post('/api/cici/chat', async (req, res) => {
                 });
             }
 
+            // 👇 Aqui o servidor devolve o código encontrado pro cérebro dela terminar a frase com as tags!
             result = await chat.sendMessage([{
                 functionResponse: { name: call.name, response: functionResult }
             }]);
         }
 
         const replyText = result.response.text();
+        console.log("🗣️ TEXTO BRUTO DA CICÍ:", replyText);
         res.json({ reply: replyText, lang: lang || 'pt-BR' });
 
     } catch (error) {

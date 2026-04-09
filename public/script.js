@@ -5183,27 +5183,43 @@ async function handleScannedCode(code) {
         alert("Erro ao buscar dados.");
     }
 }
-function printLabel(code, name, weight, desc) {
+function printLabel(code, name, weight, desc, qtd = 1) {
     const printWindow = window.open('', '', 'width=400,height=600');
-    printWindow.document.write(`
-        <html>
-        <body style="text-align:center; font-family:Arial;">
-            <div style="border:2px solid #000; padding:20px; margin:10px;">
+    
+    let labelsHTML = '';
+    // 👇 O LOOP DA MÁGICA: Cria a etiqueta X vezes!
+    for(let i = 0; i < qtd; i++) {
+        // O page-break-after: always garante que cada etiqueta saia em um adesivo/página separada
+        labelsHTML += `
+            <div style="border:2px solid #000; padding:20px; margin:10px; page-break-after: always;">
                 <h1>GUINEEXPRESS</h1>
                 <h2 style="font-size:40px; margin:10px 0;">${code}</h2>
-                <div id="qrcode" style="display:flex; justify-content:center; margin:20px 0;"></div>
+                <div class="qrcode-container" data-text="${code}|${name}" style="display:flex; justify-content:center; margin:20px 0;"></div>
                 <h3>${name}</h3>
                 <p>${desc} - ${weight}kg</p>
                 <p style="font-size:10px;">${new Date().toLocaleDateString()}</p>
             </div>
+        `;
+    }
+
+    printWindow.document.write(`
+        <html>
+        <body style="text-align:center; font-family:Arial;">
+            ${labelsHTML}
             <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
             <script>
-                new QRCode(document.getElementById("qrcode"), {
-                    text: "${code}|${name}", // O Scanner lê isso aqui
-                    width: 150,
-                    height: 150
+                // Lê todas as divs de qrcode que criamos no loop e desenha a imagem nelas
+                const qrcodes = document.querySelectorAll('.qrcode-container');
+                qrcodes.forEach(container => {
+                    new QRCode(container, {
+                        text: container.getAttribute('data-text'),
+                        width: 150,
+                        height: 150
+                    });
                 });
-                setTimeout(() => { window.print(); window.close(); }, 1000);
+                
+                // Espera 1.5s para os QRCodes carregarem antes de abrir a janela de imprimir
+                setTimeout(() => { window.print(); window.close(); }, 1500);
             </script>
         </body>
         </html>

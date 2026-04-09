@@ -6,6 +6,11 @@ const CiciAI = {
     isOpen: false,
     userRole: 'visitor',
     userName: '',
+    // 👇 A PÍLULA DA MEMÓRIA: Esse array vai guardar a conversa!
+    chatHistory: [], 
+    isListening: false,
+    recognition: null,
+    silenceTimer: null,
     // 👇 ADICIONE ESTAS TRÊS LINHAS:
     isListening: false,
     recognition: null,
@@ -315,6 +320,8 @@ const CiciAI = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     text, 
+                    // 👇 ENVIAMOS A MEMÓRIA PARA O SERVIDOR!
+                    history: this.chatHistory, 
                     userContext: { role: this.userRole, name: this.userName, deviceInfo: this.deviceInfo, currentPage: this.currentPage },
                     image: this.currentImageBase64,
                     isFirstMessage,
@@ -327,13 +334,19 @@ const CiciAI = {
             if(data.lang) this.currentLang = data.lang;
             let reply = data.reply;
 
+            // 👇 GUARDAMOS A CONVERSA NO CADERNINHO (Max 15 mensagens para não pesar)
+            if (text) {
+                this.chatHistory.push({ role: "user", parts: [{ text: text }] });
+                this.chatHistory.push({ role: "model", parts: [{ text: reply }] });
+                if (this.chatHistory.length > 15) this.chatHistory = this.chatHistory.slice(-15);
+            }
+
             // ====================================================
             // ⚡ MOTOR UNIVERSAL DE AÇÕES DA CICÍ
             // ====================================================
             const actionRegex = /\[ACTION:([a-zA-Z0-9_]+)(?::(.*?))?\]/g;
             let match;
             
-            // Vai rodar em loop caso a Cicí mande mais de um comando na mesma frase!
             while ((match = actionRegex.exec(reply)) !== null) {
                 const comando = match[1];
                 const valor = match[2] ? match[2].trim() : null;
@@ -343,52 +356,50 @@ const CiciAI = {
                         case 'install': this.showInstallGuide(); break;
                         case 'push': if(typeof enableNotifications === 'function') enableNotifications(); break;
                         case 'redirect': window.location.href = valor; break;
-                        case 'print': if(typeof window.imprimirEtiquetaPelaCici === 'function') window.imprimirEtiquetaPelaCici(valor); break;
+                        case 'print': 
+                            // A Cicí vai mandar "123:2" (Código 123, 2 etiquetas)
+                            let partes = valor.split(':');
+                            let codigo = partes[0];
+                            let qtd = partes.length > 1 ? parseInt(partes[1]) : 1;
+                            
+                            if(typeof window.imprimirEtiquetaPelaCici === 'function') {
+                                window.imprimirEtiquetaPelaCici(codigo, qtd);
+                            }
+                            break;
                         
-                        // 🧭 NAVEGAÇÃO DE ABAS
                         case 'nav': 
-                            // Ex: [ACTION:nav:tab-faturas]
                             const tab = document.getElementById(valor) || document.querySelector(`[onclick*="${valor}"]`);
                             if(tab) tab.click();
                             break;
 
-                        // 🔍 BUSCA AUTOMÁTICA
                         case 'search':
-                            // Ex: [ACTION:search:Carlos]
                             const inputBusca = document.getElementById('search-input') || document.querySelector('input[type="search"]');
                             if(inputBusca) { 
                                 inputBusca.value = valor; 
-                                inputBusca.dispatchEvent(new Event('input')); // Faz a lista filtrar na hora
+                                inputBusca.dispatchEvent(new Event('input')); 
                             }
                             break;
 
-                        // 📝 CRIAR NOVA FATURA / REGISTRO
                         case 'new_record':
-                            // Ex: [ACTION:new_record]
-                            // Procura botões com esses IDs ou classes padrões
                             const btnNovo = document.getElementById('btn-new-invoice') || 
                                             document.getElementById('btn-add-client') || 
                                             document.querySelector('button[onclick*="showModal"]');
                             if(btnNovo) btnNovo.click();
                             break;
 
-                        // 📜 ROLAGEM DE TELA
                         case 'scroll':
                             if(valor === 'bottom') window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
                             if(valor === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
                             break;
 
-                        // 🚪 SAIR DO SISTEMA
                         case 'logout':
-                            window.location.href = '/logout'; // ou o link que você usa para sair
+                            window.location.href = '/logout';
                             break;
                     }
-                }, 500); // 0.5s de delay para parecer que ela está "pensando e clicando"
+                }, 500); 
             }
 
-            // 🧹 Limpa os códigos secretos do texto para a Cicí não falar os colchetes em voz alta!
             reply = reply.replace(/\[ACTION:[a-zA-Z0-9_]+(?::.*?)?\]/g, '').trim();
-            // ====================================================
 
             this.addMessage(reply, 'cici');
             this.clearImage(); 
@@ -462,7 +473,7 @@ const CiciAI = {
             // ⏱️ FREIO DE ANSIEDADE: Toda vez que você fala uma palavra, o relógio zera
             clearTimeout(this.silenceTimer);
             
-            // Se você ficar 2.5 segundos em silêncio, ela entende que você terminou a frase
+            // Se você ficar 2.5 segundos em silêncio, ela entende que você terminou a frase e envia
             this.silenceTimer = setTimeout(() => {
                 this.recognition.stop(); 
             }, 2500); 
@@ -473,9 +484,10 @@ const CiciAI = {
             inputEl.placeholder = "Diga oi para a Cicí...";
             if(micBtn) micBtn.style.color = ""; // Volta a cor do microfone ao normal
             
-            // Só envia a mensagem se tiver algo escrito e se ela não estiver enviando uma imagem
+            // Só envia a mensagem se tiver algo escrito
             if(inputEl.value.trim() !== '') {
-                this.handleSend();
+                // 👇 Chama a função que envia a mensagem para o servidor!
+                this.handleSend(); 
             }
         };
 
