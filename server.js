@@ -3398,34 +3398,58 @@ app.post('/api/cici/chat', async (req, res) => {
                             },
                             required: ["client_id", "order_id", "box_code"]
                         }
+                    },
+                    // 👇 1. AQUI ENTROU A NOVA FERRAMENTA DE FATURAS!
+                    {
+                        name: "criarFatura",
+                        description: "Cria faturas financeiras separadas para boxes específicos de um cliente.",
+                        parameters: {
+                            type: "OBJECT",
+                            properties: {
+                                client_id: { type: "INTEGER" },
+                                boxes: { 
+                                    type: "ARRAY", 
+                                    description: "Lista com os códigos dos boxes solicitados (Ex: ['BOX 1', 'BOX 2'])",
+                                    items: { type: "STRING" }
+                                }
+                            },
+                            required: ["client_id", "boxes"]
+                        }
                     }
                 ]
             }];
         }
 
-        // 🧠 O CÉREBRO DA CICÍ REFORMULADO
+        // 🧠 O CÉREBRO DA CICÍ REFORMULADO - VERSÃO SUPER INTELIGENTE
         const systemPrompt = `Você é a Cicí 18.0, a IA suprema e Agente Autônoma da Guineexpress. 
         Usuário atual: ${userContext.name || 'Desconhecido'} (Nível: ${userRole}). Tela: ${userContext.currentPage}.
         ${dadosExtras}
         Idioma: ${lang || 'pt-BR'}
 
+        🛑 MODO ANTI-FALHAS (À PROVA DE ERROS E IMPREVISTOS):
+        - NUNCA ADIVINHE DADOS: Se o usuário pedir para criar um box, encomenda ou fatura e NÃO informar detalhes obrigatórios (como Peso, Valor, Produtos ou Número do Box), PARE E PERGUNTE. Exemplo: "Claro! Mas qual é o peso da encomenda?" ou "Qual o número desse box?".
+        - BUSCA INTELIGENTE: Se você usar a ferramenta 'buscarCliente' e não retornar nada, não invente dados. Diga: "Puxa, não encontrei ninguém com esse nome. Pode conferir como está escrito?"
+        - CONFIANÇA CEGA NO BANCO: Você não tem memória própria de clientes. Toda vez que citarem um nome, use 'buscarCliente' ANTES de qualquer outra coisa.
+
         REGRAS DE BANCO DE DADOS (FERRAMENTAS):
-        1. CRIAR ENCOMENDA: Use 'buscarCliente' para achar o ID, depois 'criarEncomenda'.
-        2. CRIAR BOX: Use 'buscarCliente', PERGUNTE o número do box, e só depois use 'criarBox'.
+        1. CRIAR ENCOMENDA: Use 'buscarCliente' para achar o ID. Se tiver todos os dados (peso, status, etc), chame 'criarEncomenda'. Se faltar algo, pergunte.
+        2. CRIAR BOX: Use 'buscarCliente'. Confirme com o usuário o número do box e os produtos. Só depois chame 'criarBox'.
+        3. CRIAR FATURAS: Use 'buscarCliente' para pegar o ID. Se o usuário pedir boxes específicos, chame 'criarFatura' mandando a lista exata (Ex: ['BOX 1', 'BOX 2']).
+        ⚠️ IMPORTANTE: Se o banco de dados retornar um "erro" na ferramenta, AVISE o usuário qual foi o problema imediatamente. Nunca diga que deu certo se a ferramenta retornar erro.
 
         ⚡ PODERES DE CONTROLE DE TELA E IMPRESSÃO (OBRIGATÓRIO):
-        As palavras não fazem nada. Para o sistema do Lelo funcionar, você DEVE escrever as TAGS ocultas no final da sua frase.
+        As palavras sozinhas não funcionam no sistema visual. Você DEVE escrever as TAGS ocultas no final da sua frase para a mágica acontecer.
         - Abrir Aba Etiquetas: [ACTION:nav:labels-view]
+        - Abrir Aba Faturas: [ACTION:nav:billing-view]
         - Imprimir: [ACTION:print:CODIGO:QUANTIDADE]
         
-        ⚠️ COMO IMPRIMIR ETIQUETAS PERFEITAMENTE (SIGA A ORDEM):
-        Se o usuário pedir para imprimir (Ex: "imprima 1 etiqueta do mamadu"):
-        1º PASSO: Use a ferramenta 'buscarCliente' para encontrar o "code" da encomenda.
-        2º PASSO: Se o usuário NÃO disser a quantidade (Ex: "imprima a etiqueta do mamadu"), pergunte a quantidade primeiro.
-        3º PASSO: Quando você souber a QUANTIDADE e a ferramenta 'buscarCliente' te devolver o "code" (ex: GX-5555), a sua resposta FINAL DEVE ser a confirmação + as duas tags.
-        Exemplo Exato da Resposta Final: "Com certeza! Abrindo o gerador e imprimindo 1 etiqueta para o Mamadu. [ACTION:nav:labels-view] [ACTION:print:GX-5555:1]"
+        ⚠️ COMO IMPRIMIR ETIQUETAS PERFEITAMENTE (SIGA A ORDEM RIGOROSAMENTE):
+        1º PASSO: Use 'buscarCliente' para encontrar o "code" da encomenda (Ex: GX-5555).
+        2º PASSO: Se o usuário NÃO disser a quantidade, pergunte a quantidade primeiro. NUNCA imprima sem saber a quantidade.
+        3º PASSO: Com CÓDIGO e QUANTIDADE em mãos, sua resposta final DEVE ter a confirmação e as tags juntas.
+        Exemplo Exato: "Com certeza! Imprimindo 1 etiqueta para o Mamadu agora mesmo. [ACTION:nav:labels-view] [ACTION:print:GX-5555:1]"
 
-        IMPORTANTE: Nunca explique as tags.`;
+        IMPORTANTE: Nunca explique essas tags de ACTION para o usuário. Apenas aja.`;
 
         let messageParts = [{ text: text || "Olá!" }];
         if (image) {
@@ -3450,83 +3474,131 @@ app.post('/api/cici/chat', async (req, res) => {
         if (ferramentasCici.length > 0) chatParams.tools = ferramentasCici;
 
         const chat = model.startChat(chatParams);
+        // 🚀 Início da conversa
         let result = await chat.sendMessage(messageParts);
-        
-        const functionCalls = result.response.functionCalls();
-        
-        if (functionCalls) {
-            const call = functionCalls[0]; 
-            let functionResult = {};
+        let response = result.response;
 
-            console.log(`🤖 [CICÍ] Acionou a ferramenta: ${call.name}`, call.args);
+        // 🔄 LOOP MÁGICO: Enquanto a Cicí quiser chamar ferramentas, a gente executa
+        while (response.functionCalls() && response.functionCalls().length > 0) {
+            const functionCalls = response.functionCalls();
+            const functionResponses = [];
 
-            if (call.name === "buscarCliente") {
-                const clientesInfo = await new Promise((resolve) => {
-                    const sql = `
-                        SELECT u.id as client_id, u.name, o.id as order_id, o.code, o.description as products, o.price as amount, o.lote 
-                        FROM users u 
-                        LEFT JOIN orders o ON u.id = o.client_id AND (o.deleted = 0 OR o.deleted IS NULL)
-                        WHERE u.role = 'client' AND u.name LIKE ? 
-                        ORDER BY o.id DESC LIMIT 1
-                    `;
-                    db.all(sql, [`%${call.args.nomeBusca}%`], (err, rows) => {
-                        resolve(rows || []);
-                    });
-                });
-                
-                // 👇 HACK: Colocamos uma ordem expressa dentro do retorno da ferramenta!
-                functionResult = { 
-                    resultado: clientesInfo.length > 0 ? clientesInfo : "Nenhum cliente ou encomenda encontrada.",
-                    ORDEM_DO_SISTEMA: "Responda o usuário e COLOQUE OBRIGATORIAMENTE as tags [ACTION:nav:labels-view] e [ACTION:print:CÓDIGO_ENCONTRADO:QUANTIDADE] no final do texto."
-                };
-            } 
-            
-            else if (call.name === "criarEncomenda") {
-                // ... (Mantido exatamente como o seu código)
-                const args = call.args;
-                functionResult = await new Promise((resolve) => {
-                    db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
-                        const pricePerKg = row ? parseFloat(row.value) : 0;
-                        const totalPrice = (parseFloat(args.weight) * pricePerKg).toFixed(2);
-                        const loteFinal = args.lote || 'Sem Lote';
+            for (const call of functionCalls) {
+                let functionResult = {};
+                console.log(`🤖 [CICÍ] Acionou a ferramenta: ${call.name}`, call.args);
 
-                        const sql = `INSERT INTO orders (client_id, code, description, weight, status, price, lote) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-                        db.run(sql, [args.client_id, args.code, args.description, args.weight, args.status, totalPrice, loteFinal], function(err) {
-                            if (err) resolve({ erro: err.message });
-                            else resolve({ sucesso: true, mensagem: `Encomenda criada com ID ${this.lastID}` });
+                if (call.name === "buscarCliente") {
+                    const clientesInfo = await new Promise((resolve) => {
+                        const sql = `
+                            SELECT u.id as client_id, u.name, o.id as order_id, o.code, o.description as products, o.price as amount, o.lote 
+                            FROM users u 
+                            LEFT JOIN orders o ON u.id = o.client_id AND (o.deleted = 0 OR o.deleted IS NULL)
+                            WHERE u.role = 'client' AND u.name LIKE ? 
+                            ORDER BY o.id DESC LIMIT 1
+                        `;
+                        db.all(sql, [`%${call.args.nomeBusca}%`], (err, rows) => {
+                            resolve(rows || []);
                         });
                     });
+                    functionResult = { resultado: clientesInfo.length > 0 ? clientesInfo : "Nenhum cliente encontrado." };
+                } 
+                
+                else if (call.name === "criarEncomenda") {
+                    const args = call.args;
+                    functionResult = await new Promise((resolve) => {
+                        db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
+                            const pricePerKg = row ? parseFloat(row.value) : 0;
+                            const totalPrice = (parseFloat(args.weight) * pricePerKg).toFixed(2);
+                            const sql = `INSERT INTO orders (client_id, code, description, weight, status, price, lote) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                            db.run(sql, [args.client_id, args.code, args.description, args.weight, args.status, totalPrice, args.lote || 'Sem Lote'], function(err) {
+                                if (err) resolve({ erro: err.message });
+                                else resolve({ sucesso: true, mensagem: `Encomenda criada!` });
+                            });
+                        });
+                    });
+                }
+
+                else if (call.name === "criarBox") {
+                    const args = call.args;
+                    functionResult = await new Promise((resolve) => {
+                        db.run(
+                            "INSERT INTO boxes (client_id, order_id, box_code, products, amount, lote) VALUES (?,?,?,?,?,?)",
+                            [args.client_id, args.order_id, args.box_code.toUpperCase(), args.products || 'Diversos', args.amount || 0, args.lote || 'Sem Lote'],
+                            function(err) {
+                                if (err) resolve({ erro: err.message });
+                                else resolve({ sucesso: true, mensagem: `Box criado!` });
+                            }
+                        );
+                    });
+                }
+
+                else if (call.name === "criarFatura") {
+                    const args = call.args;
+                    functionResult = await new Promise((resolve) => {
+                        const placeholders = args.boxes.map(() => '?').join(',');
+                        
+const queryBoxes = `
+    SELECT id, box_code, amount 
+    FROM boxes 
+    WHERE client_id = ? AND UPPER(box_code) IN (${placeholders})
+    GROUP BY UPPER(box_code)
+`;
+                        
+                        // Deixa os argumentos todos em maiúsculo para a busca bater certinho
+                        const boxParams = args.boxes.map(b => b.toUpperCase());
+
+                        db.all(queryBoxes, [args.client_id, ...boxParams], (err, boxesEncontrados) => {
+                            if (err) {
+                                console.error("❌ ERRO SQL (Buscar Box):", err.message);
+                                return resolve({ erro: "Erro interno no banco ao buscar o box." });
+                            }
+                            
+                            if (!boxesEncontrados || boxesEncontrados.length === 0) {
+                                console.error("❌ AVISO: Box não encontrado no banco. Procurado:", args.boxes);
+                                return resolve({ erro: `Atenção: Os boxes ${args.boxes.join(', ')} não foram encontrados para este cliente no banco de dados.` });
+                            }
+
+                            let completados = 0;
+                            let teveErro = false;
+
+                            boxesEncontrados.forEach(box => {
+                                db.run(
+                                    "INSERT INTO invoices (client_id, box_id, amount, description, status) VALUES (?, ?, ?, ?, 'pending')",
+                                    [args.client_id, box.id, box.amount || 0, `Fatura ${box.box_code}`],
+                                    function(errInsert) {
+                                        if (errInsert) {
+                                            console.error("❌ ERRO SQL (Inserir Fatura):", errInsert.message);
+                                            teveErro = true;
+                                        }
+                                        
+                                        completados++;
+                                        if (completados === boxesEncontrados.length) {
+                                            if (teveErro) {
+                                                resolve({ erro: "Ocorreu um erro SQL ao tentar salvar a fatura na tabela." });
+                                            } else {
+                                                resolve({ sucesso: true, msg: "Faturas criadas no banco de dados com sucesso!" });
+                                            }
+                                        }
+                                    }
+                                );
+                            });
+                        });
+                    });
+                }
+
+                functionResponses.push({
+                    functionResponse: { name: call.name, response: functionResult }
                 });
             }
 
-            else if (call.name === "criarBox") {
-                // ... (Mantido exatamente como o seu código)
-                const args = call.args;
-                functionResult = await new Promise((resolve) => {
-                    const cleanBoxCode = args.box_code ? args.box_code.trim().toUpperCase() : '';
-                    const loteFinal = args.lote || 'Sem Lote';
-                    const prod = args.products || 'Diversos';
-                    const valor = args.amount || 0;
-
-                    db.run(
-                        "INSERT INTO boxes (client_id, order_id, box_code, products, amount, lote) VALUES (?,?,?,?,?,?)",
-                        [args.client_id, args.order_id, cleanBoxCode, prod, valor, loteFinal],
-                        function(err) {
-                            if (err) resolve({ erro: err.message });
-                            else resolve({ sucesso: true, mensagem: `Box ${cleanBoxCode} criado com sucesso!` });
-                        }
-                    );
-                });
-            }
-
-            // 👇 Aqui o servidor devolve o código encontrado pro cérebro dela terminar a frase com as tags!
-            result = await chat.sendMessage([{
-                functionResponse: { name: call.name, response: functionResult }
-            }]);
+            // Envia os resultados das funções de volta para a Cicí e vê o que ela diz agora
+            result = await chat.sendMessage(functionResponses);
+            response = result.response;
         }
 
-        const replyText = result.response.text();
-        console.log("🗣️ TEXTO BRUTO DA CICÍ:", replyText);
+        // 🗣️ Agora sim, pegamos o texto final (depois de todas as ferramentas rodarem)
+        const replyText = response.text();
+        console.log("🗣️ TEXTO FINAL DA CICÍ:", replyText);
         res.json({ reply: replyText, lang: lang || 'pt-BR' });
 
     } catch (error) {
