@@ -684,21 +684,41 @@ async function copiarPixExato(idFatura, banco) {
         alert("❌ Erro: Fatura não identificada.");
         return;
     }
-
+    
+    // Mostra pro cliente que está carregando para ele não clicar várias vezes
+    const btnText = banco === 'mp' ? '🔵 Copiar (Mercado Pago)' : '🟣 Copiar (Nubank)';
+    // Opcional: Aqui você pode mudar o texto do botão para "Carregando..."
+    
     try {
         const resposta = await fetch(`/api/gerar-pix/${banco}/${idFatura}`);
         const dados = await resposta.json();
-
+        
         if (dados.sucesso) {
-            await navigator.clipboard.writeText(dados.pix_copia_cola);
+            
+            // 🛡️ TENTATIVA 1: O jeito moderno (Pode falhar no celular)
+            try {
+                await navigator.clipboard.writeText(dados.pix_copia_cola);
+            } catch (errClipboard) {
+                // 🛡️ TENTATIVA 2: O jeito raiz (A prova de falhas para celular)
+                console.log("Modo moderno falhou, tentando modo raiz...");
+                const tempInput = document.createElement("textarea");
+                tempInput.value = dados.pix_copia_cola;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                tempInput.setSelectionRange(0, 99999); // Para mobile
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
+            }
+
             const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
-            alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor travado: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.\n\nAprovação automática em instantes!`);
+            alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor exato: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.\n\nAprovação automática em instantes!`);
+            
         } else {
-            alert("❌ Erro ao gerar o Pix automático. Use a chave manual abaixo.");
+            alert("❌ Erro ao gerar o Pix automático. O servidor recusou o pedido.");
         }
     } catch (erro) {
-        console.error("Erro ao gerar Pix:", erro);
-        alert("❌ Erro de conexão. Use a chave manual abaixo.");
+        console.error("Erro interno no cliente:", erro);
+        alert("❌ Erro de conexão com o servidor. Tente novamente ou chame o suporte.");
     }
 }
 </script>
