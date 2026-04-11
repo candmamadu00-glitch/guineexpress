@@ -3411,6 +3411,10 @@ app.post('/api/cici/chat', async (req, res) => {
                                     type: "ARRAY", 
                                     description: "Lista com os códigos dos boxes solicitados (Ex: ['BOX 1', 'BOX 2'])",
                                     items: { type: "STRING" }
+                                },
+                                nf_amount: { 
+                                    type: "NUMBER", 
+                                    description: "Valor da Nota Fiscal dos produtos, se o usuário informar." 
                                 }
                             },
                             required: ["client_id", "boxes"]
@@ -3535,52 +3539,129 @@ app.post('/api/cici/chat', async (req, res) => {
                 else if (call.name === "criarFatura") {
                     const args = call.args;
                     functionResult = await new Promise((resolve) => {
-                        const placeholders = args.boxes.map(() => '?').join(',');
-                        
-const queryBoxes = `
-    SELECT id, box_code, amount 
-    FROM boxes 
-    WHERE client_id = ? AND UPPER(box_code) IN (${placeholders})
-    GROUP BY UPPER(box_code)
-`;
-                        
-                        // Deixa os argumentos todos em maiúsculo para a busca bater certinho
-                        const boxParams = args.boxes.map(b => b.toUpperCase());
+                        db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (errPrice, rowPrice) => {
+                            const pricePerKg = rowPrice && rowPrice.value ? parseFloat(rowPrice.value) : 0;
+                            const placeholders = args.boxes.map(() => '?').join(',');
 
-                        db.all(queryBoxes, [args.client_id, ...boxParams], (err, boxesEncontrados) => {
-                            if (err) {
-                                console.error("❌ ERRO SQL (Buscar Box):", err.message);
-                                return resolve({ erro: "Erro interno no banco ao buscar o box." });
-                            }
+                            const queryBoxes = `
+                                SELECT b.id as box_id, b.box_code, b.amount as box_amount, 
+                                       u.id as client_id, u.name, u.email, u.phone,
+                                       o.weight as order_weight, o.price as order_price
+                                FROM boxes b
+                                LEFT JOIN orders o ON b.order_id = o.id
+                                LEFT JOIN users u ON b.client_id = u.id
+                                WHERE b.client_id = ? AND UPPER(TRIM(b.box_code)) IN (${placeholders})
+                            `;
                             
-                            if (!boxesEncontrados || boxesEncontrados.length === 0) {
-                                console.error("❌ AVISO: Box não encontrado no banco. Procurado:", args.boxes);
-                                return resolve({ erro: `Atenção: Os boxes ${args.boxes.join(', ')} não foram encontrados para este cliente no banco de dados.` });
-                            }
+                            const boxParams = args.boxes.map(b => b.trim().toUpperCase());
 
-                            let completados = 0;
-                            let teveErro = false;
+                            db.all(queryBoxes, [args.client_id, ...boxParams], async (err, rows) => {
+                                if (err) {
+                                    return resolve({ erro: `Erro interno no banco de dados: ${err.message}` });
+                                }
+                                
+                                const boxesEncontrados = [];
+                                for (const reqBox of boxParams) {
+                                    const matches = rows.filter(r => r.box_code.trim().toUpperCase() === reqBox);
+                                    if (matches.length > 0) {
+                                        matches.sort((a, b) => {
+                                            const weightA = parseFloat(a.order_weight) || 0;
+                                            const weightB = parseFloat(b.order_weight) || 0;
+                                            if (weightA !== weightB) return weightB - weightA;
+                                            
+                                            const amtA = parseFloat(a.box_amount) || parseFloat(a.order_price) || 0;
+                                            const amtB = parseFloat(b.box_amount) || parseFloat(b.order_price) || 0;
+                                            return amtB - amtA;
+                                        });
+                                        boxesEncontrados.push(matches[0]);
+                                    }
+                                }
 
-                            boxesEncontrados.forEach(box => {
-                                db.run(
-                                    "INSERT INTO invoices (client_id, box_id, amount, description, status) VALUES (?, ?, ?, ?, 'pending')",
-                                    [args.client_id, box.id, box.amount || 0, `Fatura ${box.box_code}`],
-                                    function(errInsert) {
-                                        if (errInsert) {
-                                            console.error("❌ ERRO SQL (Inserir Fatura):", errInsert.message);
-                                            teveErro = true;
-                                        }
-                                        
-                                        completados++;
-                                        if (completados === boxesEncontrados.length) {
-                                            if (teveErro) {
-                                                resolve({ erro: "Ocorreu um erro SQL ao tentar salvar a fatura na tabela." });
-                                            } else {
-                                                resolve({ sucesso: true, msg: "Faturas criadas no banco de dados com sucesso!" });
-                                            }
+                                if (boxesEncontrados.length === 0) {
+                                    return resolve({ erro: "Boxes não encontrados para este cliente." });
+                                }
+
+                                for (const box of boxesEncontrados) {
+                                    // 3. MATEMÁTICA E NOTA FISCAL
+                                    const individualWeight = parseFloat(box.order_weight) || 0;
+                                    const freightValue = individualWeight * pricePerKg;
+                                    
+                                    // Pega o valor da NF se a Cicí mandar, senão é 0
+                                    const nfValue = args.nf_amount ? parseFloat(args.nf_amount) : 0; 
+                                    
+                                    let baseTotal = freightValue;
+                                    if (baseTotal === 0) {
+                                         baseTotal = parseFloat(box.box_amount) || parseFloat(box.order_price) || 0;
+                                    }
+
+                                    // 🔥 TRUQUE DE 1 CENTAVO ANTI-PIX CLONADO 🔥
+                                    let finalTotal = baseTotal;
+                                    let isUnique = false;
+                                    let maxAttempts = 0;
+
+                                    while (!isUnique && maxAttempts < 50) {
+                                        // Verifica no banco se já existe esse exato valor PENDENTE
+                                        const existe = await new Promise((resCheck) => {
+                                            db.get("SELECT id FROM invoices WHERE status = 'pending' AND amount = ?", [finalTotal], (errC, rowC) => {
+                                                resCheck(rowC);
+                                            });
+                                        });
+
+                                        if (existe) {
+                                            // Se existir, soma 1 centavo e arredonda para evitar dízimas infinitas do Javascript
+                                            finalTotal = Math.round((finalTotal + 0.01) * 100) / 100;
+                                            maxAttempts++;
+                                        } else {
+                                            isUnique = true; // Achou um valor único! Pode sair do loop.
                                         }
                                     }
-                                );
+
+                                    const description = `Fatura ${box.box_code}`;
+
+                                    // 4. SALVA A FATURA NO BANCO
+                                    await new Promise((resInsert) => {
+                                        db.run(
+                                            `INSERT INTO invoices (client_id, box_id, amount, description, status, nf_amount, freight_amount) 
+                                             VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+                                            [box.client_id, box.box_id, finalTotal, description, nfValue, freightValue],
+                                            function(errI) { resInsert(); }
+                                        );
+                                    });
+
+                                    // 5. 🔔 NOTIFICAÇÃO NA TELA
+                                    if (typeof enviarNotificacaoNaTela === 'function') {
+                                        try { enviarNotificacaoNaTela(box.client_id, "Nova Fatura Gerada 🧾", "Sua fatura já está no painel.", "/dashboard-client.html"); } catch (e) {}
+                                    }
+
+                                    // 6. 📧 ENVIA EMAIL
+                                    if (box.email && typeof sendEmailHtml === 'function') {
+                                        const subject = `Nova Fatura Pendente: R$ ${finalTotal.toFixed(2)}`;
+                                        const msgEmail = `Olá, <strong>${box.name}</strong>.<br><br>Fatura gerada para: <strong>${description}</strong>.<br>Valor a pagar: <strong>R$ ${finalTotal.toFixed(2)}</strong><br><br>Acesse seu painel para pagar.`;
+                                        sendEmailHtml(box.email, subject, "Pagamento Pendente", msgEmail);
+                                    }
+
+                                    // 7. 🟢 ENVIA WHATSAPP
+                                    const roboZap = (typeof clientZap !== 'undefined' ? clientZap : (typeof client !== 'undefined' ? client : null));
+                                    
+                                    if (box.phone && roboZap && roboZap.info) {
+                                        try {
+                                            let cleanPhone = box.phone.replace(/\D/g, '');
+                                            const zapMsg = `Olá, *${box.name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress (*${description}*).\n\n💰 *Valor Total:* R$ ${finalTotal.toFixed(2)}\n\nAcesse o seu painel agora para efetuar o pagamento:\n🔗 https://guineexpress-f6ab.onrender.com/`;
+                                            
+                                            const numberId = await roboZap.getNumberId(cleanPhone);
+                                            if (numberId) {
+                                                await roboZap.sendMessage(numberId._serialized, zapMsg);
+                                            } else {
+                                                await roboZap.sendMessage(`${cleanPhone}@c.us`, zapMsg);
+                                            }
+                                        } catch (zErr) {
+                                            console.error("❌ Erro ZAP:", zErr.message);
+                                        }
+                                    } else {
+                                        console.log("⚠️ [ZAP/CICÍ] Cliente não notificado: Sem telefone ou Robô off.");
+                                    }
+                                }
+                                resolve({ sucesso: true, msg: "Fatura gerada com sucesso! A matemática de 1 centavo e NF foram aplicadas." });
                             });
                         });
                     });
