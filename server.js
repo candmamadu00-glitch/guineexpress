@@ -2598,11 +2598,11 @@ const clientImap = new ImapFlow({
 // ==========================================
 // 🛡️ AIRBAG DA CICÍ: IMPEDE O SERVIDOR DE CAIR
 // ==========================================
-client.on('error', err => {
+clientImap.on('error', err => {
     console.log("⚠️ Cicí: A conexão com o Gmail oscilou (Timeout). O servidor está protegido e continua rodando!");
 });
 
-client.on('close', () => {
+clientImap.on('close', () => {
     console.log("🔄 Cicí: A conexão de leitura de e-mails foi fechada temporariamente e será reaberta no próximo ciclo.");
 });
 
@@ -2701,6 +2701,7 @@ const startEmailMonitor = async () => {
 };
 
 startEmailMonitor();
+
 // --- ROTA: RECUPERAR SENHA (CORRIGIDA) ---
 app.post('/api/recover-password', (req, res) => {
     // Pegamos apenas o email. Não importa a 'role' que veio do front,
