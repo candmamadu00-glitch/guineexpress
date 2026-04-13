@@ -2595,6 +2595,16 @@ const clientImap = new ImapFlow({
     },
     logger: false 
 });
+// ==========================================
+// 🛡️ AIRBAG DA CICÍ: IMPEDE O SERVIDOR DE CAIR
+// ==========================================
+client.on('error', err => {
+    console.log("⚠️ Cicí: A conexão com o Gmail oscilou (Timeout). O servidor está protegido e continua rodando!");
+});
+
+client.on('close', () => {
+    console.log("🔄 Cicí: A conexão de leitura de e-mails foi fechada temporariamente e será reaberta no próximo ciclo.");
+});
 
 const startEmailMonitor = async () => {
     try {
