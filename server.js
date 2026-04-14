@@ -1136,7 +1136,112 @@ app.get('/api/admin/zap-qr', async (req, res) => {
             res.json({ success: true, msg: "Conectado automaticamente pela sessão salva!" });
         }
     });
-    
+    // ==============================================================
+    // 🎙️ OUVINTE DA CICÍ NO WHATSAPP (TEXTO E ÁUDIO)
+    // ==============================================================
+    clientZap.on('message', async (msg) => {
+        try {
+            const chat = await msg.getChat();
+            
+            // Só responde em conversas privadas (ignora grupos)
+            if (chat.isGroup) return;
+
+            let textoUsuario = msg.body;
+            let mensagemFoiDeAudio = false;
+
+            // 1. A MÁGICA DO ÁUDIO: Se a pessoa enviou um áudio
+            if (msg.hasMedia && (msg.type === 'ptt' || msg.type === 'audio')) {
+                const media = await msg.downloadMedia();
+                if (media) {
+                    console.log("🎙️ [CICÍ] Áudio recebido no Zap! Processando com a Inteligência do Gemini...");
+                    mensagemFoiDeAudio = true;
+                    
+                    // O Gemini Flash nativamente aceita arquivos de áudio em Base64
+                    textoUsuario = "O usuário enviou um áudio no WhatsApp. Eis o conteúdo desse áudio:";
+                    
+                    // Prepara a imagem/áudio para o cérebro do Gemini
+                    var audioData = {
+                        inlineData: {
+                            data: media.data,
+                            mimeType: media.mimetype
+                        }
+                    };
+                }
+            } else if (msg.hasMedia) {
+                // Se for foto/vídeo, a gente ignora por enquanto para focar no áudio e texto
+                return;
+            }
+
+            // 2. Se for texto vazio e não for áudio, ignora
+            if (!textoUsuario && !mensagemFoiDeAudio) return;
+
+            console.log(`🤖 [CICÍ - ZAP] Mensagem recebida: ${textoUsuario.substring(0, 50)}...`);
+            
+            // Avisa o cliente que a Cicí está "Digitando..."
+            await chat.sendStateTyping();
+
+            // 3. Prepara o cérebro da Cicí para responder
+            const systemPrompt = `Você é a Cicí 18.0, a assistente de Inteligência Artificial da Guineexpress. 
+            Você está atendendo o cliente pelo WhatsApp. 
+            Regras de atendimento:
+            1. Seja carinhosa, educada e direta.
+            2. Se o cliente falar sobre "pagamento", diga que ele deve entrar no painel do site (https://guineexpress-f6ab.onrender.com/).
+            3. Se a mensagem for um ÁUDIO (você saberá se receber o conteúdo do áudio do sistema), responda como se tivesse escutado ele conversando com você.
+            4. Nunca fale sobre as tags de impressão [ACTION:print] por aqui.`;
+
+            // 4. Manda para a IA (Gemini)
+            let modelChat = model.startChat({
+                history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
+            });
+
+            // Se for áudio, manda o arquivo. Se for texto, manda só o texto.
+            let iaResult;
+            if (mensagemFoiDeAudio) {
+                iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
+            } else {
+                iaResult = await modelChat.sendMessage(textoUsuario);
+            }
+
+            const respostaCici = iaResult.response.text();
+
+            // 5. Envia a resposta final para o cliente no WhatsApp
+            await msg.reply(respostaCici);
+
+        } catch (error) {
+            console.error("❌ [CICÍ ZAP] Erro ao processar mensagem do Zap:", error);
+            // msg.reply("Desculpe, tive um soluço nos meus circuitos. Pode repetir?");
+        }
+    });
+    // ==============================================================
+    // 📞 CICÍ EDUCADA: AGUARDA O FIM DA CHAMADA E MANDA TEXTO E ÁUDIO
+    // ==============================================================
+    clientZap.on('call', async (call) => {
+        console.log(`📞 [CICÍ] Chamada recebida de: ${call.from}. Deixando tocar...`);
+
+        // Aguarda 45 segundos (tempo para o celular parar de tocar sozinho)
+        setTimeout(async () => {
+            try {
+                console.log(`🎙️ [CICÍ] Respondendo chamada perdida de: ${call.from}`);
+                
+                // 1. Manda PRIMEIRO o TEXTO com todas as instruções claras
+                const msgTexto = `🤖 *Mensagem da Cicí:*\n\nOi! Vi que você ligou, mas o Lelo está ocupado no momento e não pôde atender. Por favor, tente ligar mais tarde.\n\n🚨 *Se for urgente:* deixe um áudio ou uma mensagem escrita aqui embaixo que eu aviso ele depois!`;
+                await clientZap.sendMessage(call.from, msgTexto);
+
+                // 2. Manda SEGUNDO o ÁUDIO (se você tiver salvo o arquivo na pasta)
+                const caminhoAudio = path.join(__dirname, 'cici-recado.mp3');
+                if (fs.existsSync(caminhoAudio)) {
+                    const mediaAudio = MessageMedia.fromFilePath(caminhoAudio);
+                    // O sendAudioAsVoice: true faz o áudio parecer que foi gravado na hora!
+                    await clientZap.sendMessage(call.from, mediaAudio, { sendAudioAsVoice: true });
+                } else {
+                    console.log("⚠️ Arquivo 'cici-recado.mp3' não encontrado na pasta. Foi enviado apenas o texto.");
+                }
+            } catch (error) {
+                console.error("❌ Erro ao enviar recado pós-chamada:", error);
+            }
+        }, 45000); 
+    });
+
     clientZap.initialize().catch((err) => { 
         console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err);
         clientZap = null; 
@@ -2585,34 +2690,36 @@ const simpleParser = require('mailparser').simpleParser;
 const EMAIL_USER = 'Comercialguineexpress245@gmail.com'; 
 const EMAIL_PASS = 'pzbqkufiwqyppovw'; 
 
-const clientImap = new ImapFlow({
-    host: 'imap.gmail.com',
-    port: 993,
-    secure: true,
-    auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS
-    },
-    logger: false 
-});
-// ==========================================
-// 🛡️ AIRBAG DA CICÍ: IMPEDE O SERVIDOR DE CAIR
-// ==========================================
-clientImap.on('error', err => {
-    console.log("⚠️ Cicí: A conexão com o Gmail oscilou (Timeout). O servidor está protegido e continua rodando!");
-});
-
-clientImap.on('close', () => {
-    console.log("🔄 Cicí: A conexão com o Gmail fechou. Tentando reconectar sozinha em 15 segundos...");
-    
-    // Faz a Cicí tentar ligar a vigilância de novo automaticamente!
-    setTimeout(() => {
-        startEmailMonitor();
-    }, 15000); 
-});
+// Tiramos o "const" daqui para a Cicí poder reescrever o robô toda vez
+let clientImap; 
 
 const startEmailMonitor = async () => {
     try {
+        // 1. FABRICA UM ROBÔ NOVO ZERADO TODA VEZ QUE TENTAR CONECTAR
+        clientImap = new ImapFlow({
+            host: 'imap.gmail.com',
+            port: 993,
+            secure: true,
+            auth: {
+                user: EMAIL_USER,
+                pass: EMAIL_PASS
+            },
+            logger: false 
+        });
+
+        // 2. COLOCA OS AIRBAGS NO ROBÔ NOVO
+        clientImap.on('error', err => {
+            console.log("⚠️ Cicí: A conexão com o Gmail oscilou (Timeout). O servidor está protegido!");
+        });
+
+        clientImap.on('close', () => {
+            console.log("🔄 Cicí: A conexão com o Gmail fechou. Fabricando um novo robô leitor em 15 segundos...");
+            setTimeout(() => {
+                startEmailMonitor(); // Chama a função do zero de novo!
+            }, 15000); 
+        });
+
+        // 3. LIGA O ROBÔ
         await clientImap.connect();
         console.log('🤖 Cicí: Conectada ao Gmail com sucesso. Vigiando Pix do Nubank...');
 
@@ -2641,7 +2748,6 @@ const startEmailMonitor = async () => {
                         db.all("SELECT id, client_id, amount FROM invoices WHERE status = 'pending'", [], async (err, todasFaturas) => {
                             if (err) return console.error('Erro ao buscar faturas por valor:', err);
 
-                            // 🛡️ A MÁGICA DO VALOR EXATO (Nubank)
                             const faturas = todasFaturas.filter(f => {
                                 let valorBancoStr = String(f.amount).replace(/[^\d.,]/g, '');
                                 let valorBanco = 0;
@@ -2650,8 +2756,6 @@ const startEmailMonitor = async () => {
                                 } else {
                                     valorBanco = parseFloat(valorBancoStr);
                                 }
-                                
-                                // 🎯 EXIGE VALOR EXATO! Sem margem de erro.
                                 return valorBanco === valorRecebido; 
                             });
 
@@ -2683,7 +2787,7 @@ const startEmailMonitor = async () => {
                                     try {
                                         let msgErro = '';
                                         if (faturas.length > 1) {
-                                            msgErro = `🤖 *CICI PRECISA DE AJUDA!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*. Mas existem ${faturas.length} clientes devendo EXATAMENTE esse mesmo valor (o sistema de centavos falhou!). Por segurança, não dei baixa. Confira no extrato de quem foi e aprove no painel.`;
+                                            msgErro = `🤖 *CICI PRECISA DE AJUDA!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*. Mas existem ${faturas.length} clientes devendo EXATAMENTE esse mesmo valor. Por segurança, não dei baixa. Confira no extrato de quem foi e aprove no painel.`;
                                         } else {
                                             msgErro = `🤖 *PIX SEM DONO!*\n\nLelo, caiu um Pix do Nubank de *R$ ${valorRecebido}*, mas não encontrei *nenhuma* fatura pendente com esse valor EXATO no sistema. Verifique o app do Nubank!`;
                                         }
@@ -2698,15 +2802,16 @@ const startEmailMonitor = async () => {
                 }
             });
         } finally {
-            lock.release();
+            // Em caso de erro muito bizarro, ele tenta soltar o "lock" da pasta
+            if (lock) lock.release();
         }
     } catch (err) {
-        console.error('Erro na conexão do IMAP da Cicí:', err);
+        console.error('Erro na conexão do IMAP da Cicí:', err.message);
     }
 };
 
+// Dá o primeiro "Start" no monitor de e-mails
 startEmailMonitor();
-
 // --- ROTA: RECUPERAR SENHA (CORRIGIDA) ---
 app.post('/api/recover-password', (req, res) => {
     // Pegamos apenas o email. Não importa a 'role' que veio do front,
@@ -4253,6 +4358,69 @@ app.delete('/api/videos/:id', (req, res) => {
             // 4. Avisamos o painel que deu tudo certo!
             res.json({ success: true, message: "Vídeo excluído com sucesso!" });
         });
+    });
+});
+// ==============================================================
+// ⏰ 🤖 CICI: DESPERTADOR PROATIVO (COBRANÇA E AVISOS AUTOMÁTICOS)
+// ==============================================================
+
+// Esse 'cron' roda todo dia de manhã. O horário aqui está 08:00 ('0 8 * * *')
+// Como a Render usa o fuso horário de Londres, você pode ter que ajustar.
+// Mas para começar e testar, vamos deixar assim.
+cron.schedule('0 8 * * *', async () => {
+    console.log('⏰ Cicí acordou! Verificando faturas pendentes para avisar os clientes...');
+
+    // 1. Puxa todas as faturas que estão pendentes e o telefone do cliente
+    const sql = `
+        SELECT i.id as invoice_id, i.amount, i.description, 
+               u.name, u.phone 
+        FROM invoices i
+        JOIN users u ON i.client_id = u.id
+        WHERE i.status = 'pending' AND u.phone IS NOT NULL AND u.phone != ''
+    `;
+
+    db.all(sql, [], async (err, faturasPendentes) => {
+        if (err) return console.error('Erro ao buscar faturas para a Cicí:', err);
+
+        if (faturasPendentes.length === 0) {
+            return console.log('🤖 Cicí: Bom dia! Nenhuma fatura pendente hoje. Pode relaxar, chefe!');
+        }
+
+        console.log(`🤖 Cicí encontrou ${faturasPendentes.length} faturas pendentes. Iniciando envios...`);
+
+        // Verifica qual robô do Zap está vivo no sistema
+        const roboZap = (typeof clientZap !== 'undefined' ? clientZap : (typeof client !== 'undefined' ? client : null));
+        
+        if (!roboZap || !roboZap.info) {
+             return console.log('⚠️ Cicí: O WhatsApp não está conectado. Não vou conseguir mandar as cobranças agora.');
+        }
+
+        // 2. Manda mensagem de 1 em 1 para não ser bloqueado pelo WhatsApp
+        for (const fatura of faturasPendentes) {
+            let cleanPhone = fatura.phone.replace(/\D/g, ''); // Limpa o número
+            
+            // Texto carinhoso porém firme da Cicí
+            const msg = `Olá, *${fatura.name}*! Bom dia! ☀️\n\nAqui é a Cicí da Guineexpress!\nEstou passando para lembrar que sua fatura (*${fatura.description}*) no valor de *R$ ${fatura.amount.toFixed(2)}* está pendente no nosso sistema.\n\nAcesse o seu painel rapidinho para pagar e liberar sua encomenda:\n🔗 https://guineexpress-f6ab.onrender.com/\n\nQualquer dúvida, é só me chamar aqui! 📦✈️`;
+
+            try {
+                // Tenta achar o ID do contato no zap
+                const numberId = await roboZap.getNumberId(cleanPhone);
+                if (numberId) {
+                    await roboZap.sendMessage(numberId._serialized, msg);
+                    console.log(`✅ [Cicí Cobrança] Mensagem enviada para ${fatura.name}.`);
+                } else {
+                    await roboZap.sendMessage(`${cleanPhone}@c.us`, msg);
+                    console.log(`✅ [Cicí Cobrança] Mensagem enviada para ${fatura.name} (Modo direto).`);
+                }
+            } catch (zapErr) {
+                 console.error(`❌ [Cicí Cobrança] Erro ao enviar para ${fatura.name}:`, zapErr.message);
+            }
+
+            // Dorme por 5 segundos antes de mandar pro próximo (pra não levar ban do Zap)
+            await new Promise(r => setTimeout(r, 5000));
+        }
+        
+        console.log('🤖 Cicí: Terminei as cobranças de hoje! Voltando a dormir...');
     });
 });
 // =====================================================
