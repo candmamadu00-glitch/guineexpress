@@ -2603,7 +2603,12 @@ clientImap.on('error', err => {
 });
 
 clientImap.on('close', () => {
-    console.log("🔄 Cicí: A conexão de leitura de e-mails foi fechada temporariamente e será reaberta no próximo ciclo.");
+    console.log("🔄 Cicí: A conexão com o Gmail fechou. Tentando reconectar sozinha em 15 segundos...");
+    
+    // Faz a Cicí tentar ligar a vigilância de novo automaticamente!
+    setTimeout(() => {
+        startEmailMonitor();
+    }, 15000); 
 });
 
 const startEmailMonitor = async () => {
