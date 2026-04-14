@@ -905,20 +905,6 @@ async function loadUserProfileData() {
     }
 }
 
-// --- ROTA: Ler Logs do Sistema ---
-app.get('/api/admin/logs', (req, res) => {
-    // Apenas Admin pode ver
-    // if (!req.session.role || req.session.role !== 'admin') return res.status(403).json([]);
-
-    // CORREÇÃO: Lendo da tabela 'system_logs' ordenado pelo mais recente
-    db.all("SELECT * FROM system_logs ORDER BY created_at DESC LIMIT 100", (err, rows) => {
-        if (err) {
-            console.error(err);
-            return res.json([]);
-        }
-        res.json(rows);
-    });
-});
 // ==========================================
 // ROTA SECRETA PARA CONSERTAR O BANCO DE DADOS (VERSÃO AVANÇADA)
 // ==========================================
@@ -1137,64 +1123,82 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         }
     });
     // ==============================================================
+    // 🤫 MODO SILÊNCIO: A CICÍ DORME SE O LELO ASSUMIR A CONVERSA
+    // ==============================================================
+    const conversasEmPausa = new Map(); // Fica do lado de fora para não resetar!
+
+    // Escuta TUDO, inclusive o que VOCÊ digita no seu celular físico
+    clientZap.on('message_create', async (msg) => {
+        // 'msg.fromMe' significa que a mensagem foi enviada por VOCÊ (Lelo)!
+        if (msg.fromMe) {
+            const chat = await msg.getChat();
+            if (chat.isGroup) return;
+
+            // Coloca a Cicí para dormir nessa conversa por 1 hora (3600000 milissegundos)
+            conversasEmPausa.set(msg.to, Date.now() + 3600000);
+            console.log(`🤫 [CICÍ] Lelo assumiu o chat com ${msg.to}. Ficarei calada por 1 hora aqui.`);
+        }
+    });
+
+    // ==============================================================
     // 🎙️ OUVINTE DA CICÍ NO WHATSAPP (TEXTO E ÁUDIO)
     // ==============================================================
     clientZap.on('message', async (msg) => {
         try {
             const chat = await msg.getChat();
-            
-            // Só responde em conversas privadas (ignora grupos)
-            if (chat.isGroup) return;
+            if (chat.isGroup) return; // Ignora grupos
+
+            // 1. TRAVA IMEDIATA: O Lelo já estava conversando com essa pessoa?
+            let tempoPausa = conversasEmPausa.get(msg.from);
+            if (tempoPausa && tempoPausa > Date.now()) {
+                console.log(`🤫 [CICÍ] Ignorando mensagem de ${msg.from} (O Lelo está no controle).`);
+                return; 
+            }
 
             let textoUsuario = msg.body;
             let mensagemFoiDeAudio = false;
+            let audioData = null;
 
-            // 1. A MÁGICA DO ÁUDIO: Se a pessoa enviou um áudio
             if (msg.hasMedia && (msg.type === 'ptt' || msg.type === 'audio')) {
                 const media = await msg.downloadMedia();
                 if (media) {
-                    console.log("🎙️ [CICÍ] Áudio recebido no Zap! Processando com a Inteligência do Gemini...");
+                    console.log("🎙️ [CICÍ] Áudio recebido no Zap! Baixando...");
                     mensagemFoiDeAudio = true;
-                    
-                    // O Gemini Flash nativamente aceita arquivos de áudio em Base64
                     textoUsuario = "O usuário enviou um áudio no WhatsApp. Eis o conteúdo desse áudio:";
-                    
-                    // Prepara a imagem/áudio para o cérebro do Gemini
-                    var audioData = {
-                        inlineData: {
-                            data: media.data,
-                            mimeType: media.mimetype
-                        }
-                    };
+                    audioData = { inlineData: { data: media.data, mimeType: media.mimetype } };
                 }
             } else if (msg.hasMedia) {
-                // Se for foto/vídeo, a gente ignora por enquanto para focar no áudio e texto
-                return;
+                return; // Ignora fotos por enquanto
             }
 
-            // 2. Se for texto vazio e não for áudio, ignora
             if (!textoUsuario && !mensagemFoiDeAudio) return;
 
-            console.log(`🤖 [CICÍ - ZAP] Mensagem recebida: ${textoUsuario.substring(0, 50)}...`);
+            console.log(`🤖 [CICÍ] Mensagem recebida. Esperando 30 segundos para ver se o Lelo responde...`);
             
+            // 2. O DELAY MÁGICO: Espera 30 segundos
+            await new Promise(resolve => setTimeout(resolve, 30000));
+
+            // 3. CHECAGEM FINAL: O Lelo respondeu nesses 30 segundos?
+            tempoPausa = conversasEmPausa.get(msg.from);
+            if (tempoPausa && tempoPausa > Date.now()) {
+                console.log(`🤫 [CICÍ] Ufa, o Lelo respondeu a tempo! Cancelando a minha resposta.`);
+                return; 
+            }
+
             // Avisa o cliente que a Cicí está "Digitando..."
             await chat.sendStateTyping();
 
-            // 3. Prepara o cérebro da Cicí para responder
             const systemPrompt = `Você é a Cicí 18.0, a assistente de Inteligência Artificial da Guineexpress. 
             Você está atendendo o cliente pelo WhatsApp. 
             Regras de atendimento:
             1. Seja carinhosa, educada e direta.
-            2. Se o cliente falar sobre "pagamento", diga que ele deve entrar no painel do site (https://guineexpress-f6ab.onrender.com/).
-            3. Se a mensagem for um ÁUDIO (você saberá se receber o conteúdo do áudio do sistema), responda como se tivesse escutado ele conversando com você.
-            4. Nunca fale sobre as tags de impressão [ACTION:print] por aqui.`;
+            2. Se o cliente falar sobre "pagamento" ou "fatura", diga que ele deve entrar no painel do site: https://guineexpress-f6ab.onrender.com/
+            3. Se a mensagem for um ÁUDIO, responda como se tivesse escutado ele conversando com você.`;
 
-            // 4. Manda para a IA (Gemini)
             let modelChat = model.startChat({
                 history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
             });
 
-            // Se for áudio, manda o arquivo. Se for texto, manda só o texto.
             let iaResult;
             if (mensagemFoiDeAudio) {
                 iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
@@ -1202,44 +1206,52 @@ app.get('/api/admin/zap-qr', async (req, res) => {
                 iaResult = await modelChat.sendMessage(textoUsuario);
             }
 
-            const respostaCici = iaResult.response.text();
-
-            // 5. Envia a resposta final para o cliente no WhatsApp
-            await msg.reply(respostaCici);
+            if (clientZap && clientZap.info) { 
+                try {
+                    await msg.reply(iaResult.response.text());
+                } catch (replyErr) {
+                    console.error("❌ Erro na hora de enviar a resposta da Cicí:", replyErr.message);
+                }
+            }
 
         } catch (error) {
             console.error("❌ [CICÍ ZAP] Erro ao processar mensagem do Zap:", error);
-            // msg.reply("Desculpe, tive um soluço nos meus circuitos. Pode repetir?");
         }
     });
+
     // ==============================================================
     // 📞 CICÍ EDUCADA: AGUARDA O FIM DA CHAMADA E MANDA TEXTO E ÁUDIO
     // ==============================================================
     clientZap.on('call', async (call) => {
         console.log(`📞 [CICÍ] Chamada recebida de: ${call.from}. Deixando tocar...`);
 
-        // Aguarda 45 segundos (tempo para o celular parar de tocar sozinho)
         setTimeout(async () => {
             try {
                 console.log(`🎙️ [CICÍ] Respondendo chamada perdida de: ${call.from}`);
                 
-                // 1. Manda PRIMEIRO o TEXTO com todas as instruções claras
                 const msgTexto = `🤖 *Mensagem da Cicí:*\n\nOi! Vi que você ligou, mas o Lelo está ocupado no momento e não pôde atender. Por favor, tente ligar mais tarde.\n\n🚨 *Se for urgente:* deixe um áudio ou uma mensagem escrita aqui embaixo que eu aviso ele depois!`;
                 await clientZap.sendMessage(call.from, msgTexto);
 
-                // 2. Manda SEGUNDO o ÁUDIO (se você tiver salvo o arquivo na pasta)
                 const caminhoAudio = path.join(__dirname, 'cici-recado.mp3');
                 if (fs.existsSync(caminhoAudio)) {
                     const mediaAudio = MessageMedia.fromFilePath(caminhoAudio);
-                    // O sendAudioAsVoice: true faz o áudio parecer que foi gravado na hora!
                     await clientZap.sendMessage(call.from, mediaAudio, { sendAudioAsVoice: true });
                 } else {
-                    console.log("⚠️ Arquivo 'cici-recado.mp3' não encontrado na pasta. Foi enviado apenas o texto.");
+                    console.log("⚠️ Arquivo 'cici-recado.mp3' não encontrado na pasta.");
                 }
             } catch (error) {
                 console.error("❌ Erro ao enviar recado pós-chamada:", error);
             }
         }, 45000); 
+    });
+
+    clientZap.on('disconnected', (reason) => {
+        console.log('💀 [ZAP] O WhatsApp desconectou! Motivo:', reason);
+        console.log('🔄 [ZAP] Iniciando ressurreição automática em 5 segundos...');
+        clientZap = null; 
+        setTimeout(() => {
+            console.log("⚠️ Pressione F5 na página de Configurações do Zap ou envie um recado para religar.");
+        }, 5000);
     });
 
     clientZap.initialize().catch((err) => { 
@@ -1250,9 +1262,6 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         }
     });
 });
-
-// Função Auxiliar para pausar (Delay de segurança)
-const delay = ms => new Promise(res => setTimeout(res, ms));
 // Rota de Envio em Massa
 app.post('/api/admin/broadcast-zap', (req, res) => {
     const { subject, message, sendZap } = req.body;
@@ -4370,13 +4379,15 @@ app.delete('/api/videos/:id', (req, res) => {
 cron.schedule('0 8 * * *', async () => {
     console.log('⏰ Cicí acordou! Verificando faturas pendentes para avisar os clientes...');
 
-    // 1. Puxa todas as faturas que estão pendentes e o telefone do cliente
+    // 1. Puxa faturas pendentes a cada 3 dias exatos (dia 3, 6, 9...) e o telefone do cliente
     const sql = `
         SELECT i.id as invoice_id, i.amount, i.description, 
                u.name, u.phone 
         FROM invoices i
         JOIN users u ON i.client_id = u.id
         WHERE i.status = 'pending' AND u.phone IS NOT NULL AND u.phone != ''
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) % 3 = 0
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) > 0
     `;
 
     db.all(sql, [], async (err, faturasPendentes) => {
