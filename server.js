@@ -1143,15 +1143,46 @@ app.get('/api/admin/zap-qr', async (req, res) => {
     // ==============================================================
     // 🎙️ OUVINTE DA CICÍ NO WHATSAPP (TEXTO E ÁUDIO)
     // ==============================================================
+    // ==============================================================
+    // 🤫 MODO SILÊNCIO: A CICÍ DORME SE O LELO ASSUMIR A CONVERSA
+    // ==============================================================
+    const cronometrosCici = new Map(); // Guarda o timer de 6 min de cada cliente
+
+    // 1. Escuta o que VOCÊ (Lelo) digita no celular físico
+    clientZap.on('message_create', async (msg) => {
+        if (msg.fromMe) {
+            const chat = await msg.getChat();
+            if (chat.isGroup) return;
+
+            const chatID = msg.to;
+            
+            // Pausa a Cicí por 1 hora nessa conversa
+            conversasEmPausa.set(chatID, Date.now() + 3600000);
+            console.log(`🤫 [CICÍ] Lelo assumiu o chat com ${chatID}. Ficarei calada por 1 hora aqui.`);
+
+            // Se a Cicí tava quase respondendo (nos 6 min de espera), a gente cancela!
+            if (cronometrosCici.has(chatID)) {
+                clearTimeout(cronometrosCici.get(chatID));
+                cronometrosCici.delete(chatID);
+                console.log(`⏳ [CICÍ] Cancelei a resposta agendada para ${chatID}.`);
+            }
+        }
+    });
+
+    // ==============================================================
+    // 🎙️ OUVINTE DA CICÍ NO WHATSAPP (AGORA ESPERA 6 MINUTOS)
+    // ==============================================================
     clientZap.on('message', async (msg) => {
         try {
             const chat = await msg.getChat();
             if (chat.isGroup) return; // Ignora grupos
 
-            // 1. TRAVA IMEDIATA: O Lelo já estava conversando com essa pessoa?
-            let tempoPausa = conversasEmPausa.get(msg.from);
+            const chatID = msg.from;
+
+            // 1. TRAVA: O Lelo já assumiu essa conversa na última hora?
+            let tempoPausa = conversasEmPausa.get(chatID);
             if (tempoPausa && tempoPausa > Date.now()) {
-                console.log(`🤫 [CICÍ] Ignorando mensagem de ${msg.from} (O Lelo está no controle).`);
+                console.log(`🤫 [CICÍ] Ignorando mensagem de ${chatID} (Lelo está no controle).`);
                 return; 
             }
 
@@ -1173,46 +1204,60 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
             if (!textoUsuario && !mensagemFoiDeAudio) return;
 
-            console.log(`🤖 [CICÍ] Mensagem recebida. Esperando 30 segundos para ver se o Lelo responde...`);
-            
-            // 2. O DELAY MÁGICO: Espera 30 segundos
-            await new Promise(resolve => setTimeout(resolve, 30000));
+            console.log(`⏳ [CICÍ] Mensagem recebida de ${chatID}. Iniciando timer de 6 minutos...`);
 
-            // 3. CHECAGEM FINAL: O Lelo respondeu nesses 30 segundos?
-            tempoPausa = conversasEmPausa.get(msg.from);
-            if (tempoPausa && tempoPausa > Date.now()) {
-                console.log(`🤫 [CICÍ] Ufa, o Lelo respondeu a tempo! Cancelando a minha resposta.`);
-                return; 
-            }
+            // Se a pessoa mandar várias mensagens seguidas, zera o cronômetro para contar 6 min de novo
+            if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
 
-            // Avisa o cliente que a Cicí está "Digitando..."
-            await chat.sendStateTyping();
+            // 2. INICIA A ESPERA DE 6 MINUTOS (360.000 milissegundos)
+            const timer = setTimeout(async () => {
+                console.log(`🤖 [CICÍ] 6 minutos se passaram. Lelo não respondeu, vou assumir para ${chatID}...`);
 
-            const systemPrompt = `Você é a Cicí 18.0, a assistente de Inteligência Artificial da Guineexpress. 
-            Você está atendendo o cliente pelo WhatsApp. 
-            Regras de atendimento:
-            1. Seja carinhosa, educada e direta.
-            2. Se o cliente falar sobre "pagamento" ou "fatura", diga que ele deve entrar no painel do site: https://guineexpress-f6ab.onrender.com/
-            3. Se a mensagem for um ÁUDIO, responda como se tivesse escutado ele conversando com você.`;
+                // Trava de segurança extra antes de mandar
+                let checkFinal = conversasEmPausa.get(chatID);
+                if (checkFinal && checkFinal > Date.now()) return;
 
-            let modelChat = model.startChat({
-                history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
-            });
+                await chat.sendStateTyping();
 
-            let iaResult;
-            if (mensagemFoiDeAudio) {
-                iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
-            } else {
-                iaResult = await modelChat.sendMessage(textoUsuario);
-            }
+                const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
+Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
 
-            if (clientZap && clientZap.info) { 
-                try {
-                    await msg.reply(iaResult.response.text());
-                } catch (replyErr) {
-                    console.error("❌ Erro na hora de enviar a resposta da Cicí:", replyErr.message);
+REGRAS DE OURO:
+1. Se o cliente perguntar algo fora do tema (futebol, receitas, outros sistemas, etc), responda: "Desculpe, eu só consigo te ajudar com assuntos relacionados à Guineexpress. Como posso te ajudar com sua encomenda hoje?"
+2. Seja carinhosa e educada, mas nunca fuja do tema logística.
+3. Se você perceber que o cliente terminou uma dúvida, pergunte sempre: "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?"`;
+
+                let modelChat = model.startChat({
+                    history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
+                });
+
+                let iaResult;
+                if (mensagemFoiDeAudio) {
+                    iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
+                } else {
+                    iaResult = await modelChat.sendMessage(textoUsuario);
                 }
-            }
+
+                if (clientZap && clientZap.info) { 
+                    try {
+                        // Envia a resposta do Gemini
+                        await msg.reply(iaResult.response.text());
+                        
+                        // Pergunta proativa sobre mais ajuda
+                        await clientZap.sendMessage(chatID, "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?");
+                        
+                    } catch (replyErr) {
+                        console.error("❌ Erro na hora de enviar a resposta da Cicí:", replyErr.message);
+                    }
+                }
+                
+                // Limpa o timer finalizado
+                cronometrosCici.delete(chatID);
+
+            }, 6 * 60 * 1000); // <-- 6 MINUTOS EM MILISSEGUNDOS
+
+            // Salva o timer na memória
+            cronometrosCici.set(chatID, timer);
 
         } catch (error) {
             console.error("❌ [CICÍ ZAP] Erro ao processar mensagem do Zap:", error);
@@ -4379,16 +4424,18 @@ app.delete('/api/videos/:id', (req, res) => {
 cron.schedule('0 8 * * *', async () => {
     console.log('⏰ Cicí acordou! Verificando faturas pendentes para avisar os clientes...');
 
-    // 1. Puxa faturas pendentes a cada 3 dias exatos (dia 3, 6, 9...) e o telefone do cliente
-    const sql = `
-        SELECT i.id as invoice_id, i.amount, i.description, 
-               u.name, u.phone 
-        FROM invoices i
-        JOIN users u ON i.client_id = u.id
-        WHERE i.status = 'pending' AND u.phone IS NOT NULL AND u.phone != ''
-        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) % 3 = 0
-        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) > 0
-    `;
+    // 1. Puxa faturas de 16 em 16 dias, começando apenas em 30/04/2026
+const sql = `
+    SELECT i.id as invoice_id, i.amount, i.description, 
+           u.name, u.phone 
+    FROM invoices i
+    JOIN users u ON i.client_id = u.id
+    WHERE i.status = 'pending' 
+    AND u.phone IS NOT NULL AND u.phone != ''
+    AND date('now') >= '2026-04-30' -- Só começa a cobrar a partir do dia 30
+    AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) % 16 = 0
+    AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) > 0
+`;
 
     db.all(sql, [], async (err, faturasPendentes) => {
         if (err) return console.error('Erro ao buscar faturas para a Cicí:', err);
