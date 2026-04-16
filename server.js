@@ -1079,14 +1079,35 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
 
+    // 1. Limpeza via Terminal (O que você já tinha)
     try {
         const { execSync } = require('child_process');
         execSync('pkill -f chrome', { stdio: 'ignore' });
         execSync('pkill -f chromium', { stdio: 'ignore' });
         execSync(`find ${SESSION_PATH} -name "Singleton*" -delete`, { stdio: 'ignore' });
-        console.log("🧹 [ZAP] Processos zumbis e TODOS os cadeados removidos com sucesso!");
+        console.log("🧹 [ZAP] Limpeza de terminal executada.");
     } catch (e) { }
 
+    // 2. Limpeza Direta via Node.js (A SOLUÇÃO DEFINITIVA PARA O ERRO 21)
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        // Procura o SingletonLock diretamente dentro do seu SESSION_PATH
+        const lockFile1 = path.join(SESSION_PATH, 'SingletonLock');
+        const lockFile2 = path.join(SESSION_PATH, 'session', 'SingletonLock');
+        const lockFile3 = path.join(SESSION_PATH, 'Default', 'SingletonLock');
+
+        [lockFile1, lockFile2, lockFile3].forEach(lock => {
+            if (fs.existsSync(lock)) {
+                fs.unlinkSync(lock);
+                console.log(`✅ Cadeado quebrado com sucesso em: ${lock}`);
+            }
+        });
+    } catch (err) {
+        console.error('❌ Erro ao tentar quebrar o cadeado manualmente:', err);
+    }
+
+    // A partir daqui o Zap pode ligar em paz!
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
         puppeteer: {
