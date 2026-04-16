@@ -1122,31 +1122,12 @@ app.get('/api/admin/zap-qr', async (req, res) => {
             res.json({ success: true, msg: "Conectado automaticamente pela sessão salva!" });
         }
     });
-    // ==============================================================
-    // 🤫 MODO SILÊNCIO: A CICÍ DORME SE O LELO ASSUMIR A CONVERSA
-    // ==============================================================
-    const conversasEmPausa = new Map(); // Fica do lado de fora para não resetar!
-
-    // Escuta TUDO, inclusive o que VOCÊ digita no seu celular físico
-    clientZap.on('message_create', async (msg) => {
-        // 'msg.fromMe' significa que a mensagem foi enviada por VOCÊ (Lelo)!
-        if (msg.fromMe) {
-            const chat = await msg.getChat();
-            if (chat.isGroup) return;
-
-            // Coloca a Cicí para dormir nessa conversa por 1 hora (3600000 milissegundos)
-            conversasEmPausa.set(msg.to, Date.now() + 3600000);
-            console.log(`🤫 [CICÍ] Lelo assumiu o chat com ${msg.to}. Ficarei calada por 1 hora aqui.`);
-        }
-    });
 
     // ==============================================================
-    // 🎙️ OUVINTE DA CICÍ NO WHATSAPP (TEXTO E ÁUDIO)
+    // 🧠 CONTROLE DE INTELIGÊNCIA E PACIÊNCIA DA CICÍ (10 MINUTOS)
     // ==============================================================
-    // ==============================================================
-    // 🤫 MODO SILÊNCIO: A CICÍ DORME SE O LELO ASSUMIR A CONVERSA
-    // ==============================================================
-    const cronometrosCici = new Map(); // Guarda o timer de 6 min de cada cliente
+    const cronometrosCici = new Map(); // Guarda o timer de 10 min de cada cliente
+    const conversasEmPausa = new Map(); // Guarda a pausa de 1 hora quando o Lelo responde
 
     // 1. Escuta o que VOCÊ (Lelo) digita no celular físico
     clientZap.on('message_create', async (msg) => {
@@ -1158,20 +1139,18 @@ app.get('/api/admin/zap-qr', async (req, res) => {
             
             // Pausa a Cicí por 1 hora nessa conversa
             conversasEmPausa.set(chatID, Date.now() + 3600000);
-            console.log(`🤫 [CICÍ] Lelo assumiu o chat com ${chatID}. Ficarei calada por 1 hora aqui.`);
+            console.log(`👤 [CICÍ] Lelo assumiu o chat com ${chatID}. Ficarei calada por 1 hora aqui.`);
 
-            // Se a Cicí tava quase respondendo (nos 6 min de espera), a gente cancela!
+            // Se a Cicí tava esperando os 10 minutos para responder, CANCELA!
             if (cronometrosCici.has(chatID)) {
                 clearTimeout(cronometrosCici.get(chatID));
                 cronometrosCici.delete(chatID);
-                console.log(`⏳ [CICÍ] Cancelei a resposta agendada para ${chatID}.`);
+                console.log(`⏳ [CICÍ] Cancelei a resposta que estava agendada para ${chatID}.`);
             }
         }
     });
 
-    // ==============================================================
-    // 🎙️ OUVINTE DA CICÍ NO WHATSAPP (AGORA ESPERA 6 MINUTOS)
-    // ==============================================================
+    // 2. Escuta o que o CLIENTE manda
     clientZap.on('message', async (msg) => {
         try {
             const chat = await msg.getChat();
@@ -1179,53 +1158,62 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
             const chatID = msg.from;
 
-            // 1. TRAVA: O Lelo já assumiu essa conversa na última hora?
+            // TRAVA 1: O Lelo já assumiu essa conversa na última hora?
             let tempoPausa = conversasEmPausa.get(chatID);
-            if (tempoPausa && tempoPausa > Date.now()) {
-                console.log(`🤫 [CICÍ] Ignorando mensagem de ${chatID} (Lelo está no controle).`);
-                return; 
-            }
+            if (tempoPausa && tempoPausa > Date.now()) return; 
 
-            let textoUsuario = msg.body;
+            let textoUsuario = msg.body || "";
             let mensagemFoiDeAudio = false;
             let audioData = null;
 
             if (msg.hasMedia && (msg.type === 'ptt' || msg.type === 'audio')) {
                 const media = await msg.downloadMedia();
                 if (media) {
-                    console.log("🎙️ [CICÍ] Áudio recebido no Zap! Baixando...");
+                    console.log("🎙️ [CICÍ] Áudio recebido! Vou analisar...");
                     mensagemFoiDeAudio = true;
                     textoUsuario = "O usuário enviou um áudio no WhatsApp. Eis o conteúdo desse áudio:";
                     audioData = { inlineData: { data: media.data, mimeType: media.mimetype } };
                 }
             } else if (msg.hasMedia) {
-                return; // Ignora fotos por enquanto
+                return; // Ignora fotos e vídeos por enquanto
             }
 
             if (!textoUsuario && !mensagemFoiDeAudio) return;
 
-            console.log(`⏳ [CICÍ] Mensagem recebida de ${chatID}. Iniciando timer de 6 minutos...`);
+            // ==============================================================
+            // 🛑 FILTRO DE ASSUNTO: A Cicí só entende de Logística!
+            // ==============================================================
+            // Se NÃO for áudio, verificamos se o texto tem as palavras-chave.
+            const assuntoLogistica = /encomenda|pacote|frete|caixa|entrega|rastreio|valor|preço|kg|quilo|guiné|enviar|receber|etiqueta|pagamento|fatura|pix/i;
+            
+            if (!mensagemFoiDeAudio && !assuntoLogistica.test(textoUsuario)) {
+                console.log(`🤫 [CICÍ] Assunto fora da logística ("${textoUsuario.substring(0, 20)}..."). Deixando pro Lelo.`);
+                return; // Para o robô aqui. Ele ignora a mensagem.
+            }
 
-            // Se a pessoa mandar várias mensagens seguidas, zera o cronômetro para contar 6 min de novo
+            console.log(`⏳ [CICÍ] Mensagem de logística de ${chatID}. Esperando 10 MINUTOS pelo Lelo...`);
+
+            // Se o cliente mandar várias mensagens, zera o cronômetro para contar 10 min a partir da última
             if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
 
-            // 2. INICIA A ESPERA DE 6 MINUTOS (360.000 milissegundos)
+            // ==============================================================
+            // ⏳ O CRONÔMETRO DE 10 MINUTOS (600.000 milissegundos)
+            // ==============================================================
             const timer = setTimeout(async () => {
-                console.log(`🤖 [CICÍ] 6 minutos se passaram. Lelo não respondeu, vou assumir para ${chatID}...`);
-
-                // Trava de segurança extra antes de mandar
+                // Trava de segurança final: O Lelo respondeu no último segundo?
                 let checkFinal = conversasEmPausa.get(chatID);
                 if (checkFinal && checkFinal > Date.now()) return;
 
+                console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID}...`);
                 await chat.sendStateTyping();
 
                 const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
 Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
 
 REGRAS DE OURO:
-1. Se o cliente perguntar algo fora do tema (futebol, receitas, outros sistemas, etc), responda: "Desculpe, eu só consigo te ajudar com assuntos relacionados à Guineexpress. Como posso te ajudar com sua encomenda hoje?"
-2. Seja carinhosa e educada, mas nunca fuja do tema logística.
-3. Se você perceber que o cliente terminou uma dúvida, pergunte sempre: "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?"`;
+1. Se o cliente perguntar algo fora do tema (futebol, receitas, etc), responda: "Desculpe, eu só consigo te ajudar com assuntos da Guineexpress. Como posso ajudar com sua encomenda?"
+2. Seja carinhosa e educada.
+3. Se o cliente terminar uma dúvida, pergunte: "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?"`;
 
                 let modelChat = model.startChat({
                     history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
@@ -1240,23 +1228,18 @@ REGRAS DE OURO:
 
                 if (clientZap && clientZap.info) { 
                     try {
-                        // Envia a resposta do Gemini
                         await msg.reply(iaResult.response.text());
-                        
-                        // Pergunta proativa sobre mais ajuda
-                        await clientZap.sendMessage(chatID, "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?");
-                        
+                        // Pode remover a linha de baixo se a IA já colocar a pergunta final no texto dela:
+                        // await clientZap.sendMessage(chatID, "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?");
                     } catch (replyErr) {
                         console.error("❌ Erro na hora de enviar a resposta da Cicí:", replyErr.message);
                     }
                 }
                 
-                // Limpa o timer finalizado
                 cronometrosCici.delete(chatID);
 
-            }, 6 * 60 * 1000); // <-- 6 MINUTOS EM MILISSEGUNDOS
+            }, 10 * 60 * 1000); // <-- 10 MINUTOS AQUI!
 
-            // Salva o timer na memória
             cronometrosCici.set(chatID, timer);
 
         } catch (error) {
@@ -4413,6 +4396,58 @@ app.delete('/api/videos/:id', (req, res) => {
             res.json({ success: true, message: "Vídeo excluído com sucesso!" });
         });
     });
+});
+// ==============================================================
+// 🧠 CONTROLE DE INTELIGÊNCIA E PACIÊNCIA DA CICÍ
+// ==============================================================
+
+// Map para guardar os cronômetros de cada conversa
+const aguardandoLelo = new Map();
+
+client.on('message', async (msg) => {
+    const chat = await msg.getChat();
+    const contato = msg.from; // ID de quem mandou a mensagem
+
+    // 1. SE O LELO RESPONDER, A CICÍ FICA QUIETA
+    if (msg.fromMe) {
+        if (aguardandoLelo.has(contato)) {
+            console.log(`👤 Lelo respondeu ao ${contato}. Cicí cancelou a resposta dela.`);
+            clearTimeout(aguardandoLelo.get(contato)); // Cancela o cronômetro
+            aguardandoLelo.delete(contato);
+        }
+        return;
+    }
+
+    // 2. FILTRO DE ASSUNTO: A Cicí só entende de Logística
+    const assuntoLogistica = /encomenda|pacote|frete|caixa|entrega|rastreio|valor|preço|kg|quilo|guiné|enviar|receber|etiqueta/i;
+    const ehAssuntoLogistica = assuntoLogistica.test(msg.body);
+
+    if (!ehAssuntoLogistica) {
+        console.log(`🤫 Assunto irrelevante para a Cicí ("${msg.body}"). Deixando para o Lelo.`);
+        return; 
+    }
+
+    // 3. SE FOR LOGÍSTICA, ELA ENTRA NA FILA DE ESPERA (10 MINUTOS)
+    console.log(`⏳ Mensagem sobre logística de ${contato}. Cicí aguardará 10 minutos pelo Lelo...`);
+
+    // Se já tinha um timer para essa pessoa, limpa o antigo e renova
+    if (aguardandoLelo.has(contato)) clearTimeout(aguardandoLelo.get(contato));
+
+    const timer = setTimeout(async () => {
+        try {
+            console.log(`🤖 O Lelo não respondeu em 10 min. Cicí assumindo a conversa com ${contato}...`);
+            
+            // Aqui entra a sua lógica atual de chamar o Gemini/Cicí
+            // Exemplo: const resposta = await chamarCiciAI(msg.body);
+            // await client.sendMessage(contato, resposta);
+
+            aguardandoLelo.delete(contato);
+        } catch (err) {
+            console.error("Erro na resposta atrasada da Cicí:", err);
+        }
+    }, 10 * 60 * 1000); // 10 minutos em milissegundos
+
+    aguardandoLelo.set(contato, timer);
 });
 // ==============================================================
 // ⏰ 🤖 CICI: DESPERTADOR PROATIVO (COBRANÇA E AVISOS AUTOMÁTICOS)
