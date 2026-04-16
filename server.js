@@ -1079,22 +1079,39 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
 
-    // 1. O EXTERMINADOR NATIVO DO LINUX (Força Bruta Máxima)
+    // 1. O EXTERMINADOR EM NODE.JS (Caça cadeados em TODAS as subpastas)
     try {
-        const { execSync } = require('child_process');
+        const fs = require('fs');
+        const path = require('path');
+
+        function destruirCadeados(diretorio) {
+            if (!fs.existsSync(diretorio)) return;
+            
+            const arquivos = fs.readdirSync(diretorio);
+            for (const arquivo of arquivos) {
+                const caminhoCompleto = path.join(diretorio, arquivo);
+                // Se for uma pasta, entra nela e procura também (recursividade)
+                if (fs.statSync(caminhoCompleto).isDirectory()) {
+                    destruirCadeados(caminhoCompleto);
+                } else if (arquivo.startsWith('Singleton')) {
+                    // Se achar o cadeado, apaga na hora
+                    try {
+                        fs.unlinkSync(caminhoCompleto);
+                        console.log(`🔥 Cadeado aniquilado: ${caminhoCompleto}`);
+                    } catch (err) {}
+                }
+            }
+        }
+
+        console.log("🧹 [ZAP] Iniciando varredura profunda de cadeados na sessão...");
         
-        // Mata qualquer Chrome travado na memória
-        execSync('pkill -9 -f chrome || true', { stdio: 'ignore' });
-        execSync('pkill -9 -f chromium || true', { stdio: 'ignore' });
+        // Aplica a varredura na pasta que você definiu e na pasta padrão do whatsapp-web.js por garantia
+        if (typeof SESSION_PATH !== 'undefined') destruirCadeados(SESSION_PATH);
+        destruirCadeados(path.join(__dirname, '.wwebjs_auth')); 
         
-        console.log("🧹 [ZAP] Invocando o comando nativo do Linux para varrer cadeados...");
-        
-        // O 'find' procura e aniquila qualquer arquivo que comece com Singleton sem piedade
-        execSync(`find "${SESSION_PATH}" -name "Singleton*" -delete || true`, { stdio: 'ignore' });
-        
-        console.log("✅ Limpeza de cadeados concluída!");
+        console.log("✅ Varredura profunda concluída!");
     } catch (e) { 
-        console.error("Aviso na limpeza (normal se não tinha arquivo travado).");
+        console.error("Aviso na limpeza profunda:", e.message);
     }
 
     // 2. A partir daqui o Zap vai ligar
