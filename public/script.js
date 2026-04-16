@@ -1,4 +1,4 @@
-let currentRole = 'client';
+let currentRole = 'employee';
 let currentUser = null;
 let globalPricePerKg = 0; 
 let mediaRecorder;

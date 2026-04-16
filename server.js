@@ -1065,7 +1065,9 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
-// Rota para iniciar o Zap e gerar QR Code
+// ==============================================================
+// 📱 ROTA PARA INICIAR O ZAP E GERAR QR CODE
+// ==============================================================
 app.get('/api/admin/zap-qr', async (req, res) => {
     if (clientZap && clientZap.info) {
         return res.json({ success: true, msg: "WhatsApp já está conectado!" });
@@ -1077,25 +1079,18 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
 
-    // 🔥 O EXTERMINADOR DE ZUMBIS E CADEADOS
     try {
         const { execSync } = require('child_process');
-        // 1. Mata qualquer processo Chrome/Chromium fantasma que ficou rodando na memória do Render
         execSync('pkill -f chrome', { stdio: 'ignore' });
         execSync('pkill -f chromium', { stdio: 'ignore' });
-    } catch (e) { /* Ignora silenciosamente se não tiver processo pra matar */ }
-
-    try {
-        const { execSync } = require('child_process');
-        // 2. Apaga TODOS os tipos de cadeado (Lock, Cookie, Socket), não apenas o SingletonLock
         execSync(`find ${SESSION_PATH} -name "Singleton*" -delete`, { stdio: 'ignore' });
         console.log("🧹 [ZAP] Processos zumbis e TODOS os cadeados removidos com sucesso!");
-    } catch (e) { /* Ignora silenciosamente se falhar */ }
+    } catch (e) { }
 
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
         puppeteer: {
-            protocolTimeout: 600000, // <--- ADICIONE ESTA LINHA (Dá até 10 minutos para enviar o vídeo sem dar erro)
+            protocolTimeout: 600000, 
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
@@ -1123,25 +1118,34 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         }
     });
 
-    // ==============================================================
-    // 🧠 CONTROLE DE INTELIGÊNCIA E PACIÊNCIA DA CICÍ (10 MINUTOS)
-    // ==============================================================
-    const cronometrosCici = new Map(); // Guarda o timer de 10 min de cada cliente
-    const conversasEmPausa = new Map(); // Guarda a pausa de 1 hora quando o Lelo responde
+    // 👇 Chama a função que anexa os ouvintes (Listeners) no clientZap
+    configurarEventosDoZap(clientZap);
 
+    clientZap.initialize().catch((err) => { 
+        console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err);
+        clientZap = null; 
+        if (!res.headersSent) {
+            res.json({ success: false, msg: "Falha ao iniciar o WhatsApp. Verifique os logs." });
+        }
+    });
+});
+
+// ==============================================================
+// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (SEPARADO DA ROTA)
+// ==============================================================
+function configurarEventosDoZap(client) {
     // 1. Escuta o que VOCÊ (Lelo) digita no celular físico
-    clientZap.on('message_create', async (msg) => {
+    client.on('message_create', async (msg) => {
         if (msg.fromMe) {
             const chat = await msg.getChat();
             if (chat.isGroup) return;
 
             const chatID = msg.to;
             
-            // Pausa a Cicí por 1 hora nessa conversa
+            // Pausa a IA por 1 hora se o Lelo assumir a conversa
             conversasEmPausa.set(chatID, Date.now() + 3600000);
             console.log(`👤 [CICÍ] Lelo assumiu o chat com ${chatID}. Ficarei calada por 1 hora aqui.`);
 
-            // Se a Cicí tava esperando os 10 minutos para responder, CANCELA!
             if (cronometrosCici.has(chatID)) {
                 clearTimeout(cronometrosCici.get(chatID));
                 cronometrosCici.delete(chatID);
@@ -1151,14 +1155,14 @@ app.get('/api/admin/zap-qr', async (req, res) => {
     });
 
     // 2. Escuta o que o CLIENTE manda
-    clientZap.on('message', async (msg) => {
+    client.on('message', async (msg) => {
         try {
             const chat = await msg.getChat();
-            if (chat.isGroup) return; // Ignora grupos
+            if (chat.isGroup) return; 
 
             const chatID = msg.from;
 
-            // TRAVA 1: O Lelo já assumiu essa conversa na última hora?
+            // Se o Lelo assumiu a conversa recentemente, ignora a mensagem
             let tempoPausa = conversasEmPausa.get(chatID);
             if (tempoPausa && tempoPausa > Date.now()) return; 
 
@@ -1175,45 +1179,38 @@ app.get('/api/admin/zap-qr', async (req, res) => {
                     audioData = { inlineData: { data: media.data, mimeType: media.mimetype } };
                 }
             } else if (msg.hasMedia) {
-                return; // Ignora fotos e vídeos por enquanto
+                return; // Ignora fotos/vídeos por enquanto
             }
 
             if (!textoUsuario && !mensagemFoiDeAudio) return;
 
-            // ==============================================================
-            // 🛑 FILTRO DE ASSUNTO: A Cicí só entende de Logística!
-            // ==============================================================
-            // Se NÃO for áudio, verificamos se o texto tem as palavras-chave.
+            // Filtro de Assunto Consolidado
             const assuntoLogistica = /encomenda|pacote|frete|caixa|entrega|rastreio|valor|preço|kg|quilo|guiné|enviar|receber|etiqueta|pagamento|fatura|pix/i;
             
             if (!mensagemFoiDeAudio && !assuntoLogistica.test(textoUsuario)) {
-                console.log(`🤫 [CICÍ] Assunto fora da logística ("${textoUsuario.substring(0, 20)}..."). Deixando pro Lelo.`);
-                return; // Para o robô aqui. Ele ignora a mensagem.
+                console.log(`🤫 [CICÍ] Assunto fora da logística. Deixando pro Lelo.`);
+                return; 
             }
 
-            console.log(`⏳ [CICÍ] Mensagem de logística de ${chatID}. Esperando 10 MINUTOS pelo Lelo...`);
+            console.log(`⏳ [CICÍ] Mensagem sobre logística de ${chatID}. Esperando 10 MINUTOS pelo Lelo...`);
 
-            // Se o cliente mandar várias mensagens, zera o cronômetro para contar 10 min a partir da última
+            // Se já existia um timer rolando para essa pessoa, reseta
             if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
 
-            // ==============================================================
-            // ⏳ O CRONÔMETRO DE 10 MINUTOS (600.000 milissegundos)
-            // ==============================================================
             const timer = setTimeout(async () => {
-                // Trava de segurança final: O Lelo respondeu no último segundo?
                 let checkFinal = conversasEmPausa.get(chatID);
-                if (checkFinal && checkFinal > Date.now()) return;
+                if (checkFinal && checkFinal > Date.now()) return; // Verifica a pausa novamente antes de agir
 
                 console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID}...`);
                 await chat.sendStateTyping();
 
                 const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
-Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
+                Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
 
-REGRAS DE OURO:
-1. Se o cliente perguntar algo fora do tema (futebol, receitas, etc), responda: "Desculpe, eu só consigo te ajudar com assuntos da Guineexpress. Como posso ajudar com sua encomenda?"
-2. Seja carinhosa e educada.
-3. Se o cliente terminar uma dúvida, pergunte: "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?"`;
+                REGRAS DE OURO:
+                1. Se o cliente perguntar algo fora do tema, responda educadamente que só trata de envios e logística.
+                2. Seja carinhosa e educada.
+                3. Se o cliente terminar uma dúvida, pergunte o que mais você pode ajudar.`;
 
                 let modelChat = model.startChat({
                     history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
@@ -1229,16 +1226,13 @@ REGRAS DE OURO:
                 if (clientZap && clientZap.info) { 
                     try {
                         await msg.reply(iaResult.response.text());
-                        // Pode remover a linha de baixo se a IA já colocar a pergunta final no texto dela:
-                        // await clientZap.sendMessage(chatID, "O que você gostaria de ajuda agora sobre os serviços da Guineexpress?");
                     } catch (replyErr) {
                         console.error("❌ Erro na hora de enviar a resposta da Cicí:", replyErr.message);
                     }
                 }
                 
                 cronometrosCici.delete(chatID);
-
-            }, 10 * 60 * 1000); // <-- 10 MINUTOS AQUI!
+            }, 10 * 60 * 1000); 
 
             cronometrosCici.set(chatID, timer);
 
@@ -1247,10 +1241,8 @@ REGRAS DE OURO:
         }
     });
 
-    // ==============================================================
-    // 📞 CICÍ EDUCADA: AGUARDA O FIM DA CHAMADA E MANDA TEXTO E ÁUDIO
-    // ==============================================================
-    clientZap.on('call', async (call) => {
+    // 3. Chamadas de Voz / Vídeo
+    client.on('call', async (call) => {
         console.log(`📞 [CICÍ] Chamada recebida de: ${call.from}. Deixando tocar...`);
 
         setTimeout(async () => {
@@ -1273,7 +1265,8 @@ REGRAS DE OURO:
         }, 45000); 
     });
 
-    clientZap.on('disconnected', (reason) => {
+    // 4. Desconexões
+    client.on('disconnected', (reason) => {
         console.log('💀 [ZAP] O WhatsApp desconectou! Motivo:', reason);
         console.log('🔄 [ZAP] Iniciando ressurreição automática em 5 segundos...');
         clientZap = null; 
@@ -1281,15 +1274,7 @@ REGRAS DE OURO:
             console.log("⚠️ Pressione F5 na página de Configurações do Zap ou envie um recado para religar.");
         }, 5000);
     });
-
-    clientZap.initialize().catch((err) => { 
-        console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err);
-        clientZap = null; 
-        if (!res.headersSent) {
-            res.json({ success: false, msg: "Falha ao iniciar o WhatsApp. Verifique os logs." });
-        }
-    });
-});
+}
 // Rota de Envio em Massa
 app.post('/api/admin/broadcast-zap', (req, res) => {
     const { subject, message, sendZap } = req.body;
@@ -4398,82 +4383,32 @@ app.delete('/api/videos/:id', (req, res) => {
     });
 });
 // ==============================================================
-// 🧠 CONTROLE DE INTELIGÊNCIA E PACIÊNCIA DA CICÍ
+// 🧠 VARIÁVEIS GLOBAIS DE MEMÓRIA DA CICÍ
 // ==============================================================
+const cronometrosCici = new Map(); // Guarda o timer de 10 min de cada cliente
+const conversasEmPausa = new Map(); // Guarda a pausa de 1 hora quando o Lelo assume
 
-// Map para guardar os cronômetros de cada conversa
-const aguardandoLelo = new Map();
-
-client.on('message', async (msg) => {
-    const chat = await msg.getChat();
-    const contato = msg.from; // ID de quem mandou a mensagem
-
-    // 1. SE O LELO RESPONDER, A CICÍ FICA QUIETA
-    if (msg.fromMe) {
-        if (aguardandoLelo.has(contato)) {
-            console.log(`👤 Lelo respondeu ao ${contato}. Cicí cancelou a resposta dela.`);
-            clearTimeout(aguardandoLelo.get(contato)); // Cancela o cronômetro
-            aguardandoLelo.delete(contato);
-        }
-        return;
-    }
-
-    // 2. FILTRO DE ASSUNTO: A Cicí só entende de Logística
-    const assuntoLogistica = /encomenda|pacote|frete|caixa|entrega|rastreio|valor|preço|kg|quilo|guiné|enviar|receber|etiqueta/i;
-    const ehAssuntoLogistica = assuntoLogistica.test(msg.body);
-
-    if (!ehAssuntoLogistica) {
-        console.log(`🤫 Assunto irrelevante para a Cicí ("${msg.body}"). Deixando para o Lelo.`);
-        return; 
-    }
-
-    // 3. SE FOR LOGÍSTICA, ELA ENTRA NA FILA DE ESPERA (10 MINUTOS)
-    console.log(`⏳ Mensagem sobre logística de ${contato}. Cicí aguardará 10 minutos pelo Lelo...`);
-
-    // Se já tinha um timer para essa pessoa, limpa o antigo e renova
-    if (aguardandoLelo.has(contato)) clearTimeout(aguardandoLelo.get(contato));
-
-    const timer = setTimeout(async () => {
-        try {
-            console.log(`🤖 O Lelo não respondeu em 10 min. Cicí assumindo a conversa com ${contato}...`);
-            
-            // Aqui entra a sua lógica atual de chamar o Gemini/Cicí
-            // Exemplo: const resposta = await chamarCiciAI(msg.body);
-            // await client.sendMessage(contato, resposta);
-
-            aguardandoLelo.delete(contato);
-        } catch (err) {
-            console.error("Erro na resposta atrasada da Cicí:", err);
-        }
-    }, 10 * 60 * 1000); // 10 minutos em milissegundos
-
-    aguardandoLelo.set(contato, timer);
-});
 // ==============================================================
-// ⏰ 🤖 CICI: DESPERTADOR PROATIVO (COBRANÇA E AVISOS AUTOMÁTICOS)
+// ⏰ 🤖 CICI: DESPERTADOR PROATIVO (COBRANÇA E AVISOS)
 // ==============================================================
-
-// Esse 'cron' roda todo dia de manhã. O horário aqui está 08:00 ('0 8 * * *')
-// Como a Render usa o fuso horário de Londres, você pode ter que ajustar.
-// Mas para começar e testar, vamos deixar assim.
+// O cron roda todo dia às 08:00
 cron.schedule('0 8 * * *', async () => {
     console.log('⏰ Cicí acordou! Verificando faturas pendentes para avisar os clientes...');
 
-    // 1. Puxa faturas de 16 em 16 dias, começando apenas em 30/04/2026
-const sql = `
-    SELECT i.id as invoice_id, i.amount, i.description, 
-           u.name, u.phone 
-    FROM invoices i
-    JOIN users u ON i.client_id = u.id
-    WHERE i.status = 'pending' 
-    AND u.phone IS NOT NULL AND u.phone != ''
-    AND date('now') >= '2026-04-30' -- Só começa a cobrar a partir do dia 30
-    AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) % 16 = 0
-    AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) > 0
-`;
+    const sql = `
+        SELECT i.id as invoice_id, i.amount, i.description, 
+               u.name, u.phone 
+        FROM invoices i
+        JOIN users u ON i.client_id = u.id
+        WHERE i.status = 'pending' 
+        AND u.phone IS NOT NULL AND u.phone != ''
+        AND date('now') >= '2026-04-30'
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) % 16 = 0
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) > 0
+    `;
 
     db.all(sql, [], async (err, faturasPendentes) => {
-        if (err) return console.error('Erro ao buscar faturas para a Cicí:', err);
+        if (err) return console.error('❌ Erro ao buscar faturas para a Cicí:', err);
 
         if (faturasPendentes.length === 0) {
             return console.log('🤖 Cicí: Bom dia! Nenhuma fatura pendente hoje. Pode relaxar, chefe!');
@@ -4481,22 +4416,17 @@ const sql = `
 
         console.log(`🤖 Cicí encontrou ${faturasPendentes.length} faturas pendentes. Iniciando envios...`);
 
-        // Verifica qual robô do Zap está vivo no sistema
-        const roboZap = (typeof clientZap !== 'undefined' ? clientZap : (typeof client !== 'undefined' ? client : null));
-        
+        const roboZap = typeof clientZap !== 'undefined' ? clientZap : null;
         if (!roboZap || !roboZap.info) {
              return console.log('⚠️ Cicí: O WhatsApp não está conectado. Não vou conseguir mandar as cobranças agora.');
         }
 
-        // 2. Manda mensagem de 1 em 1 para não ser bloqueado pelo WhatsApp
         for (const fatura of faturasPendentes) {
-            let cleanPhone = fatura.phone.replace(/\D/g, ''); // Limpa o número
+            let cleanPhone = fatura.phone.replace(/\D/g, ''); 
             
-            // Texto carinhoso porém firme da Cicí
             const msg = `Olá, *${fatura.name}*! Bom dia! ☀️\n\nAqui é a Cicí da Guineexpress!\nEstou passando para lembrar que sua fatura (*${fatura.description}*) no valor de *R$ ${fatura.amount.toFixed(2)}* está pendente no nosso sistema.\n\nAcesse o seu painel rapidinho para pagar e liberar sua encomenda:\n🔗 https://guineexpress-f6ab.onrender.com/\n\nQualquer dúvida, é só me chamar aqui! 📦✈️`;
 
             try {
-                // Tenta achar o ID do contato no zap
                 const numberId = await roboZap.getNumberId(cleanPhone);
                 if (numberId) {
                     await roboZap.sendMessage(numberId._serialized, msg);
@@ -4509,7 +4439,7 @@ const sql = `
                  console.error(`❌ [Cicí Cobrança] Erro ao enviar para ${fatura.name}:`, zapErr.message);
             }
 
-            // Dorme por 5 segundos antes de mandar pro próximo (pra não levar ban do Zap)
+            // Pausa de 5 segundos para evitar banimento do WhatsApp
             await new Promise(r => setTimeout(r, 5000));
         }
         
