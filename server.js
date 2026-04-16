@@ -1079,7 +1079,7 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
 
-    // 1. O EXTERMINADOR EM NODE.JS (Caça cadeados em TODAS as subpastas)
+    // 1. O EXTERMINADOR BLINDADO (Ignora atalhos quebrados do Linux)
     try {
         const fs = require('fs');
         const path = require('path');
@@ -1087,31 +1087,35 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         function destruirCadeados(diretorio) {
             if (!fs.existsSync(diretorio)) return;
             
-            const arquivos = fs.readdirSync(diretorio);
+            let arquivos = [];
+            try {
+                arquivos = fs.readdirSync(diretorio);
+            } catch (e) { return; }
+
             for (const arquivo of arquivos) {
                 const caminhoCompleto = path.join(diretorio, arquivo);
-                // Se for uma pasta, entra nela e procura também (recursividade)
-                if (fs.statSync(caminhoCompleto).isDirectory()) {
-                    destruirCadeados(caminhoCompleto);
-                } else if (arquivo.startsWith('Singleton')) {
-                    // Se achar o cadeado, apaga na hora
-                    try {
+                try {
+                    // O segredo está no 'lstatSync'. Ele lê o atalho sem tentar segui-lo!
+                    const stats = fs.lstatSync(caminhoCompleto);
+                    
+                    if (stats.isDirectory()) {
+                        destruirCadeados(caminhoCompleto);
+                    } else if (arquivo.startsWith('Singleton')) {
                         fs.unlinkSync(caminhoCompleto);
                         console.log(`🔥 Cadeado aniquilado: ${caminhoCompleto}`);
-                    } catch (err) {}
+                    }
+                } catch (err) {
+                    // Se der erro em um arquivo, ignora e continua caçando os outros
                 }
             }
         }
 
         console.log("🧹 [ZAP] Iniciando varredura profunda de cadeados na sessão...");
-        
-        // Aplica a varredura na pasta que você definiu e na pasta padrão do whatsapp-web.js por garantia
         if (typeof SESSION_PATH !== 'undefined') destruirCadeados(SESSION_PATH);
         destruirCadeados(path.join(__dirname, '.wwebjs_auth')); 
-        
         console.log("✅ Varredura profunda concluída!");
     } catch (e) { 
-        console.error("Aviso na limpeza profunda:", e.message);
+        console.error("Aviso geral na limpeza:", e.message);
     }
 
     // 2. A partir daqui o Zap vai ligar
@@ -1146,7 +1150,6 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         }
     });
 
-    // 👇 Chama a função que anexa os ouvintes (Listeners) no clientZap
     configurarEventosDoZap(clientZap);
 
     clientZap.initialize().catch((err) => { 
