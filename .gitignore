@@ -7,3 +7,4 @@ guineexpress_v4.db
 session/
 session-admin/
 node_modules/
+.cache

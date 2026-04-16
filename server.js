@@ -1079,39 +1079,25 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
 
-    // 1. Limpeza via Terminal na FORÇA BRUTA (Sinal -9 mata sem perguntar)
+    // 1. O EXTERMINADOR NATIVO DO LINUX (Força Bruta Máxima)
     try {
         const { execSync } = require('child_process');
-        execSync('pkill -9 -f chrome', { stdio: 'ignore' });
-        execSync('pkill -9 -f chromium', { stdio: 'ignore' });
-        console.log("🧹 [ZAP] Processos zumbis aniquilados!");
-    } catch (e) { }
-
-    // 2. Limpeza Direta via Node.js (Incluindo a pasta "Default" que o zap esconde)
-    try {
-        const fs = require('fs');
-        const path = require('path');
         
-        const locks = [
-            path.join(SESSION_PATH, 'SingletonLock'),
-            path.join(SESSION_PATH, 'session', 'SingletonLock'),
-            path.join(SESSION_PATH, 'session', 'Default', 'SingletonLock'), // <-- O VERDADEIRO ESCONDERIJO
-            path.join(SESSION_PATH, 'session', 'SingletonCookie'),
-            path.join(SESSION_PATH, 'session', 'Default', 'SingletonCookie'),
-            path.join(SESSION_PATH, 'session', 'SingletonSocket'),
-            path.join(SESSION_PATH, 'session', 'Default', 'SingletonSocket')
-        ];
-
-        locks.forEach(lock => {
-            if (fs.existsSync(lock)) {
-                fs.unlinkSync(lock);
-                console.log(`✅ Cadeado quebrado com sucesso em: ${lock}`);
-            }
-        });
-    } catch (err) {
-        console.error('❌ Erro ao tentar quebrar os cadeados:', err);
+        // Mata qualquer Chrome travado na memória
+        execSync('pkill -9 -f chrome || true', { stdio: 'ignore' });
+        execSync('pkill -9 -f chromium || true', { stdio: 'ignore' });
+        
+        console.log("🧹 [ZAP] Invocando o comando nativo do Linux para varrer cadeados...");
+        
+        // O 'find' procura e aniquila qualquer arquivo que comece com Singleton sem piedade
+        execSync(`find "${SESSION_PATH}" -name "Singleton*" -delete || true`, { stdio: 'ignore' });
+        
+        console.log("✅ Limpeza de cadeados concluída!");
+    } catch (e) { 
+        console.error("Aviso na limpeza (normal se não tinha arquivo travado).");
     }
-    // A partir daqui o Zap pode ligar em paz!
+
+    // 2. A partir daqui o Zap vai ligar
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
         puppeteer: {
@@ -1154,7 +1140,6 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         }
     });
 });
-
 // ==============================================================
 // 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (SEPARADO DA ROTA)
 // ==============================================================
