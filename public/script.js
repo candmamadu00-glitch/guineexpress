@@ -697,8 +697,17 @@ async function loadBoxes() {
         
         // 🧠 CÉREBRO DO FILTRO DE LOTES 🧠
         const filterSelect = document.getElementById('filter-box-lote');
-        const loteSelecionado = filterSelect ? filterSelect.value : 'Todos';
         
+        let loteSelecionado = filterSelect ? filterSelect.value : 'Todos';
+        
+        // Se for o cliente logado, ele puxa o lote do Seletor Mestre do Painel VIP
+        if (currentUser.role === 'client') {
+            const mainFilter = document.getElementById('main-shipment-filter');
+            if (mainFilter) {
+                loteSelecionado = mainFilter.value !== '' ? mainFilter.value : 'Todos';
+            }
+        }
+
         // Aprende quais lotes existem e cria os botões do filtro
         if (filterSelect) {
             const lotesUnicos = [...new Set(list.map(b => b.lote || 'Sem Lote'))];
@@ -789,7 +798,11 @@ async function loadBoxes() {
                 const textoBtn = b.receiver_name ? `✅ Destinatario: ${b.receiver_name.split(' ')[0]}` : '👤 Informar Destinatario';
                 const corBtn = b.receiver_name ? '#28a745' : '#f1c40f';
                 const corTexto = b.receiver_name ? '#fff' : '#000';
-                act = `<button onclick="openReceiverModal(${b.id}, '${b.receiver_name || ''}', '${b.receiver_doc || ''}')" 
+                
+                // 🔴 A MÁGICA DO PULSO: Se não tiver nome, adiciona a classe que pulsa! Se já tiver, fica vazio.
+                const classePulse = b.receiver_name ? '' : 'pulse-action';
+
+                act = `<button class="${classePulse}" onclick="openReceiverModal(${b.id}, '${b.receiver_name || ''}', '${b.receiver_doc || ''}')" 
                         style="background:${corBtn}; color:${corTexto}; border:none; padding:5px 10px; cursor:pointer; border-radius:4px; font-weight:bold; font-size:12px;">
                         ${textoBtn}
                        </button>`;
@@ -823,6 +836,12 @@ async function loadBoxes() {
 
         tbody.innerHTML = htmlBuffer;
         if(typeof makeTablesResponsive === 'function') makeTablesResponsive();
+        
+        // (Isso fica no finalzinho da loadBoxes no script.js)
+        if (currentUser.role === 'client') {
+            populateClientMainFilter();
+            updateSmartGreeting(); 
+        }
 
     } catch (e) {
         console.error("Erro ao carregar boxes:", e);
@@ -994,26 +1013,95 @@ async function deleteBox(id) {
         loadBoxes();
     }
 }
+// ============================================================
+// PUXAR LOTES NO AGENDAMENTO (CÉREBRO INTELIGENTE 🧠)
+// ============================================================
+async function loadScheduleLots() {
+    const select = document.getElementById('sched-lote');
+    if (!select) return;
+    
+    // Mostra que está carregando para você saber que o clique funcionou
+    select.innerHTML = '<option value="">Buscando Envios... ⏳</option>';
+    
+    try {
+        // 1. Puxa todas as caixas, igualzinho faz nos recibos!
+        const response = await fetch('/api/boxes');
+        const boxes = await response.json();
+        
+        // 2. Aprende quais lotes existem (ignorando os vazios)
+        const todosOsLotes = boxes.map(b => b.lote).filter(l => l && l.trim() !== '');
+        const lotesUnicos = [...new Set(todosOsLotes)];
+        
+        // 3. Monta as opções bonitinhas
+        let html = '<option value="">📦 Selecione o Envio/Lote</option>';
+        
+        lotesUnicos.sort().forEach(lote => {
+            html += `<option value="${lote}">✈️ ${lote}</option>`;
+        });
 
-// --- SISTEMA DE AGENDAMENTO ---
+        // 4. Se não achar nada, avisa
+        if(lotesUnicos.length === 0) {
+            html += '<option value="" disabled>Nenhum envio encontrado nas caixas</option>';
+        }
+        
+        // 5. Joga tudo na tela
+        select.innerHTML = html;
+        
+    } catch (e) {
+        console.error("Erro ao carregar lotes do agendamento:", e);
+        select.innerHTML = '<option value="">Erro ao carregar lotes</option>';
+    }
+}
+// FUNÇÃO ATUALIZADA: Criar Vaga com Intervalo de Datas
 async function createAvailability(e) {
     e.preventDefault();
+    
+    const loteValue = document.getElementById('sched-lote').value;
+    
+    // Trava de segurança: obriga a escolher o envio!
+    if (!loteValue) {
+        alert('⚠️ ATENÇÃO: Você precisa selecionar um Envio/Lote antes de criar as vagas!');
+        return;
+    }
+
     const data = {
-        date: document.getElementById('sched-date').value,
+        start_date: document.getElementById('sched-start-date').value,
+        end_date: document.getElementById('sched-end-date').value, // 🚀 NOVA DATA
         start_time: document.getElementById('sched-start').value,
         end_time: document.getElementById('sched-end').value,
-        max_slots: document.getElementById('sched-slots').value
+        max_slots: document.getElementById('sched-slots').value,
+        lote: loteValue 
     };
-    const res = await fetch('/api/schedule/create-availability', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)});
+
+    // Trava: a data inicial não pode ser maior que a final
+    if (data.start_date > data.end_date) {
+        alert("⚠️ A Data de Início não pode ser maior que a Data Final!");
+        return;
+    }
+
+    const res = await fetch('/api/schedule/create-availability', { 
+        method: 'POST', 
+        headers: {'Content-Type':'application/json'}, 
+        body: JSON.stringify(data)
+    });
+
     const json = await res.json();
-    if(json.success) { alert('Horário liberado!'); loadSchedules(); } else alert('Erro.');
+    if(json.success) { 
+        alert(`✅ Vagas liberadas para o ${loteValue}! Os clientes deste envio foram notificados.`); 
+        loadSchedules(); 
+    } else {
+        alert('Erro ao criar vagas: ' + (json.msg || ''));
+    }
 }
 
+// 3. FUNÇÃO ATUALIZADA: Carregar as agendas (Acorda a lista de lotes!)
 async function loadSchedules() {
+    // 🚀 O SEGREDO ESTÁ AQUI: Toda vez que a agenda carrega, ele puxa a lista de Envios atualizada!
+    loadScheduleLots();
+
     const resSlots = await fetch('/api/schedule/slots-15min');
     const responseSlots = await resSlots.json();
     
-    // Tratamento novo: Se o servidor disser que tá bloqueado
     const isBloqueado = responseSlots.status === "bloqueado";
     const slots15min = responseSlots.data || [];
 
@@ -1030,17 +1118,15 @@ async function loadSchedules() {
     if(container) {
         container.innerHTML = '';
 
-        // SE O CLIENTE NÃO PAGOU A FATURA AINDA:
         if (isBloqueado) {
             container.innerHTML = `
                 <div style="text-align:center; padding: 40px 20px; background: #fff3cd; color: #856404; border-radius: 8px; border: 1px solid #ffeeba;">
                     <i class="fas fa-lock" style="font-size: 40px; margin-bottom: 15px;"></i>
                     <h3 style="margin:0 0 10px 0;">Agenda Bloqueada</h3>
-                    <p style="margin:0;">Para liberar o agendamento de recolha ou entrega, é necessário ter pelo menos uma fatura <strong>Paga</strong> no sistema.</p>
+                    <p style="margin:0;">Para liberar o agendamento de recolha ou entrega, é necessário ter pelo menos uma fatura <strong>Paga</strong> de um envio com vagas abertas.</p>
                 </div>
             `;
         } else {
-            // Lógica normal se estiver pago
             const bookedDates = appointments.filter(app => app.status !== 'Cancelado').map(app => app.date);
             const groups = {};
             slots15min.forEach(slot => { if(!groups[slot.date]) groups[slot.date] = []; groups[slot.date].push(slot); });
@@ -1083,6 +1169,7 @@ async function loadSchedules() {
         });
     }
 }
+
 async function bookSlot(availId, date, time) {
     if(!confirm(`Confirmar agendamento dia ${formatDate(date)} às ${time}?`)) return;
     const res = await fetch('/api/schedule/book', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ availability_id: availId, date: date, time: time }) });
@@ -2538,8 +2625,7 @@ function loadMoreAdminVideos() {
     loadAdminVideos();
 }
 
-// --- VÍDEOS DO CLIENTE (LEVE E PREPARADO PARA MP4 🎬) ---
-async function loadClientVideos() {
+async function loadClientVideos(loteFiltro = '') {
     const grid = document.getElementById('client-video-grid');
     if(!grid) return; 
     
@@ -2547,10 +2633,17 @@ async function loadClientVideos() {
 
     try {
         const res = await fetch('/api/videos/list');
-        const list = await res.json();
+        let list = await res.json();
         
+        // 🧠 MÁGICA DO FILTRO: Puxa só os vídeos do envio selecionado!
+        if (loteFiltro && loteFiltro !== '') {
+            // Nota: Se a sua tabela de vídeos tem a coluna 'order_code', assumimos que o lote
+            // está salvo nela ou relacionado. Se a rota `/api/videos/list` do backend retornar o `lote`, filtramos por ele:
+            list = list.filter(v => (v.lote || v.order_code || 'Sem Lote') === loteFiltro);
+        }
+
         if(list.length === 0) {
-            grid.innerHTML = '<p style="text-align:center; color:#666; width:100%; margin-top:20px;">Nenhum vídeo disponível no momento.</p>';
+            grid.innerHTML = `<p style="text-align:center; color:#666; width:100%; margin-top:20px;">Nenhum vídeo disponível ${loteFiltro ? 'para este envio' : 'no momento'}.</p>`;
             return;
         }
 
@@ -2561,13 +2654,11 @@ async function loadClientVideos() {
         for (let i = 0; i < list.length; i++) {
             totalValidos++;
 
-            if (renderizados >= clientVideoLimit) continue; // Trava de segurança para não explodir o celular do cliente
+            if (renderizados >= clientVideoLimit) continue; 
 
             const v = list[i];
             const dateStr = new Date(v.created_at).toLocaleDateString('pt-BR');
             const descSafe = (v.description || 'Sem descrição').replace(/"/g, '&quot;');
-            
-            // Verifica a extensão do arquivo (agora pode ser .mp4 ou .webm)
             const ext = v.filename.split('.').pop();
             
             htmlBuffer += `
@@ -2590,7 +2681,6 @@ async function loadClientVideos() {
             renderizados++;
         }
 
-        // ADICIONA O BOTÃO "CARREGAR MAIS" NO FINAL DA GRADE
         if (totalValidos > clientVideoLimit) {
             htmlBuffer += `
             <div style="width: 100%; display: flex; justify-content: center; padding: 20px 0;">
@@ -2933,9 +3023,9 @@ async function deleteInvoice(id) {
 }
 
 // ==========================================
-// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM MEMÓRIA PARA A CICÍ)
+// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM FILTRO E MEMÓRIA DA CICÍ)
 // ==========================================
-async function loadClientInvoices() {
+async function loadClientInvoices(loteFiltro = '') {
     const tbody = document.getElementById('client-invoices-list');
     if(!tbody) return; 
 
@@ -2943,11 +3033,17 @@ async function loadClientInvoices() {
 
     try {
         const res = await fetch('/api/invoices/my_invoices'); 
-        const list = await res.json();
+        let list = await res.json();
+
+        // 🧠 MÁGICA DO FILTRO: Se tiver lote selecionado, esconde as outras faturas!
+        if (loteFiltro && loteFiltro !== '') {
+            // Se a fatura não tem lote, nós assumimos que é 'Sem Lote'
+            list = list.filter(inv => (inv.lote || 'Sem Lote') === loteFiltro);
+        }
 
         tbody.innerHTML = '';
         if(list.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente ${loteFiltro ? 'para este envio' : ''}.</td></tr>`;
             return;
         }
 
@@ -2973,7 +3069,7 @@ async function loadClientInvoices() {
                 actionHtml = `
                 <div style="display:flex; justify-content:center; gap:8px;">
                     <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        💸 Pagar pelo Pix e Enviar o Comprovante 
+                        💸 Pagar pelo Pix 
                     </button>
                 </div>`;
             } else {
@@ -2991,16 +3087,13 @@ async function loadClientInvoices() {
             </tr>`;
         });
 
-        // 🧠 MEMÓRIA PROFUNDA DA CICÍ: Usa sessionStorage para não avisar da fatura se a tela atualizar
+        // (Lógica da Cicí continua igualzinha aqui...)
         if (faturasPendentes > 0 && sessionStorage.getItem('ciciJaAvisouFatura') !== 'sim') {
-            sessionStorage.setItem('ciciJaAvisouFatura', 'sim'); // Grava na memória!
-            
+            sessionStorage.setItem('ciciJaAvisouFatura', 'sim'); 
             setTimeout(() => {
                 showSection('billing-view');
-                
                 setTimeout(() => {
                     CiciTour.focarElemento('.btn-pisca', `🚨 Ei! Vi que você tem fatura pendente.<br><br>Clique no botão azul que a seta está apontando para abrir o seu PIX.`);
-                    
                     const overlay = document.getElementById('cici-overlay');
                     if (overlay) overlay.onclick = () => CiciTour.limparFoco('.btn-pisca');
                 }, 500);
@@ -3012,7 +3105,6 @@ async function loadClientInvoices() {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
     }
 }
-
 
 // ==========================================
 // CICÍ COBRANDO DADOS DO RECEBEDOR (COM MEMÓRIA PROFUNDA)
@@ -7715,27 +7807,45 @@ async function loadManifest() {
         
         if (!json.success) return alert("Erro ao carregar lista de embarque.");
 
+        // 🧠 CÉREBRO DO FILTRO DE LOTE DO MANIFESTO 🧠
+        const filterSelect = document.getElementById('manifest-lote-filter');
+        const loteSelecionado = filterSelect ? filterSelect.value : 'Todos';
+
+        // 1. Aprende quais lotes vieram do banco e cria as opções
+        if (filterSelect) {
+            const lotesUnicos = [...new Set(json.data.map(row => row.lote || 'Sem Lote'))];
+            
+            // Só recria as opções se o select estiver vazio, para não perder a seleção ao atualizar
+            if (filterSelect.options.length <= 1) {
+                let htmlFiltro = '<option value="Todos">📦 Todos os Envios</option>';
+                lotesUnicos.sort().forEach(l => htmlFiltro += `<option value="${l}">✈️ ${l}</option>`);
+                filterSelect.innerHTML = htmlFiltro;
+                filterSelect.value = loteSelecionado; // Restaura a opção que o usuário clicou
+            }
+        }
+
+        // 2. FILTRA OS DADOS BASEADO NO LOTE ESCOLHIDO
+        let dadosFiltrados = json.data;
+        if (loteSelecionado !== 'Todos') {
+            dadosFiltrados = dadosFiltrados.filter(row => (row.lote || 'Sem Lote') === loteSelecionado);
+        }
+
         const tbody = document.getElementById('manifest-list');
         tbody.innerHTML = '';
-
         let itemMap = {};
 
-        // Lógica inteligente para separar quantidades e nomes
-        json.data.forEach(row => {
-            // Agora ele lê a coluna 'items' que vem da nova rota do servidor
+        // 3. Soma as quantidades usando apenas os dados filtrados!
+        dadosFiltrados.forEach(row => {
             if (!row.items) return; 
             
-            // Separa os itens por vírgula ou por linha (Enter)
             let itemsArray = row.items.split(/,|\n/);
             
             itemsArray.forEach(item => {
                 let cleanItem = item.trim();
                 if (!cleanItem) return;
 
-                // Tenta achar um número no começo (Ex: "20 Calcinhas") ou no fim (Ex: "Calcinhas 20")
                 let match = cleanItem.match(/^(\d+)\s*(.*)$/) || cleanItem.match(/^(.*)\s+(\d+)$/);
-                
-                let qtd = 1; // Se não tiver número, assume que é 1
+                let qtd = 1; 
                 let nome = cleanItem;
 
                 if (match) {
@@ -7748,7 +7858,6 @@ async function loadManifest() {
                     }
                 }
 
-                // Padroniza o nome para maiúsculo para somar iguais (ex: havaianas = HAVAIANAS)
                 nome = nome.trim().toUpperCase();
                 if (nome === "") nome = "ITENS DIVERSOS";
 
@@ -7761,10 +7870,10 @@ async function loadManifest() {
         });
 
         // Transforma o dicionário em lista e desenha na tabela
-        let keys = Object.keys(itemMap).sort(); // Ordem alfabética
+        let keys = Object.keys(itemMap).sort(); 
         
         if(keys.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">Nenhum produto encontrado nas encomendas/boxes ativas.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum produto encontrado para o filtro: ${loteSelecionado}.</td></tr>`;
             return;
         }
 
@@ -7781,7 +7890,6 @@ async function loadManifest() {
             `;
         });
 
-        // Adiciona a linha de TOTAL no final
         tbody.innerHTML += `
             <tr style="background-color: #e9ecef;">
                 <td style="text-align: center; font-weight: 900; font-size: 18px;">${totalGeral}</td>
@@ -7793,7 +7901,6 @@ async function loadManifest() {
         console.error(err);
     }
 }
-
 // --- BAIXAR PDF DA LISTA DE EMBARQUE ---
 function printManifestPDF() {
     const area = document.getElementById('print-manifest-area').innerHTML;
@@ -7827,11 +7934,13 @@ function printManifestPDF() {
     setTimeout(() => { janela.print(); janela.close(); }, 500);
 }
 
-// COLOQUE APENAS ISSO:
 // --- NOVO BOTÃO DE BAIXAR EXCEL INTELIGENTE ---
 function exportManifestExcel() {
-    // Redireciona para a nossa nova rota inteligente do backend!
-    window.location.href = '/api/export/smart-excel';
+    const filterSelect = document.getElementById('manifest-lote-filter');
+    const lote = filterSelect ? filterSelect.value : 'Todos';
+    
+    // Manda o lote na URL para o servidor!
+    window.location.href = '/api/export/smart-excel?lote=' + encodeURIComponent(lote);
 }
 // ==========================================
 // FUNÇÃO PARA EXCLUIR CLIENTE (ADMIN)
@@ -8320,3 +8429,84 @@ async function loadLabelLots() {
 document.addEventListener('DOMContentLoaded', () => {
     loadLabelLots();
 });
+// ==============================================================
+// PREENCHE O "SELETOR MESTRE" DE LOTES NO PAINEL DO CLIENTE
+// ==============================================================
+async function populateClientMainFilter() {
+    const mainFilter = document.getElementById('main-shipment-filter');
+    
+    // Só executa se o seletor existir na tela e se for o cliente logado
+    if (!mainFilter || !currentUser || currentUser.role !== 'client') return; 
+
+    try {
+        // Puxa as caixas para descobrir quais lotes esse cliente tem
+        const response = await fetch('/api/boxes');
+        const list = await response.json();
+        
+        // Separa só as caixas que pertencem ao cliente logado
+        const caixasDoCliente = list.filter(b => b.client_id === currentUser.id);
+
+        // Extrai os nomes dos lotes, remove duplicados e tira os vazios
+        const lotesUnicos = [...new Set(caixasDoCliente.map(b => b.lote).filter(l => l && l.trim() !== ''))];
+        
+        // Guarda o valor que o cliente já tinha clicado (para não resetar do nada)
+        const valorAtual = mainFilter.value;
+
+        // Monta o HTML das opções
+        let optionsHTML = '<option value="">📦 Todos os Envios</option>';
+        lotesUnicos.sort().forEach(lote => {
+            optionsHTML += `<option value="${lote}">✈️ ${lote}</option>`;
+        });
+
+        // Injeta na tela
+        mainFilter.innerHTML = optionsHTML;
+
+        // Se o cliente já tinha escolhido um, mantém ele selecionado
+        if (lotesUnicos.includes(valorAtual) || valorAtual === '') {
+            mainFilter.value = valorAtual;
+        }
+
+    } catch (erro) {
+        console.error("Erro ao preencher o seletor mestre do cliente:", erro);
+    }
+}
+// ==============================================================
+// SAUDAÇÃO INTELIGENTE DO CLIENTE 🧠☀️🌙
+// ==============================================================
+function updateSmartGreeting() {
+    const greetingElement = document.getElementById('smart-greeting');
+    
+    // Só funciona se o título existir na tela e o cliente estiver logado
+    if (!greetingElement || !currentUser || currentUser.role !== 'client') return;
+
+    const hora = new Date().getHours();
+    let cumprimento = '';
+    let emoji = '';
+
+    // Lê o relógio
+    if (hora >= 5 && hora < 12) {
+        cumprimento = 'Bom dia';
+        emoji = '☀️';
+    } else if (hora >= 12 && hora < 18) {
+        cumprimento = 'Boa tarde';
+        emoji = '🌤️';
+    } else {
+        cumprimento = 'Boa noite';
+        emoji = '🌙';
+    }
+
+    // Pega só o primeiro nome para ficar mais íntimo
+    const primeiroNome = currentUser.name.split(' ')[0];
+
+    // Frases aleatórias para não ficar repetitivo
+    const frases = [
+        "Pronto para acompanhar seus envios?",
+        "Tudo organizado por aqui hoje.",
+        "Como podemos ajudar com suas encomendas?",
+        "Seu painel logístico está atualizado."
+    ];
+    const fraseAleatoria = frases[Math.floor(Math.random() * frases.length)];
+
+    // Injeta na tela
+    greetingElement.innerHTML = `${emoji} ${cumprimento}, <strong style="color: #00b1ea;">${primeiroNome}</strong>!<br><span style="font-size: 14px; font-weight: normal; color: #666;">${fraseAleatoria}</span>`;
+}

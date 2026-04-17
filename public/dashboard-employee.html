@@ -115,13 +115,20 @@
         <section id="schedule-view" class="hidden">
             <div class="card" style="margin-bottom: 20px;">
                 <h3>Criar Vagas de Atendimento</h3>
-                <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <input type="date" id="sched-date" class="form-control" required>
-                    <input type="time" id="sched-start" class="form-control" required>
-                    <input type="time" id="sched-end" class="form-control" required>
-                    <input type="number" id="sched-slots" class="form-control" placeholder="Qtd Vagas" style="width:100px;" required>
-                    <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
-                </form>
+                <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap; align-items: center;">
+    <select id="sched-lote" onclick="if(this.options.length <= 1) loadScheduleLots()" class="form-control" style="min-width: 150px;" required>
+        <option value="">📦 Clique para carregar Envios...</option>
+    </select>
+    
+    <input type="date" id="sched-start-date" class="form-control" title="Data de Início" required>
+    <span style="font-weight:bold; color:#0a1931;">até</span>
+    <input type="date" id="sched-end-date" class="form-control" title="Data Final" required>
+    
+    <input type="time" id="sched-start" class="form-control" title="Hora Inicial" required>
+    <input type="time" id="sched-end" class="form-control" title="Hora Final" required>
+    <input type="number" id="sched-slots" class="form-control" placeholder="Vagas" style="width:80px;" required>
+    <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
+</form>
             </div>
             <div class="card">
                 <h3>Agendamentos do Dia</h3>

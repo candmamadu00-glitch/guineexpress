@@ -198,6 +198,8 @@ db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
     db.run("ALTER TABLE invoices ADD COLUMN mp_payment_id TEXT", () => {});
     db.run("ALTER TABLE boxes ADD COLUMN shipment_id INTEGER REFERENCES shipments(id)", () => {});
     db.run("ALTER TABLE orders ADD COLUMN destino TEXT", () => {});
+    // 📅 LINHA NOVA: Vincular o Agendamento a um Lote específico
+    db.run("ALTER TABLE availability ADD COLUMN lote TEXT", () => {});
     // 📦 LINHA NOVA PARA SALVAR A QUANTIDADE DE VOLUMES DAS CAIXAS:
     db.run("ALTER TABLE boxes ADD COLUMN volumes INTEGER DEFAULT 1", () => {});
     // 🗑️ COLUNAS PARA A LIXEIRA (SOFT DELETE):
@@ -230,6 +232,7 @@ db.run("ALTER TABLE users ADD COLUMN push_subscription TEXT", (err) => {
     db.run("ALTER TABLE invoices ADD COLUMN nf_amount REAL DEFAULT 0", () => {});
     db.run("ALTER TABLE invoices ADD COLUMN freight_amount REAL DEFAULT 0", () => {});
     console.log("✅ Tabelas sincronizadas e colunas verificadas.");
+    
 
     // =======================================================
     // 3. SEGURANÇA: CRIAÇÃO DE USUÁRIOS (ADMIN/FUNCIONÁRIOS)

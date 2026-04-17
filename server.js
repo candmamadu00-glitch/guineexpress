@@ -23,6 +23,7 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const webpush = require('web-push');
 const app = express(); // <-- O App é criado aqui
+app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
 const ExcelJS = require('exceljs');
 // === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
 const ffmpeg = require('fluent-ffmpeg');
@@ -1388,48 +1389,101 @@ app.get('/api/financial-report', (req, res) => {
     });
 });
 // ==========================================
-// 1. Admin cria janela e NOTIFICA CLIENTES PAGOS VIA WHATSAPP
+// ROTA NOVA: BUSCAR LOTES EXISTENTES PARA O ADMIN SELECIONAR
 // ==========================================
-app.post('/api/schedule/create-availability', (req, res) => {
-    const { date, start_time, end_time, max_slots } = req.body;
+app.get('/api/schedule/lotes', (req, res) => {
+    // Puxa os lotes únicos baseados nas faturas criadas
+    const sql = `SELECT DISTINCT COALESCE(b.lote, o.lote, 'Sem Lote') as lote 
+                 FROM invoices i 
+                 LEFT JOIN boxes b ON i.box_id = b.id 
+                 LEFT JOIN orders o ON b.order_id = o.id 
+                 WHERE COALESCE(b.lote, o.lote) IS NOT NULL`;
+    db.all(sql, [], (err, rows) => res.json(rows || []));
+});
+
+// ==========================================
+// 1. Admin cria janela de datas e NOTIFICA APENAS CLIENTES DO LOTE SELECIONADO
+// ==========================================
+app.post('/api/schedule/create-availability', async (req, res) => {
+    const { start_date, end_date, start_time, end_time, max_slots, lote } = req.body;
     
-    db.run("INSERT INTO availability (date, start_time, end_time, max_slots) VALUES (?,?,?,?)",
-        [date, start_time, end_time, max_slots], function(err) {
-            if (err) return res.json({ success: false });
+    if (!start_date || !end_date) return res.json({ success: false, msg: "Datas inválidas." });
 
-            // Após criar a vaga, busca clientes com faturas pagas (approved ou paid)
-            db.all(`SELECT DISTINCT u.phone, u.name 
-                    FROM users u 
-                    JOIN invoices i ON u.id = i.client_id 
-                    WHERE i.status IN ('approved', 'paid') AND u.phone IS NOT NULL`, [], async (err2, clientesPagos) => {
+    // 🚀 MÁGICA DO INTERVALO: Cria uma lista com todos os dias entre o início e o fim
+    let datasParaInserir = [];
+    let dataAtual = new Date(start_date + "T12:00:00"); // T12:00:00 evita bugs de fuso horário
+    let dataFinal = new Date(end_date + "T12:00:00");
+
+    while (dataAtual <= dataFinal) {
+        let ano = dataAtual.getFullYear();
+        let mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+        let dia = String(dataAtual.getDate()).padStart(2, '0');
+        datasParaInserir.push(`${ano}-${mes}-${dia}`); // Guarda "2024-05-19", "2024-05-20", etc.
+        dataAtual.setDate(dataAtual.getDate() + 1); // Pula pro próximo dia
+    }
+
+    let insertsConcluidos = 0;
+    let teveErro = false;
+
+    // Salva as vagas de cada dia no banco de dados
+    for (let dataStr of datasParaInserir) {
+        db.run("INSERT INTO availability (date, start_time, end_time, max_slots, lote) VALUES (?,?,?,?,?)",
+            [dataStr, start_time, end_time, max_slots, lote], (err) => {
+                if (err) teveErro = true;
                 
-                if(!err2 && clientesPagos.length > 0 && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                    // Formata a data para a mensagem
-                    const [ano, mes, dia] = date.split('-');
-                    const dataFormatada = `${dia}/${mes}/${ano}`;
+                insertsConcluidos++;
+                
+                // Quando terminar de salvar o último dia, ele avisa a Cicí para disparar o WhatsApp
+                if (insertsConcluidos === datasParaInserir.length) {
+                    if (teveErro) return res.json({ success: false, msg: "Erro em alguns dias." });
+                    
+                    notificarClientesDoLote(lote, start_date, end_date);
+                    res.json({ success: true });
+                }
+            }
+        );
+    }
 
-                    for (let cliente of clientesPagos) {
-                        try {
-                            let cleanPhone = cliente.phone.replace(/\D/g, '');
-                            const zapMsg = `Olá, *${cliente.name}*! 📅\n\nA Guineexpress acabou de abrir vagas na agenda para o dia *${dataFormatada}*.\n\nComo o seu pagamento já foi confirmado, acesse o seu painel agora mesmo para garantir o seu horário de agendamento!\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-                            
-                            const numberId = await clientZap.getNumberId(cleanPhone);
-                            if (numberId) {
-                                await clientZap.sendMessage(numberId._serialized, zapMsg);
-                                console.log(`✅ [ZAP] Aviso de agenda enviada para ${cliente.name}`);
-                            }
-                            if (cliente.id) {
-                                enviarNotificacaoNaTela(cliente.id, "📅 Novas Vagas de Agendamento!", `Abrimos vagas na agenda para o dia ${dataFormatada}. Corra e garanta o seu horário!`, "/dashboard-client.html");
-                            }
-                        } catch(e) {
-                            console.log(`⚠️ Erro ao avisar ${cliente.name} sobre a agenda.`);
+    // Função interna que manda o WhatsApp
+    function notificarClientesDoLote(lote, inicio, fim) {
+        const sql = `SELECT DISTINCT u.phone, u.name, u.id 
+                     FROM users u 
+                     JOIN invoices i ON u.id = i.client_id 
+                     LEFT JOIN boxes b ON i.box_id = b.id 
+                     LEFT JOIN orders o ON b.order_id = o.id 
+                     WHERE i.status IN ('approved', 'paid') 
+                     AND u.phone IS NOT NULL 
+                     AND COALESCE(b.lote, o.lote, 'Sem Lote') = ?`;
+
+        db.all(sql, [lote], async (err2, clientesPagos) => {
+            if(!err2 && clientesPagos.length > 0 && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                
+                // Formata a data para ficar bonitinha na mensagem
+                const formatar = (d) => { const [a,m,di] = d.split('-'); return `${di}/${m}/${a}`; };
+                
+                // Se for só um dia, fala "para o dia X". Se forem vários, fala "do dia X até Y"
+                let periodoMsg = inicio === fim ? `para o dia *${formatar(inicio)}*` : `para o período de *${formatar(inicio)}* até *${formatar(fim)}*`;
+
+                for (let cliente of clientesPagos) {
+                    try {
+                        let cleanPhone = cliente.phone.replace(/\D/g, '');
+                        const zapMsg = `Olá, *${cliente.name}*! 📅\n\nA Guineexpress acabou de abrir vagas na agenda para o *${lote}* ${periodoMsg}.\n\nComo o seu pagamento já foi confirmado, acesse o seu painel agora mesmo para garantir o seu horário de atendimento!\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+                        
+                        const numberId = await clientZap.getNumberId(cleanPhone);
+                        if (numberId) {
+                            await clientZap.sendMessage(numberId._serialized, zapMsg);
+                            console.log(`✅ [ZAP] Aviso do ${lote} enviado para ${cliente.name}`);
                         }
+                        if (cliente.id) {
+                            enviarNotificacaoNaTela(cliente.id, "📅 Agenda Liberada!", `Abrimos vagas para o ${lote} ${periodoMsg}. Corra e agende!`, "/dashboard-client.html");
+                        }
+                    } catch(e) {
+                        console.log(`⚠️ Erro ao avisar ${cliente.name} sobre a agenda.`);
                     }
                 }
-            });
-
-            res.json({ success: true });
+            }
         });
+    }
 });
 // Rota que faltava: Lista as janelas criadas (para o Admin ver e excluir)
 app.get('/api/schedule/availability', (req, res) => {
@@ -1452,53 +1506,64 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
 
 
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
-// ==========================================
-// 3. Rota INTELIGENTE (BLOQUEADA PARA QUEM NÃO PAGOU)
-// ==========================================
 app.get('/api/schedule/slots-15min', (req, res) => {
     const userId = req.session.userId;
     const userRole = req.session.role;
 
-    // Apenas clientes precisam da verificação de pagamento. Admin e Func veem tudo.
-    if (userRole === 'client') {
-        db.get(`SELECT count(*) as qtd FROM invoices WHERE client_id = ? AND status IN ('approved', 'paid')`, [userId], (errUser, rowCount) => {
-            if (errUser || !rowCount || rowCount.qtd === 0) {
-                // Se o cliente não tem fatura paga, devolvemos um código especial "BLOQUEADO"
-                return res.json({ status: "bloqueado", data: [] });
-            }
-            // Se pagou, segue para carregar as vagas
-            carregarVagas(res);
-        });
-    } else {
-        // Se for admin/func, carrega direto
-        carregarVagas(res);
-    }
+    db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, ranges) => {
+        if(err || !ranges || ranges.length === 0) return res.json({ status: "ok", data: [] });
 
-    function carregarVagas(resposta) {
-        db.all("SELECT * FROM availability WHERE date >= date('now') ORDER BY date ASC, start_time ASC", [], (err, ranges) => {
-            if(err) return resposta.json({ status: "ok", data: [] });
-
-            db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
-                if (err2 || !bookings) bookings = []; 
-
-                let finalSlots = [];
-                ranges.forEach(range => {
-                    let current = new Date(`2000-01-01T${range.start_time}`);
-                    let end = new Date(`2000-01-01T${range.end_time}`);
-
-                    while (current < end) {
-                        let timeStr = current.toTimeString().substring(0,5);
-                        let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
-                        
-                        finalSlots.push({
-                            availability_id: range.id, date: range.date, time: timeStr,
-                            max_slots: range.max_slots, taken: taken, available: range.max_slots - taken
-                        });
-                        current.setMinutes(current.getMinutes() + 15);
-                    }
-                });
-                resposta.json({ status: "ok", data: finalSlots });
+        if (userRole === 'client') {
+            // Descobre quais lotes esse cliente já tem faturas pagas
+            const sqlLotesPagos = `SELECT DISTINCT COALESCE(b.lote, o.lote, 'Sem Lote') as lote 
+                                   FROM invoices i 
+                                   LEFT JOIN boxes b ON i.box_id = b.id 
+                                   LEFT JOIN orders o ON b.order_id = o.id 
+                                   WHERE i.client_id = ? AND i.status IN ('approved', 'paid')`;
+            
+            db.all(sqlLotesPagos, [userId], (errLotes, lotesPagosRows) => {
+                if (errLotes || !lotesPagosRows || lotesPagosRows.length === 0) {
+                    return res.json({ status: "bloqueado", data: [] }); // Não pagou nada
+                }
+                
+                const lotesPagos = lotesPagosRows.map(r => r.lote);
+                
+                // 🚀 MÁGICA: Só mostra as vagas se o lote da vaga estiver na lista de lotes que ele pagou
+                const rangesPermitidos = ranges.filter(r => lotesPagos.includes(r.lote));
+                
+                if(rangesPermitidos.length === 0) {
+                    return res.json({ status: "bloqueado", data: [] }); // Ele pagou, mas o lote dele ainda não tem vaga aberta
+                }
+                
+                carregarVagas(res, rangesPermitidos);
             });
+        } else {
+            // Admin vê tudo
+            carregarVagas(res, ranges);
+        }
+    });
+
+    function carregarVagas(resposta, rangesFiltrados) {
+        db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
+            if (err2 || !bookings) bookings = []; 
+
+            let finalSlots = [];
+            rangesFiltrados.forEach(range => {
+                let current = new Date(`2000-01-01T${range.start_time}`);
+                let end = new Date(`2000-01-01T${range.end_time}`);
+
+                while (current < end) {
+                    let timeStr = current.toTimeString().substring(0,5);
+                    let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
+                    
+                    finalSlots.push({
+                        availability_id: range.id, date: range.date, time: timeStr,
+                        max_slots: range.max_slots, taken: taken, available: range.max_slots - taken
+                    });
+                    current.setMinutes(current.getMinutes() + 15);
+                }
+            });
+            resposta.json({ status: "ok", data: finalSlots });
         });
     }
 });
@@ -1781,11 +1846,11 @@ app.put('/api/orders/:id', (req, res) => {
 // ROTA: PUXAR PRODUTOS PARA LISTA DE EMBARQUE
 // ==========================================
 app.get('/api/manifest', (req, res) => {
-    // Busca tudo: products dos Boxes E description das Encomendas!
+    // Busca tudo: products E lote dos Boxes + description E lote das Encomendas!
     const sql = `
-        SELECT products as items FROM boxes WHERE deleted = 0 AND products IS NOT NULL AND products != ''
+        SELECT products as items, lote FROM boxes WHERE deleted = 0 AND products IS NOT NULL AND products != ''
         UNION ALL
-        SELECT description as items FROM orders WHERE deleted = 0 AND description IS NOT NULL AND description != ''
+        SELECT description as items, lote FROM orders WHERE deleted = 0 AND description IS NOT NULL AND description != ''
     `;
     
     db.all(sql, [], (err, rows) => {

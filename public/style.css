@@ -2062,3 +2062,17 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
         display: none;
     }
 }
+/* ==============================================================
+   EFEITO DE PULSO (URGÊNCIA) PARA BOTÕES QUE EXIGEM AÇÃO
+============================================================== */
+.pulse-action {
+    animation: pulse-animation 2s infinite;
+    /* Adiciona uma bordinha laranja pra dar mais destaque */
+    border: 2px solid #ff9800 !important; 
+}
+
+@keyframes pulse-animation {
+    0% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 152, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); }
+}

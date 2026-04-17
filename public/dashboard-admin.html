@@ -169,13 +169,20 @@
         <section id="schedule-view" class="hidden">
             <div class="card" style="margin-bottom: 20px;">
                 <h3>Criar Vagas de Atendimento</h3>
-                <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <input type="date" id="sched-date" class="form-control" required>
-                    <input type="time" id="sched-start" class="form-control" required>
-                    <input type="time" id="sched-end" class="form-control" required>
-                    <input type="number" id="sched-slots" class="form-control" placeholder="Qtd Vagas" style="width:100px;" required>
-                    <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
-                </form>
+                <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap; align-items: center;">
+    <select id="sched-lote" onclick="if(this.options.length <= 1) loadScheduleLots()" class="form-control" style="min-width: 150px;" required>
+        <option value="">📦 Clique para carregar Envios...</option>
+    </select>
+    
+    <input type="date" id="sched-start-date" class="form-control" title="Data de Início" required>
+    <span style="font-weight:bold; color:#0a1931;">até</span>
+    <input type="date" id="sched-end-date" class="form-control" title="Data Final" required>
+    
+    <input type="time" id="sched-start" class="form-control" title="Hora Inicial" required>
+    <input type="time" id="sched-end" class="form-control" title="Hora Final" required>
+    <input type="number" id="sched-slots" class="form-control" placeholder="Vagas" style="width:80px;" required>
+    <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
+</form>
             </div>
             <div class="card">
                 <h3>Solicitações de Agendamento</h3>
@@ -656,7 +663,13 @@
 <section id="manifest-view" class="hidden">
     <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
-            <h3 style="margin:0;">📋 Lista de Embarque (Manifesto)</h3>
+            
+            <div style="display:flex; align-items:center; gap: 15px; flex-wrap: wrap;">
+                <h3 style="margin:0;">📋 Lista de Embarque</h3>
+                <select id="manifest-lote-filter" onchange="loadManifest()" style="padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold; color: #0a1931; background: #fff; cursor: pointer;">
+                    <option value="Todos">📦 Todos os Envios</option>
+                </select>
+            </div>
             
             <div style="display:flex; gap: 10px;">
                 <button onclick="printManifestPDF()" class="btn" style="background:#dc3545; color:white; border:none; display: flex; align-items: center; gap: 5px; font-weight: bold;">
@@ -669,8 +682,8 @@
         </div>
         
         <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
-            Esta lista soma automaticamente as quantidades de produtos de todas as caixas ativas. 
-            <em>Dica: Ao criar um box, digite sempre a quantidade e o nome (Ex: 20 Havaianas, 5 Camisetas) separados por vírgula.</em>
+            Esta lista soma automaticamente as quantidades de produtos de todas as caixas e encomendas ativas. 
+            <em>Dica: Selecione o envio no botão acima para ver apenas os itens daquele lote.</em>
         </p>
 
         <div id="print-manifest-area" style="overflow-x:auto;">
@@ -682,7 +695,7 @@
                     </tr>
                 </thead>
                 <tbody id="manifest-list">
-                    </tbody>
+                </tbody>
             </table>
         </div>
     </div>

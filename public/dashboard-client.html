@@ -5,7 +5,7 @@
     <link rel="stylesheet" href="cici.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minha Área - Guineexpress</title>
+    <h2 id="smart-greeting" style="transition: all 0.5s ease;">Carregando painel...</h2>
         <link rel="icon" type="image/png" href="/logo.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -261,24 +261,6 @@
     </style>
 </head>
 <body>
-<div id="aviso-atualizacao-app" style="background: linear-gradient(135deg, #34ee05, #d35050); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #0a1931; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; z-index: 9999; margin-bottom: 20px;">
-    
-    <div style="display: flex; align-items: center; gap: 15px;">
-        <i class="fas fa-rocket" style="font-size: 24px; color: #000000;"></i>
-        <div style="color: #010408;">
-            <strong style="display: block; font-size: 15px; margin-bottom: 3px; font-family: 'Nunito', sans-serif; font-weight: 900;">NOVA FUNÇÃO DE PAGAMENTO LIBERADA! 🚀</strong>
-            <span style="font-size: 12px; line-height: 1.4; display: block; font-family: 'Roboto', sans-serif; font-weight: 500;">
-                Lançamos, uma nova versão do app Guineexpress! Agora você Não precisa compartilhar o comprovantes dos seus pagamento.<br>
-                <strong>Acesse a sua fatura no seu painel e copia o chave Pix e faz o pagamento, agora tudo Mais facil o nosso sistema reconhece o pagamento automatico na hora!</strong>
-            </span>
-        </div>
-    </div>
-
-    <button onclick="fecharAvisoApp()" style="background: rgba(10, 25, 49, 0.1); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #0a1931; transition: 0.3s;">
-        <i class="fas fa-times" style="font-size: 14px;"></i>
-    </button>
-</div>
-
 <script>
     function fecharAvisoApp() {
         // Esconde o aviso apenas naquele momento. 
@@ -290,6 +272,14 @@
         <div style="font-weight:bold; font-size:18px;">
             GUINEEXPRESS <span style="font-size:12px; font-weight:normal;">| Cliente</span>
         </div>
+        <div class="global-shipment-selector" style="padding: 15px; background: #fff; margin: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+    <label for="main-shipment-filter" style="display: block; font-weight: bold; color: #0a1931; margin-bottom: 8px;">
+        <i class="fas fa-box-open"></i> Selecione o seu Envio:
+    </label>
+    <select id="main-shipment-filter" onchange="syncAllTabsByLot()" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #d4af37; font-size: 16px; background: #fafafa; color: #0a1931;">
+        <option value="">🌟 Ver Tudo (Geral)</option>
+        </select>
+</div>
         <div class="notification-container" style="position: relative; cursor: pointer; margin-left: auto; margin-right: 20px;">
     
     <div onclick="toggleNotifications()" style="position: relative; display: inline-block;">
