@@ -1519,7 +1519,7 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
 
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
 // ==================================================================
-// ROTA: BUSCAR VAGAS DE 15 MINUTOS (COM BLINDAGEM CONTRA OVERBOOKING 🛡️)
+// ROTA: BUSCAR VAGAS DE 15 MINUTOS (CORRIGIDA)
 // ==================================================================
 app.get('/api/schedule/slots-15min', (req, res) => {
     const userId = req.session.userId;
@@ -1529,7 +1529,6 @@ app.get('/api/schedule/slots-15min', (req, res) => {
         if(err || !ranges || ranges.length === 0) return res.json({ status: "ok", data: [] });
 
         if (userRole === 'client') {
-            // Descobre quais lotes esse cliente já tem faturas pagas
             const sqlLotesPagos = `SELECT DISTINCT COALESCE(b.lote, o.lote, 'Sem Lote') as lote 
                                    FROM invoices i 
                                    LEFT JOIN boxes b ON i.box_id = b.id 
@@ -1538,59 +1537,52 @@ app.get('/api/schedule/slots-15min', (req, res) => {
             
             db.all(sqlLotesPagos, [userId], (errLotes, lotesPagosRows) => {
                 if (errLotes || !lotesPagosRows || lotesPagosRows.length === 0) {
-                    return res.json({ status: "bloqueado", data: [] }); // Não pagou nada
-                }
-                
-                const lotesPagos = lotesPagosRows.map(r => r.lote);
-                
-                // 🚀 MÁGICA: Só mostra as vagas se o lote da vaga estiver na lista de lotes que ele pagou
-                const rangesPermitidos = ranges.filter(r => lotesPagos.includes(r.lote));
-                
-                if(rangesPermitidos.length === 0) {
                     return res.json({ status: "bloqueado", data: [] }); 
                 }
+                const lotesPagos = lotesPagosRows.map(r => r.lote);
+                const rangesPermitidos = ranges.filter(r => lotesPagos.includes(r.lote));
+                if(rangesPermitidos.length === 0) return res.json({ status: "bloqueado", data: [] }); 
                 
                 carregarVagas(res, rangesPermitidos);
             });
         } else {
-            // Admin vê tudo
             carregarVagas(res, ranges);
         }
     });
 
-    // Função interna que constrói a agenda
     function carregarVagas(resposta, rangesFiltrados) {
         db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
             if (err2 || !bookings) bookings = []; 
 
             let finalSlots = [];
             rangesFiltrados.forEach(range => {
+                // 🛑 REGRA 1: Verifica o total do DIA INTEIRO
+                let totalNoDia = bookings.filter(b => b.availability_id === range.id).length;
+                
+                // Se o dia todo já preencheu as 20 vagas, nem calcula os horários, pula fora!
+                if (totalNoDia >= range.max_slots) {
+                    return; 
+                }
+
                 let current = new Date(`2000-01-01T${range.start_time}`);
                 let end = new Date(`2000-01-01T${range.end_time}`);
 
                 while (current < end) {
                     let timeStr = current.toTimeString().substring(0,5);
                     
-                    // Conta quantas pessoas já marcaram esse exato horário
-                    let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
+                    // 🛑 REGRA 2: Verifica ESSE HORÁRIO de 15 minutos específico
+                    let ocupantesNesseHorario = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
                     
-                    // Calcula quantas vagas sobraram
-                    let vagasDisponiveis = range.max_slots - taken;
-                    
-                    // 🛡️ AQUI ESTÁ A BLINDAGEM MÁXIMA: 
-                    // O servidor só envia o horário para o celular do cliente SE ainda tiver vaga (> 0).
-                    // Se lotou, o horário evapora e ninguém mais consegue clicar!
-                    if (vagasDisponiveis > 0) {
+                    // Só mostra o horário se tiver ZERO pessoas nele (Limite = 1)
+                    if (ocupantesNesseHorario < 1) {
                         finalSlots.push({
                             availability_id: range.id, 
                             date: range.date, 
                             time: timeStr,
                             max_slots: range.max_slots, 
-                            taken: taken, 
-                            available: vagasDisponiveis
+                            available: 1 // Sempre 1 vaga por horário!
                         });
                     }
-                    
                     current.setMinutes(current.getMinutes() + 15);
                 }
             });
@@ -1611,43 +1603,53 @@ app.delete('/api/schedule/delete-appointment/:id', (req, res) => {
         res.json({ success: true });
     });
 });
-// 4. Reservar (APROVAÇÃO AUTOMÁTICA)
+// ==================================================================
+// ROTA: RESERVAR AGENDAMENTO (DUPLA CHECAGEM DE SEGURANÇA 🛡️)
+// ==================================================================
 app.post('/api/schedule/book', (req, res) => {
     const { availability_id, date, time } = req.body;
     const client_id = req.session.userId;
 
     if (!client_id) return res.json({ success: false, msg: 'Sessão expirada. Faça login novamente.' });
 
-    // A. Verifica se o cliente já tem agendamento no dia (Evita duplicidade)
+    // A. Verifica se o cliente já tem agendamento no dia
     db.get(`SELECT ap.id FROM appointments ap JOIN availability av ON ap.availability_id = av.id 
             WHERE ap.client_id = ? AND av.date = ? AND ap.status != 'Cancelado'`, 
     [client_id, date], (err, hasBooking) => {
         if (hasBooking) return res.json({ success: false, msg: 'Você já tem um agendamento neste dia.' });
 
-        // B. Verifica lotação do horário
-        db.get(`SELECT count(*) as qtd FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, 
-        [availability_id, time], (err, row) => {
+        // B. CHECAGEM 1: O dia inteiro já bateu as 20 vagas?
+        db.get(`SELECT count(*) as totalDia FROM appointments WHERE availability_id = ? AND status != 'Cancelado'`, 
+        [availability_id], (err, rowTotal) => {
             db.get("SELECT max_slots FROM availability WHERE id = ?", [availability_id], (err, avail) => {
-                if (!row || !avail) return res.json({success: false, msg: "Erro ao verificar vaga."});
+                if (!rowTotal || !avail) return res.json({success: false, msg: "Erro ao verificar vagas."});
                 
-                if (row.qtd >= avail.max_slots) return res.json({ success: false, msg: 'Horário esgotado.' });
+                if (rowTotal.totalDia >= avail.max_slots) {
+                    return res.json({ success: false, msg: 'Todas as vagas para este dia esgotaram!' });
+                }
 
-                // C. Agenda com STATUS DIRETO PARA 'Confirmado'
-                // Mudamos de 'Pendente' para 'Confirmado' aqui:
-                db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Confirmado')", 
-                    [availability_id, client_id, time], function(err) {
-                        if (err) {
-                            return res.json({success: false, msg: "Erro ao salvar agendamento."});
-                        }
-                        
-                        // Retornamos sucesso e uma mensagem para a Cicí ler
-                        res.json({
-                            success: true, 
-                            msg: 'Agendamento confirmado automaticamente!',
-                            appointmentId: this.lastID
-                        });
+                // C. CHECAGEM 2: Alguém acabou de roubar esse exato horário (ex: 08:00)?
+                db.get(`SELECT count(*) as totalHorario FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, 
+                [availability_id, time], (err, rowHorario) => {
+                    
+                    // Limite rígido de 1 PESSOA POR HORÁRIO
+                    if (rowHorario.totalHorario >= 1) { 
+                        return res.json({ success: false, msg: 'Outro cliente acabou de reservar este horário. Escolha outro!' });
                     }
-                );
+
+                    // D. Tudo certo! Salva o agendamento direto como Confirmado
+                    db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Confirmado')", 
+                        [availability_id, client_id, time], function(err) {
+                            if (err) return res.json({success: false, msg: "Erro ao salvar agendamento."});
+                            
+                            res.json({
+                                success: true, 
+                                msg: 'Agendamento confirmado automaticamente!',
+                                appointmentId: this.lastID
+                            });
+                        }
+                    );
+                });
             });
         });
     });

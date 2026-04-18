@@ -1222,24 +1222,45 @@ async function deleteAvailability(id) {
     renderAdminAvailabilities();
 }
 
-// ==========================================
-// Tabela de Agendamentos (Admin/Func) COM BOTÃO DE EXCLUIR
-// ==========================================
 function renderAdminSchedule(appointments) {
     const tbody = document.getElementById('admin-schedule-list');
     if(!tbody) return;
     tbody.innerHTML = '';
     
-    appointments.forEach(app => {
+    // 1. Ordenar por data e hora para garantir que a lista faça sentido
+    const sorted = [...appointments].sort((a, b) => {
+        return a.date.localeCompare(b.date) || a.time_slot.localeCompare(b.time_slot);
+    });
+
+    let lastDate = ""; // Variável para controlar quando a data muda
+
+    sorted.forEach(app => {
+        // 2. Se a data mudou, cria uma linha de separação bonitinha
+        if (app.date !== lastDate) {
+            const dataFormatada = new Date(app.date + 'T00:00:00').toLocaleDateString('pt-BR', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+            });
+
+            tbody.innerHTML += `
+                <tr style="background-color: #f0f4f8;">
+                    <td colspan="5" style="text-align: center; font-weight: bold; color: #0a1931; padding: 15px 0; text-transform: capitalize;">
+                        📅 ${dataFormatada}
+                    </td>
+                </tr>
+            `;
+            lastDate = app.date;
+        }
+
+        // 3. Lógica das cores dos status (mantida do seu código)
         let badgeClass = 'bg-success'; 
         if (app.status === 'Pendente') badgeClass = 'bg-warning'; 
         if (app.status === 'Recusado' || app.status === 'Cancelado') badgeClass = 'bg-danger';
 
-        // Adicionando o botão de excluir histórico na coluna de Status
+        // 4. Desenha a linha do cliente
         tbody.innerHTML += `
-            <tr>
-                <td data-label="Data">${formatDate(app.date)}</td>
-                <td data-label="Horário">${app.time_slot}</td>
+            <tr style="border-bottom: 1px solid #eee;">
+                <td data-label="Data" style="color: #666; font-size: 12px;">${formatDate(app.date)}</td>
+                <td data-label="Horário" style="font-weight: bold; color: #0a1931;">${app.time_slot}</td>
                 <td data-label="Cliente" style="font-weight: bold;">${app.client_name}</td>
                 <td data-label="Tel">${app.client_phone || '-'}</td>
                 <td data-label="Status">
