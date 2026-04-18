@@ -259,14 +259,26 @@ if (!db || typeof db.get !== 'function') {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
+// ==================================================================
+// SESSÃO BLINDADA (SOBREVIVE A DEPLOYS NO RENDER)
+// ==================================================================
+
+// 1. Avisar ao servidor que ele está no Render (para o cookie funcionar com o HTTPS deles)
+app.set('trust proxy', 1);
+
 app.use(session({
-store: new SQLiteStore({ db: 'sessions.db', dir: baseStorageFolder }),
-    secret: process.env.SESSION_SECRET || 'segredo_padrao',
+    // 2. Salva o arquivo sessions.db no Disco Persistente da Render (se existir)
+    store: new SQLiteStore({ 
+        db: 'sessions.db', 
+        dir: process.env.RENDER_DISK_PATH || baseStorageFolder 
+    }),
+    secret: process.env.SESSION_SECRET || 'chave_super_secreta_guineexpress_2024',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 7, 
-        secure: false 
+        maxAge: 1000 * 60 * 60 * 24 * 30, // ⏳ 30 DIAS LOGADO (Estilo Gmail)
+        secure: process.env.NODE_ENV === 'production', // true no Render (HTTPS), false no seu PC
+        sameSite: 'lax' // Proteção moderna para cookies
     } 
 }));
 // 🛡️ Middleware: Só deixa passar se for ADMIN
@@ -1506,6 +1518,9 @@ db.run("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMEST
 
 
 app.get('/favicon.ico', (req, res) => res.status(204)); // Responde "Sem conteúdo" e para de reclamar
+// ==================================================================
+// ROTA: BUSCAR VAGAS DE 15 MINUTOS (COM BLINDAGEM CONTRA OVERBOOKING 🛡️)
+// ==================================================================
 app.get('/api/schedule/slots-15min', (req, res) => {
     const userId = req.session.userId;
     const userRole = req.session.role;
@@ -1532,7 +1547,7 @@ app.get('/api/schedule/slots-15min', (req, res) => {
                 const rangesPermitidos = ranges.filter(r => lotesPagos.includes(r.lote));
                 
                 if(rangesPermitidos.length === 0) {
-                    return res.json({ status: "bloqueado", data: [] }); // Ele pagou, mas o lote dele ainda não tem vaga aberta
+                    return res.json({ status: "bloqueado", data: [] }); 
                 }
                 
                 carregarVagas(res, rangesPermitidos);
@@ -1543,6 +1558,7 @@ app.get('/api/schedule/slots-15min', (req, res) => {
         }
     });
 
+    // Função interna que constrói a agenda
     function carregarVagas(resposta, rangesFiltrados) {
         db.all("SELECT availability_id, time_slot, status FROM appointments WHERE status != 'Cancelado'", [], (err2, bookings) => {
             if (err2 || !bookings) bookings = []; 
@@ -1554,12 +1570,27 @@ app.get('/api/schedule/slots-15min', (req, res) => {
 
                 while (current < end) {
                     let timeStr = current.toTimeString().substring(0,5);
+                    
+                    // Conta quantas pessoas já marcaram esse exato horário
                     let taken = bookings.filter(b => b.availability_id === range.id && b.time_slot === timeStr).length;
                     
-                    finalSlots.push({
-                        availability_id: range.id, date: range.date, time: timeStr,
-                        max_slots: range.max_slots, taken: taken, available: range.max_slots - taken
-                    });
+                    // Calcula quantas vagas sobraram
+                    let vagasDisponiveis = range.max_slots - taken;
+                    
+                    // 🛡️ AQUI ESTÁ A BLINDAGEM MÁXIMA: 
+                    // O servidor só envia o horário para o celular do cliente SE ainda tiver vaga (> 0).
+                    // Se lotou, o horário evapora e ninguém mais consegue clicar!
+                    if (vagasDisponiveis > 0) {
+                        finalSlots.push({
+                            availability_id: range.id, 
+                            date: range.date, 
+                            time: timeStr,
+                            max_slots: range.max_slots, 
+                            taken: taken, 
+                            available: vagasDisponiveis
+                        });
+                    }
+                    
                     current.setMinutes(current.getMinutes() + 15);
                 }
             });
