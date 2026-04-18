@@ -1094,18 +1094,19 @@ async function createAvailability(e) {
     }
 }
 
-// 3. FUNÇÃO ATUALIZADA: Carregar as agendas (Acorda a lista de lotes!)
+// 3. FUNÇÃO ATUALIZADA: Carregar as agendas (Acorda a lista de lotes e quebra o Cache!)
 async function loadSchedules() {
-    // 🚀 O SEGREDO ESTÁ AQUI: Toda vez que a agenda carrega, ele puxa a lista de Envios atualizada!
     loadScheduleLots();
 
-    const resSlots = await fetch('/api/schedule/slots-15min');
+    // 🚀 MÁGICA 1: Engana o navegador colocando a hora exata no link, obrigando ele a buscar dados frescos!
+    const tempoAgora = new Date().getTime();
+    const resSlots = await fetch(`/api/schedule/slots-15min?t=${tempoAgora}`, { cache: 'no-store' });
     const responseSlots = await resSlots.json();
     
     const isBloqueado = responseSlots.status === "bloqueado";
     const slots15min = responseSlots.data || [];
 
-    const resAppoint = await fetch('/api/schedule/appointments');
+    const resAppoint = await fetch(`/api/schedule/appointments?t=${tempoAgora}`, { cache: 'no-store' });
     const appointments = await resAppoint.json();
 
     if(currentUser.role !== 'client') {
@@ -1144,17 +1145,29 @@ async function loadSchedules() {
                     </h4>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px;">`;
 
+                let temVagaNesseDia = false; // 🚀 MÁGICA 2: Verifica se sobrou algo no dia
+
                 slots.forEach(slot => {
                     const isFull = slot.available <= 0;
                     const isBlocked = isFull || alreadyBookedThisDay;
-                    let style = `border: 1px solid ${isBlocked?'#ccc':'#28a745'}; background: ${isBlocked?'#eee':'#fff'}; color: ${isBlocked?'#999':'#28a745'}; padding: 8px 15px; border-radius: 5px; cursor: ${isBlocked?'not-allowed':'pointer'}; font-weight:bold; min-width: 80px; text-align:center;`;
                     
-                    html += `<div onclick="${isBlocked ? '' : `bookSlot(${slot.availability_id}, '${slot.date}', '${slot.time}')`}" style="${style}">
-                        ${slot.time} ${isFull ? '(Cheio)' : ''}
-                    </div>`;
+                    // Só desenha o botão de hora se a vaga NÃO estiver cheia
+                    if (!isFull) {
+                        temVagaNesseDia = true;
+                        let style = `border: 1px solid ${isBlocked?'#ccc':'#28a745'}; background: ${isBlocked?'#eee':'#fff'}; color: ${isBlocked?'#999':'#28a745'}; padding: 8px 15px; border-radius: 5px; cursor: ${isBlocked?'not-allowed':'pointer'}; font-weight:bold; min-width: 80px; text-align:center;`;
+                        
+                        html += `<div onclick="${isBlocked ? '' : `bookSlot(${slot.availability_id}, '${slot.date}', '${slot.time}')`}" style="${style}">
+                            ${slot.time}
+                        </div>`;
+                    }
                 });
+                
                 html += `</div></div>`;
-                container.innerHTML += html;
+                
+                // Se ainda sobrou algum botão de horário nesse dia, ele exibe o dia na tela
+                if (temVagaNesseDia) {
+                    container.innerHTML += html;
+                }
             }
         }
     }
@@ -1172,9 +1185,23 @@ async function loadSchedules() {
 
 async function bookSlot(availId, date, time) {
     if(!confirm(`Confirmar agendamento dia ${formatDate(date)} às ${time}?`)) return;
-    const res = await fetch('/api/schedule/book', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ availability_id: availId, date: date, time: time }) });
+    
+    const res = await fetch('/api/schedule/book', { 
+        method: 'POST', 
+        headers: {'Content-Type':'application/json'}, 
+        body: JSON.stringify({ availability_id: availId, date: date, time: time }) 
+    });
     const json = await res.json();
-    if(json.success) { alert('Sucesso!'); loadSchedules(); } else alert(json.msg);
+    
+    if(json.success) { 
+        alert('✅ Sucesso! Seu horário está garantido.'); 
+    } else {
+        alert('❌ Ops: ' + json.msg);
+    }
+    
+    // 🚀 MÁGICA 3: Se deu erro ou sucesso, forçamos a tela a se atualizar!
+    // Assim, se o cliente clicou num "fantasma", a tela pisca e o fantasma some.
+    loadSchedules();
 }
 
 // Funções Administrativas de Agenda
