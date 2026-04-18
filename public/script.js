@@ -8537,3 +8537,28 @@ function updateSmartGreeting() {
     // Injeta na tela
     greetingElement.innerHTML = `${emoji} ${cumprimento}, <strong style="color: #00b1ea;">${primeiroNome}</strong>!<br><span style="font-size: 14px; font-weight: normal; color: #666;">${fraseAleatoria}</span>`;
 }
+// ==========================================================
+// 🔍 FILTRO DE PESQUISA NA TABELA DE AGENDAMENTOS (ADMIN)
+// ==========================================================
+function filterSchedule() {
+    // Pega o que o usuário digitou e transforma em letra minúscula
+    const input = document.getElementById("search-schedule");
+    const filter = input.value.toLowerCase();
+    
+    // Pega a tabela e todas as linhas (tr) dentro dela
+    const tbody = document.getElementById("admin-schedule-list");
+    const trs = tbody.getElementsByTagName("tr");
+
+    // Passa linha por linha verificando se o texto bate com a pesquisa
+    for (let i = 0; i < trs.length; i++) {
+        // Pega todo o texto daquela linha (nome, data, status, etc)
+        const rowText = trs[i].textContent || trs[i].innerText;
+        
+        // Se achar o texto digitado, mostra a linha. Se não, esconde!
+        if (rowText.toLowerCase().indexOf(filter) > -1) {
+            trs[i].style.display = "";
+        } else {
+            trs[i].style.display = "none";
+        }
+    }
+}

@@ -186,9 +186,14 @@
             </div>
             <div class="card">
                 <h3>Solicitações de Agendamento</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="search-schedule" onkeyup="filterSchedule()" placeholder="🔍 Pesquisar por cliente, telefone, data ou status..." style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box;">
+                </div>
+                
                 <table class="data-table">
                     <thead>
-                        <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th><th></tr>
+                        <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th></tr>
                     </thead>
                     <tbody id="admin-schedule-list"></tbody>
                 </table>
