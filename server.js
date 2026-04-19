@@ -80,7 +80,74 @@ db.run("ALTER TABLE boxes ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
 db.run("ALTER TABLE orders ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
     if (!err) console.log("✅ Coluna 'volumes' criada na tabela orders!");
 });
+const PDFDocument = require('pdfkit'); // Importe isso no topo do arquivo
 
+// --- FUNÇÃO MÁGICA QUE GERA E ENVIA O RECIBO ---
+async function enviarReciboPDF(invoiceId) {
+    const sql = `
+        SELECT i.*, u.name, u.phone, b.box_code
+        FROM invoices i
+        JOIN users u ON i.client_id = u.id
+        LEFT JOIN boxes b ON i.box_id = b.id
+        WHERE i.id = ?
+    `;
+
+    db.get(sql, [invoiceId], async (err, fatura) => {
+        if (err || !fatura) return console.error("❌ Erro ao buscar dados para o recibo:", err);
+
+        // 1. Cria o documento PDF em memória
+        const doc = new PDFDocument({ size: 'A5', margin: 30 });
+        let buffers = [];
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', async () => {
+            const pdfData = Buffer.concat(buffers);
+            
+            // 2. Transforma em formato que o WhatsApp entende
+            const { MessageMedia } = require('whatsapp-web.js');
+            const media = new MessageMedia(
+                'application/pdf', 
+                pdfData.toString('base64'), 
+                `Recibo_Guineexpress_${fatura.id}.pdf`
+            );
+
+            // 3. Envia para o cliente
+            try {
+                const cleanPhone = fatura.phone.replace(/\D/g, '');
+                // Usando o 'clientZap' que é o nome que está no seu código de e-mail
+                const chatId = await clientZap.getNumberId(cleanPhone);
+                const destino = chatId ? chatId._serialized : `${cleanPhone}@c.us`;
+
+                await clientZap.sendMessage(destino, media, { 
+                    caption: `Olá *${fatura.name.split(' ')[0]}*! Seu pagamento foi confirmado. Segue em anexo o seu recibo oficial. ✅` 
+                });
+                console.log(`📄 Recibo enviado com sucesso para ${fatura.name}`);
+            } catch (err) {
+                console.error("❌ Erro ao mandar PDF no Zap:", err.message);
+            }
+        });
+
+        // --- DESIGN DO RECIBO ---
+        doc.fillColor('#0a1931').fontSize(18).text('GUINEEXPRESS LOGÍSTICA', { align: 'center' });
+        doc.fontSize(10).text('Comprovante de Pagamento', { align: 'center' }).moveDown(2);
+        
+        doc.fillColor('#000').fontSize(12);
+        doc.text(`Recibo Nº: #${fatura.id}`);
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`);
+        doc.text(`Cliente: ${fatura.name}`);
+        doc.moveDown();
+        
+        doc.rect(30, doc.y, 360, 20).fill('#f4f4f4').stroke();
+        doc.fillColor('#000').text(`Descrição: ${fatura.description || 'Serviço Logístico'}`, 35, doc.y - 15);
+        
+        doc.moveDown(2);
+        doc.fontSize(14).text(`VALOR TOTAL: R$ ${fatura.amount}`, { align: 'right', bold: true });
+        
+        doc.moveDown(3);
+        doc.fontSize(8).fillColor('#666').text('Este é um documento gerado automaticamente pela Cicí e serve como confirmação de quitação da fatura mencionada.', { align: 'center' });
+        
+        doc.end(); // Finaliza o PDF
+    });
+}
 // ==================================================================
 // CONFIGURAÇÃO DO DISCO PERMANENTE (FOTOS E VÍDEOS)
 // ==================================================================
@@ -2291,7 +2358,7 @@ app.post('/api/invoices/create', async (req, res) => {
     }
 });
 // ==========================================
-// ROTA: DAR BAIXA MANUAL NA FATURA (ADMIN)
+// ROTA: DAR BAIXA MANUAL NA FATURA E ENVIAR PDF (ADMIN)
 // ==========================================
 app.post('/api/invoices/:id/force-pay', (req, res) => {
     if(req.session.role !== 'admin') return res.status(403).json({success: false, message: 'Sem permissão'});
@@ -2306,7 +2373,14 @@ app.post('/api/invoices/:id/force-pay', (req, res) => {
             console.error("Erro ao forçar pagamento:", err);
             return res.json({ success: false, message: 'Erro ao salvar no banco.' });
         }
-        res.json({ success: true, message: 'Fatura marcada como paga manualmente.' });
+        
+        // 👇 A MÁGICA DO RECIBO ENTRA AQUI! 
+        // Assim que você clica em aprovar, o servidor cria o PDF e o robô dispara!
+        if (typeof enviarReciboPDF === 'function') {
+            enviarReciboPDF(invoiceId);
+        }
+
+        res.json({ success: true, message: 'Fatura marcada como paga! A Cicí está enviando o recibo no Zap.' });
     });
 });
 // ==========================================
@@ -2796,7 +2870,8 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
 
                 db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], async (updateErr) => {
                     if (updateErr) return console.error('Erro ao aprovar fatura pelo celular:', updateErr);
-
+                    // 👇 ADICIONE ESSA LINHA AQUI!
+    enviarReciboPDF(invoiceId);
                     db.get("SELECT name FROM users WHERE id = ?", [clientId], async (userErr, row) => {
                         const clientName = row ? row.name : "um cliente";
                         if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
@@ -2915,7 +2990,7 @@ const startEmailMonitor = async () => {
 
                                 db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], async (updateErr) => {
                                     if (updateErr) return console.error('Erro ao aprovar fatura pelo email:', updateErr);
-
+                                  enviarReciboPDF(invoiceId);
                                     db.get("SELECT name FROM users WHERE id = ?", [clientId], async (userErr, row) => {
                                         const clientName = row ? row.name : "um cliente";
                                         
