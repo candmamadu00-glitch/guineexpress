@@ -1148,15 +1148,12 @@ app.get('/api/expenses/list', (req, res) => {
     });
 });
 // ==============================================================
-// 📱 ROTA PARA INICIAR O ZAP E GERAR QR CODE
+// 🤖 FUNÇÃO INDEPENDENTE PARA LIGAR O MOTOR DO ZAP
 // ==============================================================
-app.get('/api/admin/zap-qr', async (req, res) => {
-    if (clientZap && clientZap.info) {
-        return res.json({ success: true, msg: "WhatsApp já está conectado!" });
-    }
-
-    if (clientZap) {
-        return res.json({ success: false, msg: "O WhatsApp já está ligando. Aguarde uns 15 segundos..." });
+function ligarMotorDoZap(res = null) {
+    if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+        if (res && !res.headersSent) return res.json({ success: true, msg: "WhatsApp já está conectado!" });
+        return; // Já tá rodando, não faz nada
     }
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
@@ -1177,18 +1174,14 @@ app.get('/api/admin/zap-qr', async (req, res) => {
             for (const arquivo of arquivos) {
                 const caminhoCompleto = path.join(diretorio, arquivo);
                 try {
-                    // O segredo está no 'lstatSync'. Ele lê o atalho sem tentar segui-lo!
                     const stats = fs.lstatSync(caminhoCompleto);
-                    
                     if (stats.isDirectory()) {
                         destruirCadeados(caminhoCompleto);
                     } else if (arquivo.startsWith('Singleton')) {
                         fs.unlinkSync(caminhoCompleto);
                         console.log(`🔥 Cadeado aniquilado: ${caminhoCompleto}`);
                     }
-                } catch (err) {
-                    // Se der erro em um arquivo, ignora e continua caçando os outros
-                }
+                } catch (err) { }
             }
         }
 
@@ -1200,34 +1193,36 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    // 2. A partir daqui o Zap vai ligar blindado contra deploys
-clientZap = new Client({
-    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
-    puppeteer: {
-        protocolTimeout: 600000, 
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu'
-        ]
-    }
-});
+    // 2. A partir daqui o Zap vai ligar blindado contra deploys e otimizado pro Render
+    clientZap = new Client({
+        authStrategy: new LocalAuth({ dataPath: typeof SESSION_PATH !== 'undefined' ? SESSION_PATH : undefined }),
+        puppeteer: {
+            protocolTimeout: 600000, 
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process', // <-- SALVAÇÃO NO RENDER: Economiza MUITA memória RAM
+                '--disable-gpu',
+                '--memory-pressure-off'
+            ]
+        }
+    });
 
     clientZap.once('qr', async (qr) => {
         console.log("📞 [ZAP] QR Code capturado! Mandando para a tela...");
-        const qrImage = await qrcode.toDataURL(qr);
-        if (!res.headersSent) {
+        if (res && !res.headersSent) {
+            const qrImage = await qrcode.toDataURL(qr);
             res.json({ success: true, qr: qrImage });
         }
     });
 
     clientZap.once('ready', () => {
         console.log('✅ WhatsApp Pronto!');
-        if (!res.headersSent) {
+        if (res && !res.headersSent) {
             res.json({ success: true, msg: "Conectado automaticamente pela sessão salva!" });
         }
     });
@@ -1235,15 +1230,25 @@ clientZap = new Client({
     configurarEventosDoZap(clientZap);
 
     clientZap.initialize().catch((err) => { 
-        console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err);
+        console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err.message);
         clientZap = null; 
-        if (!res.headersSent) {
+        if (res && !res.headersSent) {
             res.json({ success: false, msg: "Falha ao iniciar o WhatsApp. Verifique os logs." });
         }
+        // Tenta religar sozinho depois de 30 segundos em caso de falha grave
+        setTimeout(() => ligarMotorDoZap(), 30000);
     });
-});
+}
+
 // ==============================================================
-// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (SEPARADO DA ROTA)
+// 📱 ROTA PARA INICIAR O ZAP E GERAR QR CODE (AGORA SÓ CHAMA A FUNÇÃO)
+// ==============================================================
+app.get('/api/admin/zap-qr', async (req, res) => {
+    ligarMotorDoZap(res);
+});
+
+// ==============================================================
+// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS
 // ==============================================================
 function configurarEventosDoZap(client) {
     // 1. Escuta o que VOCÊ (Lelo) digita no celular físico
@@ -1306,12 +1311,11 @@ function configurarEventosDoZap(client) {
 
             console.log(`⏳ [CICÍ] Mensagem sobre logística de ${chatID}. Esperando 10 MINUTOS pelo Lelo...`);
 
-            // Se já existia um timer rolando para essa pessoa, reseta
             if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
 
             const timer = setTimeout(async () => {
                 let checkFinal = conversasEmPausa.get(chatID);
-                if (checkFinal && checkFinal > Date.now()) return; // Verifica a pausa novamente antes de agir
+                if (checkFinal && checkFinal > Date.now()) return; 
 
                 console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID}...`);
                 await chat.sendStateTyping();
@@ -1377,14 +1381,24 @@ function configurarEventosDoZap(client) {
         }, 45000); 
     });
 
-    // 4. Desconexões
-    client.on('disconnected', (reason) => {
+    // ==========================================
+    // 4. DESCONEXÕES: A MÁGICA DA RESSURREIÇÃO
+    // ==========================================
+    client.on('disconnected', async (reason) => {
         console.log('💀 [ZAP] O WhatsApp desconectou! Motivo:', reason);
-        console.log('🔄 [ZAP] Iniciando ressurreição automática em 5 segundos...');
+        console.log('🔄 [ZAP] Destruindo a sessão atual para evitar falhas de memória...');
+        
+        try {
+            if (clientZap) await clientZap.destroy();
+        } catch (e) { console.log("Aviso ao destruir client:", e.message); }
+        
         clientZap = null; 
+        
+        console.log('🚀 [ZAP] Iniciando ressurreição automática em 10 segundos...');
+        
         setTimeout(() => {
-            console.log("⚠️ Pressione F5 na página de Configurações do Zap ou envie um recado para religar.");
-        }, 5000);
+            ligarMotorDoZap(); // Liga o robô sozinho, sem o Lelo precisar fazer nada!
+        }, 10000);
     });
 }
 // Rota de Envio em Massa
