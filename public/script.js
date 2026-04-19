@@ -5992,7 +5992,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 // ============================================================
-// LÓGICA DO BOTÃO FLUTUANTE (INSTALAÇÃO + ARRASTAR)
+// LÓGICA DO BOTÃO FLUTUANTE (INSTALAÇÃO + ARRASTAR) - BLINDADO
 // ============================================================
 let deferredPrompt;
 const installBtn = document.getElementById('btn-install-fab');
@@ -6000,15 +6000,19 @@ const iosModal = document.getElementById('modal-ios-install');
 
 // 1. Mostrar o botão imediatamente se não estiver instalado
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-if (!isStandalone) {
-    installBtn.style.display = 'flex';
-}
-
+const isAndroid = /android/i.test(navigator.userAgent);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+// FORÇA O BOTÃO A APARECER: Se não estiver instalado, mostra. 
+// No Android, forçamos a exibição para driblar navegadores como Mi Browser (Xiaomi).
+if (!isStandalone || (isAndroid && !isStandalone)) {
+    if(installBtn) installBtn.style.display = 'flex';
+}
 
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e; 
+    if(installBtn) installBtn.style.display = 'flex'; // Garante que apareça
 });
 
 // ==========================================
@@ -6018,15 +6022,17 @@ let isDragging = false;
 let moved = false; // Diferencia um "clique" de um "arrasto"
 let startX, startY, initialX, initialY;
 
-// Eventos de Toque (Celular)
-installBtn.addEventListener('touchstart', dragStart, { passive: false });
-document.addEventListener('touchmove', drag, { passive: false });
-document.addEventListener('touchend', dragEnd);
+if (installBtn) {
+    // Eventos de Toque (Celular)
+    installBtn.addEventListener('touchstart', dragStart, { passive: false });
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('touchend', dragEnd);
 
-// Eventos de Mouse (Computador)
-installBtn.addEventListener('mousedown', dragStart);
-document.addEventListener('mousemove', drag);
-document.addEventListener('mouseup', dragEnd);
+    // Eventos de Mouse (Computador)
+    installBtn.addEventListener('mousedown', dragStart);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', dragEnd);
+}
 
 function dragStart(e) {
     if (e.type === "touchstart") {
@@ -6093,37 +6099,37 @@ function dragEnd(e) {
 // ==========================================
 // AÇÃO DE CLIQUE (INSTALAR O APP)
 // ==========================================
-installBtn.addEventListener('click', async (e) => {
-    // Se o cliente acabou de arrastar o botão, não faça a instalação!
-    if (moved) return; 
+if (installBtn) {
+    installBtn.addEventListener('click', async (e) => {
+        // Se o cliente acabou de arrastar o botão, não faça a instalação!
+        if (moved) return; 
 
-    if (isIOS) {
-        iosModal.style.display = iosModal.style.display === 'block' ? 'none' : 'block';
-    } else {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            if (outcome === 'accepted') {
-                installBtn.style.display = 'none'; 
-            }
-            deferredPrompt = null;
+        if (isIOS) {
+            if(iosModal) iosModal.style.display = iosModal.style.display === 'block' ? 'none' : 'block';
         } else {
-            alert("Para instalar agora, toque no menu do navegador e escolha 'Adicionar à tela inicial'.");
+            if (deferredPrompt) {
+                // Modo Moderno: O navegador permite abrir a janelinha
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.style.display = 'none'; 
+                }
+                deferredPrompt = null;
+            } else {
+                // MODO RAIZ (XIAOMI E BLOQUEADOS): Se o navegador engoliu o evento, ensina na marra!
+                alert("📲 Seu navegador bloqueou a instalação automática.\n\nPara instalar agora mesmo:\n\n1️⃣ Clique nos três pontinhos (⋮) ou no menu do seu navegador.\n2️⃣ Escolha 'Adicionar à tela inicial' ou 'Instalar aplicativo'.\n\nPronto! A Guineexpress estará na sua tela inicial! 🚀");
+            }
         }
-    }
-});
+    });
+}
 
-// Esconde o botão se o app for instalado com sucesso
+// Esconde o botão se o app for instalado com sucesso (independente de como foi instalado)
 window.addEventListener('appinstalled', () => {
-    installBtn.style.display = 'none';
+    if(installBtn) installBtn.style.display = 'none';
     deferredPrompt = null;
 });
 
-
-// Rodar ao carregar a página
-document.addEventListener('DOMContentLoaded', registerNotificationSystem);
-
-// Chama a função assim que o site carregar
+// Rodar a notificação ao carregar a página (removi a duplicação que tinha no seu código)
 document.addEventListener('DOMContentLoaded', registerNotificationSystem);
 // ==========================================
 // 🔔 SISTEMA DE NOTIFICAÇÕES WEB-PUSH (COM FAXINA AUTOMÁTICA)
@@ -8559,27 +8565,45 @@ function updateSmartGreeting() {
     greetingElement.innerHTML = `${emoji} ${cumprimento}, <strong style="color: #00b1ea;">${primeiroNome}</strong>!<br><span style="font-size: 14px; font-weight: normal; color: #666;">${fraseAleatoria}</span>`;
 }
 // ==========================================================
-// 🔍 FILTRO DE PESQUISA NA TABELA DE AGENDAMENTOS (ADMIN)
+// 📄 GERAR PDF DA LISTA DE AGENDAMENTOS
 // ==========================================================
-function filterSchedule() {
-    // Pega o que o usuário digitou e transforma em letra minúscula
-    const input = document.getElementById("search-schedule");
-    const filter = input.value.toLowerCase();
+function baixarPDFAgendamentos() {
+    // Puxa a biblioteca do jsPDF que já está no seu HTML
+    const { jsPDF } = window.jspdf;
     
-    // Pega a tabela e todas as linhas (tr) dentro dela
-    const tbody = document.getElementById("admin-schedule-list");
-    const trs = tbody.getElementsByTagName("tr");
+    // Cria o documento 'landscape' (deitado) para caberem todas as colunas perfeitamente
+    const doc = new jsPDF('landscape'); 
 
-    // Passa linha por linha verificando se o texto bate com a pesquisa
-    for (let i = 0; i < trs.length; i++) {
-        // Pega todo o texto daquela linha (nome, data, status, etc)
-        const rowText = trs[i].textContent || trs[i].innerText;
-        
-        // Se achar o texto digitado, mostra a linha. Se não, esconde!
-        if (rowText.toLowerCase().indexOf(filter) > -1) {
-            trs[i].style.display = "";
-        } else {
-            trs[i].style.display = "none";
-        }
+    // Título e Cabeçalho do PDF
+    doc.setFontSize(18);
+    doc.setTextColor(10, 25, 49); // Azul marinho da Guineexpress
+    doc.text("Relatório de Agendamentos - Guineexpress", 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Gerado em: " + new Date().toLocaleString('pt-BR'), 14, 22);
+
+    // Caça a tabela pelo ID do corpo (tbody)
+    const tbody = document.getElementById("admin-schedule-list");
+    
+    if (!tbody) {
+        alert("Tabela de agendamentos não encontrada na tela!");
+        return;
     }
+
+    // Pega a tabela inteira para levar o cabeçalho (Data, Horário, Cliente...) junto
+    const tabelaCompleta = tbody.closest('table'); 
+
+    // Monta a tabela no PDF
+    doc.autoTable({
+        html: tabelaCompleta,
+        startY: 28,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 3 },
+        headStyles: { fillColor: [10, 25, 49], textColor: [255, 255, 255] }, // Cabeçalho Azul
+        alternateRowStyles: { fillColor: [244, 247, 246] } // Linhas com cores alternadas
+    });
+
+    // Baixa o arquivo direto para o admin
+    doc.save("Agendamentos_Guineexpress.pdf");
 }

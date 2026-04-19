@@ -674,35 +674,59 @@ async function copiarPixExato(idFatura, banco) {
         alert("❌ Erro: Fatura não identificada.");
         return;
     }
-    
-    // Mostra pro cliente que está carregando para ele não clicar várias vezes
-    const btnText = banco === 'mp' ? '🔵 Copiar (Mercado Pago)' : '🟣 Copiar (Nubank)';
-    // Opcional: Aqui você pode mudar o texto do botão para "Carregando..."
-    
+
     try {
         const resposta = await fetch(`/api/gerar-pix/${banco}/${idFatura}`);
         const dados = await resposta.json();
-        
+
         if (dados.sucesso) {
             
-            // 🛡️ TENTATIVA 1: O jeito moderno (Pode falhar no celular)
-            try {
-                await navigator.clipboard.writeText(dados.pix_copia_cola);
-            } catch (errClipboard) {
-                // 🛡️ TENTATIVA 2: O jeito raiz (A prova de falhas para celular)
-                console.log("Modo moderno falhou, tentando modo raiz...");
-                const tempInput = document.createElement("textarea");
-                tempInput.value = dados.pix_copia_cola;
-                document.body.appendChild(tempInput);
-                tempInput.select();
-                tempInput.setSelectionRange(0, 99999); // Para mobile
-                document.execCommand("copy");
-                document.body.removeChild(tempInput);
-            }
+            // FUNÇÃO BLINDADA DE CÓPIA PARA IOS E ANDROID
+            const copiarTexto = (texto) => {
+                if (navigator.clipboard && window.isSecureContext) {
+                    // API Moderna
+                    return navigator.clipboard.writeText(texto);
+                } else {
+                    // Fallback blindado para iOS
+                    let textArea = document.createElement("textarea");
+                    textArea.value = texto;
+                    // Evita que o teclado abra e dê scroll no iOS
+                    textArea.style.position = "fixed";
+                    textArea.style.top = "0";
+                    textArea.style.left = "0";
+                    textArea.style.width = "2em";
+                    textArea.style.height = "2em";
+                    textArea.style.padding = "0";
+                    textArea.style.border = "none";
+                    textArea.style.outline = "none";
+                    textArea.style.boxShadow = "none";
+                    textArea.style.background = "transparent";
+                    document.body.appendChild(textArea);
+                    
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        document.execCommand('copy');
+                        return Promise.resolve();
+                    } catch (err) {
+                        return Promise.reject(err);
+                    } finally {
+                        document.body.removeChild(textArea);
+                    }
+                }
+            };
 
-            const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
-            alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor exato: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.\n\nAprovação automática em instantes!`);
-            
+            copiarTexto(dados.pix_copia_cola)
+                .then(() => {
+                    const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
+                    alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor exato: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.\n\nAprovação automática em instantes!`);
+                })
+                .catch((err) => {
+                    console.error('Falha ao copiar:', err);
+                    alert("⚠️ Seu aparelho bloqueou a cópia automática. Por favor, tente novamente ou use outro navegador.");
+                });
+
         } else {
             alert("❌ Erro ao gerar o Pix automático. O servidor recusou o pedido.");
         }

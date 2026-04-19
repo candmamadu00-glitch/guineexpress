@@ -19,12 +19,24 @@ self.addEventListener('install', event => {
   );
 });
 
+// --- LÓGICA DE CACHE BLINDADA PARA XIAOMI E ANDROID ---
 self.addEventListener('fetch', event => {
-  event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
-  );
+    event.respondWith(
+        fetch(event.request)
+            .catch(() => {
+                return caches.match(event.request).then(response => {
+                    // Se achou no cache, retorna
+                    if (response) {
+                        return response;
+                    }
+                    // Se não achou e for uma requisição de página, devolve o index
+                    if (event.request.mode === 'navigate') {
+                        return caches.match('/index.html');
+                    }
+                });
+            })
+    );
 });
-
 // --- NOVO: LÓGICA DE NOTIFICAÇÃO PUSH (Estilo Shein) ---
 self.addEventListener('push', function(event) {
     let data = {};

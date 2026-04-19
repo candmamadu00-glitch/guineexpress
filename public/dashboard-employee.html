@@ -113,38 +113,45 @@
 
     <div class="container">
         <section id="schedule-view" class="hidden">
-            <div class="card" style="margin-bottom: 20px;">
-                <h3>Criar Vagas de Atendimento</h3>
-                <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap; align-items: center;">
-    <select id="sched-lote" onclick="if(this.options.length <= 1) loadScheduleLots()" class="form-control" style="min-width: 150px;" required>
-        <option value="">📦 Clique para carregar Envios...</option>
-    </select>
-    
-    <input type="date" id="sched-start-date" class="form-control" title="Data de Início" required>
-    <span style="font-weight:bold; color:#0a1931;">até</span>
-    <input type="date" id="sched-end-date" class="form-control" title="Data Final" required>
-    
-    <input type="time" id="sched-start" class="form-control" title="Hora Inicial" required>
-    <input type="time" id="sched-end" class="form-control" title="Hora Final" required>
-    <input type="number" id="sched-slots" class="form-control" placeholder="Vagas" style="width:80px;" required>
-    <button type="submit" class="btn-primary" style="width:auto;">Abrir Vagas</button>
-</form>
-            </div>
-            <div class="card">
-                <h3>Solicitações de Agendamento</h3>
-                
-                <div style="margin-bottom: 15px;">
-                    <input type="text" id="search-schedule" onkeyup="filterSchedule()" placeholder="🔍 Pesquisar por cliente, telefone, data ou status..." style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box;">
-                </div>
-                
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th></tr>
-                    </thead>
-                    <tbody id="admin-schedule-list"></tbody>
-                </table>
-            </div>
-        </section>
+    <div class="card" style="margin-bottom: 20px;">
+        <h3>Criar Vagas de Atendimento</h3>
+        <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap; align-items: center;">
+            <select id="sched-lote" onclick="if(this.options.length <= 1) loadScheduleLots()" class="form-control" style="min-width: 150px;" required>
+                <option value="">📦 Clique para carregar Envios...</option>
+            </select>
+            
+            <input type="date" id="sched-start-date" class="form-control" title="Data de Início" required>
+            <span style="font-weight:bold; color:#0a1931;">até</span>
+            <input type="date" id="sched-end-date" class="form-control" title="Data Final" required>
+            
+            <input type="time" id="sched-start" class="form-control" title="Hora Inicial" required>
+            <input type="time" id="sched-end" class="form-control" title="Hora Final" required>
+            <input type="number" id="sched-slots" class="form-control" placeholder="Vagas" style="width:80px;" required>
+            <button type="submit" class="btn" style="background-color: #0a1931; color: white; width:auto;">Abrir Vagas</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Solicitações de Agendamento</h3>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px;">
+            
+            <input type="text" id="search-schedule" onkeyup="filterSchedule()" placeholder="🔍 Pesquisar por cliente, telefone, data ou status..." style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box;">
+            
+            <button onclick="baixarPDFAgendamentos()" class="btn" style="background-color: #d4af37; color: #0a1931; width: fit-content; align-self: flex-end; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-file-pdf"></i> Baixar PDF de Agendamentos
+            </button>
+            
+        </div>
+        
+        <table class="data-table">
+            <thead>
+                <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th></tr>
+            </thead>
+            <tbody id="admin-schedule-list"></tbody>
+        </table>
+    </div>
+</section>
 
 <section id="orders-view">
     <div class="card">

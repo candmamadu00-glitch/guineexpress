@@ -21,8 +21,10 @@ const db = require('./database');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const fs = require('fs');
+const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
 const webpush = require('web-push');
 const app = express(); // <-- O App é criado aqui
+app.use(express.static(__dirname));
 app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
 const ExcelJS = require('exceljs');
 // === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
@@ -1198,22 +1200,22 @@ app.get('/api/admin/zap-qr', async (req, res) => {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    // 2. A partir daqui o Zap vai ligar
-    clientZap = new Client({
-        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
-        puppeteer: {
-            protocolTimeout: 600000, 
-            args: [
-                '--no-sandbox', 
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu'
-            ]
-        }
-    });
+    // 2. A partir daqui o Zap vai ligar blindado contra deploys
+clientZap = new Client({
+    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }),
+    puppeteer: {
+        protocolTimeout: 600000, 
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+        ]
+    }
+});
 
     clientZap.once('qr', async (qr) => {
         console.log("📞 [ZAP] QR Code capturado! Mandando para a tela...");
@@ -4654,8 +4656,7 @@ cron.schedule('0 8 * * *', async () => {
 // =====================================================
 const PORT = process.env.PORT || 3000;
 
-// O segredo está no '0.0.0.0' adicionado aqui embaixo 👇
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Servidor Guineexpress rodando na porta ${PORT}`);
+    console.log(`✅ Servidor Guineexpress rodando em: http://localhost:${PORT}`);
     console.log(`📡 Modo: ${process.env.NODE_ENV || 'Desenvolvimento'}`);
 });
