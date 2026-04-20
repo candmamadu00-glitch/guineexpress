@@ -8607,3 +8607,13 @@ function baixarPDFAgendamentos() {
     // Baixa o arquivo direto para o admin
     doc.save("Agendamentos_Guineexpress.pdf");
 }
+// ==========================================
+// LOGIN OFICIAL COM O GOOGLE
+// ==========================================
+function loginComGoogle() {
+    // Como o cliente agora pode digitar o Gmail dele na barra de cima, 
+    // ele já consegue logar usando o email.
+    // Para o botão fazer o login "automático" (abrir aquela janelinha do Google),
+    // você precisará criar um projeto gratuito no "Google Cloud Console" para gerar um "Client ID".
+    alert("🚀 O acesso por e-mail já está liberado! Digite seu Gmail no campo acima e sua senha.\n\n(Aviso ao Admin: Para ativar a janela de clique automático do Google, é necessário conectar a API de Autenticação do Google Cloud).");
+}

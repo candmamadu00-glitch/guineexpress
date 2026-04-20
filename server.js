@@ -595,62 +595,95 @@ function logAccess(req, userInput, status, reason) {
 }
 
 // ==================================================================
-// ROTA: LOGIN INTELIGENTE (COM RASTREAMENTO)
+// ROTA: LOGIN INTELIGENTE (COM RASTREAMENTO, ACENTOS E HOMÔNIMOS)
 // ==================================================================
 app.post('/api/login', (req, res) => {
     const { login, password, role } = req.body;
+    const loginClean = login.trim(); // Remove espaços extras sem querer
 
-    // 1. Busca o usuário
-    const sql = "SELECT * FROM users WHERE email = ? OR phone = ?";
+    // 1. Busca inicial por Email, Celular ou Nome Exato
+    const sql = "SELECT * FROM users WHERE email = ? OR phone = ? OR LOWER(name) = LOWER(?)";
     
-    db.get(sql, [login, login], (err, user) => {
+    db.all(sql, [loginClean, loginClean, loginClean], (err, users) => {
         if (err) {
-            logAccess(req, login, 'Erro', 'Erro interno no Banco');
+            logAccess(req, loginClean, 'Erro', 'Erro interno no Banco');
             return res.status(500).json({ success: false, msg: 'Erro interno.' });
         }
 
-        // 2. Se não achou o usuário (A Cici entra em ação)
-        if (!user) {
-            logAccess(req, login, 'Falha', 'Usuário não encontrado');
-            return res.status(400).json({ 
-                success: false, 
-                msg: '🙋‍♀️ Oi, Cici aqui! Ainda não encontrei o seu número no nosso sistema. Por favor, clique no botão dourado "CRIAR CONTA" logo abaixo para se cadastrar primeiro!',
-                falaCici: true // <-- SINAL PARA O NAVEGADOR FALAR
+        // Função interna que finaliza o login testando as senhas
+        const validarE_Logar = (listaDeUsuarios) => {
+            if (!listaDeUsuarios || listaDeUsuarios.length === 0) {
+                logAccess(req, loginClean, 'Falha', 'Usuário não encontrado');
+                return res.status(400).json({ 
+                    success: false, 
+                    msg: '🙋‍♀️ Oi, Cici aqui! Ainda não encontrei o seu cadastro. Por favor, clique no botão dourado "CRIAR CONTA" logo abaixo para se cadastrar primeiro!',
+                    falaCici: true // <-- Cici vai falar isso em voz alta
+                });
+            }
+
+            let usuarioAprovado = null;
+
+            // 2. O SEGREDO DOS NOMES IGUAIS: Testa a senha de TODOS que tem esse nome!
+            for (let user of listaDeUsuarios) {
+                if (bcrypt.compareSync(password, user.password)) {
+                    usuarioAprovado = user; // A senha bateu! É esse o cliente certo.
+                    break; 
+                }
+            }
+
+            // Se testou todo mundo e a senha não bateu com ninguém
+            if (!usuarioAprovado) {
+                logAccess(req, loginClean, 'Falha', 'Senha Incorreta 🔒');
+                return res.status(400).json({ success: false, msg: 'Senha incorreta.' });
+            }
+
+            // 3. Verifica se a conta está ativa
+            if (usuarioAprovado.active !== 1) {
+                logAccess(req, loginClean, 'Falha', 'Conta Desativada');
+                return res.status(400).json({ success: false, msg: 'Conta desativada. Fale com o suporte.' });
+            }
+
+            // 4. Verifica o Cargo
+            if (usuarioAprovado.role !== role) {
+                logAccess(req, loginClean, 'Falha', `Cargo Errado (Tentou ${role})`);
+                return res.status(400).json({ 
+                    success: false, 
+                    msg: `Login incorreto! Você é ${usuarioAprovado.role}, mas tentou entrar como ${role}.` 
+                });
+            }
+
+            // 5. Sucesso Absoluto
+            req.session.userId = usuarioAprovado.id;
+            req.session.role = usuarioAprovado.role;
+            req.session.user = usuarioAprovado; 
+            
+            logAccess(req, loginClean, 'Sucesso', `Login Realizado (${usuarioAprovado.role}) ✅`);
+            console.log(`✅ Login Sucesso: ${usuarioAprovado.name}`);
+            res.json({ success: true, role: usuarioAprovado.role, name: usuarioAprovado.name });
+        };
+
+        // --- TRUQUE DOS ACENTOS ---
+        // Se a busca normal não achou nada (cliente digitou sem acento e no banco tá com)
+        if (users.length === 0) {
+            // Puxa todos do banco rapidinho
+            db.all("SELECT * FROM users", [], (errAll, allUsers) => {
+                if (errAll) return res.status(500).json({ success: false, msg: 'Erro interno.' });
+
+                // Remove acentos da palavra que o cliente digitou ("João" -> "joao")
+                const removerAcentos = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                const loginSemAcento = removerAcentos(loginClean);
+
+                // Filtra os usuários ignorando acentos
+                const usuariosFiltrados = allUsers.filter(u => 
+                    u.name && removerAcentos(u.name) === loginSemAcento
+                );
+
+                validarE_Logar(usuariosFiltrados);
             });
+        } else {
+            // Se já achou de primeira pelo e-mail ou celular, só vai!
+            validarE_Logar(users);
         }
-
-        // 3. Verifica se a conta está ativa
-        if (user.active !== 1) {
-            logAccess(req, login, 'Falha', 'Conta Desativada');
-            return res.status(400).json({ success: false, msg: 'Conta desativada. Fale com o suporte.' });
-        }
-
-        // 4. Verifica a Senha
-        if (!bcrypt.compareSync(password, user.password)) {
-            // AQUI ESTÁ O PULO DO GATO: Salvamos que alguém tentou invadir
-            logAccess(req, login, 'Falha', 'Senha Incorreta 🔒');
-            return res.status(400).json({ success: false, msg: 'Senha incorreta.' });
-        }
-
-        // 5. Verifica o Cargo
-        if (user.role !== role) {
-            logAccess(req, login, 'Falha', `Cargo Errado (Tentou ${role} sendo ${user.role})`);
-            return res.status(400).json({ 
-                success: false, 
-                msg: `Login incorreto! Você é ${user.role}, mas tentou entrar como ${role}.` 
-            });
-        }
-
-        // 6. Sucesso Absoluto
-        req.session.userId = user.id;
-        req.session.role = user.role;
-        req.session.user = user; // Salva o objeto user inteiro na sessão para facilitar
-        
-        // Registra o sucesso
-        logAccess(req, login, 'Sucesso', `Login Realizado (${user.role}) ✅`);
-        
-        console.log(`✅ Login Sucesso: ${user.name}`);
-        res.json({ success: true, role: user.role, name: user.name });
     });
 });
 // ==================================================================
@@ -1311,43 +1344,51 @@ function configurarEventosDoZap(client) {
 
             console.log(`⏳ [CICÍ] Mensagem sobre logística de ${chatID}. Esperando 10 MINUTOS pelo Lelo...`);
 
+            // Se já existia um timer rolando para essa pessoa, reseta
             if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
 
             const timer = setTimeout(async () => {
-                let checkFinal = conversasEmPausa.get(chatID);
-                if (checkFinal && checkFinal > Date.now()) return; 
+                // 👇 ADICIONAMOS UM TRY...CATCH AQUI PARA BLINDAR O SERVIDOR 👇
+                try {
+                    let checkFinal = conversasEmPausa.get(chatID);
+                    if (checkFinal && checkFinal > Date.now()) return; 
 
-                console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID}...`);
-                await chat.sendStateTyping();
+                    console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID}...`);
+                    await chat.sendStateTyping();
 
-                const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
-                Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
+                    const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
+                    Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
 
-                REGRAS DE OURO:
-                1. Se o cliente perguntar algo fora do tema, responda educadamente que só trata de envios e logística.
-                2. Seja carinhosa e educada.
-                3. Se o cliente terminar uma dúvida, pergunte o que mais você pode ajudar.`;
+                    REGRAS DE OURO:
+                    1. Se o cliente perguntar algo fora do tema, responda educadamente que só trata de envios e logística.
+                    2. Seja carinhosa e educada.
+                    3. Se o cliente terminar uma dúvida, pergunte o que mais você pode ajudar.`;
 
-                let modelChat = model.startChat({
-                    history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
-                });
+                    let modelChat = model.startChat({
+                        history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
+                    });
 
-                let iaResult;
-                if (mensagemFoiDeAudio) {
-                    iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
-                } else {
-                    iaResult = await modelChat.sendMessage(textoUsuario);
-                }
-
-                if (clientZap && clientZap.info) { 
-                    try {
-                        await msg.reply(iaResult.response.text());
-                    } catch (replyErr) {
-                        console.error("❌ Erro na hora de enviar a resposta da Cicí:", replyErr.message);
+                    let iaResult;
+                    if (mensagemFoiDeAudio) {
+                        iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
+                    } else {
+                        iaResult = await modelChat.sendMessage(textoUsuario);
                     }
+
+                    if (clientZap && clientZap.info) { 
+                        await msg.reply(iaResult.response.text());
+                    }
+                } catch (erroIA) {
+                    console.error("❌ Erro GRAVE na IA (Cicí):", erroIA.message);
+                    
+                    // Se o Google bloquear por falta de créditos, a Cicí avisa o cliente mas NÃO DERRUBA O ZAP!
+                    if (clientZap && clientZap.info) {
+                        const msgQueda = `🤖 *Aviso Automático:*\n\nDesculpe, meu sistema de inteligência artificial está passando por uma manutenção técnica no momento.\n\nPor favor, aguarde que o Lelo responderá sua mensagem assim que possível!`;
+                        await msg.reply(msgQueda).catch(e => console.log("Erro ao enviar msg de queda:", e.message));
+                    }
+                } finally {
+                    cronometrosCici.delete(chatID);
                 }
-                
-                cronometrosCici.delete(chatID);
             }, 10 * 60 * 1000); 
 
             cronometrosCici.set(chatID, timer);
