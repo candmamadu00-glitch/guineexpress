@@ -615,7 +615,6 @@ async function initDashboard() {
                 nameDisplay.innerText = currentUser.name.split(' ')[0];
             }
         }
-
         // --- AQUI ESTAVA O ERRO DO PREÇO ZERADO ---
         // O "await" obriga o código a parar aqui até o preço ser carregado do servidor
         await loadPrice(); 
@@ -1715,59 +1714,6 @@ function autoFillBoxData(sel) {
     }
 }
 function autoFillBoxData(sel) { document.getElementById('box-products').value = sel.options[sel.selectedIndex].getAttribute('data-desc') || ''; }
-// ==============================================================
-// 1. FUNÇÃO DA TIMELINE VISUAL (CORRIGIDA E ALINHADA)
-// ==============================================================
-function getTimelineHTML(status) {
-    // 1. Define os passos e ícones
-    const steps = [
-        { label: 'Recebido', icon: '📥' },
-        { label: 'Em Trânsito', icon: '✈️' },
-        { label: 'Chegou', icon: '🏢' },
-        { label: 'Entregue', icon: '✅' }
-    ];
-    
-    // 2. Descobre em qual passo estamos (Lógica Inteligente)
-    let currentIdx = 0;
-    const s = status ? status.toLowerCase() : '';
-
-    if (s.includes('recebido') || s.includes('triagem') || s.includes('processando')) currentIdx = 0;
-    else if (s.includes('trânsito') || s.includes('voo') || s.includes('enviado')) currentIdx = 1;
-    else if (s.includes('chegou') || s.includes('armazém') || s.includes('disponível') || s.includes('retirada')) currentIdx = 2;
-    else if (s.includes('entregue') || s.includes('finalizado') || s.includes('avaria')) currentIdx = 3;
-
-    // 3. Calcula % da barra verde (Progresso)
-    // Se for o último passo, enche 100%. Se for o primeiro, 0%.
-    const percent = (currentIdx / (steps.length - 1)) * 100;
-
-    // 4. Gera o HTML usando as classes CSS do style.css
-    let stepsHTML = '';
-
-    steps.forEach((step, idx) => {
-        const isActive = idx <= currentIdx;
-        const activeClass = isActive ? 'active' : '';
-        
-        // Se estiver ativo mostra o ícone, se não, mostra vazio ou um ponto simples
-        const iconContent = isActive ? step.icon : ''; 
-
-        stepsHTML += `
-            <div class="timeline-step ${activeClass}">
-                <div class="timeline-dot">${iconContent}</div>
-                <span class="timeline-label">${step.label}</span>
-            </div>
-        `;
-    });
-
-    return `
-        <div class="timeline-wrapper">
-            <div class="timeline-track"></div>
-            <div class="timeline-fill" style="width: ${percent}%"></div>
-            <div class="timeline-steps-container">
-                ${stepsHTML}
-            </div>
-        </div>
-    `;
-}
 
 // ==============================================================
 // 2. FUNÇÃO LOAD ORDERS ATUALIZADA (COM LAZY LOADING E VELOCIDADE)
@@ -1938,7 +1884,7 @@ function renderizarTabelaEncomendas() {
                 <td>${o.description||'-'}</td>
                 <td>${o.weight} Kg</td>
                 <td style="font-weight:bold; color:green;">R$ ${finalPrice.toFixed(2)}</td> 
-                <td style="min-width: 250px;">${statusDisplay}</td>
+                <td style="min-width: 320px; padding: 10px 5px;">${statusDisplay}</td>
                 <td style="text-align:center;">${actions}</td>
             </tr>`; 
     });
@@ -5365,94 +5311,57 @@ function printLabel(code, name, weight, desc, qtd = 1) {
         </html>
     `);
 }
-// --- FUNÇÃO PARA GERAR A TIMELINE VISUAL ---
 function getTimelineHTML(status) {
-    // Ordem dos status
-    const steps = ['Recebido', 'Em Trânsito', 'Chegou GB', 'Entregue'];
+    const steps = ['Agência', 'Voo Fortal.', 'Lisboa', 'Bissau', 'Entregue'];
+    const s = status ? status.toLowerCase() : '';
     
-    // Normaliza o status atual (caso venha diferente)
     let currentStepIndex = 0;
-    if (status.includes('Recebido') || status.includes('Triagem')) currentStepIndex = 0;
-    if (status.includes('Trânsito') || status.includes('Voo')) currentStepIndex = 1;
-    if (status.includes('Chegou') || status.includes('Armazém') || status.includes('Disponível')) currentStepIndex = 2;
-    if (status.includes('Entregue') || status.includes('Retirado')) currentStepIndex = 3;
+    if (s.includes('recebido') || s.includes('triagem') || s.includes('agencia') || s.includes('agência')) currentStepIndex = 0;
+    if (s.includes('fortaleza') || s.includes('pinto martins') || s.includes('brasil')) currentStepIndex = 1;
+    if (s.includes('lisboa') || s.includes('portugal') || s.includes('europa')) currentStepIndex = 2;
+    if (s.includes('bissau') || s.includes('armazém') || s.includes('chegou')) currentStepIndex = 3;
+    if (s.includes('entregue') || s.includes('retirado') || s.includes('concluído')) currentStepIndex = 4;
 
-    // Calcula porcentagem da barra verde
     const progressPercent = (currentStepIndex / (steps.length - 1)) * 100;
 
     let html = `
-        <div class="timeline-container">
-            <div class="timeline-progress" style="width: ${progressPercent}%"></div>
+        <div class="timeline-container" style="position: relative; margin: 10px auto; padding: 10px 0; width: 100%; box-sizing: border-box;">
+            
+            <div style="position: absolute; top: 23px; left: 10%; width: 80%; height: 3px; background: #eee; z-index: 1;"></div>
+            
+            <div class="timeline-progress" style="position: absolute; top: 23px; left: 10%; width: ${(progressPercent * 0.8)}%; height: 3px; background: linear-gradient(90deg, #009ee3, #28a745); z-index: 2; transition: width 1s ease-in-out;"></div>
+            
+            <div style="display: flex; justify-content: space-between; position: relative; z-index: 3; width: 100%; box-sizing: border-box;">
     `;
 
-    // Ícones para cada etapa
-    const icons = ['📥', '✈️', '🏢', '✅'];
+    const icons = ['📦', '🛫', '🛬', '📍', '✅'];
 
     steps.forEach((step, index) => {
-        const isActive = index <= currentStepIndex ? 'active' : '';
+        const isCompleted = index <= currentStepIndex;
+        const isActive = index === currentStepIndex;
+        
+        const bgColor = isActive ? '#009ee3' : (isCompleted ? '#28a745' : '#f0f0f0');
+        const textColor = isActive ? '#0a1931' : (isCompleted ? '#28a745' : '#888');
+        const fontWeight = isActive ? 'bold' : 'normal';
+        // Reduzimos o tamanho dos ícones e textos para caberem lado a lado no telemóvel
+        const circleSize = '28px'; 
+        const fontSizeIcon = '13px';
+        const fontSizeText = '9px';
+
         html += `
-            <div class="timeline-step ${isActive}">
-                ${isActive ? icons[index] : ''} <span class="timeline-label">${step}</span>
+            <div class="timeline-step" style="text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 0 2px; box-sizing: border-box;">
+                <div style="width: ${circleSize}; height: ${circleSize}; background: ${bgColor}; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: ${fontSizeIcon}; transition: all 0.3s; ${isActive ? 'transform: scale(1.1); border: 2px solid #fff;' : ''}">
+                    ${icons[index]}
+                </div>
+                <span style="font-size: ${fontSizeText}; font-weight: ${fontWeight}; color: ${textColor}; line-height: 1.1; text-align: center; width: 100%; word-wrap: break-word;">
+                    ${step}
+                </span>
             </div>
         `;
     });
 
-    html += `</div>`;
+    html += `</div></div>`;
     return html;
-}
-// ==========================================
-// FUNÇÕES DE COMUNICADO EM MASSA (ADMIN)
-// ==========================================
-
-function openBroadcastModal() {
-    document.getElementById('broadcast-modal').classList.remove('hidden');
-}
-
-async function sendBroadcast() {
-    const subject = document.getElementById('broadcast-subject').value;
-    const message = document.getElementById('broadcast-message').value;
-    
-    // NOVO: Verifica se o botão do WhatsApp está marcado
-    const checkboxZap = document.getElementById('check-send-zap');
-    const sendZap = checkboxZap ? checkboxZap.checked : false;
-
-    if (!subject || !message) return alert("❌ Preencha o assunto e a mensagem.");
-
-    if (!confirm("⚠️ Tem a certeza? Isso enviará mensagens para TODOS os clientes.")) return;
-
-    const btn = document.querySelector('#broadcast-modal .btn-primary');
-    const oldText = btn.innerText;
-    btn.innerText = "Enviando...";
-    btn.disabled = true;
-
-    try {
-        // ATENÇÃO: Mudei a rota para '/api/admin/broadcast-zap' (se você for usar aquela que criamos antes)
-        // Se você atualizou a sua rota antiga mesmo, pode manter '/api/admin/broadcast'
-        const res = await fetch('/api/admin/broadcast-zap', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // NOVO: Enviando a variável sendZap para o backend saber se deve acionar o robô do WhatsApp
-            body: JSON.stringify({ subject, message, sendZap }) 
-        });
-        
-        const data = await res.json();
-
-        if (data.success) {
-            alert("✅ " + data.msg);
-            closeModal('broadcast-modal');
-            document.getElementById('broadcast-subject').value = '';
-            document.getElementById('broadcast-message').value = '';
-            if (checkboxZap) checkboxZap.checked = false; // Desmarca a caixinha ao terminar
-        } else {
-            alert("Erro: " + data.msg);
-        }
-    } catch (error) {
-        console.error(error);
-        alert("Erro de conexão.");
-    } finally {
-        btn.innerText = oldText;
-        btn.disabled = false;
-    }
 }
 async function getZapQR() {
     const btn = event.target;
@@ -8164,87 +8073,7 @@ function filterInvoices() {
         }
     });
 }
-// ==========================================
-// FUNÇÃO DE BUSCAR PACOTE (RASTREAMENTO REAL)
-// ==========================================
-async function buscarPacote() {
-    const inputField = document.getElementById('track-code');
-    const codigoDigitado = inputField.value.trim().toUpperCase(); // Ex: GX-1024
-    const packageInfo = document.getElementById('active-package');
-    const barraProgresso = document.getElementById('barra-progresso');
-    const resultadoCodigo = document.getElementById('resultado-codigo');
-    const statusTexto = document.getElementById('status-texto');
-    const statusData = document.getElementById('status-data');
-    
-    // 1. Verifica se o cliente digitou algo
-    if(codigoDigitado === '') {
-        alert('Por favor, digite o código de rastreio da sua encomenda.');
-        inputField.focus();
-        return;
-    }
-    
-    try {
-        // 2. Busca as encomendas no servidor para checar se o código é verdadeiro
-        const res = await fetch('/api/orders');
-        const orders = await res.json();
 
-        // 3. Procura na lista se existe alguma encomenda com ESSE código
-        const encomendaReal = orders.find(o => (o.code || '').toUpperCase() === codigoDigitado);
-
-        // Se NÃO encontrou a encomenda:
-        if (!encomendaReal) {
-            alert('⚠️ Encomenda não encontrada! Verifique o código e tente novamente.');
-            packageInfo.style.display = 'none'; // Esconde o card
-            return;
-        }
-
-        // 4. SE ENCONTROU: Começa a preencher os dados reais
-        resultadoCodigo.innerText = codigoDigitado;
-        
-        // Vamos definir a % da barra e o ícone baseado no status real que veio do banco
-        let progresso = '20%';
-        let textoApresentacao = 'Processando...';
-        const statusBanco = (encomendaReal.status || '').toLowerCase();
-
-        if (statusBanco.includes('entregue')) {
-            textoApresentacao = 'Entregue ✅';
-            progresso = '100%';
-        } else if (statusBanco.includes('trânsito') || statusBanco.includes('enviado')) {
-            textoApresentacao = 'Em trânsito ✈️';
-            progresso = '60%';
-        } else if (statusBanco.includes('recebido') || statusBanco.includes('galpão')) {
-            textoApresentacao = 'No Galpão 📦';
-            progresso = '40%';
-        } else {
-            // Status padrão (Pendente, Aguardando, etc)
-            textoApresentacao = encomendaReal.status || 'Pendente ⏳';
-            progresso = '20%';
-        }
-
-        // Atualiza os textos na tela
-        statusTexto.innerText = textoApresentacao;
-        
-        // Pega a data que foi criada/atualizada (se tiver)
-        if (encomendaReal.created_at) {
-            const dataFormatada = new Date(encomendaReal.created_at).toLocaleDateString('pt-BR');
-            statusData.innerText = `Data de registro: ${dataFormatada}`;
-        } else {
-            statusData.innerText = 'Status atualizado recentemente';
-        }
-
-        // 5. Exibe o cartão e faz a animação da barra
-        packageInfo.style.display = 'block';
-        barraProgresso.style.width = '0%';
-        
-        setTimeout(() => {
-            barraProgresso.style.width = progresso; 
-        }, 100);
-
-    } catch (error) {
-        console.error("Erro ao buscar rastreamento:", error);
-        alert("Erro de conexão ao buscar a encomenda. Tente novamente.");
-    }
-}
 // ==========================================
 // VALIDAÇÃO RIGOROSA DE CADASTRO
 // ==========================================

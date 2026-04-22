@@ -9,12 +9,8 @@ const CiciAI = {
     // 👇 A PÍLULA DA MEMÓRIA: Esse array vai guardar a conversa!
     chatHistory: [], 
     isListening: false,
-    recognition: null,
-    silenceTimer: null,
-    // 👇 ADICIONE ESTAS TRÊS LINHAS:
-    isListening: false,
-    recognition: null,
-    silenceTimer: null,
+    mediaRecorder: null,
+    audioChunks: [],
     deviceInfo: 'Dispositivo Desconhecido',
     currentPage: 'Página Desconhecida',
     hasGreeted: false,
@@ -247,7 +243,7 @@ const CiciAI = {
                     <div class="cici-input-area">
                         <input type="file" id="cici-file-input" accept="image/*" style="display:none;" onchange="CiciAI.handleFileSelect(event)">
                         <button onclick="document.getElementById('cici-file-input').click()" class="cici-mic-btn"><i class="fas fa-camera"></i></button>
-                        <button onclick="CiciAI.listen()" class="cici-mic-btn"><i class="fas fa-microphone"></i></button>
+                        <button onclick="CiciAI.listen()" class="cici-mic-btn" id="cici-mic-button"><i class="fas fa-microphone"></i></button>
                         <input type="text" id="cici-input" placeholder="Diga oi para a Cicí..." onkeypress="CiciAI.handleInput(event)">
                         <button onclick="CiciAI.handleSend()" class="cici-send-btn"><i class="fas fa-paper-plane"></i></button>
                     </div>
@@ -309,24 +305,30 @@ const CiciAI = {
         document.getElementById('cici-image-preview').style.display = 'none';
     },
 
-    processText: async function(text, silent = false, isFirstMessage = false) {
-        if(!text && !this.currentImageBase64 && !isFirstMessage) return;
-        if(!silent && text) this.addMessage(text, 'user');
+    processText: async function(text, audioBlob = null, silent = false, isFirstMessage = false) {
+        if(!text && !this.currentImageBase64 && !audioBlob && !isFirstMessage) return;
+        
+        if(!silent) {
+           if(text) this.addMessage(text, 'user');
+           else if (audioBlob) this.addMessage("🎙️ Áudio enviado", 'user');
+        }
+        
         this.showTyping();
 
         try {
+            const formData = new FormData();
+            formData.append('history', JSON.stringify(this.chatHistory));
+            formData.append('userContext', JSON.stringify({ role: this.userRole, name: this.userName, deviceInfo: this.deviceInfo, currentPage: this.currentPage }));
+            formData.append('isFirstMessage', isFirstMessage);
+            formData.append('lang', this.currentLang);
+            
+            if (text) formData.append('text', text);
+            if (this.currentImageBase64) formData.append('image', this.currentImageBase64);
+            if (audioBlob) formData.append('audio', audioBlob, 'audio.webm'); // Envia o áudio
+
             const response = await fetch('/api/cici/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    text, 
-                    // 👇 ENVIAMOS A MEMÓRIA PARA O SERVIDOR!
-                    history: this.chatHistory, 
-                    userContext: { role: this.userRole, name: this.userName, deviceInfo: this.deviceInfo, currentPage: this.currentPage },
-                    image: this.currentImageBase64,
-                    isFirstMessage,
-                    lang: this.currentLang 
-                })
+                body: formData // Alterado para enviar formData
             });
             const data = await response.json();
             this.hideTyping();
@@ -428,76 +430,47 @@ const CiciAI = {
     },
     hideTyping: function() { const el = document.getElementById('typing-dots'); if(el) el.remove(); },
     
-    listen: function() {
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) return this.addMessage("Reconhecimento de voz não suportado neste navegador.", 'cici');
+    // 🌟 NOVA FUNÇÃO DE ESCUTA (GRAVAÇÃO REAL DE ÁUDIO)
+    listen: async function() {
+        const micBtn = document.getElementById('cici-mic-button');
+        const micIcon = micBtn.querySelector('i');
+        const inputEl = document.getElementById('cici-input');
 
-        // Se já estiver gravando, o botão funciona como um "Desligar Microfone"
         if (this.isListening) {
-            if(this.recognition) this.recognition.stop();
+            // Pára a gravação
+            this.mediaRecorder.stop();
+            this.isListening = false;
+            micIcon.style.color = "";
+            inputEl.placeholder = "Diga oi para a Cicí...";
             return;
         }
 
-        this.recognition = new SpeechRec();
-        this.recognition.lang = this.currentLang;
-        this.recognition.continuous = true; // Permite pausas longas sem cortar
-        this.recognition.interimResults = true; // Pega o texto enquanto a pessoa ainda está falando
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.mediaRecorder = new MediaRecorder(stream);
+            this.audioChunks = [];
 
-        const inputEl = document.getElementById('cici-input');
-        const micBtn = document.querySelector('.cici-mic-btn .fa-microphone'); 
+            this.mediaRecorder.ondataavailable = event => {
+                this.audioChunks.push(event.data);
+            };
 
-        this.recognition.onstart = () => {
+            this.mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                this.processText(null, audioBlob); // Envia o áudio para o servidor
+            };
+
+            this.mediaRecorder.start();
             this.isListening = true;
-            inputEl.placeholder = "🎤 Ouvindo... pode falar.";
-            if(micBtn) micBtn.style.color = "#ff4757"; // Deixa o microfone vermelho para mostrar que tá gravando
-            
-            // Faz a Cicí calar a boca se ela estiver falando, para ela poder te ouvir
+            micIcon.style.color = "#ff4757"; // Muda a cor para indicar gravação
+            inputEl.placeholder = "🎤 Gravando áudio...";
+             
+             // Faz a Cicí calar a boca se ela estiver falando
             window.speechSynthesis.cancel(); 
-        };
 
-        this.recognition.onresult = (e) => {
-            let partialTranscript = '';
-            let finalTranscript = '';
-
-            for (let i = e.resultIndex; i < e.results.length; ++i) {
-                if (e.results[i].isFinal) {
-                    finalTranscript += e.results[i][0].transcript;
-                } else {
-                    partialTranscript += e.results[i][0].transcript;
-                }
-            }
-
-            // Vai mostrando no input o que ela está entendendo
-            inputEl.value = finalTranscript || partialTranscript;
-
-            // ⏱️ FREIO DE ANSIEDADE: Toda vez que você fala uma palavra, o relógio zera
-            clearTimeout(this.silenceTimer);
-            
-            // Se você ficar 2.5 segundos em silêncio, ela entende que você terminou a frase e envia
-            this.silenceTimer = setTimeout(() => {
-                this.recognition.stop(); 
-            }, 2500); 
-        };
-
-        this.recognition.onend = () => {
-            this.isListening = false;
-            inputEl.placeholder = "Diga oi para a Cicí...";
-            if(micBtn) micBtn.style.color = ""; // Volta a cor do microfone ao normal
-            
-            // Só envia a mensagem se tiver algo escrito
-            if(inputEl.value.trim() !== '') {
-                // 👇 Chama a função que envia a mensagem para o servidor!
-                this.handleSend(); 
-            }
-        };
-
-        this.recognition.onerror = (e) => {
-            this.isListening = false;
-            if(micBtn) micBtn.style.color = "";
-            inputEl.placeholder = "Diga oi para a Cicí...";
-        };
-
-        this.recognition.start();
+        } catch (error) {
+            console.error("Erro ao aceder ao microfone:", error);
+            this.addMessage("Não consegui aceder ao microfone. Verifique as permissões.", 'cici');
+        }
     },
 
     handleInput: function(e) { if(e.key === 'Enter') this.handleSend(); },
