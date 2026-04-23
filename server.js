@@ -84,9 +84,8 @@ db.run("ALTER TABLE orders ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
 });
 const PDFDocument = require('pdfkit');
 
-// --- FUNÇÃO MÁGICA QUE GERA E ENVIA O RECIBO VIP (DESIGN PREMIUM) ---
+// --- FUNÇÃO MÁGICA QUE GERA E ENVIA O RECIBO VIP (DESIGN PREMIUM IDÊNTICO AO HTML) ---
 async function enviarReciboPDF(invoiceId) {
-    // CORREÇÃO: Removemos o.receiver_name e o.receiver_doc que não existem no banco de dados
     const sql = `
         SELECT i.*, u.name as client_name, u.phone, u.document, u.email, 
                b.box_code, b.products, b.amount as box_amount, b.lote,
@@ -101,165 +100,175 @@ async function enviarReciboPDF(invoiceId) {
     db.get(sql, [invoiceId], async (err, fatura) => {
         if (err || !fatura) return console.error("❌ Erro ao buscar dados para o recibo:", err);
 
-        // 1. Cria o documento PDF em tamanho A4
+        // 1. Cria o documento PDF em tamanho A4 (Exatamente como na impressão do painel)
         const doc = new PDFDocument({ size: 'A4', margin: 40 });
         let buffers = [];
         doc.on('data', buffers.push.bind(buffers));
         
         doc.on('end', async () => {
             const pdfData = Buffer.concat(buffers);
-            
-            // 2. Prepara o envio para o WhatsApp
             const { MessageMedia } = require('whatsapp-web.js');
-            const media = new MessageMedia(
-                'application/pdf', 
-                pdfData.toString('base64'), 
-                `Recibo_Guineexpress_${fatura.box_code || fatura.id}.pdf`
-            );
+            const media = new MessageMedia('application/pdf', pdfData.toString('base64'), `Recibo_Guineexpress_${fatura.box_code || fatura.id}.pdf`);
 
-            // 3. Envia para o cliente
-            const roboZap = (typeof clientZap !== 'undefined' ? clientZap : (typeof client !== 'undefined' ? client : null));
+            const roboZap = (typeof clientZap !== 'undefined' ? clientZap : null);
             if (roboZap && fatura.phone) {
                 try {
                     const cleanPhone = fatura.phone.replace(/\D/g, '');
                     const chatId = await roboZap.getNumberId(cleanPhone);
                     const destino = chatId ? chatId._serialized : `${cleanPhone}@c.us`;
-
-                    const msgStatus = fatura.status === 'paid' ? 'pagamento foi confirmado' : 'recibo foi gerado';
                     
                     await roboZap.sendMessage(destino, media, { 
-                        caption: `Olá *${fatura.client_name.split(' ')[0]}*! O seu ${msgStatus}. Segue em anexo o seu recibo oficial da Guineexpress. 📦✈️` 
+                        caption: `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅` 
                     });
                     console.log(`📄 Recibo VIP enviado com sucesso para ${fatura.client_name}`);
-                } catch (err) {
-                    console.error("❌ Erro ao mandar PDF no Zap:", err.message);
-                }
+                } catch (err) { console.error("❌ Erro ao mandar PDF no Zap:", err.message); }
             }
         });
 
         // ==========================================
-        // 🎨 INÍCIO DO DESIGN VIP COM PDFKIT
+        // 🎨 DESIGN VIP (CLONE PERFEITO DO HTML)
         // ==========================================
         const azulOficial = '#0a1931';
         const douradoLuxo = '#dfaf12';
         const vermelhoTotal = '#d32f2f';
         const cinzaClaro = '#f4f6f9';
+        const textoEscuro = '#28425c';
 
         // Cálculos de Valores
         const nfVal = parseFloat(fatura.nf_amount) || 0;
         const freteVal = parseFloat(fatura.freight_amount) || parseFloat(fatura.amount) || 0;
         const totalVal = (freteVal + nfVal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        // MARCA D'ÁGUA GIGANTE NO FUNDO
-        const isPaid = fatura.status === 'paid';
-        const stampText = isPaid ? 'PAGO' : 'PENDENTE';
-        const stampColor = isPaid ? 'rgba(40, 167, 69, 0.1)' : 'rgba(216, 30, 49, 0.1)';
-        
+        // 1. MARCA D'ÁGUA GIGANTE "PAGO" (Verde e Rotacionada)
         doc.save();
         doc.translate(doc.page.width / 2, doc.page.height / 2);
         doc.rotate(-35);
-        doc.fontSize(100).fillColor(stampColor).text(stampText, -250, -50, { align: 'center', width: 500 });
+        doc.fontSize(120).fillColor('rgba(40, 167, 69, 0.15)').font('Helvetica-Bold').text('PAGO', -250, -60, { align: 'center', width: 500 });
         doc.restore();
 
-        // LOGO E CABEÇALHO DA EMPRESA
+        // 2. CABEÇALHO E LOGO
         try {
-            const logoPath = path.join(__dirname, 'logo.png');
+            // Busca a logo na raiz do projeto (onde o server.js está rodando)
+            const logoPath = path.join(process.cwd(), 'logo.png');
             if (fs.existsSync(logoPath)) {
-                doc.image(logoPath, 40, 40, { width: 60 });
+                doc.image(logoPath, 40, 40, { width: 65 });
             }
-        } catch(e) { /* Ignora se não achar a logo */ }
+        } catch(e) { console.log("Aviso: Logo não encontrada pelo PDFKit."); }
 
-        doc.fillColor(azulOficial).fontSize(22).font('Helvetica-Bold').text('GUINEEXPRESS', 110, 45, { letterSpacing: 1.5 });
-        doc.fillColor(douradoLuxo).fontSize(10).font('Helvetica-Bold').text('AGÊNCIA DE LOGÍSTICA INTERNACIONAL', 110, 70);
+        doc.fillColor(azulOficial).fontSize(24).font('Helvetica-Bold').text('GUINEEXPRESS', 115, 45, { letterSpacing: 1.5 });
+        doc.fillColor(douradoLuxo).fontSize(9).font('Helvetica-Bold').text('AGÊNCIA DE LOGÍSTICA INTERNACIONAL', 115, 72);
         
-        doc.fillColor('#666').fontSize(9).font('Helvetica')
-           .text('Av. Tristão Gonçalves, 1203 - Centro - Fortaleza / CE', 0, 45, { align: 'right' })
+        doc.fillColor('#695a5a').fontSize(9).font('Helvetica')
+           .text('Av. Tristão Gonçalves, 1203', 0, 45, { align: 'right' })
+           .text('Centro - Fortaleza / CE', { align: 'right' })
            .text('(85) 98239-207', { align: 'right' })
            .text('Comercialguineexpress245@gmail.com', { align: 'right' });
 
+        // Linha divisória
         doc.moveTo(40, 110).lineTo(555, 110).lineWidth(2).strokeColor(cinzaClaro).stroke();
 
-        // BARRA AZUL DE TÍTULO
+        // 3. BARRA AZUL (TÍTULO DO RECIBO)
         doc.rect(40, 130, 515, 40).fill(azulOficial);
-        doc.fillColor(douradoLuxo).fontSize(16).font('Helvetica-Bold').text('RECIBO DE ENCOMENDA', 55, 142);
+        doc.fillColor(douradoLuxo).fontSize(16).font('Helvetica-Bold').text('RECIBO DE ENCOMENDA', 55, 143);
         
-        doc.fontSize(10).fillColor('#fff')
-           .text(`Box: `, 320, 145).fillColor(douradoLuxo).text(`${fatura.box_code || '-'}`, 345, 145)
-           .fillColor('#fff').text(`Emissão: `, 430, 145).fillColor(douradoLuxo).text(`${new Date().toLocaleDateString('pt-BR')}`, 480, 145);
-
-        // GRID DE CARDS (Simulados desenhando caixas)
-        let yPos = 190;
+        doc.fontSize(8).fillColor(douradoLuxo).text('Box Nº', 320, 138);
+        doc.fontSize(11).fillColor('#fff').text(fatura.box_code || '1', 320, 148);
         
-        // Card 1: Cliente
-        doc.rect(40, yPos, 165, 110).fillAndStroke(cinzaClaro, azulOficial);
-        doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text('DADOS DO CLIENTE', 50, yPos + 10);
-        doc.fontSize(8).font('Helvetica').fillColor('#333')
-           .text(`Nome: ${fatura.client_name}`, 50, yPos + 35)
-           .text(`Telefone: ${fatura.phone || '-'}`, 50, yPos + 55)
-           .text(`Doc: ${fatura.document || '-'}`, 50, yPos + 75);
+        doc.fontSize(8).fillColor(douradoLuxo).text('Ref', 390, 138);
+        doc.fontSize(11).fillColor('#fff').text(fatura.order_code || '-', 390, 148);
+        
+        doc.fontSize(8).fillColor(douradoLuxo).text('Emissão', 460, 138);
+        doc.fontSize(11).fillColor('#fff').text(new Date().toLocaleDateString('pt-BR'), 460, 148);
 
-        // Card 2: Envio
-        doc.rect(215, yPos, 165, 110).fillAndStroke(cinzaClaro, azulOficial);
-        doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text('DADOS DO ENVIO', 225, yPos + 10);
-        doc.fontSize(8).font('Helvetica').fillColor('#333')
-           .text(`Ref: ${fatura.order_code || '-'}`, 225, yPos + 35)
-           .text(`Peso: ${fatura.weight || '0'} kg`, 225, yPos + 55)
-           .text(`Lote: ${fatura.lote || 'Sem Lote'}`, 225, yPos + 75);
-
-        // Card 3: Retirada
-        doc.rect(390, yPos, 165, 110).fillAndStroke(cinzaClaro, azulOficial);
-        doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text('RETIRADA EM BISSAU', 400, yPos + 10);
-        doc.fontSize(8).font('Helvetica').fillColor('#333')
-           .text(`Local: Rotunda de Nhonho`, 400, yPos + 30)
-           .text(`Contato: +245 956604423`, 400, yPos + 45);
-        doc.fillColor(vermelhoTotal).font('Helvetica-Bold').text('AUTORIZADO A RETIRAR:', 400, yPos + 65);
-        doc.fillColor('#333').font('Helvetica').text(`Nome: O Próprio Cliente`, 400, yPos + 78);
-
-        // TABELA DE VALORES
-        yPos = 320;
-        doc.rect(40, yPos, 515, 20).fill(azulOficial);
-        doc.fillColor(douradoLuxo).fontSize(9).font('Helvetica-Bold')
-           .text('DESCRIÇÃO DOS SERVIÇOS', 50, yPos + 6)
-           .text('PESO', 380, yPos + 6)
-           .text('VALOR', 480, yPos + 6, { align: 'right', width: 65 });
-
-        // Linha 1 (Frete)
-        yPos += 30;
-        doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text('Frete Aéreo/Marítimo Internacional', 50, yPos);
-        doc.fillColor('#666').fontSize(8).font('Helvetica').text(`Conteúdo: ${fatura.products || 'Diversos'}`, 50, yPos + 12);
-        doc.fillColor('#333').fontSize(9).text(`${fatura.weight || '0'} kg`, 380, yPos + 5);
-        doc.text(freteVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 480, yPos + 5, { align: 'right', width: 65 });
-        doc.moveTo(40, yPos + 25).lineTo(555, yPos + 25).lineWidth(1).strokeColor('#e1e8ed').stroke();
-
-        // Linha 2 (NF)
-        if (nfVal > 0) {
-            yPos += 35;
-            doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text('Taxa de Despacho / Nota Fiscal', 50, yPos);
-            doc.fillColor('#666').fontSize(8).font('Helvetica').text(`Impostos e taxas aduaneiras`, 50, yPos + 12);
-            doc.fillColor('#333').fontSize(9).text(`-`, 380, yPos + 5);
-            doc.text(nfVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 480, yPos + 5, { align: 'right', width: 65 });
-            doc.moveTo(40, yPos + 25).lineTo(555, yPos + 25).lineWidth(1).strokeColor('#e1e8ed').stroke();
+        // 4. OS 3 CARDS (GRID DE INFORMAÇÕES)
+        const yCards = 190;
+        const cardW = 165;
+        
+        function drawCard(x, title, rows) {
+            doc.rect(x, yCards, cardW, 115).fill(cinzaClaro);
+            doc.moveTo(x, yCards).lineTo(x + cardW, yCards).lineWidth(4).strokeColor(azulOficial).stroke();
+            doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text(title, x + 10, yCards + 12);
+            
+            let cy = yCards + 35;
+            rows.forEach(r => {
+                if (r.isAlert) {
+                    doc.rect(x + 8, cy, cardW - 16, 40).fill('#fff3cd');
+                    doc.fillColor(vermelhoTotal).fontSize(8).font('Helvetica-Bold').text(r.alertTitle, x + 12, cy + 6);
+                    doc.fillColor('#856404').fontSize(8).font('Helvetica').text(r.alertText, x + 12, cy + 18);
+                } else {
+                    doc.fillColor('#666').fontSize(8).font('Helvetica-Bold').text(r.label, x + 10, cy);
+                    doc.fillColor(textoEscuro).font('Helvetica-Bold').text(r.value, x + 10, cy, { align: 'right', width: cardW - 20 });
+                    // Linha tracejada do HTML
+                    doc.moveTo(x + 10, cy + 12).lineTo(x + cardW - 10, cy + 12).lineWidth(0.5).dash(2, {space: 2}).strokeColor('#e1e8ed').stroke();
+                    doc.undash(); 
+                    cy += 18;
+                }
+            });
         }
 
-        // TOTAL A PAGAR (Pílula Vermelha simulada)
-        yPos += 50;
-        doc.rect(300, yPos, 255, 40).fill(vermelhoTotal).stroke();
-        doc.fillColor('#fff').fontSize(12).font('Helvetica-Bold').text('TOTAL:', 320, yPos + 14);
-        doc.fontSize(16).text(totalVal, 400, yPos + 12, { align: 'right', width: 135 });
+        drawCard(40, 'DADOS DO CLIENTE', [
+            { label: 'Nome:', value: fatura.client_name },
+            { label: 'Telefone:', value: fatura.phone || '-' },
+            { label: 'Documento:', value: fatura.document || '-' },
+            { label: 'Email:', value: (fatura.email || '-').substring(0, 16) }
+        ]);
 
-        // RODAPÉ E ASSINATURAS
-        yPos += 120;
-        doc.fillColor('#886e6e').fontSize(8).font('Helvetica-Oblique').text('Declaro que os itens acima listados foram conferidos na minha presença. A Guineexpress não se responsabiliza por itens não conferidos no local da retirada.', 40, yPos, { align: 'center', width: 515 });
-        
-        yPos += 60;
-        doc.moveTo(90, yPos).lineTo(250, yPos).strokeColor(azulOficial).stroke();
-        doc.moveTo(340, yPos).lineTo(500, yPos).stroke();
-        
-        doc.fillColor(azulOficial).fontSize(9).font('Helvetica-Bold')
-           .text('GUINEEXPRESS LOGÍSTICA', 90, yPos + 5, { width: 160, align: 'center' })
-           .text('ASSINATURA DO CLIENTE', 340, yPos + 5, { width: 160, align: 'center' });
+        drawCard(215, 'DADOS DO ENVIO', [
+            { label: 'Destino:', value: 'Guiné-Bissau' },
+            { label: 'Ref. Encomenda:', value: fatura.order_code || '-' },
+            { label: 'Peso:', value: `${fatura.weight || '0'} kg` },
+            { label: 'Lote:', value: fatura.lote || 'Sem Lote' }
+        ]);
 
-        doc.end(); // Finaliza e envia o PDF VIP!
+        drawCard(390, 'RETIRADA EM BISSAU', [
+            { label: 'Local:', value: 'Rotunda de Nhonho' },
+            { label: 'Contato:', value: '+245 956604423' },
+            { isAlert: true, alertTitle: 'AUTORIZADO A RETIRAR:', alertText: `Nome: O Próprio Cliente\nBilhete: -` }
+        ]);
+
+        // 5. TABELA DE SERVIÇOS
+        let yTab = 330;
+        doc.rect(40, yTab, 515, 25).fill(azulOficial);
+        doc.fillColor(douradoLuxo).fontSize(9).font('Helvetica-Bold')
+           .text('DESCRIÇÃO DOS SERVIÇOS', 50, yTab + 8)
+           .text('PESO', 380, yTab + 8)
+           .text('VALOR', 480, yTab + 8, { align: 'right', width: 65 });
+
+        yTab += 35;
+        doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text('Frete Aéreo/Marítimo Internacional', 50, yTab);
+        doc.fillColor('#5c4242').fontSize(8).font('Helvetica').text(`Conteúdo: ${fatura.products || 'Diversos'}`, 50, yTab + 12);
+        doc.fillColor(textoEscuro).fontSize(10).font('Helvetica-Bold').text(`${fatura.weight || '0'} kg`, 380, yTab + 5);
+        doc.text(freteVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 480, yTab + 5, { align: 'right', width: 65 });
+        doc.moveTo(40, yTab + 25).lineTo(555, yTab + 25).lineWidth(1).strokeColor('#e1e8ed').stroke();
+
+        if (nfVal > 0) {
+            yTab += 35;
+            doc.fillColor(azulOficial).fontSize(10).font('Helvetica-Bold').text('Taxa de Despacho / Nota Fiscal', 50, yTab);
+            doc.fillColor('#5c4242').fontSize(8).font('Helvetica').text(`Impostos e taxas aduaneiras`, 50, yTab + 12);
+            doc.fillColor(textoEscuro).fontSize(10).font('Helvetica-Bold').text(`-`, 380, yTab + 5);
+            doc.text(nfVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 480, yTab + 5, { align: 'right', width: 65 });
+            doc.moveTo(40, yTab + 25).lineTo(555, yTab + 25).lineWidth(1).strokeColor('#e1e8ed').stroke();
+        }
+
+        // 6. TOTAL A PAGAR (A PÍLULA VERMELHA)
+        yTab += 40;
+        doc.rect(280, yTab, 275, 45).fill(vermelhoTotal);
+        doc.fillColor('#fff').fontSize(12).font('Helvetica-Bold').text('TOTAL A PAGAR:', 300, yTab + 16);
+        doc.fontSize(18).text(totalVal, 410, yTab + 13, { align: 'right', width: 125 });
+
+        // 7. RODAPÉ E ASSINATURAS
+        yTab += 100;
+        doc.fillColor('#886e6e').fontSize(9).font('Helvetica-Oblique').text('Declaro que os itens acima listados foram conferidos na minha presença.\nA Guineexpress não se responsabiliza por itens não conferidos no local da retirada.', 40, yTab, { align: 'center', width: 515 });
+        
+        yTab += 60;
+        doc.moveTo(80, yTab).lineTo(260, yTab).strokeColor(textoEscuro).stroke();
+        doc.moveTo(335, yTab).lineTo(515, yTab).stroke();
+        
+        doc.fillColor(textoEscuro).fontSize(9).font('Helvetica-Bold')
+           .text('GUINEEXPRESS LOGÍSTICA', 80, yTab + 5, { width: 180, align: 'center' })
+           .text('ASSINATURA DO CLIENTE', 335, yTab + 5, { width: 180, align: 'center' });
+
+        doc.end(); // Finaliza e envia o PDF VIP e 100% igual ao HTML!
     });
 }
 // ==================================================================
