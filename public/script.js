@@ -8446,3 +8446,54 @@ function loginComGoogle() {
     // você precisará criar um projeto gratuito no "Google Cloud Console" para gerar um "Client ID".
     alert("🚀 O acesso por e-mail já está liberado! Digite seu Gmail no campo acima e sua senha.\n\n(Aviso ao Admin: Para ativar a janela de clique automático do Google, é necessário conectar a API de Autenticação do Google Cloud).");
 }
+// ==========================================
+// FUNÇÕES DE COMUNICADO EM MASSA (ADMIN)
+// ==========================================
+
+function openBroadcastModal() {
+    document.getElementById('broadcast-modal').classList.remove('hidden');
+}
+
+async function sendBroadcast() {
+    const subject = document.getElementById('broadcast-subject').value;
+    const message = document.getElementById('broadcast-message').value;
+    
+    // NOVO: Verifica se o botão do WhatsApp está marcado
+    const checkboxZap = document.getElementById('check-send-zap');
+    const sendZap = checkboxZap ? checkboxZap.checked : false;
+
+    if (!subject || !message) return alert("❌ Preencha o assunto e a mensagem.");
+
+    if (!confirm("⚠️ Tem a certeza? Isso enviará mensagens para TODOS os clientes.")) return;
+
+    const btn = document.querySelector('#broadcast-modal .btn-primary');
+    const oldText = btn.innerText;
+    btn.innerText = "Enviando...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/admin/broadcast-zap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, message, sendZap }) 
+        });
+        
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ " + data.msg);
+            closeModal('broadcast-modal');
+            document.getElementById('broadcast-subject').value = '';
+            document.getElementById('broadcast-message').value = '';
+            if (checkboxZap) checkboxZap.checked = false; // Desmarca a caixinha ao terminar
+        } else {
+            alert("Erro: " + data.msg);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erro de conexão.");
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
+}

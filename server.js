@@ -1291,6 +1291,7 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
+
 // ==============================================================
 // 🤖 FUNÇÃO INDEPENDENTE PARA LIGAR O MOTOR DO ZAP
 // ==============================================================
@@ -1300,20 +1301,14 @@ function ligarMotorDoZap(res = null) {
         return; // Já tá rodando, não faz nada
     }
 
-    console.log("📞 [ZAP] Iniciando o motor do Chrome... Isso leva de 10 a 30 segundos.");
+    console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
 
-    // 1. O EXTERMINADOR BLINDADO (Ignora atalhos quebrados do Linux)
+    // 1. O EXTERMINADOR BLINDADO (Limpa apenas travas, sem apagar a sessão!)
     try {
-        const fs = require('fs');
-        const path = require('path');
-
         function destruirCadeados(diretorio) {
             if (!fs.existsSync(diretorio)) return;
-            
             let arquivos = [];
-            try {
-                arquivos = fs.readdirSync(diretorio);
-            } catch (e) { return; }
+            try { arquivos = fs.readdirSync(diretorio); } catch (e) { return; }
 
             for (const arquivo of arquivos) {
                 const caminhoCompleto = path.join(diretorio, arquivo);
@@ -1328,18 +1323,14 @@ function ligarMotorDoZap(res = null) {
                 } catch (err) { }
             }
         }
-
-        console.log("🧹 [ZAP] Iniciando varredura profunda de cadeados na sessão...");
-        if (typeof SESSION_PATH !== 'undefined') destruirCadeados(SESSION_PATH);
-        destruirCadeados(path.join(__dirname, '.wwebjs_auth')); 
-        console.log("✅ Varredura profunda concluída!");
+        destruirCadeados(SESSION_PATH); 
     } catch (e) { 
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    // 2. A partir daqui o Zap vai ligar blindado contra deploys e otimizado pro Render
+    // 2. Iniciando o Zap com LocalAuth apontando para o Disco Permanente
     clientZap = new Client({
-        authStrategy: new LocalAuth({ dataPath: typeof SESSION_PATH !== 'undefined' ? SESSION_PATH : undefined }),
+        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), // <-- O SEGREDO ESTÁ AQUI
         puppeteer: {
             protocolTimeout: 600000, 
             args: [
@@ -1349,7 +1340,7 @@ function ligarMotorDoZap(res = null) {
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
-                '--single-process', // <-- SALVAÇÃO NO RENDER: Economiza MUITA memória RAM
+                '--single-process', // Economiza RAM no Render
                 '--disable-gpu',
                 '--memory-pressure-off'
             ]
@@ -1357,7 +1348,7 @@ function ligarMotorDoZap(res = null) {
     });
 
     clientZap.once('qr', async (qr) => {
-        console.log("📞 [ZAP] QR Code capturado! Mandando para a tela...");
+        console.log("📞 [ZAP] QR Code gerado! Aguardando Lelo escanear...");
         if (res && !res.headersSent) {
             const qrImage = await qrcode.toDataURL(qr);
             res.json({ success: true, qr: qrImage });
@@ -1365,10 +1356,16 @@ function ligarMotorDoZap(res = null) {
     });
 
     clientZap.once('ready', () => {
-        console.log('✅ WhatsApp Pronto!');
+        console.log('✅ [ZAP] WhatsApp Pronto e Conectado!');
         if (res && !res.headersSent) {
-            res.json({ success: true, msg: "Conectado automaticamente pela sessão salva!" });
+            res.json({ success: true, msg: "Conectado com sucesso!" });
         }
+    });
+
+    // Quando o Whatsapp percebe que a sessão expirou ou foi desconectada no celular
+    clientZap.on('auth_failure', msg => {
+        console.error('❌ [ZAP] Falha de Autenticação. Você desconectou no celular?', msg);
+        // Aqui a sessão morreu mesmo. Vai precisar de novo QR Code.
     });
 
     configurarEventosDoZap(clientZap);
@@ -1379,13 +1376,13 @@ function ligarMotorDoZap(res = null) {
         if (res && !res.headersSent) {
             res.json({ success: false, msg: "Falha ao iniciar o WhatsApp. Verifique os logs." });
         }
-        // Tenta religar sozinho depois de 30 segundos em caso de falha grave
+        // Tenta religar sozinho depois de 30 segundos
         setTimeout(() => ligarMotorDoZap(), 30000);
     });
 }
 
 // ==============================================================
-// 📱 ROTA PARA INICIAR O ZAP E GERAR QR CODE (AGORA SÓ CHAMA A FUNÇÃO)
+// 📱 ROTA PARA INICIAR O ZAP E GERAR QR CODE
 // ==============================================================
 app.get('/api/admin/zap-qr', async (req, res) => {
     ligarMotorDoZap(res);
@@ -4884,6 +4881,7 @@ cron.schedule('0 8 * * *', async () => {
         console.log('🤖 Cicí: Terminei as cobranças de hoje! Voltando a dormir...');
     });
 });
+ligarMotorDoZap();
 // =====================================================
 // INICIALIZAÇÃO DO SERVIDOR (CORRIGIDO PARA O RENDER)
 // =====================================================
