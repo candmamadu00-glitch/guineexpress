@@ -86,10 +86,11 @@ const PDFDocument = require('pdfkit');
 
 // --- FUNÇÃO MÁGICA QUE GERA E ENVIA O RECIBO VIP (DESIGN PREMIUM) ---
 async function enviarReciboPDF(invoiceId) {
+    // CORREÇÃO: Removemos o.receiver_name e o.receiver_doc que não existem no banco de dados
     const sql = `
         SELECT i.*, u.name as client_name, u.phone, u.document, u.email, 
                b.box_code, b.products, b.amount as box_amount, b.lote,
-               o.weight, o.code as order_code, o.status as order_status, o.receiver_name, o.receiver_doc
+               o.weight, o.code as order_code, o.status as order_status
         FROM invoices i
         JOIN users u ON i.client_id = u.id
         LEFT JOIN boxes b ON i.box_id = b.id
@@ -162,7 +163,7 @@ async function enviarReciboPDF(invoiceId) {
 
         // LOGO E CABEÇALHO DA EMPRESA
         try {
-            const logoPath = path.join(__dirname, 'logo.png'); // Pega a logo local do servidor
+            const logoPath = path.join(__dirname, 'logo.png');
             if (fs.existsSync(logoPath)) {
                 doc.image(logoPath, 40, 40, { width: 60 });
             }
@@ -212,7 +213,7 @@ async function enviarReciboPDF(invoiceId) {
            .text(`Local: Rotunda de Nhonho`, 400, yPos + 30)
            .text(`Contato: +245 956604423`, 400, yPos + 45);
         doc.fillColor(vermelhoTotal).font('Helvetica-Bold').text('AUTORIZADO A RETIRAR:', 400, yPos + 65);
-        doc.fillColor('#333').font('Helvetica').text(`Nome: ${fatura.receiver_name || 'O Próprio Cliente'}`, 400, yPos + 78);
+        doc.fillColor('#333').font('Helvetica').text(`Nome: O Próprio Cliente`, 400, yPos + 78);
 
         // TABELA DE VALORES
         yPos = 320;

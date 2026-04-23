@@ -5312,7 +5312,7 @@ function printLabel(code, name, weight, desc, qtd = 1) {
     `);
 }
 function getTimelineHTML(status) {
-    const steps = ['Agência', 'Voo Fortal.', 'Lisboa', 'Bissau', 'Entregue'];
+    const steps = ['Agência', 'Em Transito Fort.', 'Em transito Lisboa', 'Chegou Bissau', 'Entregue'];
     const s = status ? status.toLowerCase() : '';
     
     let currentStepIndex = 0;
