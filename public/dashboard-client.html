@@ -5,8 +5,13 @@
     <link rel="stylesheet" href="cici.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <h2 id="smart-greeting" style="transition: all 0.5s ease;">Carregando painel...</h2>
-        <link rel="icon" type="image/png" href="/logo.png">
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; margin-bottom: 15px;">
+    <h2 id="smart-greeting" style="margin: 0; font-size: 20px; transition: all 0.5s ease;">Carregando...</h2>
+    
+    <button onclick="openThemeModal()" style="background: rgb(36, 199, 3); border: none; width: 45px; height: 45px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; color: #0a1931; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
+        <i class="fas fa-paint-brush" style="font-size: 20px;"></i>
+    </button>
+</div>        <link rel="icon" type="image/png" href="/logo.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -48,7 +53,7 @@
             background: linear-gradient(-45deg, var(--primary, #0a1931), #1a3c6e, #2c3e50, #132b50);
             background-size: 400% 400%;
             animation: oceanFlow 15s ease infinite;
-            color: white;
+            color: rgb(83, 73, 73);
             padding: 30px;
             border-radius: 12px;
             margin-bottom: 30px;
@@ -277,7 +282,7 @@
         <div style="font-weight:bold; font-size:18px;">
             GUINEEXPRESS <span style="font-size:12px; font-weight:normal;">| Cliente</span>
         </div>
-        <div class="global-shipment-selector" style="padding: 15px; background: #fff; margin: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div class="global-shipment-selector" style="padding: 15px; background: #f8f525; margin: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
     <label for="main-shipment-filter" style="display: block; font-weight: bold; color: #0a1931; margin-bottom: 8px;">
         <i class="fas fa-box-open"></i> Selecione o seu Envio:
     </label>
@@ -288,13 +293,13 @@
         <div class="notification-container" style="position: relative; cursor: pointer; margin-left: auto; margin-right: 20px;">
     
     <div onclick="toggleNotifications()" style="position: relative; display: inline-block;">
-        <i class="fas fa-bell" style="font-size: 22px; color: white;"></i>
+        <i class="fas fa-bell" style="font-size: 22px; color: rgb(214, 157, 211);"></i>
         
         <span id="notif-badge" class="notification-badge hidden">0</span>
     </div>
 
     <div id="notif-dropdown" class="hidden" 
-         style="position: absolute; top: 35px; right: 0; width: 300px; background: white; color: #333; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 1000; overflow: hidden;">
+         style="position: absolute; top: 35px; right: 0; width: 300px; background: rgb(155, 147, 112); color: #333; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 1000; overflow: hidden;">
         <div style="background: #f8f9fa; padding: 10px; font-weight: bold; border-bottom: 1px solid #eee;">
             Notificações Recentes
         </div>
@@ -343,7 +348,7 @@
                              alt="Foto de Perfil" 
                              style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #d4af37; background-color: #f8f9fa; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
                         
-                        <div style="position: absolute; bottom: 0; right: 0; background: #28a745; color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 2px solid #0a1931;" title="Conta Ativa">
+                        <div style="position: absolute; bottom: 0; right: 0; background: #28a745; color: rgb(160, 131, 131); width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 2px solid #0a1931;" title="Conta Ativa">
                             <i class="fas fa-check"></i>
                         </div>
                     </div>
@@ -846,7 +851,37 @@ async function copiarPixExato(idFatura, banco) {
         </button>
     </div>
 </div>
+<div id="modal-theme" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0, 0, 0, 0.897); z-index:10001; backdrop-filter: blur(5px);">
+    <div class="modal-content" style="background:#e1e2dd; margin:15% auto; padding:25px; border-radius:20px; width:90%; max-width:400px; text-align:center; position:relative; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+        <span onclick="closeThemeModal()" style="position:absolute; right:20px; top:15px; cursor:pointer; font-size:28px; color:#999;">&times;</span>
+        
+        <h3 style="margin-bottom: 5px; color: #13356d;">Estilo do Painel 🎨</h3>
+        <p style="font-size: 13px; color: #3f1c1c; margin-bottom: 20px;">Deixe o Guineexpress com a sua cara!</p>
 
+        <label style="display:block; text-align:left; font-size:12px; font-weight:bold; margin-bottom:8px;">Arraste para criar sua cor:</label>
+        <input type="range" id="hue-slider" min="0" max="360" value="210" style="width:100%; height:15px; border-radius:10px; appearance:none; background: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red); cursor:pointer; margin-bottom:25px;" oninput="updateThemeBySlider(this.value)">
+
+        <label style="display:block; text-align:left; font-size:12px; font-weight:bold; margin-bottom:10px;">Cores Favoritas:</label>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+            <div onclick="setThemeColor('#f002f0')" style="background:#f002f0; height:40px; border-radius:10px; border:1px solid #ddd; cursor:pointer;"></div> 
+            <div onclick="setThemeColor('#e3f2fd')" style="background:#e3f2fd; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#f1f8e9')" style="background:#f1f8e9; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#f1a832')" style="background:#f1a832; height:40px; border-radius:10px; cursor:pointer;"></div>
+            
+            <div onclick="setThemeColor('#ce0a4c')" style="background:#ce0a4c; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#efebe9')" style="background:#efebe9; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#10beb6')" style="background:#10beb6; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#532597')" style="background:#532597; height:40px; border-radius:10px; cursor:pointer;"></div>
+            
+            <div onclick="setThemeColor('#1e1e2d')" style="background:#1e1e2d; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#0a1931')" style="background:#0a1931; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#2c3e50')" style="background:#2c3e50; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#121212')" style="background:#121212; height:40px; border-radius:10px; cursor:pointer;"></div>
+        </div>
+
+        <button onclick="closeThemeModal()" style="width:100%; background:#0a1931; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">Pronto!</button>
+    </div>
+</div>
 <div id="cart-overlay" onclick="fecharModalCarrinho()" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:19000;"></div>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>

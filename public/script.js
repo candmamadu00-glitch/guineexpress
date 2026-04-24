@@ -9079,3 +9079,30 @@ function copiarComTextareaInvisivel(texto, mensagemSucesso) {
 
     document.body.removeChild(textArea);
 }
+// Funções de Controle do Modal
+function openThemeModal() { document.getElementById('modal-theme').style.display = 'block'; }
+function closeThemeModal() { document.getElementById('modal-theme').style.display = 'none'; }
+
+// Aplica cor baseada no Slider (Matiz/Arco-íris)
+function updateThemeBySlider(hue) {
+    const color = `hsl(${hue}, 30%, 95%)`; // Gera um tom suave baseado no slider
+    setThemeColor(color);
+}
+
+// Função Principal que muda a cor e SALVA na memória
+function setThemeColor(color) {
+    // Muda a variável principal do CSS do seu site
+    document.documentElement.style.setProperty('--light', color);
+    document.body.style.backgroundColor = color;
+    
+    // Salva a escolha do cliente para a próxima vez
+    localStorage.setItem('user-theme-pref', color);
+}
+
+// Carregar a preferência do cliente assim que o site abrir
+window.addEventListener('DOMContentLoaded', () => {
+    const savedColor = localStorage.getItem('user-theme-pref');
+    if (savedColor) {
+        setThemeColor(savedColor);
+    }
+});
