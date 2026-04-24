@@ -7045,12 +7045,10 @@ function togglePixKey(tipo) {
         tabCnpj.style.background = '#eee'; tabCnpj.style.color = '#333';
     }
 }
-
 // Copiar chave manual
 function copyManualPix() {
     const chave = document.getElementById('txt-chave').innerText;
-    navigator.clipboard.writeText(chave);
-    alert("Chave PIX copiada! Agora pague no seu banco e volte para enviar o comprovante.");
+    copiarTextoUniversal(chave, "Chave PIX copiada! Agora pague no seu banco e volte para enviar o comprovante.");
 }
 
 // ==========================================
@@ -9024,4 +9022,60 @@ async function carregarLojaCliente() {
         console.error("Erro na loja:", error);
         grid.innerHTML = '<p style="text-align:center; color: #666;">Verifique sua conexão com a internet.</p>';
     }
+}
+// =======================================================
+// 📱 MOTOR DE CÓPIA UNIVERSAL (À PROVA DE IPHONE/SAFARI)
+// =======================================================
+function copiarTextoUniversal(texto, mensagemSucesso) {
+    // 1. Tenta usar o método moderno primeiro
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(texto).then(() => {
+            alert(mensagemSucesso);
+        }).catch(() => copiarComTextareaInvisivel(texto, mensagemSucesso));
+    } else {
+        // 2. Se for iPhone chato ou navegador antigo, usa a técnica invisível
+        copiarComTextareaInvisivel(texto, mensagemSucesso);
+    }
+}
+
+function copiarComTextareaInvisivel(texto, mensagemSucesso) {
+    const textArea = document.createElement("textarea");
+    textArea.value = texto;
+    
+    // Esconde o campo para o cliente não ver
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    
+    // Truques específicos para destravar o bloqueio do iPhone
+    textArea.contentEditable = true;
+    textArea.readOnly = false;
+    
+    document.body.appendChild(textArea);
+    
+    // Seleção especial para iOS (Apple)
+    if (navigator.userAgent.match(/ipad|iphone|mac/i)) {
+        const range = document.createRange();
+        range.selectNodeContents(textArea);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        textArea.setSelectionRange(0, 999999);
+    } else {
+        textArea.select();
+    }
+
+    try {
+        const copiou = document.execCommand('copy');
+        if (copiou) {
+            alert(mensagemSucesso);
+        } else {
+            alert("⚠️ Selecione a chave e copie manualmente.");
+        }
+    } catch (err) {
+        alert("⚠️ Selecione a chave e copie manualmente.");
+    }
+
+    document.body.removeChild(textArea);
 }

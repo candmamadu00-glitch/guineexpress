@@ -17,7 +17,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Guineexpress">
-
+<meta property="og:title" content="Guineexpress - Seu Painel VIP">
+<meta property="og:description" content="Acesse seu painel para acompanhar suas encomendas, faturas e atualizações em tempo real!">
+<meta property="og:image" itemprop="image" content="https://guineexpress-f6ab.onrender.com/logo.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://guineexpress-f6ab.onrender.com/">
 <link rel="icon" type="image/png" href="/logo.png">
 <link rel="apple-touch-icon" href="/logo.png">
 
@@ -675,7 +680,8 @@
         
         <h3 style="color:#0a1931; margin-bottom:10px;">Pagamento via PIX </h3>
         <p id="pay-desc" style="margin-bottom:20px; font-weight:bold; color:#0f0f0f;"></p>
-
+        
+       
         <div style="margin-bottom: 20px; background: #e6f9f6; padding: 15px; border-radius: 8px; border: 1px solid #39dac4c7;">
             <p style="font-size:14px; color:#013f35; margin-bottom:10px; font-weight:bold;">✨Aprovação na hora!</p>
             <p style="font-size:12px; color:#141414; margin-bottom:10px;">Copie o código abaixo, pague no seu banco e o sistema aprova sozinho. Escolha o banco:</p>
@@ -685,14 +691,14 @@
                     🟣 Copiar (Nubank)
                 </button>
                 
-                <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'mp')" style="flex:1; background:#009EE3; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(0,158,227,0.3);">
+                <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'mp')" style="flex:1; background:#e3df00; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(0,158,227,0.3);">
                     🔵 Copiar (Mercado Pago)
                 </button>
             </div>
         </div>
 
        <input type="hidden" id="pay-order-id">
-        <input type="hidden" id="pay-amount">
+       <input type="hidden" id="pay-amount">
     </div>
 </div>
 
