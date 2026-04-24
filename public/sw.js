@@ -25,14 +25,16 @@ self.addEventListener('fetch', event => {
         fetch(event.request)
             .catch(() => {
                 return caches.match(event.request).then(response => {
-                    // Se achou no cache, retorna
+                    // 1. Se achou no cache, retorna o arquivo salvo
                     if (response) {
                         return response;
                     }
-                    // Se não achou e for uma requisição de página, devolve o index
+                    // 2. Se for uma requisição de página, joga para o Início
                     if (event.request.mode === 'navigate') {
                         return caches.match('/index.html');
                     }
+                    // 3. SE NÃO ACHAR NADA, cria uma resposta "falsa" para não travar o app
+                    return new Response('', { status: 404, statusText: 'Not Found' });
                 });
             })
     );

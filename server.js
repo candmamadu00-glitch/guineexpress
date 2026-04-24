@@ -31,14 +31,25 @@ const ExcelJS = require('exceljs');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-// ==========================================
-// 🛡️ 1. PROTEÇÃO CONTRA HACKERS (HELMET)
-// ==========================================
+// =======================================================
+// 🛡️ SEGURANÇA (HELMET COM LISTA VIP LIBERADA)
+// =======================================================
 app.use(helmet({
-    contentSecurityPolicy: false, // Desativado para não bloquear seus scripts e imagens
-    crossOriginEmbedderPolicy: false
-}));
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+            // 👇 ESTA É A LINHA MÁGICA QUE RESOLVE O SEU ERRO ATUAL:
+            scriptSrcAttr: ["'unsafe-inline'"], 
+            // ... dentro do helmet ...
+            connectSrc: ["'self'", "https://api.google.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
 
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            workerSrc: ["'self'", "blob:"]
+        }
+    }
+}));
 // ==========================================
 // 🛡️ 2. PROTEÇÃO CONTRA QUEDA (DDOS)
 // ==========================================
@@ -83,7 +94,6 @@ db.run("ALTER TABLE orders ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
     if (!err) console.log("✅ Coluna 'volumes' criada na tabela orders!");
 });
 const PDFDocument = require('pdfkit');
-
 // --- FUNÇÃO MÁGICA QUE GERA E ENVIA O RECIBO VIP (DESIGN PREMIUM IDÊNTICO AO HTML) ---
 async function enviarReciboPDF(invoiceId) {
     const sql = `
@@ -139,21 +149,16 @@ async function enviarReciboPDF(invoiceId) {
         const freteVal = parseFloat(fatura.freight_amount) || parseFloat(fatura.amount) || 0;
         const totalVal = (freteVal + nfVal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        // 1. MARCA D'ÁGUA GIGANTE "PAGO" (Verde e Rotacionada)
-        doc.save();
-        doc.translate(doc.page.width / 2, doc.page.height / 2);
-        doc.rotate(-35);
-        doc.fontSize(120).fillColor('rgba(40, 167, 69, 0.15)').font('Helvetica-Bold').text('PAGO', -250, -60, { align: 'center', width: 500 });
-        doc.restore();
-
-        // 2. CABEÇALHO E LOGO
+        // 1. CABEÇALHO E LOGO
         try {
-            // Busca a logo na raiz do projeto (onde o server.js está rodando)
-            const logoPath = path.join(process.cwd(), 'logo.png');
+            // Busca a logo na mesma pasta do servidor de forma blindada
+            const logoPath = path.join(__dirname, 'logo.png');
             if (fs.existsSync(logoPath)) {
                 doc.image(logoPath, 40, 40, { width: 65 });
+            } else {
+                console.log("⚠️ Logo não encontrada em: " + logoPath);
             }
-        } catch(e) { console.log("Aviso: Logo não encontrada pelo PDFKit."); }
+        } catch(e) { console.log("Aviso: Falha ao desenhar a logo."); }
 
         doc.fillColor(azulOficial).fontSize(24).font('Helvetica-Bold').text('GUINEEXPRESS', 115, 45, { letterSpacing: 1.5 });
         doc.fillColor(douradoLuxo).fontSize(9).font('Helvetica-Bold').text('AGÊNCIA DE LOGÍSTICA INTERNACIONAL', 115, 72);
@@ -167,7 +172,7 @@ async function enviarReciboPDF(invoiceId) {
         // Linha divisória
         doc.moveTo(40, 110).lineTo(555, 110).lineWidth(2).strokeColor(cinzaClaro).stroke();
 
-        // 3. BARRA AZUL (TÍTULO DO RECIBO)
+        // 2. BARRA AZUL (TÍTULO DO RECIBO)
         doc.rect(40, 130, 515, 40).fill(azulOficial);
         doc.fillColor(douradoLuxo).fontSize(16).font('Helvetica-Bold').text('RECIBO DE ENCOMENDA', 55, 143);
         
@@ -180,7 +185,7 @@ async function enviarReciboPDF(invoiceId) {
         doc.fontSize(8).fillColor(douradoLuxo).text('Emissão', 460, 138);
         doc.fontSize(11).fillColor('#fff').text(new Date().toLocaleDateString('pt-BR'), 460, 148);
 
-        // 4. OS 3 CARDS (GRID DE INFORMAÇÕES)
+        // 3. OS 3 CARDS (GRID DE INFORMAÇÕES)
         const yCards = 190;
         const cardW = 165;
         
@@ -226,7 +231,7 @@ async function enviarReciboPDF(invoiceId) {
             { isAlert: true, alertTitle: 'AUTORIZADO A RETIRAR:', alertText: `Nome: O Próprio Cliente\nBilhete: -` }
         ]);
 
-        // 5. TABELA DE SERVIÇOS
+        // 4. TABELA DE SERVIÇOS
         let yTab = 330;
         doc.rect(40, yTab, 515, 25).fill(azulOficial);
         doc.fillColor(douradoLuxo).fontSize(9).font('Helvetica-Bold')
@@ -250,13 +255,13 @@ async function enviarReciboPDF(invoiceId) {
             doc.moveTo(40, yTab + 25).lineTo(555, yTab + 25).lineWidth(1).strokeColor('#e1e8ed').stroke();
         }
 
-        // 6. TOTAL A PAGAR (A PÍLULA VERMELHA)
+        // 5. TOTAL A PAGAR (A PÍLULA VERMELHA)
         yTab += 40;
         doc.rect(280, yTab, 275, 45).fill(vermelhoTotal);
         doc.fillColor('#fff').fontSize(12).font('Helvetica-Bold').text('TOTAL A PAGAR:', 300, yTab + 16);
         doc.fontSize(18).text(totalVal, 410, yTab + 13, { align: 'right', width: 125 });
 
-        // 7. RODAPÉ E ASSINATURAS
+        // 6. RODAPÉ E ASSINATURAS
         yTab += 100;
         doc.fillColor('#886e6e').fontSize(9).font('Helvetica-Oblique').text('Declaro que os itens acima listados foram conferidos na minha presença.\nA Guineexpress não se responsabiliza por itens não conferidos no local da retirada.', 40, yTab, { align: 'center', width: 515 });
         
@@ -268,7 +273,31 @@ async function enviarReciboPDF(invoiceId) {
            .text('GUINEEXPRESS LOGÍSTICA', 80, yTab + 5, { width: 180, align: 'center' })
            .text('ASSINATURA DO CLIENTE', 335, yTab + 5, { width: 180, align: 'center' });
 
-        doc.end(); // Finaliza e envia o PDF VIP e 100% igual ao HTML!
+        // =========================================================
+        // 7. CARIMBO DE "PAGO" POR CIMA DE TUDO (EFEITO TRANSPARENTE)
+        // =========================================================
+        const isPaid = fatura.status === 'paid';
+        const stampText = isPaid ? 'PAGO' : 'PENDENTE';
+        const stampColor = isPaid ? '#28a745' : '#dc3545'; // Verde(PAGO) ou Vermelho(PENDENTE)
+
+        doc.save();
+        doc.fillOpacity(0.3); // Define a transparência (leve)
+        doc.strokeOpacity(0.3); // Define a transparência da borda
+        
+        // Vai para o centro da página e inclina o carimbo
+        doc.translate(doc.page.width / 2, doc.page.height / 2);
+        doc.rotate(-35);
+        
+        // Escreve a palavra gigante bem no meio
+        doc.fontSize(130).fillColor(stampColor).font('Helvetica-Bold').text(stampText, -300, -70, { align: 'center', width: 600 });
+        
+        // Desenha a borda do carimbo igual ao HTML
+        doc.lineWidth(10).strokeColor(stampColor);
+        doc.rect(-190, -85, 380, 155).stroke(); // Uma caixa estilosa ao redor do texto
+        
+        doc.restore();
+
+        doc.end(); // Finaliza o PDF VIP
     });
 }
 // ==================================================================
@@ -1422,9 +1451,12 @@ function configurarEventosDoZap(client) {
         }
     });
 
-    // 2. Escuta o que o CLIENTE manda
+   // 2. Escuta o que o CLIENTE manda
     client.on('message', async (msg) => {
         try {
+            // 🛑 TRAVA ANTI-STATUS: Impede a Cicí de ler, responder ou postar em Status!
+            if (msg.from === 'status@broadcast' || msg.isStatus || msg.type === 'broadcast') return;
+
             const chat = await msg.getChat();
             if (chat.isGroup) return; 
 
@@ -4889,6 +4921,127 @@ cron.schedule('0 8 * * *', async () => {
         }
         
         console.log('🤖 Cicí: Terminei as cobranças de hoje! Voltando a dormir...');
+    });
+});
+// =======================================================
+// 🔔 ROTA PARA RECEBER INSCRIÇÕES DE NOTIFICAÇÃO (PUSH)
+// =======================================================
+app.post('/subscribe', (req, res) => {
+    // Aqui o cliente envia os dados do celular para receber notificação
+    const subscription = req.body;
+    
+    // (Opcional) No futuro, você pode salvar esse 'subscription' no banco de dados 
+    // junto com o ID do cliente para mandar notificações diretas para ele.
+    
+    // Por enquanto, apenas avisamos que recebemos com sucesso (status 201)
+    res.status(201).json({ success: true, message: 'Inscrição de notificação recebida com sucesso!' });
+});
+// =======================================================
+// 🛒 ROTA DA VITRINE PREMIUM (CLIENTE)
+// =======================================================
+app.get('/api/store/products', (req, res) => {
+    // Puxa todos os produtos que têm estoque (maior que zero)
+    db.all("SELECT * FROM products WHERE stock > 0 ORDER BY created_at DESC", [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ success: false, msg: "Erro no banco de dados" });
+        }
+        res.json({ success: true, products: rows });
+    });
+});
+
+// A Rota que recebe o formulário do Admin
+app.post('/api/store/products', upload.single('image'), (req, res) => {
+    // Só o Admin pode cadastrar
+    if (req.session.role !== 'admin') return res.status(403).json({ success: false, msg: 'Não autorizado' });
+
+    const { name, category, price_brl, stock, description } = req.body;
+    
+    // Se o admin mandou foto, salva a URL dela. Se não, fica vazio.
+    const image_url = req.file ? `/uploads/${req.file.filename}` : '';
+
+    const sql = `INSERT INTO products (name, category, price_brl, stock, description, image_url) VALUES (?, ?, ?, ?, ?, ?)`;
+    
+    db.run(sql, [name, category, price_brl, stock, description, image_url], function(err) {
+        if (err) {
+            console.error("Erro ao salvar produto:", err);
+            return res.json({ success: false, msg: 'Erro ao salvar no banco' });
+        }
+        res.json({ success: true, id: this.lastID });
+    });
+});
+
+// A Rota para deletar o produto (Admin)
+app.post('/api/store/products/delete', (req, res) => {
+    if (req.session.role !== 'admin') return res.status(403).json({ success: false });
+    
+    db.run(`DELETE FROM products WHERE id = ?`, [req.body.id], (err) => {
+        if (err) return res.json({ success: false, msg: "Erro ao apagar." });
+        res.json({ success: true });
+    });
+});
+
+// Tornar a pasta "uploads" pública para os clientes conseguirem ver as fotos
+app.use('/uploads', express.static(path.join(discoPermanente, 'uploads')));
+// ==============================================================
+// 🛍️ ROTAS DA LOJA VIRTUAL (ADMIN / CADASTRO DE PRODUTOS)
+// ==============================================================
+
+// Rota para cadastrar um produto novo com foto
+app.post('/api/store/products', upload.single('image'), (req, res) => {
+    // Só o Admin ou Funcionários podem colocar produtos na loja
+    if (req.session.role !== 'admin' && req.session.role !== 'employee' && req.session.role !== 'funcionario') {
+        return res.status(403).json({ success: false, msg: 'Sem permissão' });
+    }
+    
+    const { name, description, category, price_brl, stock } = req.body;
+    
+    // Se enviou foto, salva o caminho, se não, fica nulo (usaremos o logo como padrão)
+    const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+    const sql = `INSERT INTO products (name, description, category, price_brl, stock, image_url) VALUES (?, ?, ?, ?, ?, ?)`;
+    
+    db.run(sql, [name, description, category, price_brl, stock, image_url], function(err) {
+        if (err) return res.json({ success: false, msg: err.message });
+        res.json({ success: true, msg: 'Produto adicionado à vitrine com sucesso!' });
+    });
+});
+
+// Rota para listar todos os produtos
+app.get('/api/store/products', (req, res) => {
+    db.all(`SELECT * FROM products ORDER BY id DESC`, [], (err, rows) => {
+        if (err) return res.json({ success: false, msg: err.message });
+        res.json({ success: true, products: rows });
+    });
+});
+
+// Rota para apagar um produto
+app.post('/api/store/products/delete', (req, res) => {
+    if (req.session.role !== 'admin') return res.status(403).json({ success: false, msg: 'Sem permissão' });
+    db.run(`DELETE FROM products WHERE id = ?`, [req.body.id], (err) => {
+        res.json({ success: !err, msg: err ? err.message : null });
+    });
+});
+// ==============================================================
+// 📊 RELATÓRIOS E INTELIGÊNCIA DE ESTOQUE (ADMIN)
+// ==============================================================
+app.get('/api/admin/store/stats', (req, res) => {
+    if (req.session.role !== 'admin') return res.status(403).json({ success: false });
+
+    // Pega os 5 produtos com MAIOR estoque e os 5 com MENOR estoque
+    const sqlTop = `SELECT name, stock, category FROM products ORDER BY stock DESC LIMIT 5`;
+    const sqlLow = `SELECT name, stock, category FROM products WHERE stock < 5 ORDER BY stock ASC`;
+
+    db.all(sqlTop, [], (err, topStock) => {
+        db.all(sqlLow, [], (err2, lowStock) => {
+            if (err || err2) return res.json({ success: false, msg: "Erro ao ler estatísticas" });
+            
+            res.json({ 
+                success: true, 
+                topStock: topStock, 
+                lowStock: lowStock,
+                totalItems: topStock.reduce((a, b) => a + b.stock, 0)
+            });
+        });
     });
 });
 ligarMotorDoZap();

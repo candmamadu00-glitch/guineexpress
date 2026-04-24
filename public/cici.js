@@ -221,6 +221,7 @@ const CiciAI = {
             }
         }, 10000); // 10000 ms = 10 segundos
     },
+    
     renderWidget: function() {
         if(document.getElementById('cici-widget')) return;
         const html = `
@@ -410,7 +411,39 @@ const CiciAI = {
             this.addMessage("Ops, tive um problema na conexão.", 'cici'); 
         }
     },
+// No CiciAI, dentro da função que processa o texto (handleSend ou similar)
+async processText(text) {
+    const prompt = text.toLowerCase();
 
+// =======================================================
+        // 👇 COLE O RADAR DE ESTOQUE EXATAMENTE AQUI 👇
+        // =======================================================
+        if (prompt.includes("estoque") || prompt.includes("tem disponível") || prompt.includes("o que tem na loja")) {
+            this.addMessage("Deixa-me dar uma olhadinha rápida nas prateleiras... 🧐", 'cici');
+            
+            try {
+                const res = await fetch('/api/store/products');
+                const data = await res.json();
+                
+                if (data.success && data.products.length > 0) {
+                    const destaques = data.products.slice(0, 3).map(p => p.name).join(", ");
+                    this.addMessage(`Lelo, temos coisas ótimas! No topo da lista estão: *${destaques}*. Queres que eu te mostre a vitrine completa?`, 'cici');
+                    return; // ⚠️ MUITO IMPORTANTE: O 'return' faz ela parar aqui e não chamar o Gemini!
+                } else {
+                    this.addMessage("Parece que nossa vitrine está vazia no momento, Lelo. Precisamos abastecer! 📦", 'cici');
+                    return;
+                }
+            } catch (e) { 
+                console.log("Erro ao ler estoque pro chat", e); 
+            }
+        }
+        // =======================================================
+        // 👆 FIM DO RADAR DE ESTOQUE 👆
+        // =======================================================
+
+        // Abaixo continua o seu código normal que envia a mensagem para o seu servidor/Gemini...
+        // ex: const response = await fetch('/api/chat', ...);
+    },
     addMessage: function(text, sender) {
         const msgs = document.getElementById('cici-messages');
         const div = document.createElement('div');

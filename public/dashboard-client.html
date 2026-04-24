@@ -299,55 +299,27 @@
     </div>
 </div>
 <div class="nav-wrapper">
-    
     <button class="scroll-btn left" onclick="scrollNav(-250)">
         <i class="fas fa-chevron-left"></i>
     </button>
-        <div class="nav-links">
-            <button onclick="showSection('home-view')" style="background: linear-gradient(135deg, #08090a, #00c6ff); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(0, 158, 227, 0.3); cursor: pointer;">
-        <i class="fas fa-home"></i> Início
-    </button>
     
-    <button onclick="showSection('orders-view')" style="background: linear-gradient(135deg, #000000, #a06ee0); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(102, 16, 242, 0.3); cursor: pointer;">
-        <i class="fas fa-box"></i> Encomendas
-    </button>
+    <div class="nav-links" id="client-nav-links">
+        <button onclick="showSection('home-view')" class="nav-btn premium-btn home-btn"><i class="fas fa-home"></i> Início</button>
+        <button onclick="showSection('store-view'); carregarLojaCliente();" class="nav-btn premium-btn store-btn"><i class="fas fa-shopping-bag"></i> Loja Virtual</button>
+        <button onclick="showSection('orders-view')" class="nav-btn premium-btn orders-btn"><i class="fas fa-box"></i> Encomendas</button>
+        <button onclick="showSection('box-view')" class="nav-btn premium-btn box-btn">📦 Box</button>
+        <button onclick="showSection('billing-view')" class="nav-btn premium-btn billing-btn">💲 Faturas</button>
+        <button onclick="showSection('receipts-view')" class="nav-btn premium-btn receipts-btn"><i class="fas fa-file-invoice"></i> Recibos</button>
+        <button onclick="showSection('schedule-view')" class="nav-btn premium-btn schedule-btn">📅 Agendamentos</button>
+        <button onclick="showSection('videos-section')" class="nav-btn premium-btn videos-btn">🎥 Vídeos</button>
+        <button onclick="showSection('history-view')" class="nav-btn premium-btn history-btn"><i class="fas fa-history"></i> Histórico</button>
+        <button onclick="showSection('profile-view')" class="nav-btn premium-btn profile-btn"><i class="fas fa-user"></i> Perfil</button>
+        <button onclick="logout()" class="nav-btn premium-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Sair</button>
+    </div>
     
-    <button onclick="showSection('box-view')" style="background: linear-gradient(135deg, #000000, #e2a958); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(253, 126, 20, 0.3); cursor: pointer;">
-        📦 Box
-    </button>
-    
-    <button onclick="showSection('billing-view')" style="background: linear-gradient(135deg, #070707, #5ddc72); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3); cursor: pointer;">
-        💲 Faturas
-    </button> 
-    
-    <button onclick="showSection('receipts-view')" style="background: linear-gradient(135deg, #000000, #48c6ef); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(23, 162, 184, 0.3); cursor: pointer;">
-        <i class="fas fa-file-invoice"></i> Recibos
-    </button>
-    
-    <button onclick="showSection('schedule-view')" style="background: linear-gradient(135deg, #000000, #ac21df); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(142, 68, 173, 0.3); cursor: pointer;">
-        📅 Agendamentos
-    </button>
-    
-    <button onclick="showSection('videos-section')" style="background: linear-gradient(135deg, #000000, #f73f5e); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(232, 62, 140, 0.3); cursor: pointer;">
-        🎥 Vídeos
-    </button>
-    
-    <button onclick="showSection('history-view')" class="nav-btn" style="background: linear-gradient(135deg, #34495e, #5d6d7e); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(52, 73, 94, 0.3); cursor: pointer;">
-        <i class="fas fa-history"></i> Histórico
-    </button>
-    
-    <button onclick="showSection('profile-view')" style="background: linear-gradient(135deg, #d4af37, #f1db8a); color: #0a1428; padding: 10px 16px; border: none; border-radius: 8px; font-weight: 900; box-shadow: 0 4px 10px rgba(212, 175, 55, 0.4); cursor: pointer;">
-        <i class="fas fa-user"></i> Perfil
-    </button>
-    
-    <button onclick="logout()" style="background: linear-gradient(135deg, #010429, #ff6a88); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3); cursor: pointer;">
-        <i class="fas fa-sign-out-alt"></i> Sair
-    </button>
-        </div>
-        <button class="scroll-btn right" onclick="scrollNav(250)">
+    <button class="scroll-btn right" onclick="scrollNav(250)">
         <i class="fas fa-chevron-right"></i>
     </button>
-
 </div>
     </nav>
 
@@ -427,7 +399,7 @@
                     <div class="stat-number" id="dash-invoices-count">-</div>
                     <div class="stat-label">Faturas Pendentes</div>
                 </div>
-
+                     
                 <div class="stat-card" style="border-bottom-color: #28a745;" onclick="showSection('videos-section')">
                     <div class="stat-icon" style="color: #28a745;"><i class="fas fa-video"></i></div>
                     <div class="stat-number">Ver</div>
@@ -556,7 +528,64 @@
                 </div>
             </div>
             </section>
+                     <section id="store-view" class="hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h2 style="color: #0a1931;"><i class="fas fa-store"></i> Loja Guineexpress</h2>
+            <p style="color: #666;">Produtos exclusivos com entrega garantida.</p>
+        </div>
+        
+        <div style="background: #0a1931; padding: 10px 20px; border-radius: 15px; color: white;">
+            <label style="font-size: 12px; display: block; margin-bottom: 5px; color: #d4af37;">Ver preços em:</label>
+            <select id="currency-selector" onchange="alterarMoedaLoja()" style="background: transparent; color: white; border: none; font-size: 16px; font-weight: bold; cursor: pointer;">
+                <option value="BRL">🇧🇷 Real (R$)</option>
+                <option value="CFA">🇬🇼 Franco CFA (XOF)</option>
+                <option value="EUR">🇪🇺 Euro (€)</option>
+                <option value="USD">🇺🇸 Dólar ($)</option>
+            </select>
+        </div>
+    </div>
 
+    <div id="category-filters" style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; margin-bottom: 20px;">
+        <button class="filter-btn active" onclick="filtrarLoja('Todos')">Todos</button>
+        <button class="filter-btn" onclick="filtrarLoja('Eletrônicos')">Eletrônicos</button>
+        <button class="filter-btn" onclick="filtrarLoja('Cabelos/Perucas')">Cabelos</button>
+        <button class="filter-btn" onclick="filtrarLoja('Perfumes')">Perfumes</button>
+        <button class="filter-btn" onclick="filtrarLoja('Roupas')">Roupas</button>
+    </div>
+
+    <div id="store-products-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 25px;">
+        </div>
+</section>
+<div id="floating-cici-cart" onclick="abrirModalCarrinho()" style="position: fixed; bottom: 30px; left: 30px; background: #0a1931; width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); cursor: pointer; z-index: 10000; transition: transform 0.3s ease;">
+    <div id="cart-icon-bg" style="position: relative; color: white; font-size: 24px;">
+        <i class="fas fa-shopping-bag"></i>
+        <span id="cart-counter" class="hidden" style="position: absolute; top: -10px; right: -15px; background: #dc3545; color: white; font-size: 12px; font-weight: 900; padding: 4px 8px; border-radius: 20px; border: 2px solid #0a1931;">0</span>
+    </div>
+</div>
+
+<div id="cart-overlay" class="hidden" onclick="fecharModalCarrinho()" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 19999; transition: 0.3s;"></div>
+
+<div id="side-cart" class="modal-carrinho" style="position: fixed; top: 0; right: -100%; width: 350px; max-width: 90vw; height: 100vh; background: #fff; box-shadow: -10px 0 30px rgba(0,0,0,0.1); z-index: 20000; transition: right 0.4s cubic-bezier(0.77, 0, 0.175, 1); display: flex; flex-direction: column;">
+    
+    <div style="background: #0a1931; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 18px;"><i class="fas fa-shopping-cart" style="color: #d4af37;"></i> Meu Carrinho</h3>
+        <button onclick="fecharModalCarrinho()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div id="cart-items-container" style="flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #f8f9fa;">
+        </div>
+
+    <div style="padding: 20px; background: white; border-top: 1px solid #eee; box-shadow: 0 -5px 15px rgba(0,0,0,0.03);">
+        <div style="display: flex; justify-content: space-between; font-size: 20px; font-weight: 900; color: #0a1931; margin-bottom: 15px;">
+            <span>Total:</span>
+            <span id="cart-total-value">R$ 0,00</span>
+        </div>
+        <button onclick="finalizarCompraComCici()" style="width: 100%; padding: 15px; background: #25D366; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3);">
+            <i class="fab fa-whatsapp" style="font-size: 20px;"></i> Fechar Pedido
+        </button>
+    </div>
+</div>
         <section id="schedule-view" class="hidden">
             <div class="card" style="margin-bottom: 20px;">
                 <h3>📅 Agendar Horário</h3>
@@ -807,6 +836,44 @@ async function copiarPixExato(idFatura, banco) {
         </form>
     </div>
 </div>
+<div id="floating-cici-cart" onclick="abrirModalCarrinho()" title="Ver meu carrinho VIP">
+        <img src="/cici.png" id="cici-avatar-float" alt="Cicí">
+        
+        <div id="cart-icon-bg">
+            <i class="fas fa-shopping-cart"></i>
+        </div>
+        
+        <div id="cart-counter" class="hidden">0</div>
+    </div>
+    <div id="side-cart" class="modal-carrinho">
+    <div class="cart-header">
+        <div>
+            <h3 style="margin:0; color:#dfaf12;"><i class="fas fa-shopping-bag"></i> Seu Carrinho</h3>
+            <span id="cart-status-text" style="font-size: 12px; opacity: 0.8;">Cicí está conferindo seus itens...</span>
+        </div>
+        <button onclick="fecharModalCarrinho()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+    </div>
+
+    <div id="cart-items-container" class="cart-items-list">
+        </div>
+
+    <div class="cart-footer">
+        <div class="total-row">
+            <span>Total Estimado:</span>
+            <span id="cart-total-value" style="color: #d32f2f;">R$ 0,00</span>
+        </div>
+        
+        <p style="font-size: 11px; color: #666; margin-bottom: 15px; text-align: center;">
+            <i class="fas fa-info-circle"></i> O valor final será confirmado pela Cicí no WhatsApp.
+        </p>
+
+        <button onclick="finalizarCompraComCici()" style="width:100%; background:#0a1931; color:#dfaf12; border:none; padding: 15px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+            <i class="fab fa-whatsapp"></i> FECHAR PEDIDO COM A CICÍ
+        </button>
+    </div>
+</div>
+
+<div id="cart-overlay" onclick="fecharModalCarrinho()" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:19000;"></div>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>
         // Seleciona todos os cards de estatística

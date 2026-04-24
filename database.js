@@ -138,7 +138,57 @@ db.serialize(() => {
         FOREIGN KEY(client_id) REFERENCES users(id),
         FOREIGN KEY(box_id) REFERENCES boxes(id)
     )`);
+   // =======================================================
+    // 🛍️ NOVAS TABELAS DA LOJA VIRTUAL (GUINEEXPRESS STORE)
+    // =======================================================
+    
+    // 1. Tabela de Produtos (A sua vitrine)
+    db.run(`CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        description TEXT,
+        category TEXT, -- Ex: Eletrônicos, Roupas, Cabelos, Perfumes...
+        price_brl REAL DEFAULT 0, -- O preço base sempre será em Reais (o sistema converte sozinho depois)
+        stock INTEGER DEFAULT 0, -- Quantidade em estoque
+        image_url TEXT, -- Foto do produto
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
+    // 2. Tabela do Carrinho de Compras (O que o cliente está escolhendo)
+    db.run(`CREATE TABLE IF NOT EXISTS cart (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER,
+        product_id INTEGER,
+        quantity INTEGER DEFAULT 1,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(client_id) REFERENCES users(id),
+        FOREIGN KEY(product_id) REFERENCES products(id)
+    )`);
+
+    // 3. Tabela de Pedidos da Loja (O Checkout/Caixa)
+    db.run(`CREATE TABLE IF NOT EXISTS store_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER,
+        total_brl REAL DEFAULT 0, -- Total em Reais
+        total_cfa REAL DEFAULT 0, -- Total em Franco CFA (Calculado no dia)
+        total_eur REAL DEFAULT 0, -- Total em Euro (Calculado no dia)
+        currency_chosen TEXT, -- Qual moeda o cliente escolheu pagar
+        status TEXT DEFAULT 'pending', -- pending (pendente), paid (pago), shipped (enviado), delivered (entregue)
+        payment_receipt TEXT, -- Foto do comprovante (se pagar manual)
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(client_id) REFERENCES users(id)
+    )`);
+
+    // 4. Tabela de Itens Comprados (O que tem dentro do pedido)
+    db.run(`CREATE TABLE IF NOT EXISTS store_order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER,
+        product_id INTEGER,
+        quantity INTEGER,
+        price_brl REAL,
+        FOREIGN KEY(order_id) REFERENCES store_orders(id),
+        FOREIGN KEY(product_id) REFERENCES products(id)
+    )`);
     // Agendamento - Vagas
     db.run(`CREATE TABLE IF NOT EXISTS availability (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

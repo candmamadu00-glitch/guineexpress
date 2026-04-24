@@ -5,6 +5,18 @@ let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
+// 👇 ADICIONE AQUI NO TOPO!
+let itensNoCarrinho = []; 
+let produtosOriginais = [];
+let meuGraficoEstoque = null;
+// COLOQUE AQUI: Configuração global de cotação das moedas
+const COTACAO = {
+    XOF: 1,        // Franco CFA (Base)
+    BRL: 0.0085,   // Real
+    EUR: 0.0015,   // Euro
+    USD: 0.0016    // Dólar
+    // (Use os valores exatos que você já tinha no seu código)
+};
 // ============================================================
 // BLOQUEADOR DE NAVEGADOR INTERNO (WHATSAPP, INSTAGRAM, ETC)
 // ============================================================
@@ -6039,7 +6051,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Rodar a notificação ao carregar a página (removi a duplicação que tinha no seu código)
-document.addEventListener('DOMContentLoaded', registerNotificationSystem);
+document.addEventListener('DOMContentLoaded',registerNotificationSystem );
 // ==========================================
 // 🔔 SISTEMA DE NOTIFICAÇÕES WEB-PUSH (COM FAXINA AUTOMÁTICA)
 // ==========================================
@@ -8495,5 +8507,521 @@ async function sendBroadcast() {
     } finally {
         btn.innerText = oldText;
         btn.disabled = false;
+    }
+}
+// =======================================================
+// 🛍️ MOTOR DA LOJA VIRTUAL (PAINEL ADMIN)
+// =======================================================
+
+async function adicionarProdutoLoja(e) {
+    e.preventDefault();
+    
+    // O FormData é obrigatório porque estamos enviando uma FOTO junto com texto
+    const formData = new FormData();
+    formData.append('name', document.getElementById('prod-name').value);
+    formData.append('category', document.getElementById('prod-category').value);
+    formData.append('price_brl', document.getElementById('prod-price').value);
+    formData.append('stock', document.getElementById('prod-stock').value);
+    formData.append('description', document.getElementById('prod-desc').value);
+    
+    const imageFile = document.getElementById('prod-image').files[0];
+    if (imageFile) formData.append('image', imageFile);
+
+    const btn = e.target.querySelector('button');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando na vitrine...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/store/products', {
+            method: 'POST',
+            body: formData 
+        });
+        const json = await res.json();
+        
+        if (json.success) {
+            alert("✅ Produto cadastrado com sucesso e já está disponível na loja!");
+            e.target.reset(); // Limpa o formulário
+            carregarProdutosAdmin(); // Atualiza as fotinhas na tela
+        } else {
+            alert("Erro: " + json.msg);
+        }
+    } catch(err) {
+        console.error(err);
+        alert("Erro de conexão ao salvar produto.");
+    } finally {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+    }
+}
+
+// Essa função desenha a vitrine na tela do Admin para você ver o que já tem lá
+async function carregarProdutosAdmin() {
+    const grid = document.getElementById('admin-products-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '<p>Carregando produtos <i class="fas fa-spinner fa-spin"></i></p>';
+
+    try {
+        const res = await fetch('/api/store/products');
+        const json = await res.json();
+
+        if (!json.success || json.products.length === 0) {
+            grid.innerHTML = '<p style="color:#666;">A sua vitrine está vazia. Adicione o primeiro produto acima!</p>';
+            return;
+        }
+
+        let html = '';
+        json.products.forEach(p => {
+            // Se o produto não tiver foto, usa a logo da Guineexpress
+            const foto = p.image_url ? p.image_url : '/logo.png';
+            
+            html += `
+                <div style="background: white; border: 1px solid #e1e8ed; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column; transition: transform 0.3s ease;">
+                    <img src="${foto}" style="width: 100%; height: 180px; object-fit: cover; border-bottom: 2px solid #d4af37;">
+                    <div style="padding: 15px; flex-grow: 1; display: flex; flex-direction: column;">
+                        <span style="font-size: 10px; color: #d4af37; font-weight: 900; text-transform: uppercase; letter-spacing: 1px;">${p.category}</span>
+                        <h4 style="margin: 8px 0; color: #0a1931; font-size: 15px;">${p.name}</h4>
+                        <p style="font-size: 18px; font-weight: 900; color: #d32f2f; margin: 5px 0;">R$ ${parseFloat(p.price_brl).toFixed(2)}</p>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 15px;"><i class="fas fa-box"></i> Estoque: <b>${p.stock}</b> unid.</p>
+                        
+                        <button onclick="deletarProdutoLoja(${p.id})" style="margin-top: auto; background: #dc3545; color: white; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px;">
+                            <i class="fas fa-trash"></i> Retirar da Vitrine
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        grid.innerHTML = html;
+    } catch(err) {
+        console.error(err);
+        grid.innerHTML = '<p style="color:red;">Erro ao carregar produtos.</p>';
+    }
+}
+
+async function deletarProdutoLoja(id) {
+    if(!confirm("Tem certeza que deseja apagar este produto da sua loja?")) return;
+    try {
+        const res = await fetch('/api/store/products/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id})
+        });
+        const json = await res.json();
+        if(json.success) carregarProdutosAdmin();
+        else alert("Erro ao apagar: " + json.msg);
+    } catch(err) { alert("Erro de conexão."); }
+}
+
+
+async function carregarLojaCliente() {
+    const grid = document.getElementById('store-products-grid');
+    grid.innerHTML = '<div class="loader">Cicí está organizando a vitrine...</div>';
+
+    try {
+        const res = await fetch('/api/store/products');
+        const json = await res.json();
+        if (json.success) {
+            produtosOriginais = json.products;
+            renderizarProdutos();
+        }
+    } catch (err) { console.error("Erro ao carregar loja:", err); }
+}
+
+function alterarMoedaLoja() {
+    renderizarProdutos(); // Re-desenha os preços quando muda a moeda
+}
+
+function renderizarProdutos() {
+    const grid = document.getElementById('store-products-grid');
+    const moeda = document.getElementById('currency-selector').value;
+    let html = '';
+
+    produtosOriginais.forEach(p => {
+        let precoFinal = p.price_brl;
+        let simbolo = 'R$';
+
+        if (moeda === 'CFA') { precoFinal = p.price_brl * COTACAO.CFA; simbolo = 'XOF'; }
+        else if (moeda === 'EUR') { precoFinal = p.price_brl * COTACAO.EUR; simbolo = '€'; }
+        else if (moeda === 'USD') { precoFinal = p.price_brl * COTACAO.USD; simbolo = '$'; }
+
+        html += `
+            <div class="product-card">
+                <img src="${p.image_url || '/logo.png'}" style="width:100%; height:200px; object-fit:cover; border-radius:15px;">
+                <span style="font-size:11px; color:#d4af37; font-weight:bold;">${p.category}</span>
+                <h3 style="margin:10px 0; font-size:18px;">${p.name}</h3>
+                <p style="color:#666; font-size:13px; height:40px; overflow:hidden;">${p.description || ''}</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
+                    <span style="font-size:22px; font-weight:900; color:#0a1931;">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    <button onclick="adicionarAoCarrinho(${p.id})" style="background:#0a1931; color:white; border:none; width:40px; height:40px; border-radius:10px; cursor:pointer;">
+                        <i class="fas fa-cart-plus"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    grid.innerHTML = html;
+}
+// =======================================================
+// 🛍️ MOTOR EXTRAORDINÁRIO DA LOJA (ANIMAÇÕES DA CICÍ)
+// =======================================================
+// A FUNÇÃO MÁGICA ATUALIZADA (À prova de falhas)
+function adicionarAoCarrinho(productId, event) {
+    // 1. Acha o produto original
+    const produto = produtosOriginais.find(p => p.id === productId);
+    if (!produto) return;
+
+    // 2. Adiciona ao carrinho em memória
+    itensNoCarrinho.push(produto);
+    
+    // 3. Verifica se o clique (event) existe para fazer a animação de voo
+    if (event && event.currentTarget) {
+        const botaoClicado = event.currentTarget;
+        fazerProdutoVoar(produto.image_url, botaoClicado);
+    } else {
+        // Se por algum motivo o evento falhar, adiciona direto com a comemoração da Cicí
+        const cici = document.getElementById('cici-avatar-float');
+        const carrinho = document.getElementById('cart-icon-bg');
+        
+        if(cici) cici.classList.add('cici-celebrate');
+        if(carrinho) carrinho.classList.add('cart-eat');
+
+        setTimeout(() => {
+            if(cici) cici.classList.remove('cici-celebrate');
+            if(carrinho) carrinho.classList.remove('cart-eat');
+        }, 600);
+
+        atualizarContadorCarrinho();
+    }
+}
+// A Lógica do Voo Nível NASA
+function fazerProdutoVoar(imgUrl, elementoOrigem) {
+    // A foto que vai voar (padrão é logo se não tiver foto)
+    const fotoUrl = imgUrl || '/logo.png';
+    
+    // Cria o elemento da imagem voadora no HTML
+    const voadora = document.createElement('img');
+    voadora.src = fotoUrl;
+    voadora.classList.add('flying-product');
+    document.body.appendChild(voadora);
+
+    // Posição do botão clicado (Origem)
+    const rectOrigem = elementoOrigem.getBoundingClientRect();
+    // Posição do Carrinho da Cicí (Destino)
+    const rectDestino = document.getElementById('floating-cici-cart').getBoundingClientRect();
+
+    // Define a posição inicial exata da imagem voadora (em cima do botão)
+    voadora.style.left = `${rectOrigem.left + rectOrigem.width/2 - 25}px`;
+    voadora.style.top = `${rectOrigem.top + rectOrigem.height/2 - 25}px`;
+    voadora.style.transform = 'scale(0.5)'; // Começa pequena
+
+    // 🚀 O VOO: Usa um timeout bem curto para o navegador registrar a posição inicial antes de animar
+    setTimeout(() => {
+        // Define o destino final e transformações durante o voo (roda e cresce)
+        voadora.style.left = `${rectDestino.left + rectDestino.width/2 - 25}px`;
+        voadora.style.top = `${rectDestino.top + rectDestino.height/2 - 25}px`;
+        voadora.style.transform = 'scale(1) rotate(360deg)';
+        voadora.style.opacity = '0.5'; // Vai sumindo
+    }, 10);
+
+    // 🏁 A CHEGADA: O que acontece quando o produto "pousa" no carrinho
+    setTimeout(() => {
+        // 1. Remove a imagem voadora
+        voadora.remove();
+
+        // 2. MÁGICA DA CICÍ: Ela comemora e o carrinho treme
+        const cici = document.getElementById('cici-avatar-float');
+        const carrinho = document.getElementById('cart-icon-bg');
+        
+        cici.classList.add('cici-celebrate');
+        carrinho.classList.add('cart-eat');
+
+        // Remove as classes de animação para poder tocar de novo no próximo produto
+        setTimeout(() => {
+            cici.classList.remove('cici-celebrate');
+            carrinho.classList.remove('cart-eat');
+        }, 600);
+
+        // 3. Atualiza o contador
+        atualizarContadorCarrinho();
+        
+    }, 800); // Tempo exato do voo (igual ao CSS transition)
+}
+
+function atualizarContadorCarrinho() {
+    const contador = document.getElementById('cart-counter');
+    const qtd = itensNoCarrinho.length;
+    
+    if (qtd > 0) {
+        contador.innerText = qtd;
+        contador.classList.remove('hidden');
+        // Efeito de "pulsar" no número novo
+        contador.style.animation = 'cart-bump 0.3s ease-out';
+        setTimeout(() => contador.style.animation = '', 300);
+    } else {
+        contador.classList.add('hidden');
+    }
+}
+// =======================================================
+// 🛒 GESTÃO DO CARRINHO E CHECKOUT
+// =======================================================
+
+function abrirModalCarrinho() {
+    document.getElementById('side-cart').classList.add('open');
+    document.getElementById('cart-overlay').classList.remove('hidden');
+    renderizarItensCarrinho();
+}
+
+function fecharModalCarrinho() {
+    document.getElementById('side-cart').classList.remove('open');
+    document.getElementById('cart-overlay').classList.add('hidden');
+}
+
+function renderizarItensCarrinho() {
+    const container = document.getElementById('cart-items-container');
+    const totalDisplay = document.getElementById('cart-total-value');
+    const moeda = document.getElementById('currency-selector').value;
+    
+    if (itensNoCarrinho.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; margin-top:50px; color:#999;">
+                <i class="fas fa-cart-arrow-down" style="font-size:50px; margin-bottom:15px;"></i>
+                <p>Seu carrinho está vazio.<br>A Cicí está ansiosa para te ajudar!</p>
+            </div>
+        `;
+        totalDisplay.innerText = "---";
+        return;
+    }
+
+    let html = '';
+    let somaTotalBRL = 0;
+
+    itensNoCarrinho.forEach((item, index) => {
+        somaTotalBRL += item.price_brl;
+        html += `
+            <div class="cart-item">
+                <img src="${item.image_url || '/logo.png'}" style="width:60px; height:60px; border-radius:10px; object-fit:cover;">
+                <div style="flex-grow:1">
+                    <h4 style="margin:0; font-size:14px; color:#0a1931;">${item.name}</h4>
+                    <span style="font-size:12px; color:#666;">R$ ${item.price_brl.toFixed(2)}</span>
+                </div>
+                <button onclick="removerDoCarrinho(${index})" style="background:none; border:none; color:#dc3545; cursor:pointer;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+
+    // Converte o total para a moeda selecionada
+    let precoFinal = somaTotalBRL;
+    let simbolo = 'R$';
+    if (moeda === 'CFA') { precoFinal = somaTotalBRL * COTACAO.CFA; simbolo = 'XOF'; }
+    else if (moeda === 'EUR') { precoFinal = somaTotalBRL * COTACAO.EUR; simbolo = '€'; }
+    else if (moeda === 'USD') { precoFinal = somaTotalBRL * COTACAO.USD; simbolo = '$'; }
+
+    totalDisplay.innerText = `${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+}
+
+function removerDoCarrinho(index) {
+    itensNoCarrinho.splice(index, 1);
+    atualizarContadorCarrinho();
+    renderizarItensCarrinho();
+}
+
+// A FUNÇÃO DE FECHAMENTO (A Cicí no Zap)
+function finalizarCompraComCici() {
+    if (itensNoCarrinho.length === 0) return alert("Seu carrinho está vazio!");
+
+    let lista = "*NOVO PEDIDO DA LOJA GUINEEXPRESS* 🛒\n\n";
+    let total = 0;
+
+    itensNoCarrinho.forEach((item, i) => {
+        lista += `${i+1}. ${item.name} - R$ ${item.price_brl.toFixed(2)}\n`;
+        total += item.price_brl;
+    });
+
+    lista += `\n*TOTAL ESTIMADO:* R$ ${total.toFixed(2)}`;
+    lista += `\n\nOlá Cicí! Gostaria de confirmar a compra destes itens. Pode me ajudar?`;
+
+    // Codifica para URL do WhatsApp
+    const msgZap = encodeURIComponent(lista);
+    const linkZap = `https://wa.me/558598239207?text=${msgZap}`; // Coloque o número do seu atendimento
+
+    // Abre o WhatsApp
+    window.open(linkZap, '_blank');
+}
+// =======================================================
+// 📊 MOTOR DE RELATÓRIOS (ADMIN)
+// =======================================================
+
+async function carregarEstatisticasLoja() {
+    try {
+        const res = await fetch('/api/admin/store/stats');
+        const data = await res.json();
+
+        if (data.success) {
+            // 1. Renderiza o Gráfico de Top Estoque
+            renderizarGraficoEstoque(data.topStock);
+
+            // 2. Renderiza os Alertas de Estoque Baixo
+            const alertaContainer = document.getElementById('low-stock-list');
+            if (data.lowStock.length === 0) {
+                alertaContainer.innerHTML = '<p style="color: green; font-size: 13px;">✅ Tudo sob controle! Nenhum produto acabando.</p>';
+            } else {
+                let html = '';
+                data.lowStock.forEach(p => {
+                    html += `
+                        <div style="display:flex; justify-content:space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px;">
+                            <span><b>${p.name}</b> (${p.category})</span>
+                            <span style="color: #d32f2f; font-weight: 900;">Restam ${p.stock}</span>
+                        </div>
+                    `;
+                });
+                alertaContainer.innerHTML = html;
+            }
+        }
+    } catch (err) { console.error("Erro nas estatísticas:", err); }
+}
+
+function renderizarGraficoEstoque(produtos) {
+    const ctx = document.getElementById('stockChart').getContext('2d');
+    
+    if (meuGraficoEstoque) meuGraficoEstoque.destroy();
+
+    meuGraficoEstoque = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: produtos.map(p => p.name),
+            datasets: [{
+                label: 'Unidades em Estoque',
+                data: produtos.map(p => p.stock),
+                backgroundColor: ['#0a1931', '#dfaf12', '#009ee3', '#185adb', '#5c7aea'],
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+// =======================================================
+// 🚀 SISTEMA DE PROMOÇÃO RELÂMPAGO
+// =======================================================
+async function dispararPromoçaoEstoque() {
+    try {
+        const res = await fetch('/api/admin/store/stats');
+        const data = await res.json();
+
+        if (data.success && data.topStock.length > 0) {
+            const produtoMaisEstoque = data.topStock[0]; // Pega o que tem mais unidades
+            
+            const msgSugestao = `🔥 *PROMOÇÃO RELÂMPAGO GUINEEXPRESS* 🔥\n\nAproveite agora: *${produtoMaisEstoque.name}* em estoque! 📦\n\nGaranta o seu antes que acabe direto no nosso painel.\n🔗 https://guineexpress.onrender.com/`;
+
+            // Abre o modal de broadcast que você já tem, preenchendo os campos automaticamente
+            document.getElementById('broadcast-subject').value = `Promoção: ${produtoMaisEstoque.name}`;
+            document.getElementById('broadcast-message').value = msgSugestao;
+            
+            // Abre o modal (ajuste o ID conforme o seu sistema de modal)
+            openModal('broadcast-modal'); 
+            
+            alert(`Cicí selecionou: ${produtoMaisEstoque.name} (${produtoMaisEstoque.stock} unidades).`);
+        }
+    } catch (err) { alert("Erro ao preparar promoção."); }
+}
+// Atualizar o botão de "Loja Virtual" do Admin para carregar também os relatórios
+// No dashboard-admin.html, o botão deve ficar assim:
+// <button onclick="showView('store-admin-view'); carregarProdutosAdmin(); carregarEstatisticasLoja();">
+// =======================================================
+// 🔍 SISTEMA DE FILTRO DA VITRINE (CATEGORIAS)
+// =======================================================
+function filtrarLoja(categoria) {
+    const grid = document.getElementById('store-products-grid');
+    if (!grid) return;
+
+    let produtosParaMostrar = [];
+
+    // Se a pessoa clicar em "Todos", mostra a lista original completa
+    if (categoria === 'Todos' || categoria === 'todos') {
+        produtosParaMostrar = produtosOriginais;
+    } else {
+        // Se não, filtra só os que têm a mesma categoria
+        produtosParaMostrar = produtosOriginais.filter(p => p.category === categoria);
+    }
+
+    // Se não tiver nenhum produto nessa categoria, mostra um aviso bonitinho
+    if (produtosParaMostrar.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
+                <i class="fas fa-box-open" style="font-size: 50px; margin-bottom: 15px; color: #ccc;"></i>
+                <h3>Poxa!</h3>
+                <p>Ainda não temos produtos na categoria <b>${categoria}</b>.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Desenha os produtos filtrados na tela com as moedas certas
+    const moeda = document.getElementById('currency-selector') ? document.getElementById('currency-selector').value : 'BRL';
+    let html = '';
+
+    produtosParaMostrar.forEach(p => {
+        let precoFinal = p.price_brl;
+        let simbolo = 'R$';
+
+        if (moeda === 'CFA') { precoFinal = p.price_brl * COTACAO.CFA; simbolo = 'XOF'; }
+        else if (moeda === 'EUR') { precoFinal = p.price_brl * COTACAO.EUR; simbolo = '€'; }
+        else if (moeda === 'USD') { precoFinal = p.price_brl * COTACAO.USD; simbolo = '$'; }
+
+        html += `
+            <div class="product-card">
+                <img src="${p.image_url || '/logo.png'}" style="width:100%; height:200px; object-fit:cover; border-radius:15px;">
+                <span style="font-size:11px; color:#d4af37; font-weight:bold;">${p.category}</span>
+                <h3 style="margin:10px 0; font-size:18px;">${p.name}</h3>
+                <p style="color:#666; font-size:13px; height:40px; overflow:hidden;">${p.description || ''}</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
+                    <span style="font-size:22px; font-weight:900; color:#0a1931;">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    <button onclick="adicionarAoCarrinho(${p.id}, event)" style="background:#0a1931; color:white; border:none; width:40px; height:40px; border-radius:10px; cursor:pointer;">
+                        <i class="fas fa-cart-plus"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    grid.innerHTML = html;
+}
+// =======================================================
+// 🛒 CARREGAR LOJA DO CLIENTE (ANIMAÇÃO SUAVE)
+// =======================================================
+
+async function carregarLojaCliente() {
+    const grid = document.getElementById('store-products-grid');
+    if (!grid) return;
+
+    // Efeito de carregamento premium
+    grid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 50px;">
+            <i class="fas fa-circle-notch fa-spin" style="font-size: 40px; color: #d4af37; margin-bottom: 15px;"></i>
+            <h3 style="color: #0a1931;">Preparando a vitrine...</h3>
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/api/store/products');
+        const data = await response.json();
+
+        if (data.success) {
+            produtosOriginais = data.products;
+            filtrarLoja('Todos'); // Chama a função que desenha os cards!
+        } else {
+            grid.innerHTML = '<p style="text-align:center; color: red;">Erro ao carregar os produtos.</p>';
+        }
+    } catch (error) {
+        console.error("Erro na loja:", error);
+        grid.innerHTML = '<p style="text-align:center; color: #666;">Verifique sua conexão com a internet.</p>';
     }
 }

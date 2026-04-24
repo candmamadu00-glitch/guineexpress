@@ -2076,3 +2076,391 @@ body { background-color: var(--light); color: var(--dark); overflow-x: hidden; }
     70% { box-shadow: 0 0 0 10px rgba(255, 152, 0, 0); }
     100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); }
 }
+/* =======================================================
+   🛍️ A MAGIA DA LOJA GUINEEXPRESS (ANIMAÇÕES VIP)
+   ======================================================= */
+
+/* 1. O Botão da Loja no Menu (Mais elegante) */
+.btn-store-premium {
+    background: linear-gradient(135deg, #0a1931, #1a3a6d) !important;
+    color: #dfaf12 !important; /* Dourado */
+    font-weight: 900 !important;
+    border: 2px solid #dfaf12 !important;
+    border-radius: 50px !important;
+    padding: 12px 25px !important;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.btn-store-premium:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 15px rgba(223, 175, 18, 0.3);
+}
+
+/* 2. O ÍCONE FLUTUANTE DA CICÍ E DO CARRINHO (A MÁGICA) */
+#floating-cici-cart {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 80px;
+    height: 80px;
+    z-index: 10000; /* Garante que fica por cima de tudo */
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+#floating-cici-cart:hover { transform: scale(1.1); }
+
+/* A imagem da Cicí flutuando */
+#cici-avatar-float {
+    width: 60px;
+    height: 60px;
+    position: absolute;
+    top: -10px;
+    left: 10px;
+    z-index: 2;
+    filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
+    /* Animação de flutuação suave constante */
+    animation: cici-float 3s ease-in-out infinite;
+}
+
+/* O ícone do carrinho embaixo dela */
+#cart-icon-bg {
+    width: 60px;
+    height: 60px;
+    background: #0a1931;
+    border-radius: 50%;
+    position: absolute;
+    bottom: 0;
+    left: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #dfaf12;
+    font-size: 24px;
+    border: 3px solid #dfaf12;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+/* O contador de itens (Badge) */
+#cart-counter {
+    position: absolute;
+    top: 35px;
+    right: 5px;
+    background: #d32f2f; /* Vermelho */
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+    border: 2px solid white;
+}
+
+/* 3. ANIMAÇÕES EXTRAORDINÁRIAS (A MÁGICA EM AÇÃO) */
+
+/* Cicí flutuando suavemente */
+@keyframes cici-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* Cicí comemorando quando entra produto */
+@keyframes cici-joy {
+    0%, 100% { transform: translateY(-10px) scale(1); }
+    30% { transform: translateY(-25px) scale(1.2) rotate(10deg); filter: brightness(1.5) drop-shadow(0 0 15px #dfaf12); }
+    60% { transform: translateY(-10px) scale(1) rotate(-10deg); }
+}
+.cici-celebrate { animation: cici-joy 0.6s ease-out !important; }
+
+/* Carrinho tremendo de satisfação */
+@keyframes cart-bump {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); box-shadow: 0 0 30px rgba(223, 175, 18, 0.6); }
+}
+.cart-eat { animation: cart-bump 0.4s ease-out; }
+
+/* O produto voando (criado dinamicamente pelo JS) */
+.flying-product {
+    position: fixed;
+    z-index: 9999;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #dfaf12;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); /* Curva de voo suave */
+    pointer-events: none; /* Não deixa clicar nele durante o voo */
+}
+/* =======================================================
+   ✨ MODAL DO CARRINHO (ESTILO LUXO / GLASSMORPHISM)
+   ======================================================= */
+.modal-carrinho {
+    position: fixed;
+    top: 0;
+    right: -100%; /* Começa escondido à direita */
+    width: 400px;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(15px); /* Efeito de vidro fosco */
+    box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+    z-index: 20000;
+    transition: right 0.5s cubic-bezier(0.77, 0, 0.175, 1);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border-left: 3px solid #dfaf12;
+}
+
+.modal-carrinho.open { right: 0; }
+
+.cart-header {
+    background: #0a1931;
+    color: white;
+    padding: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cart-items-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.cart-item {
+    display: flex;
+    gap: 15px;
+    background: white;
+    padding: 12px;
+    border-radius: 15px;
+    margin-bottom: 15px;
+    border: 1px solid #eee;
+    align-items: center;
+    animation: fadeInSlide 0.4s ease forwards;
+}
+
+@keyframes fadeInSlide {
+    from { opacity: 0; transform: translateX(30px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.cart-footer {
+    padding: 25px;
+    background: #f9f9f9;
+    border-top: 1px solid #eee;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+    font-weight: 900;
+    color: #0a1931;
+    margin-bottom: 15px;
+}
+
+/* Responsivo para celular */
+@media (max-width: 500px) {
+    .modal-carrinho { width: 100%; }
+}
+/* =========================================
+   ESTILO DA VITRINE PREMIUM (LOJA)
+   ========================================= */
+#store-products-grid {
+    display: grid;
+    /* Isso faz os produtos se adaptarem à tela do celular (2 por linha) ou PC (vários) */
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); 
+    gap: 15px;
+    padding: 10px 0;
+    margin-top: 20px;
+}
+
+.product-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(0,0,0,0.02);
+}
+
+/* Efeito de levitar ao passar o mouse/dedo */
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.product-card h3 {
+    margin: 8px 0 4px 0;
+    font-size: 15px;
+    color: #0a1931;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.product-card img {
+    border-radius: 12px;
+    margin-bottom: 8px;
+    transition: opacity 0.3s ease;
+}
+
+.product-card img:hover {
+    opacity: 0.9;
+}
+/* =========================================
+   CORREÇÃO DO SELETOR DE MOEDAS
+   ========================================= */
+select {
+    color: var(--primary); /* Texto escuro */
+    background-color: var(--white); /* Fundo branco */
+}
+
+select option {
+    color: #0a1931; /* Garante que as opções da lista fiquem escuras */
+    background: #ffffff;
+}
+/* =========================================
+   MAGIA NOS BOTÕES (Efeito Premium)
+   ========================================= */
+button {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Animação ultra suave */
+}
+
+button:hover {
+    transform: translateY(-3px); /* Levanta o botão suavemente */
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15); /* Cria uma sombra elegante */
+}
+
+button:active {
+    transform: translateY(1px); /* Efeito de "afundar" ao clicar */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+/* =========================================
+   NAVEGAÇÃO PREMIUM DO CLIENTE (BARRA DE MENU)
+   ========================================= */
+.nav-wrapper {
+    display: flex;
+    align-items: center;
+    position: relative;
+    width: 100%;
+    margin-bottom: 20px;
+    background: #ffffff;
+    padding: 8px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.nav-links {
+    display: flex;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    gap: 12px;
+    padding: 5px;
+    /* Esconde a barra de rolagem nativa para ficar clean */
+    -ms-overflow-style: none;  
+    scrollbar-width: none;  
+}
+.nav-links::-webkit-scrollbar { 
+    display: none; 
+}
+
+/* Base de todos os botões do Menu */
+.premium-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 900; /* 🔥 MUDOU PARA 900: Letra super grossa e forte */
+    font-size: 14px;
+    letter-spacing: 0.5px; /* 🔥 Dá um microespaço para a letra grossa não grudar */
+    white-space: nowrap; 
+    cursor: pointer;
+    color: white; /* Mantém o texto branco nos botões escuros para dar leitura */
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.premium-btn:hover {
+    filter: brightness(1.1);
+}
+
+.premium-btn:active {
+    transform: scale(0.95);
+}
+
+/* As Cores do Lelo */
+.home-btn     { background: linear-gradient(135deg, #08090a, #00c6ff); box-shadow: 0 4px 10px rgba(0, 158, 227, 0.3); }
+/* 🔥 Loja e Perfil agora com cor PRETO PURO (#000000) */
+.store-btn    { background: linear-gradient(135deg, #d4af37, #f1db8a); color: #000000 !important; box-shadow: 0 4px 10px rgba(212, 175, 55, 0.4); animation: pulse-dourado 2s infinite; }
+.orders-btn   { background: linear-gradient(135deg, #000000, #a06ee0); box-shadow: 0 4px 10px rgba(102, 16, 242, 0.3); }
+.box-btn      { background: linear-gradient(135deg, #000000, #e2a958); box-shadow: 0 4px 10px rgba(253, 126, 20, 0.3); }
+.billing-btn  { background: linear-gradient(135deg, #070707, #5ddc72); box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3); }
+.receipts-btn { background: linear-gradient(135deg, #000000, #48c6ef); box-shadow: 0 4px 10px rgba(23, 162, 184, 0.3); }
+.schedule-btn { background: linear-gradient(135deg, #000000, #ac21df); box-shadow: 0 4px 10px rgba(142, 68, 173, 0.3); }
+.videos-btn   { background: linear-gradient(135deg, #000000, #f73f5e); box-shadow: 0 4px 10px rgba(224, 46, 129, 0.3); }
+.history-btn  { background: linear-gradient(135deg, #34495e, #5d6d7e); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); }
+.profile-btn  { background: linear-gradient(135deg, #d4af37, #f1db8a); color: #000000 !important; box-shadow: 0 4px 10px rgba(212, 175, 55, 0.4); }
+.logout-btn   { background: linear-gradient(135deg, #010429, #ff6a88); box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3); }
+/* =========================================
+   CARROSSEL DE CATEGORIAS DA LOJA
+   ========================================= */
+.store-category-slider {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 10px 5px;
+    margin-bottom: 20px;
+    /* Esconde a barra de rolagem no celular e PC */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+}
+
+.store-category-slider::-webkit-scrollbar {
+    display: none;
+}
+
+.category-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    color: #666;
+    border: 1px solid #e1e8ed;
+    border-radius: 25px; /* Bordas super arredondadas */
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap; /* Não deixa o botão quebrar ao meio */
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+
+.category-pill:hover {
+    border-color: #d4af37;
+    color: #d4af37;
+}
+
+/* Como o botão fica quando está selecionado */
+.category-pill.active {
+    background: #0a1931; /* Azul escuro premium */
+    color: #ffffff;
+    border-color: #0a1931;
+    box-shadow: 0 4px 10px rgba(10, 25, 49, 0.2);
+}
