@@ -2464,3 +2464,54 @@ button:active {
     border-color: #0a1931;
     box-shadow: 0 4px 10px rgba(10, 25, 49, 0.2);
 }
+/* =========================================
+   ESTILO DO NOVO CARRINHO FLUTUANTE
+   ========================================= */
+#floating-cici-cart {
+    position: fixed;
+    /* Ajuste o 'bottom' se precisar que ele fique mais para cima ou para baixo do chat */
+    bottom: 90px; 
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #d4af37, #f1db8a); /* Dourado Premium Guineexpress */
+    color: #0a1931; /* Azul Escuro */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px; /* Tamanho da sacola */
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+    cursor: pointer;
+    z-index: 1000; /* Garante que fique na frente de tudo */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#floating-cici-cart:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.6);
+}
+
+/* Bolinha Vermelha do Contador de Itens */
+#cart-counter {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #d32f2f; /* Vermelho alerta */
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 900;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffff; /* Borda branca para dar destaque */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Esconde o contador quando o carrinho está vazio */
+#cart-counter.hidden {
+    display: none !important;
+}

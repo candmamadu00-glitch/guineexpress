@@ -8729,18 +8729,18 @@ function fazerProdutoVoar(imgUrl, elementoOrigem) {
         // 1. Remove a imagem voadora
         voadora.remove();
 
-        // 2. MÁGICA DA CICÍ: Ela comemora e o carrinho treme
-        const cici = document.getElementById('cici-avatar-float');
-        const carrinho = document.getElementById('cart-icon-bg');
+        // 2. MÁGICA DA SACOLA: O botão inteiro dá um "pulo" quando o item cai
+        const carrinhoFlutuante = document.getElementById('floating-cici-cart');
         
-        cici.classList.add('cici-celebrate');
-        carrinho.classList.add('cart-eat');
+        if (carrinhoFlutuante) {
+            // Vamos usar a mesma classe que você já tinha, mas agora no botão principal
+            carrinhoFlutuante.classList.add('cart-eat');
 
-        // Remove as classes de animação para poder tocar de novo no próximo produto
-        setTimeout(() => {
-            cici.classList.remove('cici-celebrate');
-            carrinho.classList.remove('cart-eat');
-        }, 600);
+            // Remove a animação para poder tocar de novo no próximo produto
+            setTimeout(() => {
+                carrinhoFlutuante.classList.remove('cart-eat');
+            }, 600);
+        }
 
         // 3. Atualiza o contador
         atualizarContadorCarrinho();
