@@ -43,7 +43,7 @@ app.use(helmet({
             scriptSrcAttr: ["'unsafe-inline'"], 
             
             // 👇 LIBERAMOS O UI-AVATARS AQUI PARA O SW.JS PODER BAIXAR A IMAGEM:
-            connectSrc: ["'self'", "https://api.google.com", "https://unpkg.com", "https://cdn.jsdelivr.net", "https://ui-avatars.com"],
+           connectSrc: ["'self'", "https://api.google.com", "https://unpkg.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
 
             // 👇 E GARANTIMOS ELE AQUI TAMBÉM SÓ POR PRECAUÇÃO:
             imgSrc: ["'self'", "data:", "blob:", "https:", "https://ui-avatars.com"],
@@ -3154,9 +3154,9 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
 const { ImapFlow } = require('imapflow');
 const simpleParser = require('mailparser').simpleParser;
 
-// ✅ CORREÇÃO: Usar variáveis de ambiente
-const EMAIL_USER = process.env.IMAP_USER;
-const EMAIL_PASS = process.env.IMAP_PASS;
+const EMAIL_USER = 'Comercialguineexpress245@gmail.com'; 
+const EMAIL_PASS = 'pzbqkufiwqyppovw'; 
+
 
 // Tiramos o "const" daqui para a Cicí poder reescrever o robô toda vez
 let clientImap; 

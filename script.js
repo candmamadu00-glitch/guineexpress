@@ -1543,6 +1543,16 @@ async function adminResetClientPassword(clientId, clientName) {
 }
 
 // ==========================================
+// FUNÇÃO AUXILIAR PARA PEGAR INICIAIS 
+// ==========================================
+function pegarIniciais(nomeCompleto) {
+    if (!nomeCompleto) return "U";
+    const partes = nomeCompleto.trim().split(" ");
+    if (partes.length === 1) return partes[0].charAt(0).toUpperCase();
+    return (partes[0].charAt(0) + partes[partes.length - 1].charAt(0)).toUpperCase();
+}
+
+// ==========================================
 // ATUALIZAÇÃO DA FUNÇÃO LOAD CLIENTS (OTIMIZADA 🚀)
 // ==========================================
 let clientsLimit = 50; // Variável global de limite
@@ -1618,11 +1628,17 @@ async function loadClients() {
                     ? '<span style="background:#d4edda; color:#155724; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Ativo</span>' 
                     : '<span style="background:#f8d7da; color:#721c24; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold;">Inativo</span>';
 
-                let imgUrl = (c.profile_pic && c.profile_pic !== 'default.png') ? 
-                             (c.profile_pic.startsWith('http') ? c.profile_pic : '/uploads/' + c.profile_pic) : 
-                             `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&background=random&color=fff&size=64`;
-
-                const photoHtml = `<img src="${imgUrl}" onerror="this.src='https://ui-avatars.com/api/?name=User&background=ccc'" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
+                // 👇 AQUI ESTÁ A MÁGICA DOS AVATARES NATIVOS 👇
+                let photoHtml = "";
+                // Se o cliente tem uma foto cadastrada e não é a default, tenta exibir
+                if (c.profile_pic && c.profile_pic !== 'default.png' && !c.profile_pic.includes('ui-avatars')) {
+                    let imgUrl = c.profile_pic.startsWith('http') ? c.profile_pic : '/uploads/' + c.profile_pic;
+                    photoHtml = `<img src="${imgUrl}" onerror="this.outerHTML='<div style=\\'width:32px;height:32px;border-radius:50%;background:#0a1931;color:#d4af37;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;margin:0 auto;\\'>${pegarIniciais(c.name)}</div>'" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #ddd;">`;
+                } else {
+                    // Se não tem foto, cria o círculo com as iniciais
+                    photoHtml = `<div style="width:32px; height:32px; border-radius:50%; background:#0a1931; color:#d4af37; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px; margin:0 auto; border: 1px solid #d4af37;">${pegarIniciais(c.name)}</div>`;
+                }
+                // 👆 FIM DA MÁGICA DOS AVATARES 👆
 
                 let dataCadastro = "-";
                 if (c.created_at) {
@@ -4345,24 +4361,64 @@ async function printReceipt(boxId) {
         `;
 
         // =========================================================================
-        // 🚀 LÓGICA DE GERAÇÃO: DOWNLOAD DIRETO E INVISÍVEL
+        // 🚀 LÓGICA DE GERAÇÃO: DOWNLOAD DIRETO E COMPATÍVEL COM CELULAR
         // =========================================================================
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
         if (isMobile) {
-            // No Celular: Usa html2pdf com configuração avançada para não cortar o rodapé
+            // 1. O celular exige que o HTML exista fisicamente na tela (mesmo que invisível) para ler imagens e CSS
+            const divInvisivel = document.createElement('div');
+            divInvisivel.innerHTML = receiptHTML;
+            divInvisivel.style.position = 'absolute';
+            divInvisivel.style.left = '-9999px';
+            document.body.appendChild(divInvisivel);
+
             const configuracaoPdf = {
-                margin:       [0.1, 0.1, 0.5, 0.1], // Deixamos uma margem extra embaixo
+                margin:       [0.1, 0.1, 0.5, 0.1], 
                 filename:     `Recibo_Guineexpress_${d.box_code || '00'}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 }, // scrollY:0 força a leitura desde o topo
+                html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
-            html2pdf().set(configuracaoPdf).from(receiptHTML).save();
+            // 2. Transforma em PDF e extrai o arquivo (Blob)
+            html2pdf().set(configuracaoPdf).from(divInvisivel).toPdf().get('pdf').then(async function(pdfObj) {
+                const pdfBlob = pdfObj.output('blob');
+                document.body.removeChild(divInvisivel); // Limpa a sujeira
+                
+                // 3. 🪄 MÁGICA: Tenta abrir a "Aba de Compartilhar" nativa do celular (WhatsApp, etc.)
+                const file = new File([pdfBlob], configuracaoPdf.filename, { type: 'application/pdf' });
+                
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Recibo Guineexpress',
+                            text: 'Segue em anexo o recibo da sua encomenda.'
+                        });
+                    } catch (err) {
+                        console.log("Usuário fechou a aba de compartilhar sem enviar.");
+                    }
+                } else {
+                    // 4. Se o celular não suportar compartilhar direto, força o download seguro
+                    const blobUrl = URL.createObjectURL(pdfBlob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = configuracaoPdf.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            }).catch(e => {
+                console.error(e);
+                alert("Erro ao gerar recibo no celular: " + e.message);
+                if (document.body.contains(divInvisivel)) document.body.removeChild(divInvisivel);
+            });
 
         } else {
-            // No Computador: Mantém a lógica do Iframe oculto 
+            // ==========================================
+            // LOGICA ORIGINAL DO COMPUTADOR FICA INTACTA
+            // ==========================================
             let printIframe = document.getElementById('print-iframe');
             if (!printIframe) {
                 printIframe = document.createElement('iframe');
@@ -6531,13 +6587,29 @@ function exportBoxPDF() {
             margin:       10,
             filename:     'Guineexpress_Relatorio_Boxes.pdf',
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
+            html2canvas:  { scale: 2, useCORS: true }, // useCORS garante que imagens carreguem no celular
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
         };
 
-        // Manda baixar automaticamente e depois volta o botão ao normal
-        html2pdf().set(opt).from(divTemp).save().then(() => {
+        // 🚀 LÓGICA À PROVA DE CELULAR: Extrai o arquivo bruto (Blob) e força o download
+        html2pdf().set(opt).from(divTemp).toPdf().get('pdf').then(function(pdfObj) {
+            const pdfBlob = pdfObj.output('blob');
+            const blobUrl = URL.createObjectURL(pdfBlob);
+            
+            // Cria um link invisível e clica nele automaticamente
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = opt.filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Volta o botão ao normal
             btn.innerHTML = textoOriginal;
+        }).catch(err => {
+            console.error("Erro ao gerar PDF: ", err);
+            btn.innerHTML = textoOriginal;
+            alert("Erro ao gerar o relatório.");
         });
     }
 }
