@@ -4009,11 +4009,28 @@ function loadMoreReceipts() {
 // 5. GERAR RECIBO A4 (DOWNLOAD DIRETO EM PDF PARA CELULAR E PC)
 // ============================================================
 async function printReceipt(boxId) {
-    // 1. Mostrar aviso na tela para o cliente saber que está baixando (Evita cliques duplos)
+    // 1. Mostrar aviso na tela para o cliente saber que está baixando
     const loadingMsg = document.createElement('div');
     loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparando seu PDF... Aguarde.';
     loadingMsg.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#0a1931; color:#dfaf12; padding:20px; border-radius:10px; z-index:99999; font-weight:bold; font-family:sans-serif; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); width: 80%; max-width: 300px;';
     document.body.appendChild(loadingMsg);
+
+    // 🌟 A MÁGICA SALVADORA: Se o celular não tiver carregado o html2pdf, nós injetamos à força!
+    if (typeof html2pdf === 'undefined') {
+        console.log("Biblioteca html2pdf não encontrada. Injetando dinamicamente...");
+        try {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        } catch (e) {
+            document.body.removeChild(loadingMsg);
+            return alert("Erro ao conectar com o gerador de PDF. Tente novamente.");
+        }
+    }
 
     try {
         const res = await fetch(`/api/receipt-data/${boxId}`); 
@@ -4192,7 +4209,7 @@ async function printReceipt(boxId) {
             </html>
         `;
 
-        // 2. Coloca o HTML escondido na tela com tamanho de PC (evita que o PDF do celular fique amassado)
+        // 2. Coloca o HTML escondido na tela com tamanho de PC
         const divInvisivel = document.createElement('div');
         divInvisivel.innerHTML = receiptHTML;
         divInvisivel.style.position = 'absolute';
@@ -4214,14 +4231,13 @@ async function printReceipt(boxId) {
             const pdfBlob = pdfObj.output('blob');
             const blobUrl = URL.createObjectURL(pdfBlob);
 
-            // MÁGICA DO DOWNLOAD DIRETO: Cria um link fantasma e clica nele!
             const linkDownload = document.createElement('a');
             linkDownload.href = blobUrl;
             linkDownload.download = config.filename;
             document.body.appendChild(linkDownload);
-            linkDownload.click(); // Celular vai baixar aqui!
+            linkDownload.click(); 
 
-            // Limpeza da bagunça
+            // Limpeza
             setTimeout(() => {
                 document.body.removeChild(linkDownload);
                 document.body.removeChild(divInvisivel);
