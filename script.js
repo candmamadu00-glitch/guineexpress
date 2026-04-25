@@ -4006,7 +4006,7 @@ function loadMoreReceipts() {
 }
 
 // ============================================================
-// 5. GERAR RECIBO A4 (DOWNLOAD DIRETO PDF - VERSÃO OFICIAL)
+// 5. GERAR RECIBO A4 (VERSÃO BLINDADA PARA IPHONE E ANDROID)
 // ============================================================
 async function printReceipt(boxId) {
     // 1. Aviso de carregamento na tela
@@ -4015,10 +4015,20 @@ async function printReceipt(boxId) {
     loadingMsg.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#0a1931; color:#dfaf12; padding:20px; border-radius:10px; z-index:99999; font-weight:bold; font-family:sans-serif; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); width: 80%; max-width: 300px;';
     document.body.appendChild(loadingMsg);
 
-    // 2. Proteção: Verifica se a biblioteca de PDF existe na página
-    if (typeof html2pdf === 'undefined') {
-        document.body.removeChild(loadingMsg);
-        return alert("Erro: O sistema não encontrou o gerador de PDF. Verifique se o html2pdf.js está no cabeçalho do site.");
+    // 2. INJEÇÃO FORÇADA: O iPhone não achou? Nós enfiamos à força e esperamos!
+    if (typeof window.html2pdf === 'undefined') {
+        try {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        } catch (err) {
+            document.body.removeChild(loadingMsg);
+            return alert("Falha ao baixar os componentes do PDF. Verifique sua internet.");
+        }
     }
 
     try {
@@ -4047,7 +4057,7 @@ async function printReceipt(boxId) {
         const stampColor = d.is_paid ? 'rgba(40, 167, 69, 0.25)' : 'rgba(220, 53, 69, 0.25)';
         const stampBorder = d.is_paid ? 'rgba(40, 167, 69, 0.4)' : 'rgba(216, 30, 49, 0.4)';
 
-        // 3. MONTANDO O HTML EXCLUSIVO DA IMPRESSÃO (Tudo numa string)
+        // 3. MONTANDO O HTML DO RECIBO
         const receiptHTML = `
             <div style="font-family: 'Arial', sans-serif; color: #28425c; padding: 20px; background: #fff; width: 100%; max-width: 800px; margin: 0 auto; position: relative;">
                 <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 100px; font-weight: 900; color: ${stampColor}; border: 6px solid ${stampBorder}; padding: 15px 40px; text-transform: uppercase; z-index: 0; border-radius: 15px; letter-spacing: 5px;">${stampStatus}</div>
@@ -4149,7 +4159,6 @@ async function printReceipt(boxId) {
             </div>
         `;
 
-        // 4. MÁGICA: Em vez de criar Divs falsas, passamos a string HTML direto para o gerador!
         const config = {
             margin:       0.1,
             filename:     `Recibo_Guine_Box_${d.box_code}.pdf`,
@@ -4158,12 +4167,44 @@ async function printReceipt(boxId) {
             jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
 
-        // O ".save()" é o comando nativo que resolve os bugs do celular
-        html2pdf().set(config).from(receiptHTML).save().then(() => {
+        // 4. MÁGICA FINAL: Converter para Arquivo Real e chamar a Tela do Sistema (iPhone/Android)
+        html2pdf().set(config).from(receiptHTML).toPdf().get('pdf').then(function(pdfObj) {
+            const pdfBlob = pdfObj.output('blob');
             document.body.removeChild(loadingMsg);
+
+            const file = new File([pdfBlob], config.filename, { type: 'application/pdf' });
+            const blobUrl = URL.createObjectURL(pdfBlob);
+
+            // Função interna de Fallback (Caso esteja no PC)
+            const fallbackDownload = () => {
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                a.download = config.filename;
+                a.target = '_blank';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 1000);
+            };
+
+            // Se for telemóvel compatível, usa a partilha nativa (Perfeito para iOS/Safari)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                navigator.share({
+                    title: 'Recibo Guineexpress',
+                    files: [file]
+                }).catch((e) => {
+                    // Se o utilizador fechou a aba de partilha, usamos o fallback
+                    console.log('Partilha nativa cancelada ou falhou:', e);
+                    fallbackDownload();
+                });
+            } else {
+                // Se for PC ou browser antigo, faz o download normal
+                fallbackDownload();
+            }
+
         }).catch(err => {
             console.error("Erro no PDF: ", err);
-            document.body.removeChild(loadingMsg);
+            if(document.body.contains(loadingMsg)) document.body.removeChild(loadingMsg);
             alert("Falha ao montar o arquivo PDF. Tente novamente.");
         });
 
