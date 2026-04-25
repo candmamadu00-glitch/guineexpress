@@ -1510,6 +1510,28 @@
     }
 </script>
 <script>
+    function filtrarRecibos() {
+        const input = document.getElementById('inputPesquisaRecibo');
+        if (!input) return;
+        
+        const termo = input.value.toLowerCase().trim();
+        const listaRecibos = document.getElementById('receipts-list'); 
+        if (!listaRecibos) return;
+
+        const linhas = listaRecibos.getElementsByTagName('tr');
+
+        for (let i = 0; i < linhas.length; i++) {
+            const textoDaLinha = linhas[i].textContent || linhas[i].innerText;
+            
+            if (textoDaLinha.toLowerCase().includes(termo)) {
+                linhas[i].style.display = ""; 
+            } else {
+                linhas[i].style.display = "none"; 
+            }
+        }
+    }
+</script>
+<script>
 // Função que trava a geração da fatura se o valor for repetido
 async function verificarConflitoDeValor(event) {
     event.preventDefault(); // Impede o envio imediato
@@ -1564,6 +1586,7 @@ async function verificarConflitoDeValor(event) {
         btnSubmit.disabled = false;
     }
 }
+
 </script>
 <script src="script.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>

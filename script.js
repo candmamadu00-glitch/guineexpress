@@ -2908,36 +2908,48 @@ async function loadClientsForBilling() {
 // 2. Quando seleciona cliente, busca os BOXES dele
 async function loadClientBoxesForBilling(clientId) {
     const boxSel = document.getElementById('bill-box-select');
+    if(!boxSel) return;
+
     boxSel.innerHTML = '<option value="">Carregando...</option>';
     boxSel.disabled = true;
 
-    if(!clientId) return;
+    if(!clientId) {
+        boxSel.innerHTML = '<option value="">Selecione o Cliente Primeiro...</option>';
+        return;
+    }
 
-    // Precisamos de uma rota que filtre boxes. Vamos usar a existente e filtrar no JS por simplicidade
-    // Idealmente: /api/boxes?client_id=X
-    const res = await fetch('/api/boxes'); 
-    const allBoxes = await res.json();
-    
-    // Filtra boxes do cliente
-    const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
-
-    boxSel.innerHTML = '<option value="">Selecione o Box...</option>';
-    clientBoxes.forEach(b => {
-        // Guarda peso e descrição nos atributos para calcular preço
-        const weight = b.order_weight || 0; // Pega o peso da encomenda vinculada
-        // 👇 O PORTEIRO DAS ENCOMENDAS 👇
-        const statusBox = String(box.status || order.status || '').toLowerCase();
+    try {
+        const res = await fetch('/api/boxes'); 
+        const allBoxes = await res.json();
         
-        if (!window.verHistoricoCompleto && statusBox === 'entregue') {
-            return; // Se não é pra ver histórico e já foi Entregue, PULA e esconde!
-        }
-        // 👆 ------------------------ 👆
-        const desc = b.products || `Box ${b.box_code}`;
-        boxSel.innerHTML += `<option value="${b.id}" data-weight="${weight}" data-desc="${desc}">
-            ${b.box_code} (${weight} Kg)
-        </option>`;
-    });
-    boxSel.disabled = false;
+        // Filtra boxes do cliente
+        const clientBoxes = allBoxes.filter(b => b.client_id == clientId);
+
+        boxSel.innerHTML = '<option value="">Selecione o Box...</option>';
+
+        clientBoxes.forEach(b => {
+            // Guarda peso e descrição nos atributos para calcular preço
+            const weight = b.order_weight || 0; 
+            
+            // 👇 O PORTEIRO DAS ENCOMENDAS (AGORA USANDO A LETRA 'b' CORRETA) 👇
+            const statusBox = String(b.status || '').toLowerCase();
+            
+            if (!window.verHistoricoCompleto && (statusBox === 'entregue' || statusBox === 'pago')) {
+                return; // Se não é pra ver histórico e já foi Entregue ou Pago, PULA e esconde!
+            }
+            // 👆 ------------------------ 👆
+
+            const desc = b.products || `Box ${b.box_code}`;
+            boxSel.innerHTML += `<option value="${b.id}" data-weight="${weight}" data-desc="${desc}">
+                ${b.box_code} (${weight} Kg)
+            </option>`;
+        });
+
+        boxSel.disabled = false; // Destrava a caixa para você poder clicar!
+    } catch (err) {
+        console.error("Erro ao carregar boxes:", err);
+        boxSel.innerHTML = '<option value="">Erro ao carregar boxes</option>';
+    }
 }
 
 // 3. Calcula o Valor APENAS DO FRETE (Peso * Preço Global)
@@ -9156,32 +9168,4 @@ window.alternarHistorico = function() {
     if (typeof loadOrders === 'function') loadOrders(); // Ou a função que carrega as Boxes
     if (typeof loadClientVideos === 'function') loadClientVideos();
     if (typeof loadReceipts === 'function') loadReceipts();
-}
-// ==========================================
-// FUNÇÃO PARA PESQUISAR RECIBOS AO VIVO
-// ==========================================
-window.filtrarRecibos = function() {
-    // 1. Pega o que o usuário digitou e deixa tudo minúsculo
-    const termo = document.getElementById('inputPesquisaRecibo').value.toLowerCase();
-    
-    // 2. Procura a lista onde os recibos são desenhados 
-    // ⚠️ ATENÇÃO: Troque 'receipts-list' pelo ID real da sua div de recibos, se for diferente!
-    const listaRecibos = document.getElementById('receipts-list'); 
-    
-    if (!listaRecibos) return; // Se não achar a lista, não faz nada
-
-    // 3. Pega todos os "cards" (filhos) que estão dentro da lista
-    const cards = listaRecibos.children;
-
-    // 4. Passa por cada card para ver se tem a palavra digitada
-    for (let i = 0; i < cards.length; i++) {
-        const textoDoCard = cards[i].innerText.toLowerCase();
-        
-        // Se o texto do card tem o termo digitado, mostra. Se não, esconde!
-        if (textoDoCard.includes(termo)) {
-            cards[i].style.display = ""; 
-        } else {
-            cards[i].style.display = "none"; 
-        }
-    }
 }
