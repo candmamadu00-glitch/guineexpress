@@ -24,7 +24,7 @@ const fs = require('fs');
 const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
 const webpush = require('web-push');
 const app = express(); // <-- O App é criado aqui
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
 const ExcelJS = require('exceljs');
 // === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
@@ -78,10 +78,11 @@ const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session
 
 let clientZap = null;
 // Configuração de identidade para as Notificações
+// ✅ CORREÇÃO:
 webpush.setVapidDetails(
-    'mailto:candemamadu09@gmail.com', 
-    'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY', // Public Key
-    'o7cuX6wivGgnxOoLwa__pYUFH66B3R16hzwtr3yavV4' // Private Key
+    `mailto:${process.env.VAPID_EMAIL}`,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
 );
 
 // ========================================================
@@ -149,16 +150,25 @@ async function enviarReciboPDF(invoiceId) {
         const freteVal = parseFloat(fatura.freight_amount) || parseFloat(fatura.amount) || 0;
         const totalVal = (freteVal + nfVal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        // 1. CABEÇALHO E LOGO
+        // 1. CABEÇALHO E LOGO (CORREÇÃO DE CAMINHO PARA O RENDER)
         try {
-            // Busca a logo na mesma pasta do servidor de forma blindada
-            const logoPath = path.join(__dirname, 'logo.png');
-            if (fs.existsSync(logoPath)) {
-                doc.image(logoPath, 40, 40, { width: 65 });
-            } else {
-                console.log("⚠️ Logo não encontrada em: " + logoPath);
+            // O sistema vai procurar a logo em todas as pastas possíveis da nuvem
+            const possiblePaths = [
+                path.join(__dirname, 'logo.png'),
+                path.join(__dirname, 'public', 'logo.png'),
+                path.join(process.cwd(), 'logo.png')
+            ];
+            
+            let logoFound = false;
+            for (let p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                    doc.image(p, 40, 40, { width: 65 });
+                    logoFound = true;
+                    break;
+                }
             }
-        } catch(e) { console.log("Aviso: Falha ao desenhar a logo."); }
+            if (!logoFound) console.log("⚠️ Logo não encontrada nos caminhos de busca do servidor.");
+        } catch(e) { console.log("Aviso: Falha ao desenhar a logo.", e); }
 
         doc.fillColor(azulOficial).fontSize(24).font('Helvetica-Bold').text('GUINEEXPRESS', 115, 45, { letterSpacing: 1.5 });
         doc.fillColor(douradoLuxo).fontSize(9).font('Helvetica-Bold').text('AGÊNCIA DE LOGÍSTICA INTERNACIONAL', 115, 72);
@@ -274,9 +284,12 @@ async function enviarReciboPDF(invoiceId) {
            .text('ASSINATURA DO CLIENTE', 335, yTab + 5, { width: 180, align: 'center' });
 
         // =========================================================
-        // 7. CARIMBO DE "PAGO" POR CIMA DE TUDO (EFEITO TRANSPARENTE)
+        // 7. CARIMBO DE "PAGO" (MÁGICA CORRIGIDA)
         // =========================================================
-        const isPaid = fatura.status === 'paid';
+        // Agora ele identifica "pago", "Pago", "paid" ou is_paid ativo do banco de dados!
+        const statusStr = String(fatura.status || '').toLowerCase();
+        const isPaid = (statusStr === 'pago' || statusStr === 'paid' || fatura.is_paid == 1 || fatura.is_paid === true);
+        
         const stampText = isPaid ? 'PAGO' : 'PENDENTE';
         const stampColor = isPaid ? '#28a745' : '#dc3545'; // Verde(PAGO) ou Vermelho(PENDENTE)
 
@@ -2973,9 +2986,25 @@ app.post('/api/invoices/check-status', async (req, res) => {
         const checkPayment = await new Payment(client).get({ id: mp_payment_id });
         const currentStatus = checkPayment.status; // 'approved', 'pending', etc.
 
-        // Atualiza no banco
-        db.run("UPDATE invoices SET status = ? WHERE id = ?", [currentStatus, invoice_id], (err) => {
-            res.json({ success: true, status: currentStatus });
+        // Pega o status antigo do banco antes de atualizar para comparar
+        db.get("SELECT status FROM invoices WHERE id = ?", [invoice_id], (err, row) => {
+            const oldStatus = row ? row.status : null;
+
+            // Atualiza no banco
+            db.run("UPDATE invoices SET status = ? WHERE id = ?", [currentStatus, invoice_id], (updateErr) => {
+                
+                // 👇 A MÁGICA: SÓ MANDA O RECIBO SE MUDOU PARA APROVADO AGORA 👇
+                if (currentStatus === 'approved' && oldStatus !== 'approved') {
+                    // Espera 2 segundinhos para o banco processar a atualização e dispara o PDF!
+                    setTimeout(() => {
+                        console.log(`🚀 Pagamento aprovado! Gerando recibo automático para a fatura ${invoice_id}`);
+                        enviarReciboPDF(invoice_id); 
+                    }, 2000);
+                }
+                // 👆 -------------------------------------------------------- 👆
+
+                res.json({ success: true, status: currentStatus });
+            });
         });
 
     } catch (error) {
@@ -3119,8 +3148,9 @@ app.post('/api/cici-macrodroid', express.json(), (req, res) => {
 const { ImapFlow } = require('imapflow');
 const simpleParser = require('mailparser').simpleParser;
 
-const EMAIL_USER = 'Comercialguineexpress245@gmail.com'; 
-const EMAIL_PASS = 'pzbqkufiwqyppovw'; 
+// ✅ CORREÇÃO: Usar variáveis de ambiente
+const EMAIL_USER = process.env.IMAP_USER;
+const EMAIL_PASS = process.env.IMAP_PASS;
 
 // Tiramos o "const" daqui para a Cicí poder reescrever o robô toda vez
 let clientImap; 
