@@ -4006,12 +4006,12 @@ function loadMoreReceipts() {
 }
 
 // ============================================================
-// 5. GERAR RECIBO A4 (DOWNLOAD DIRETO DE .PDF NO CELULAR)
+// 5. GERAR RECIBO A4 (DOWNLOAD DEFINITIVO PARA CELULAR E PC)
 // ============================================================
 async function printReceipt(boxId) {
-    // Aviso de carregamento na tela para o cliente não achar que travou
+    // 1. Mensagem de carregamento
     const loadingMsg = document.createElement('div');
-    loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando arquivo PDF...<br><small style="font-size:10px; margin-top:5px; display:block;">Aguarde o download automático.</small>';
+    loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando arquivo PDF...<br><small style="font-size:10px; margin-top:5px; display:block;">Aguarde, o download vai começar.</small>';
     loadingMsg.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#0a1931; color:#dfaf12; padding:20px; border-radius:10px; z-index:99999; font-weight:bold; font-family:sans-serif; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); width: 80%; max-width: 300px;';
     document.body.appendChild(loadingMsg);
 
@@ -4041,7 +4041,7 @@ async function printReceipt(boxId) {
         const stampColor = d.is_paid ? 'rgba(40, 167, 69, 0.25)' : 'rgba(220, 53, 69, 0.25)';
         const stampBorder = d.is_paid ? 'rgba(40, 167, 69, 0.4)' : 'rgba(216, 30, 49, 0.4)';
 
-        // O SEU HTML PERFEITO (Apenas removi a tag <script> do final que abria o print da tela)
+        // 2. MONTANDO O HTML DO RECIBO
         const receiptHTML = `
             <div style="width: 100%; max-width: 800px; background: #fff; padding: 20px; font-family: 'Roboto', sans-serif; color: #28425c; position: relative;">
                 <style>
@@ -4216,20 +4216,45 @@ async function printReceipt(boxId) {
             </div>
         `;
 
-        // CONFIGURAÇÃO DO HTML2PDF
+        // 3. O GRANDE TRUQUE PARA CELULARES
+        // Cria um elemento invisível real na tela (o html2pdf não falha com elementos reais)
+        const elementToPrint = document.createElement('div');
+        elementToPrint.innerHTML = receiptHTML;
+        elementToPrint.style.position = 'absolute';
+        elementToPrint.style.left = '-9999px'; // Joga para fora da tela
+        document.body.appendChild(elementToPrint);
+
+        const fileName = `Recibo_Guine_Box_${d.box_code}.pdf`;
+
         const opt = {
-            margin:       [0.2, 0.2, 0.2, 0.2], // Margens de segurança
-            filename:     `Recibo_Guine_Box_${d.box_code}.pdf`,
+            margin:       [0.2, 0.2, 0.2, 0.2],
+            filename:     fileName,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
             jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
 
-        // GERA O PDF E FORÇA O DOWNLOAD DIRETO (.save())
-        await html2pdf().set(opt).from(receiptHTML).save();
+        // Em vez de .save(), geramos o arquivo bruto (.output('blob'))
+        html2pdf().set(opt).from(elementToPrint).output('blob').then(function(pdfBlob) {
+            
+            // Cria um link falso e "clica" nele via código
+            const blobUrl = URL.createObjectURL(pdfBlob);
+            const downloadLink = document.createElement('a');
+            downloadLink.style.display = 'none';
+            downloadLink.href = blobUrl;
+            downloadLink.download = fileName;
+            
+            document.body.appendChild(downloadLink);
+            downloadLink.click(); // Força o clique no celular
 
-        // Remove a mensagem de carregamento da tela
-        document.body.removeChild(loadingMsg);
+            // Limpa tudo da tela depois de 1 segundo
+            setTimeout(() => {
+                document.body.removeChild(downloadLink);
+                document.body.removeChild(elementToPrint);
+                if (document.body.contains(loadingMsg)) document.body.removeChild(loadingMsg);
+                URL.revokeObjectURL(blobUrl); // Libera a memória do celular
+            }, 1000);
+        });
 
     } catch (e) {
         console.error(e);
