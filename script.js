@@ -4006,7 +4006,7 @@ function loadMoreReceipts() {
 }
 
 // ============================================================
-// 5. GERAR RECIBO A4 (DESIGN ULTRA PREMIUM VIP + TEXTOS ORIGINAIS)
+// 5. GERAR RECIBO A4 (VERSÃO BLINDADA PARA CELULARES)
 // ============================================================
 async function printReceipt(boxId) {
     try {
@@ -4067,7 +4067,7 @@ async function printReceipt(boxId) {
                         border-radius: 10px;
                         position: relative;
                         overflow: hidden;
-                        min-height: 950px; /* Força o PDF a não cortar o final */
+                        min-height: 950px; 
                     }
                     
                     .watermark {
@@ -4178,19 +4178,8 @@ async function printReceipt(boxId) {
                     .service-title { font-weight: 700; color: var(--azul-oficial); display: block; margin-bottom: 4px; font-size: 13px;}
                     .service-desc { font-size: 11px; color: #5c4242; }
 
-                    /* ======================================================== */
-                    /* --- ÁREA DE TOTAIS (CORRIGIDO PARA O CELULAR LER BEM) -- */
-                    /* ======================================================== */
-                    .checkout-area {
-                        text-align: right;
-                        margin-top: 20px;
-                        margin-bottom: 40px;
-                        width: 100%;
-                    }
-                    .totals-box { 
-                        display: inline-block; 
-                        width: 320px; 
-                    }
+                    .checkout-area { text-align: right; margin-top: 20px; margin-bottom: 40px; width: 100%; }
+                    .totals-box { display: inline-block; width: 320px; }
                     .total-pill {
                         background-color: #d32f2f;
                         color: #fff;
@@ -4203,22 +4192,9 @@ async function printReceipt(boxId) {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
-                    .total-pill span {
-                        display: table-cell;
-                        vertical-align: middle;
-                    }
-                    .total-pill-left {
-                        text-align: left;
-                        font-size: 14px; 
-                        font-weight: 700;
-                        text-transform: uppercase;
-                        letter-spacing: 1px;
-                    }
-                    .total-pill-right {
-                        text-align: right;
-                        font-size: 22px; 
-                        font-weight: 900;
-                    }
+                    .total-pill span { display: table-cell; vertical-align: middle; }
+                    .total-pill-left { text-align: left; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+                    .total-pill-right { text-align: right; font-size: 22px; font-weight: 900; }
 
                     .footer-terms { text-align: center; font-size: 11px; color: #886e6e; margin-bottom: 50px; padding: 0 40px; font-style: italic; }
                     .signatures { display: flex; justify-content: space-around; margin-top: 50px; padding-bottom: 20px; }
@@ -4361,12 +4337,11 @@ async function printReceipt(boxId) {
         `;
 
         // =========================================================================
-        // 🚀 LÓGICA DE GERAÇÃO: DOWNLOAD DIRETO E COMPATÍVEL COM CELULAR
+        // 🚀 LÓGICA DE TRIPLO FALLBACK (BLINDAGEM CONTRA BLOQUEIO DE CELULAR)
         // =========================================================================
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
         if (isMobile) {
-            // 1. O celular exige que o HTML exista fisicamente na tela (mesmo que invisível) para ler imagens e CSS
             const divInvisivel = document.createElement('div');
             divInvisivel.innerHTML = receiptHTML;
             divInvisivel.style.position = 'absolute';
@@ -4381,34 +4356,45 @@ async function printReceipt(boxId) {
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
-            // 2. Transforma em PDF e extrai o arquivo (Blob)
-            html2pdf().set(configuracaoPdf).from(divInvisivel).toPdf().get('pdf').then(async function(pdfObj) {
+            html2pdf().set(configuracaoPdf).from(divInvisivel).toPdf().get('pdf').then(function(pdfObj) {
                 const pdfBlob = pdfObj.output('blob');
-                document.body.removeChild(divInvisivel); // Limpa a sujeira
+                document.body.removeChild(divInvisivel);
                 
-                // 3. 🪄 MÁGICA: Tenta abrir a "Aba de Compartilhar" nativa do celular (WhatsApp, etc.)
                 const file = new File([pdfBlob], configuracaoPdf.filename, { type: 'application/pdf' });
-                
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    try {
-                        await navigator.share({
-                            files: [file],
-                            title: 'Recibo Guineexpress',
-                            text: 'Segue em anexo o recibo da sua encomenda.'
-                        });
-                    } catch (err) {
-                        console.log("Usuário fechou a aba de compartilhar sem enviar.");
-                    }
-                } else {
-                    // 4. Se o celular não suportar compartilhar direto, força o download seguro
-                    const blobUrl = URL.createObjectURL(pdfBlob);
+                const blobUrl = URL.createObjectURL(pdfBlob);
+
+                // FUNÇÃO INTERNA: O que fazer se o compartilhar falhar
+                function forcarDownloadOuAbrirPDF() {
+                    // ESTRATÉGIA 2: Download Clássico Oculto
                     const link = document.createElement('a');
                     link.href = blobUrl;
                     link.download = configuracaoPdf.filename;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
+
+                    // ESTRATÉGIA 3 (A MAIS IMPORTANTE): O Fallback Supremo
+                    // Se o iPhone bloquear o "click()" fantasma acima, nós redirecionamos
+                    // a tela do cliente direto pro arquivo PDF! Aí não tem como o celular bloquear.
+                    setTimeout(() => {
+                        window.location.href = blobUrl;
+                    }, 500);
                 }
+
+                // ESTRATÉGIA 1: Tenta abrir a "Aba de Compartilhar" do celular
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        files: [file],
+                        title: 'Recibo Guineexpress',
+                        text: 'Segue em anexo o recibo da sua encomenda.'
+                    }).catch(err => {
+                        console.log("Usuário cancelou o share ou o celular bloqueou.");
+                        forcarDownloadOuAbrirPDF();
+                    });
+                } else {
+                    forcarDownloadOuAbrirPDF();
+                }
+
             }).catch(e => {
                 console.error(e);
                 alert("Erro ao gerar recibo no celular: " + e.message);
@@ -4416,9 +4402,7 @@ async function printReceipt(boxId) {
             });
 
         } else {
-            // ==========================================
-            // LOGICA ORIGINAL DO COMPUTADOR FICA INTACTA
-            // ==========================================
+            // LÓGICA DO COMPUTADOR FICA INTACTA
             let printIframe = document.getElementById('print-iframe');
             if (!printIframe) {
                 printIframe = document.createElement('iframe');
