@@ -4006,28 +4006,21 @@ function loadMoreReceipts() {
 }
 
 // ============================================================
-// 5. GERAR RECIBO A4 (A SOLUÇÃO DEFINITIVA SEM TRAVAMENTOS)
+// 5. GERAR RECIBO A4 (DOWNLOAD DIRETO EM PDF PARA CELULAR E PC)
 // ============================================================
 async function printReceipt(boxId) {
-    let janelaRecibo = null;
-    
-    // Detecta se é celular. Celular não lida bem com abas fantasmas, vamos usar link direto!
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    if (!isMobile) {
-        // No PC, tenta abrir a aba antes para evitar bloqueio do navegador
-        janelaRecibo = window.open('', '_blank');
-        if (janelaRecibo) {
-            janelaRecibo.document.write('<h2 style="font-family:sans-serif; text-align:center; margin-top:50px; color:#0a1931;">Gerando seu recibo... Por favor, aguarde ⏳</h2>');
-        }
-    }
+    // 1. Mostrar aviso na tela para o cliente saber que está baixando (Evita cliques duplos)
+    const loadingMsg = document.createElement('div');
+    loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparando seu PDF... Aguarde.';
+    loadingMsg.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#0a1931; color:#dfaf12; padding:20px; border-radius:10px; z-index:99999; font-weight:bold; font-family:sans-serif; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); width: 80%; max-width: 300px;';
+    document.body.appendChild(loadingMsg);
 
     try {
         const res = await fetch(`/api/receipt-data/${boxId}`); 
         const response = await res.json();
         
         if (!response.success) {
-            if(janelaRecibo) janelaRecibo.close();
+            document.body.removeChild(loadingMsg);
             return alert("Erro ao buscar dados do recibo: " + (response.msg || 'Erro desconhecido'));
         }
 
@@ -4054,15 +4047,13 @@ async function printReceipt(boxId) {
             <html lang="pt">
             <head>
                 <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Recibo Guineexpress - ${d.box_code}</title>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Roboto:wght@400;500;700&display=swap');
-                    
                     :root { --azul-oficial: #0a1931; --dourado-luxo: #dfaf12; --vermelho-total: #d32f2f; --fundo-cards: #f4f6f9; --texto-escuro: #28425c; --borda-clara: #e1e8ed; }
                     body { font-family: 'Roboto', sans-serif; color: var(--texto-escuro); margin: 0; padding: 15px; background: #fff; }
                     .document-wrapper { border: 1px solid var(--borda-clara); padding: 25px; border-radius: 10px; position: relative; overflow: hidden; min-height: 950px; }
-                    .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 130px; font-family: 'Nunito', sans-serif; font-weight: 900; color: ${stampColor}; border: 8px solid ${stampBorder}; padding: 15px 60px; text-transform: uppercase; z-index: 9999; border-radius: 20px; pointer-events: none; letter-spacing: 10px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 130px; font-family: 'Nunito', sans-serif; font-weight: 900; color: ${stampColor}; border: 8px solid ${stampBorder}; padding: 15px 60px; text-transform: uppercase; z-index: 9999; border-radius: 20px; pointer-events: none; letter-spacing: 10px; }
                     .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 3px solid var(--fundo-cards); margin-bottom: 20px; }
                     .header-brand { display: flex; align-items: center; gap: 20px; }
                     .header-brand img { width: 90px; height: 90px; object-fit: contain; }
@@ -4070,34 +4061,34 @@ async function printReceipt(boxId) {
                     .brand-text p { margin: 3px 0 0 0; font-size: 11px; font-weight: 700; color: var(--dourado-luxo); letter-spacing: 0.5px;}
                     .header-contact { text-align: right; font-size: 11px; line-height: 1.6; color: #695a5a; }
                     .header-contact strong { color: var(--azul-oficial); font-size: 12px; }
-                    .title-bar { background: var(--azul-oficial); color: #fff; border-radius: 8px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(10, 25, 49, 0.15); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .title-bar { background: var(--azul-oficial); color: #fff; border-radius: 8px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
                     .title-bar h2 { margin: 0; font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--dourado-luxo); font-weight: 900; }
                     .title-info { display: flex; gap: 20px; }
                     .info-badge { border-left: 2px solid rgba(121, 85, 85, 0.2); padding-left: 15px; }
                     .info-badge span { display: block; font-size: 9px; color: var(--dourado-luxo); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
                     .info-badge strong { font-size: 14px; letter-spacing: 0.5px; }
                     .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
-                    .info-card { background: var(--fundo-cards); border-radius: 8px; border-top: 4px solid var(--azul-oficial); padding: 15px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .info-card { background: var(--fundo-cards); border-radius: 8px; border-top: 4px solid var(--azul-oficial); padding: 15px; }
                     .info-card h3 { margin: 0 0 12px 0; font-size: 13px; color: var(--azul-oficial); text-transform: uppercase; font-weight: 800; }
                     .data-row { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--borda-clara); padding: 6px 0; font-size: 11px; }
                     .data-row:last-child { border-bottom: none; }
                     .data-row span:first-child { font-weight: 700; color: #666; }
                     .data-row span:last-child { font-weight: 600; color: var(--texto-escuro); text-align: right; }
-                    .alert-receiver { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 8px; border-radius: 6px; margin-top: 8px; font-size: 11px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .alert-receiver { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 8px; border-radius: 6px; margin-top: 8px; font-size: 11px; }
                     .alert-receiver strong { color: #d32f2f; display: block; margin-bottom: 4px; font-size: 11px; }
                     .table-container { border-radius: 8px; overflow: hidden; border: 1px solid var(--borda-clara); margin-bottom: 30px; }
                     table { width: 100%; border-collapse: collapse; }
-                    th { background: var(--azul-oficial); color: var(--dourado-luxo); padding: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    th { background: var(--azul-oficial); color: var(--dourado-luxo); padding: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
                     th:not(:first-child) { text-align: center; }
                     th:first-child { text-align: left; }
                     td { padding: 12px; font-size: 12px; border-bottom: 1px solid var(--borda-clara); }
                     td:not(:first-child) { text-align: center; font-weight: 600; }
-                    tr:nth-child(even) { background-color: #fafbfc; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    tr:nth-child(even) { background-color: #fafbfc; }
                     .service-title { font-weight: 700; color: var(--azul-oficial); display: block; margin-bottom: 4px; font-size: 13px;}
                     .service-desc { font-size: 11px; color: #5c4242; }
                     .checkout-area { text-align: right; margin-top: 20px; margin-bottom: 40px; width: 100%; }
                     .totals-box { display: inline-block; width: 320px; }
-                    .total-pill { background-color: #d32f2f; color: #fff; padding: 12px 25px; border-radius: 30px; width: 100%; box-sizing: border-box; box-shadow: 0 5px 15px rgba(211, 47, 47, 0.3); display: table; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .total-pill { background-color: #d32f2f; color: #fff; padding: 12px 25px; border-radius: 30px; width: 100%; box-sizing: border-box; display: table; }
                     .total-pill span { display: table-cell; vertical-align: middle; }
                     .total-pill-left { text-align: left; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
                     .total-pill-right { text-align: right; font-size: 22px; font-weight: 900; }
@@ -4106,47 +4097,30 @@ async function printReceipt(boxId) {
                     .sign-box { width: 40%; text-align: center; }
                     .sign-line { border-bottom: 1px solid var(--texto-escuro); margin-bottom: 8px; height: 30px; }
                     .sign-box span { font-size: 12px; font-weight: 700; color: var(--texto-escuro); }
-                    @media print { body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } @page { size: A4 portrait; margin: 5mm; } }
                 </style>
             </head>
             <body>
                 <div class="document-wrapper">
                     <div class="watermark">${stampStatus}</div>
-
                     <div class="header">
                         <div class="header-brand">
                             <img src="${window.location.origin}/logo.png" alt="Logo">
                             <div class="brand-text">
-                                <h1>GUINEEXPRESS</h1>
-                                <p>AGENCIA DE LOGÍSTICA INTERNACIONAL</p>
+                                <h1>GUINEEXPRESS</h1><p>AGENCIA DE LOGÍSTICA INTERNACIONAL</p>
                             </div>
                         </div>
                         <div class="header-contact">
-                            <strong>Av. Tristão Gonçalves, 1203</strong><br>
-                            Centro - Fortaleza / CE<br>
-                            (85) 98239-207<br>
-                            Comercialguineexpress245@gmail.com
+                            <strong>Av. Tristão Gonçalves, 1203</strong><br>Centro - Fortaleza / CE<br>(85) 98239-207<br>Comercialguineexpress245@gmail.com
                         </div>
                     </div>
-
                     <div class="title-bar">
                         <h2>RECIBO DE ENCOMENDA</h2>
                         <div class="title-info">
-                            <div class="info-badge">
-                                <span>Box Nº</span>
-                                <strong>${d.box_code || '1'}</strong>
-                            </div>
-                            <div class="info-badge">
-                                <span>Ref</span>
-                                <strong>${d.order_code || '-'}</strong>
-                            </div>
-                            <div class="info-badge">
-                                <span>Emissão</span>
-                                <strong>${dataHoje}</strong>
-                            </div>
+                            <div class="info-badge"><span>Box Nº</span><strong>${d.box_code || '1'}</strong></div>
+                            <div class="info-badge"><span>Ref</span><strong>${d.order_code || '-'}</strong></div>
+                            <div class="info-badge"><span>Emissão</span><strong>${dataHoje}</strong></div>
                         </div>
                     </div>
-
                     <div class="cards-grid">
                         <div class="info-card">
                             <h3>DADOS DO CLIENTE</h3>
@@ -4155,16 +4129,14 @@ async function printReceipt(boxId) {
                             <div class="data-row"><span>Documento:</span> <span>${d.document || '-'}</span></div>
                             <div class="data-row"><span>Email:</span> <span>${d.email || '-'}</span></div>
                         </div>
-
                         <div class="info-card">
                             <h3>DADOS DO ENVIO</h3>
                             <div class="data-row"><span>Destino:</span> <span>Guiné-Bissau</span></div>
                             <div class="data-row"><span>Ref. Encomenda:</span> <span>${d.order_code || '-'}</span></div>
                             <div class="data-row"><span>Peso:</span> <span>${d.weight || '0'} kg</span></div>
-                            <div class="data-row"><span>Volumes (Qtd):</span> <span>${d.volumes || '1'} volume(s)</span></div>
+                            <div class="data-row"><span>Volumes:</span> <span>${d.volumes || '1'} vol(s)</span></div>
                             <div class="data-row"><span>Status:</span> <span>${d.order_status || 'Processando'}</span></div>
                         </div>
-
                         <div class="info-card">
                             <h3>RETIRADA EM GUINÉ-BISSAU</h3>
                             <div class="data-row"><span>Local:</span> <span>Rotunda de Nhonho</span></div>
@@ -4172,12 +4144,11 @@ async function printReceipt(boxId) {
                             <div class="data-row"><span>Contato:</span> <span>+245 956604423</span></div>
                             <div class="alert-receiver">
                                 <strong>AUTORIZADO A RETIRAR:</strong>
-                                👤 Nome: ${d.receiver_name ? d.receiver_name : 'O Próprio Cliente'}<br>
-                                📄 Bilhete: ${d.receiver_doc ? d.receiver_doc : '-'}
+                                👤 ${d.receiver_name ? d.receiver_name : 'O Próprio Cliente'}<br>
+                                📄 ${d.receiver_doc ? d.receiver_doc : '-'}
                             </div>
                         </div>
                     </div>
-
                     <div class="table-container">
                         <table>
                             <thead>
@@ -4189,25 +4160,18 @@ async function printReceipt(boxId) {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>
-                                        <span class="service-title">Frete Aéreo/Marítimo Internacional</span>
-                                        <span class="service-desc">Conteúdo: ${d.products || 'Diversos'}</span>
-                                    </td>
+                                    <td><span class="service-title">Frete Aéreo/Marítimo Internacional</span><span class="service-desc">Conteúdo: ${d.products || 'Diversos'}</span></td>
                                     <td>${d.weight || '0'} kg</td>
                                     <td style="text-align:right; padding-right:20px;">${valorFreteReais}</td>
                                 </tr>
                                 <tr>
-                                    <td>
-                                        <span class="service-title">Taxa de Despacho / Nota Fiscal</span>
-                                        <span class="service-desc">Impostos e taxas aduaneiras</span>
-                                    </td>
+                                    <td><span class="service-title">Taxa de Despacho / Nota Fiscal</span><span class="service-desc">Impostos e taxas aduaneiras</span></td>
                                     <td>-</td>
                                     <td style="text-align:right; padding-right:20px;">${valorNfReais}</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-
                     <div class="checkout-area">
                         <div class="totals-box">
                             <div class="total-pill">
@@ -4216,50 +4180,65 @@ async function printReceipt(boxId) {
                             </div>
                         </div>
                     </div>
-
                     <div class="footer-terms">
-                        Declaro que os itens acima listados foram conferidos na minha presença.<br>
-                        A Guineexpress não se responsabiliza por itens não conferidos no local da retirada.
+                        Declaro que os itens acima listados foram conferidos na minha presença.<br>A Guineexpress não se responsabiliza por itens não conferidos no local da retirada.
                     </div>
-
                     <div class="signatures">
-                        <div class="sign-box">
-                            <div class="sign-line"></div>
-                            <span>GUINEEXPRESS LOGÍSTICA</span>
-                        </div>
-                        <div class="sign-box">
-                            <div class="sign-line"></div>
-                            <span>ASSINATURA DO CLIENTE</span>
-                        </div>
+                        <div class="sign-box"><div class="sign-line"></div><span>GUINEEXPRESS LOGÍSTICA</span></div>
+                        <div class="sign-box"><div class="sign-line"></div><span>ASSINATURA DO CLIENTE</span></div>
                     </div>
                 </div>
-
-                <script>
-                    window.onload = function() {
-                        setTimeout(() => { window.print(); }, 800);
-                    };
-                </script>
             </body>
             </html>
         `;
 
-        if (janelaRecibo) {
-            // Se abriu a aba no PC
-            janelaRecibo.document.open();
-            janelaRecibo.document.write(receiptHTML);
-            janelaRecibo.document.close();
-        } else {
-            // 🚀 TRUQUE SUPREMO PARA O CELULAR (BLOB URL DIRETO)
-            // Transforma o HTML numa página web real na hora e MUDA a tela atual do cliente!
-            // O cliente vai ver o recibo em tela cheia, vai gerar o PDF, e depois é só ele apertar "Voltar" no celular.
-            const blob = new Blob([receiptHTML], { type: 'text/html;charset=utf-8' });
-            const blobUrl = URL.createObjectURL(blob);
-            window.location.href = blobUrl;
-        }
+        // 2. Coloca o HTML escondido na tela com tamanho de PC (evita que o PDF do celular fique amassado)
+        const divInvisivel = document.createElement('div');
+        divInvisivel.innerHTML = receiptHTML;
+        divInvisivel.style.position = 'absolute';
+        divInvisivel.style.left = '-9999px';
+        divInvisivel.style.top = '-9999px';
+        divInvisivel.style.width = '800px'; 
+        document.body.appendChild(divInvisivel);
+
+        // 3. Manda gerar e baixar automaticamente!
+        const config = {
+            margin:       [0.2, 0.2, 0.2, 0.2],
+            filename:     `Recibo_Guineexpress_Box_${d.box_code}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(config).from(divInvisivel).toPdf().get('pdf').then(function(pdfObj) {
+            const pdfBlob = pdfObj.output('blob');
+            const blobUrl = URL.createObjectURL(pdfBlob);
+
+            // MÁGICA DO DOWNLOAD DIRETO: Cria um link fantasma e clica nele!
+            const linkDownload = document.createElement('a');
+            linkDownload.href = blobUrl;
+            linkDownload.download = config.filename;
+            document.body.appendChild(linkDownload);
+            linkDownload.click(); // Celular vai baixar aqui!
+
+            // Limpeza da bagunça
+            setTimeout(() => {
+                document.body.removeChild(linkDownload);
+                document.body.removeChild(divInvisivel);
+                document.body.removeChild(loadingMsg);
+                URL.revokeObjectURL(blobUrl);
+            }, 1000);
+
+        }).catch(err => {
+            console.error("Erro no PDF: ", err);
+            document.body.removeChild(loadingMsg);
+            if(document.body.contains(divInvisivel)) document.body.removeChild(divInvisivel);
+            alert("Erro ao gerar arquivo PDF.");
+        });
 
     } catch (e) {
         console.error(e);
-        if (janelaRecibo) janelaRecibo.close();
+        document.body.removeChild(loadingMsg);
         alert("Erro de conexão ao tentar gerar o recibo.");
     }
 }
