@@ -152,11 +152,11 @@ async function enviarReciboPDF(invoiceId) {
 
         // 1. CABEÇALHO E LOGO (CORREÇÃO DE CAMINHO PARA O RENDER)
         try {
-            // O sistema vai procurar a logo em todas as pastas possíveis da nuvem
+            // 👇 Caminhos atualizados para achar a logo dentro da pasta public! 👇
             const possiblePaths = [
-                path.join(__dirname, 'logo.png'),
                 path.join(__dirname, 'public', 'logo.png'),
-                path.join(process.cwd(), 'logo.png')
+                path.join(process.cwd(), 'public', 'logo.png'),
+                path.join(__dirname, 'logo.png')
             ];
             
             let logoFound = false;
@@ -167,7 +167,7 @@ async function enviarReciboPDF(invoiceId) {
                     break;
                 }
             }
-            if (!logoFound) console.log("⚠️ Logo não encontrada nos caminhos de busca do servidor.");
+            if (!logoFound) console.log("⚠️ Logo não encontrada nos caminhos: ", possiblePaths);
         } catch(e) { console.log("Aviso: Falha ao desenhar a logo.", e); }
 
         doc.fillColor(azulOficial).fontSize(24).font('Helvetica-Bold').text('GUINEEXPRESS', 115, 45, { letterSpacing: 1.5 });
@@ -177,7 +177,7 @@ async function enviarReciboPDF(invoiceId) {
            .text('Av. Tristão Gonçalves, 1203', 0, 45, { align: 'right' })
            .text('Centro - Fortaleza / CE', { align: 'right' })
            .text('(85) 98239-207', { align: 'right' })
-           .text('Comercialguineexpress245@gmail.com', { align: 'right' });
+           .text('comercialguineexpress245@gmail.com', { align: 'right' });
 
         // Linha divisória
         doc.moveTo(40, 110).lineTo(555, 110).lineWidth(2).strokeColor(cinzaClaro).stroke();
@@ -287,11 +287,15 @@ async function enviarReciboPDF(invoiceId) {
         // 7. CARIMBO DE "PAGO" (MÁGICA CORRIGIDA)
         // =========================================================
         // Agora ele identifica "pago", "Pago", "paid" ou is_paid ativo do banco de dados!
+       // =========================================================
+        // 7. CARIMBO DE "PAGO" (MÁGICA CORRIGIDA)
+        // =========================================================
         const statusStr = String(fatura.status || '').toLowerCase();
-        const isPaid = (statusStr === 'pago' || statusStr === 'paid' || fatura.is_paid == 1 || fatura.is_paid === true);
+        // 👇 ADICIONEI O 'approved' AQUI NA LISTA 👇
+        const isPaid = (statusStr === 'pago' || statusStr === 'paid' || statusStr === 'approved' || fatura.is_paid == 1 || fatura.is_paid === true);
         
         const stampText = isPaid ? 'PAGO' : 'PENDENTE';
-        const stampColor = isPaid ? '#28a745' : '#dc3545'; // Verde(PAGO) ou Vermelho(PENDENTE)
+        const stampColor = isPaid ? '#28a745' : '#dc3545';
 
         doc.save();
         doc.fillOpacity(0.3); // Define a transparência (leve)

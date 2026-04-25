@@ -9,6 +9,7 @@ let currentBlob = null;
 let itensNoCarrinho = []; 
 let produtosOriginais = [];
 let meuGraficoEstoque = null;
+window.verHistoricoCompleto = false;
 // COLOQUE AQUI: Configuração global de cotação das moedas
 const COTACAO = {
     XOF: 1,        // Franco CFA (Base)
@@ -2648,7 +2649,7 @@ async function loadClientVideos(loteFiltro = '') {
             list = list.filter(v => (v.lote || v.order_code || 'Sem Lote') === loteFiltro);
         }
         // 👇 AQUI ESTÁ A CORREÇÃO DA MÁGICA DO HISTÓRICO 👇
-        if (!verHistoricoCompleto) {
+        if (!window.verHistoricoCompleto) {
             // Nota: Confirme se a sua tabela de vídeos traz o status da encomenda! 
             list = list.filter(v => v.status !== 'Entregue'); 
         }
@@ -2924,6 +2925,13 @@ async function loadClientBoxesForBilling(clientId) {
     clientBoxes.forEach(b => {
         // Guarda peso e descrição nos atributos para calcular preço
         const weight = b.order_weight || 0; // Pega o peso da encomenda vinculada
+        // 👇 O PORTEIRO DAS ENCOMENDAS 👇
+        const statusBox = String(box.status || order.status || '').toLowerCase();
+        
+        if (!window.verHistoricoCompleto && statusBox === 'entregue') {
+            return; // Se não é pra ver histórico e já foi Entregue, PULA e esconde!
+        }
+        // 👆 ------------------------ 👆
         const desc = b.products || `Box ${b.box_code}`;
         boxSel.innerHTML += `<option value="${b.id}" data-weight="${weight}" data-desc="${desc}">
             ${b.box_code} (${weight} Kg)
@@ -3048,14 +3056,19 @@ async function loadClientInvoices(loteFiltro = '') {
 
         // 🧠 MÁGICA DO FILTRO: Se tiver lote selecionado, esconde as outras faturas!
         if (loteFiltro && loteFiltro !== '') {
-            // Se a fatura não tem lote, nós assumimos que é 'Sem Lote'
             list = list.filter(inv => (inv.lote || 'Sem Lote') === loteFiltro);
         }
-           // 👇 AQUI ENTRA A NOSSA NOVA MÁGICA DO HISTÓRICO 👇
-        // Se o cliente NÃO clicou em ver histórico, nós escondemos as faturas já pagas/concluídas ('approved')
-        if (!verHistoricoCompleto) {
-            list = list.filter(inv => inv.status !== 'approved'); 
+
+        // 👇 A MÁGICA DO HISTÓRICO CORRIGIDA E DEFINITIVA 👇
+        if (!window.verHistoricoCompleto) {
+            list = list.filter(inv => {
+                const statusStr = String(inv.status || '').toLowerCase();
+                const isPago = (statusStr === 'pago' || statusStr === 'approved' || statusStr === 'paid');
+                return !isPago; // Só deixa passar e aparecer na tela se NÃO estiver pago!
+            });
         }
+        // 👆 --------------------------------------------- 👆
+
         tbody.innerHTML = '';
         if(list.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente ${loteFiltro ? 'para este envio' : ''}.</td></tr>`;
@@ -3849,7 +3862,7 @@ async function loadReceipts() {
             boxes = boxes.filter(b => b.client_id === currentUser.id);
         }
           // 👇 A MÁGICA PARA ESCONDER AS CAIXAS ENTREGUES 👇
-            if (!verHistoricoCompleto) {
+            if (!window.verHistoricoCompleto) {
                 // Ele esconde as caixas que o pedido já foi 'Entregue'
                 boxes = boxes.filter(b => b.order_status !== 'Entregue' && b.status !== 'Entregue');
             }
@@ -9124,24 +9137,51 @@ window.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // MODO HISTÓRICO PARA O CLIENTE
 // ==========================================
-let verHistoricoCompleto = false;
 
-function alternarHistorico() {
-    verHistoricoCompleto = !verHistoricoCompleto; // Liga e desliga
+
+window.alternarHistorico = function() {
+    window.verHistoricoCompleto = !window.verHistoricoCompleto; // Liga e desliga
     
     const btn = document.getElementById('btnToggleHistory');
-    if (verHistoricoCompleto) {
+    if (window.verHistoricoCompleto) {
         btn.innerHTML = '<i class="fas fa-eye-slash"></i> Ocultar Histórico';
-        btn.style.background = '#0a1931'; // Fica azul escuro
+        btn.style.background = '#0a1931';
     } else {
         btn.innerHTML = '<i class="fas fa-history"></i> Mostrar Histórico (Entregues)';
-        btn.style.background = '#6c757d'; // Fica cinza
+        btn.style.background = '#6c757d';
     }
     
-    // Recarrega as listas da tela para aplicar ou tirar o filtro!
-    // (Abaixo você coloca as funções que carregam os dados no seu painel)
-    loadClientInvoices();
-    // Se você tiver loadBoxes(), loadVideos(), coloque aqui também:
-    // loadBoxes();
-    // loadVideos();
+    // 👇 ATUALIZA TUDO NA TELA QUANDO APERTAR O BOTÃO 👇
+    if (typeof loadClientInvoices === 'function') loadClientInvoices();
+    if (typeof loadOrders === 'function') loadOrders(); // Ou a função que carrega as Boxes
+    if (typeof loadClientVideos === 'function') loadClientVideos();
+    if (typeof loadReceipts === 'function') loadReceipts();
+}
+// ==========================================
+// FUNÇÃO PARA PESQUISAR RECIBOS AO VIVO
+// ==========================================
+window.filtrarRecibos = function() {
+    // 1. Pega o que o usuário digitou e deixa tudo minúsculo
+    const termo = document.getElementById('inputPesquisaRecibo').value.toLowerCase();
+    
+    // 2. Procura a lista onde os recibos são desenhados 
+    // ⚠️ ATENÇÃO: Troque 'receipts-list' pelo ID real da sua div de recibos, se for diferente!
+    const listaRecibos = document.getElementById('receipts-list'); 
+    
+    if (!listaRecibos) return; // Se não achar a lista, não faz nada
+
+    // 3. Pega todos os "cards" (filhos) que estão dentro da lista
+    const cards = listaRecibos.children;
+
+    // 4. Passa por cada card para ver se tem a palavra digitada
+    for (let i = 0; i < cards.length; i++) {
+        const textoDoCard = cards[i].innerText.toLowerCase();
+        
+        // Se o texto do card tem o termo digitado, mostra. Se não, esconde!
+        if (textoDoCard.includes(termo)) {
+            cards[i].style.display = ""; 
+        } else {
+            cards[i].style.display = "none"; 
+        }
+    }
 }

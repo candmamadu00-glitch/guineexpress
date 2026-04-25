@@ -1130,19 +1130,27 @@
         </section>
 
         <section id="receipts-view" class="hidden">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <h3><i class="fas fa-file-invoice"></i> Recibos e Comprovantes</h3>
-                </div>
-                <p style="color:#666; font-size:13px; margin-bottom:15px;">
-                    Recibos gerados automaticamente a partir das Boxes cadastradas.
-                </p>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3><i class="fas fa-file-invoice"></i> Recibos e Comprovantes</h3>
+        </div>
+        <p style="color:#666; font-size:13px; margin-bottom:15px;">
+            Recibos gerados automaticamente a partir das Boxes cadastradas.
+        </p>
 
-                <div style="margin-bottom: 20px;">
-                    <select id="receipts-lot-filter" onchange="loadReceipts()" class="form-control" style="width: 100%; max-width: 400px; padding: 10px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; color: #0a1931;">
-                        <option value="">📦 Todos os Envios/Lotes</option>
-                    </select>
-                </div>
+        <div style="margin-bottom: 15px;">
+            <select id="receipts-lot-filter" onchange="loadReceipts()" class="form-control" style="width: 100%; max-width: 400px; padding: 10px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; color: #0a1931;">
+                <option value="">📦 Todos os Envios/Lotes</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <div style="position: relative; width: 100%;">
+                <i class="fas fa-search" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #6c757d;"></i>
+                <input type="text" id="inputPesquisaRecibo" oninput="filtrarRecibos()" placeholder="Pesquisar número do Box, descrição ou lote..." 
+                       style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 25px; border: 1px solid #e1e8ed; font-size: 14px; outline: none; box-shadow: 0 2px 5px rgba(0,0,0,0.05); box-sizing: border-box;">
+            </div>
+        </div>
 
                 <div style="overflow-x:auto;">
                     <table class="data-table">
@@ -1357,7 +1365,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="script.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { 
             if(typeof initDashboard === 'function') initDashboard(); 
@@ -1558,7 +1565,7 @@ async function verificarConflitoDeValor(event) {
     }
 }
 </script>
-<script src="meu-script-ofuscado.js"></script>
+<script src="script.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
