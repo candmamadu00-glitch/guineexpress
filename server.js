@@ -40,12 +40,14 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
-            // 👇 ESTA É A LINHA MÁGICA QUE RESOLVE O SEU ERRO ATUAL:
             scriptSrcAttr: ["'unsafe-inline'"], 
-            // ... dentro do helmet ...
-            connectSrc: ["'self'", "https://api.google.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
+            
+            // 👇 LIBERAMOS O UI-AVATARS AQUI PARA O SW.JS PODER BAIXAR A IMAGEM:
+            connectSrc: ["'self'", "https://api.google.com", "https://unpkg.com", "https://cdn.jsdelivr.net", "https://ui-avatars.com"],
 
-            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            // 👇 E GARANTIMOS ELE AQUI TAMBÉM SÓ POR PRECAUÇÃO:
+            imgSrc: ["'self'", "data:", "blob:", "https:", "https://ui-avatars.com"],
+            
             workerSrc: ["'self'", "blob:"]
         }
     }
