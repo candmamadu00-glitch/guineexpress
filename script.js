@@ -2950,10 +2950,11 @@ async function loadClientBoxesForBilling(clientId) {
             // 👇 O PORTEIRO DAS ENCOMENDAS (AGORA USANDO A LETRA 'b' CORRETA) 👇
             const statusBox = String(b.status || '').toLowerCase();
             
-            if (!window.verHistoricoCompleto && (statusBox === 'entregue' || statusBox === 'pago')) {
-                return; // Se não é pra ver histórico e já foi Entregue ou Pago, PULA e esconde!
-            }
-            // 👆 ------------------------ 👆
+            // 👇 A MÁGICA CORRIGIDA: O Administrador vê sempre tudo! Só esconde se for CLIENTE. 👇
+if (currentUser && currentUser.role === 'client' && !window.verHistoricoCompleto) {
+    boxes = boxes.filter(b => String(b.order_status).toLowerCase() !== 'entregue' && String(b.status).toLowerCase() !== 'entregue');
+}
+// 👆 ------------------------------------------ 👆
 
             const desc = b.products || `Box ${b.box_code}`;
             boxSel.innerHTML += `<option value="${b.id}" data-weight="${weight}" data-desc="${desc}">
@@ -3889,12 +3890,11 @@ async function loadReceipts() {
         if (currentUser && currentUser.role === 'client') {
             boxes = boxes.filter(b => b.client_id === currentUser.id);
         }
-          // 👇 A MÁGICA PARA ESCONDER AS CAIXAS ENTREGUES 👇
-            if (!window.verHistoricoCompleto) {
-                // Ele esconde as caixas que o pedido já foi 'Entregue'
-                boxes = boxes.filter(b => b.order_status !== 'Entregue' && b.status !== 'Entregue');
-            }
-            // 👆 ------------------------------------------ 👆
+          // 👇 A MÁGICA CORRIGIDA: O Administrador vê sempre tudo! Só esconde se for CLIENTE. 👇
+if (currentUser && currentUser.role === 'client' && !window.verHistoricoCompleto) {
+    boxes = boxes.filter(b => String(b.order_status).toLowerCase() !== 'entregue' && String(b.status).toLowerCase() !== 'entregue');
+}
+// 👆 ------------------------------------------ 👆
         
         if (boxes.length === 0) {
             list.innerHTML = '<tr><td colspan="6" align="center">Nenhum recibo disponível.</td></tr>';
@@ -4006,14 +4006,21 @@ function loadMoreReceipts() {
 }
 
 // ============================================================
-// 5. GERAR RECIBO A4 (VERSÃO BLINDADA PARA CELULARES)
+// 5. GERAR RECIBO A4 (A SOLUÇÃO DEFINITIVA SEM TRAVAMENTOS)
 // ============================================================
 async function printReceipt(boxId) {
+    // 🚀 TRUQUE MESTRE 1: Abre a aba ANTES de buscar os dados para o celular não bloquear (Popup Blocker)
+    let janelaRecibo = window.open('', '_blank');
+    if (janelaRecibo) {
+        janelaRecibo.document.write('<h2 style="font-family:sans-serif; text-align:center; margin-top:50px; color:#0a1931;">Gerando seu recibo... Por favor, aguarde ⏳</h2>');
+    }
+
     try {
         const res = await fetch(`/api/receipt-data/${boxId}`); 
         const response = await res.json();
         
         if (!response.success) {
+            if(janelaRecibo) janelaRecibo.close();
             return alert("Erro ao buscar dados do recibo: " + (response.msg || 'Erro desconhecido'));
         }
 
@@ -4336,84 +4343,27 @@ async function printReceipt(boxId) {
             </html>
         `;
 
-        // =========================================================================
-        // 🚀 LÓGICA DE TRIPLO FALLBACK (BLINDAGEM CONTRA BLOQUEIO DE CELULAR)
-        // =========================================================================
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-        if (isMobile) {
-            const divInvisivel = document.createElement('div');
-            divInvisivel.innerHTML = receiptHTML;
-            divInvisivel.style.position = 'absolute';
-            divInvisivel.style.left = '-9999px';
-            document.body.appendChild(divInvisivel);
-
-            const configuracaoPdf = {
-                margin:       [0.1, 0.1, 0.5, 0.1], 
-                filename:     `Recibo_Guineexpress_${d.box_code || '00'}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
-                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-            };
-
-            html2pdf().set(configuracaoPdf).from(divInvisivel).toPdf().get('pdf').then(function(pdfObj) {
-                const pdfBlob = pdfObj.output('blob');
-                document.body.removeChild(divInvisivel);
-                
-                const file = new File([pdfBlob], configuracaoPdf.filename, { type: 'application/pdf' });
-                const blobUrl = URL.createObjectURL(pdfBlob);
-
-                // FUNÇÃO INTERNA: O que fazer se o compartilhar falhar
-                function forcarDownloadOuAbrirPDF() {
-                    // ESTRATÉGIA 2: Download Clássico Oculto
-                    const link = document.createElement('a');
-                    link.href = blobUrl;
-                    link.download = configuracaoPdf.filename;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
-                    // ESTRATÉGIA 3 (A MAIS IMPORTANTE): O Fallback Supremo
-                    // Se o iPhone bloquear o "click()" fantasma acima, nós redirecionamos
-                    // a tela do cliente direto pro arquivo PDF! Aí não tem como o celular bloquear.
-                    setTimeout(() => {
-                        window.location.href = blobUrl;
-                    }, 500);
-                }
-
-                // ESTRATÉGIA 1: Tenta abrir a "Aba de Compartilhar" do celular
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({
-                        files: [file],
-                        title: 'Recibo Guineexpress',
-                        text: 'Segue em anexo o recibo da sua encomenda.'
-                    }).catch(err => {
-                        console.log("Usuário cancelou o share ou o celular bloqueou.");
-                        forcarDownloadOuAbrirPDF();
-                    });
-                } else {
-                    forcarDownloadOuAbrirPDF();
-                }
-
-            }).catch(e => {
-                console.error(e);
-                alert("Erro ao gerar recibo no celular: " + e.message);
-                if (document.body.contains(divInvisivel)) document.body.removeChild(divInvisivel);
-            });
-
+        if (janelaRecibo) {
+            // Se conseguiu abrir a aba nova (Celular e PC moderno)
+            janelaRecibo.document.open();
+            janelaRecibo.document.write(receiptHTML);
+            janelaRecibo.document.close();
+            
+            // O celular vai abrir a tela nativa de gerar PDF/Imprimir onde o cliente pode mandar pro WhatsApp!
+            setTimeout(() => {
+                janelaRecibo.focus();
+                janelaRecibo.print();
+            }, 800);
         } else {
-            // LÓGICA DO COMPUTADOR FICA INTACTA
+            // PLANO B: Se o navegador for muito antigo e bloquear a aba nova
+            // Usa a técnica do Iframe invisível (Garante que funciona no PC e celulares antigos)
             let printIframe = document.getElementById('print-iframe');
             if (!printIframe) {
                 printIframe = document.createElement('iframe');
                 printIframe.id = 'print-iframe';
-                printIframe.style.position = 'absolute';
-                printIframe.style.width = '0px';
-                printIframe.style.height = '0px';
-                printIframe.style.border = 'none';
+                printIframe.style.cssText = 'position:absolute; width:0px; height:0px; border:none;';
                 document.body.appendChild(printIframe);
             }
-
             const iframeDoc = printIframe.contentWindow.document;
             iframeDoc.open();
             iframeDoc.write(receiptHTML);
@@ -4427,7 +4377,8 @@ async function printReceipt(boxId) {
 
     } catch (e) {
         console.error(e);
-        alert("Erro ao gerar recibo: " + e.message);
+        if (janelaRecibo) janelaRecibo.close();
+        alert("Erro de conexão ao tentar gerar o recibo.");
     }
 }
 // ==========================================
