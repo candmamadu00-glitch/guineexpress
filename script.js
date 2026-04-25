@@ -4006,30 +4006,19 @@ function loadMoreReceipts() {
 }
 
 // ============================================================
-// 5. GERAR RECIBO A4 (DOWNLOAD DIRETO EM PDF PARA CELULAR E PC)
+// 5. GERAR RECIBO A4 (DOWNLOAD DIRETO PDF - VERSÃO OFICIAL)
 // ============================================================
 async function printReceipt(boxId) {
-    // 1. Mostrar aviso na tela para o cliente saber que está baixando
+    // 1. Aviso de carregamento na tela
     const loadingMsg = document.createElement('div');
-    loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparando seu PDF... Aguarde.';
+    loadingMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparando o PDF...<br><small style="font-size:10px; font-weight:normal; margin-top:5px; display:block;">Isso pode levar alguns segundos.</small>';
     loadingMsg.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#0a1931; color:#dfaf12; padding:20px; border-radius:10px; z-index:99999; font-weight:bold; font-family:sans-serif; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); width: 80%; max-width: 300px;';
     document.body.appendChild(loadingMsg);
 
-    // 🌟 A MÁGICA SALVADORA: Se o celular não tiver carregado o html2pdf, nós injetamos à força!
+    // 2. Proteção: Verifica se a biblioteca de PDF existe na página
     if (typeof html2pdf === 'undefined') {
-        console.log("Biblioteca html2pdf não encontrada. Injetando dinamicamente...");
-        try {
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-                script.onload = resolve;
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-        } catch (e) {
-            document.body.removeChild(loadingMsg);
-            return alert("Erro ao conectar com o gerador de PDF. Tente novamente.");
-        }
+        document.body.removeChild(loadingMsg);
+        return alert("Erro: O sistema não encontrou o gerador de PDF. Verifique se o html2pdf.js está no cabeçalho do site.");
     }
 
     try {
@@ -4058,203 +4047,129 @@ async function printReceipt(boxId) {
         const stampColor = d.is_paid ? 'rgba(40, 167, 69, 0.25)' : 'rgba(220, 53, 69, 0.25)';
         const stampBorder = d.is_paid ? 'rgba(40, 167, 69, 0.4)' : 'rgba(216, 30, 49, 0.4)';
 
-        // MONTANDO O HTML EXCLUSIVO DA IMPRESSÃO
+        // 3. MONTANDO O HTML EXCLUSIVO DA IMPRESSÃO (Tudo numa string)
         const receiptHTML = `
-            <!DOCTYPE html>
-            <html lang="pt">
-            <head>
-                <meta charset="UTF-8">
-                <title>Recibo Guineexpress - ${d.box_code}</title>
-                <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Roboto:wght@400;500;700&display=swap');
-                    :root { --azul-oficial: #0a1931; --dourado-luxo: #dfaf12; --vermelho-total: #d32f2f; --fundo-cards: #f4f6f9; --texto-escuro: #28425c; --borda-clara: #e1e8ed; }
-                    body { font-family: 'Roboto', sans-serif; color: var(--texto-escuro); margin: 0; padding: 15px; background: #fff; }
-                    .document-wrapper { border: 1px solid var(--borda-clara); padding: 25px; border-radius: 10px; position: relative; overflow: hidden; min-height: 950px; }
-                    .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 130px; font-family: 'Nunito', sans-serif; font-weight: 900; color: ${stampColor}; border: 8px solid ${stampBorder}; padding: 15px 60px; text-transform: uppercase; z-index: 9999; border-radius: 20px; pointer-events: none; letter-spacing: 10px; }
-                    .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 3px solid var(--fundo-cards); margin-bottom: 20px; }
-                    .header-brand { display: flex; align-items: center; gap: 20px; }
-                    .header-brand img { width: 90px; height: 90px; object-fit: contain; }
-                    .brand-text h1 { margin: 0; font-family: 'Nunito', sans-serif; font-size: 28px; color: var(--azul-oficial); font-weight: 900; letter-spacing: 1.5px;}
-                    .brand-text p { margin: 3px 0 0 0; font-size: 11px; font-weight: 700; color: var(--dourado-luxo); letter-spacing: 0.5px;}
-                    .header-contact { text-align: right; font-size: 11px; line-height: 1.6; color: #695a5a; }
-                    .header-contact strong { color: var(--azul-oficial); font-size: 12px; }
-                    .title-bar { background: var(--azul-oficial); color: #fff; border-radius: 8px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-                    .title-bar h2 { margin: 0; font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--dourado-luxo); font-weight: 900; }
-                    .title-info { display: flex; gap: 20px; }
-                    .info-badge { border-left: 2px solid rgba(121, 85, 85, 0.2); padding-left: 15px; }
-                    .info-badge span { display: block; font-size: 9px; color: var(--dourado-luxo); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
-                    .info-badge strong { font-size: 14px; letter-spacing: 0.5px; }
-                    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
-                    .info-card { background: var(--fundo-cards); border-radius: 8px; border-top: 4px solid var(--azul-oficial); padding: 15px; }
-                    .info-card h3 { margin: 0 0 12px 0; font-size: 13px; color: var(--azul-oficial); text-transform: uppercase; font-weight: 800; }
-                    .data-row { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--borda-clara); padding: 6px 0; font-size: 11px; }
-                    .data-row:last-child { border-bottom: none; }
-                    .data-row span:first-child { font-weight: 700; color: #666; }
-                    .data-row span:last-child { font-weight: 600; color: var(--texto-escuro); text-align: right; }
-                    .alert-receiver { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 8px; border-radius: 6px; margin-top: 8px; font-size: 11px; }
-                    .alert-receiver strong { color: #d32f2f; display: block; margin-bottom: 4px; font-size: 11px; }
-                    .table-container { border-radius: 8px; overflow: hidden; border: 1px solid var(--borda-clara); margin-bottom: 30px; }
-                    table { width: 100%; border-collapse: collapse; }
-                    th { background: var(--azul-oficial); color: var(--dourado-luxo); padding: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-                    th:not(:first-child) { text-align: center; }
-                    th:first-child { text-align: left; }
-                    td { padding: 12px; font-size: 12px; border-bottom: 1px solid var(--borda-clara); }
-                    td:not(:first-child) { text-align: center; font-weight: 600; }
-                    tr:nth-child(even) { background-color: #fafbfc; }
-                    .service-title { font-weight: 700; color: var(--azul-oficial); display: block; margin-bottom: 4px; font-size: 13px;}
-                    .service-desc { font-size: 11px; color: #5c4242; }
-                    .checkout-area { text-align: right; margin-top: 20px; margin-bottom: 40px; width: 100%; }
-                    .totals-box { display: inline-block; width: 320px; }
-                    .total-pill { background-color: #d32f2f; color: #fff; padding: 12px 25px; border-radius: 30px; width: 100%; box-sizing: border-box; display: table; }
-                    .total-pill span { display: table-cell; vertical-align: middle; }
-                    .total-pill-left { text-align: left; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-                    .total-pill-right { text-align: right; font-size: 22px; font-weight: 900; }
-                    .footer-terms { text-align: center; font-size: 11px; color: #886e6e; margin-bottom: 50px; padding: 0 40px; font-style: italic; }
-                    .signatures { display: flex; justify-content: space-around; margin-top: 50px; padding-bottom: 20px; }
-                    .sign-box { width: 40%; text-align: center; }
-                    .sign-line { border-bottom: 1px solid var(--texto-escuro); margin-bottom: 8px; height: 30px; }
-                    .sign-box span { font-size: 12px; font-weight: 700; color: var(--texto-escuro); }
-                </style>
-            </head>
-            <body>
-                <div class="document-wrapper">
-                    <div class="watermark">${stampStatus}</div>
-                    <div class="header">
-                        <div class="header-brand">
-                            <img src="${window.location.origin}/logo.png" alt="Logo">
-                            <div class="brand-text">
-                                <h1>GUINEEXPRESS</h1><p>AGENCIA DE LOGÍSTICA INTERNACIONAL</p>
-                            </div>
-                        </div>
-                        <div class="header-contact">
-                            <strong>Av. Tristão Gonçalves, 1203</strong><br>Centro - Fortaleza / CE<br>(85) 98239-207<br>Comercialguineexpress245@gmail.com
+            <div style="font-family: 'Arial', sans-serif; color: #28425c; padding: 20px; background: #fff; width: 100%; max-width: 800px; margin: 0 auto; position: relative;">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 100px; font-weight: 900; color: ${stampColor}; border: 6px solid ${stampBorder}; padding: 15px 40px; text-transform: uppercase; z-index: 0; border-radius: 15px; letter-spacing: 5px;">${stampStatus}</div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f4f6f9; padding-bottom: 20px; margin-bottom: 20px; position: relative; z-index: 1;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <img src="${window.location.origin}/logo.png" alt="Logo" style="width: 80px; height: 80px; object-fit: contain;">
+                        <div>
+                            <h1 style="margin: 0; font-size: 24px; color: #0a1931; font-weight: 900; letter-spacing: 1px;">GUINEEXPRESS</h1>
+                            <p style="margin: 3px 0 0 0; font-size: 10px; font-weight: bold; color: #dfaf12;">AGENCIA DE LOGÍSTICA INTERNACIONAL</p>
                         </div>
                     </div>
-                    <div class="title-bar">
-                        <h2>RECIBO DE ENCOMENDA</h2>
-                        <div class="title-info">
-                            <div class="info-badge"><span>Box Nº</span><strong>${d.box_code || '1'}</strong></div>
-                            <div class="info-badge"><span>Ref</span><strong>${d.order_code || '-'}</strong></div>
-                            <div class="info-badge"><span>Emissão</span><strong>${dataHoje}</strong></div>
-                        </div>
-                    </div>
-                    <div class="cards-grid">
-                        <div class="info-card">
-                            <h3>DADOS DO CLIENTE</h3>
-                            <div class="data-row"><span>Nome:</span> <span>${d.client_name || 'Cliente'}</span></div>
-                            <div class="data-row"><span>Telefone:</span> <span>${d.phone || '-'}</span></div>
-                            <div class="data-row"><span>Documento:</span> <span>${d.document || '-'}</span></div>
-                            <div class="data-row"><span>Email:</span> <span>${d.email || '-'}</span></div>
-                        </div>
-                        <div class="info-card">
-                            <h3>DADOS DO ENVIO</h3>
-                            <div class="data-row"><span>Destino:</span> <span>Guiné-Bissau</span></div>
-                            <div class="data-row"><span>Ref. Encomenda:</span> <span>${d.order_code || '-'}</span></div>
-                            <div class="data-row"><span>Peso:</span> <span>${d.weight || '0'} kg</span></div>
-                            <div class="data-row"><span>Volumes:</span> <span>${d.volumes || '1'} vol(s)</span></div>
-                            <div class="data-row"><span>Status:</span> <span>${d.order_status || 'Processando'}</span></div>
-                        </div>
-                        <div class="info-card">
-                            <h3>RETIRADA EM GUINÉ-BISSAU</h3>
-                            <div class="data-row"><span>Local:</span> <span>Rotunda de Nhonho</span></div>
-                            <div class="data-row"><span>Bairro:</span> <span>Belem</span></div>
-                            <div class="data-row"><span>Contato:</span> <span>+245 956604423</span></div>
-                            <div class="alert-receiver">
-                                <strong>AUTORIZADO A RETIRAR:</strong>
-                                👤 ${d.receiver_name ? d.receiver_name : 'O Próprio Cliente'}<br>
-                                📄 ${d.receiver_doc ? d.receiver_doc : '-'}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>DESCRIÇÃO DOS SERVIÇOS</th>
-                                    <th style="width: 120px;">PESO</th>
-                                    <th style="width: 150px; text-align:right; padding-right:20px;">VALOR</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><span class="service-title">Frete Aéreo/Marítimo Internacional</span><span class="service-desc">Conteúdo: ${d.products || 'Diversos'}</span></td>
-                                    <td>${d.weight || '0'} kg</td>
-                                    <td style="text-align:right; padding-right:20px;">${valorFreteReais}</td>
-                                </tr>
-                                <tr>
-                                    <td><span class="service-title">Taxa de Despacho / Nota Fiscal</span><span class="service-desc">Impostos e taxas aduaneiras</span></td>
-                                    <td>-</td>
-                                    <td style="text-align:right; padding-right:20px;">${valorNfReais}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="checkout-area">
-                        <div class="totals-box">
-                            <div class="total-pill">
-                                <span class="total-pill-left">TOTAL A PAGAR:</span>
-                                <span class="total-pill-right">${valorTotalReais}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="footer-terms">
-                        Declaro que os itens acima listados foram conferidos na minha presença.<br>A Guineexpress não se responsabiliza por itens não conferidos no local da retirada.
-                    </div>
-                    <div class="signatures">
-                        <div class="sign-box"><div class="sign-line"></div><span>GUINEEXPRESS LOGÍSTICA</span></div>
-                        <div class="sign-box"><div class="sign-line"></div><span>ASSINATURA DO CLIENTE</span></div>
+                    <div style="text-align: right; font-size: 10px; line-height: 1.5; color: #695a5a;">
+                        <strong style="color: #0a1931; font-size: 11px;">Av. Tristão Gonçalves, 1203</strong><br>Centro - Fortaleza / CE<br>(85) 98239-207<br>Comercialguineexpress245@gmail.com
                     </div>
                 </div>
-            </body>
-            </html>
+
+                <div style="background: #0a1931; color: #fff; border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative; z-index: 1;">
+                    <h2 style="margin: 0; font-size: 18px; color: #dfaf12; font-weight: 900;">RECIBO DE ENCOMENDA</h2>
+                    <div style="display: flex; gap: 15px;">
+                        <div style="border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px;">
+                            <span style="display: block; font-size: 8px; color: #dfaf12; text-transform: uppercase; font-weight: bold;">Box Nº</span>
+                            <strong style="font-size: 13px;">${d.box_code || '1'}</strong>
+                        </div>
+                        <div style="border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px;">
+                            <span style="display: block; font-size: 8px; color: #dfaf12; text-transform: uppercase; font-weight: bold;">Ref</span>
+                            <strong style="font-size: 13px;">${d.order_code || '-'}</strong>
+                        </div>
+                        <div style="border-left: 1px solid rgba(255,255,255,0.2); padding-left: 10px;">
+                            <span style="display: block; font-size: 8px; color: #dfaf12; text-transform: uppercase; font-weight: bold;">Emissão</span>
+                            <strong style="font-size: 13px;">${dataHoje}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 20px; position: relative; z-index: 1;">
+                    <div style="flex: 1; background: #f4f6f9; border-radius: 8px; border-top: 3px solid #0a1931; padding: 12px;">
+                        <h3 style="margin: 0 0 10px 0; font-size: 11px; color: #0a1931; font-weight: bold;">DADOS DO CLIENTE</h3>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding: 4px 0; font-size: 10px;"><strong style="color:#666;">Nome:</strong> <span>${d.client_name || 'Cliente'}</span></div>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding: 4px 0; font-size: 10px;"><strong style="color:#666;">Telefone:</strong> <span>${d.phone || '-'}</span></div>
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 10px;"><strong style="color:#666;">Doc:</strong> <span>${d.document || '-'}</span></div>
+                    </div>
+                    
+                    <div style="flex: 1; background: #f4f6f9; border-radius: 8px; border-top: 3px solid #0a1931; padding: 12px;">
+                        <h3 style="margin: 0 0 10px 0; font-size: 11px; color: #0a1931; font-weight: bold;">DADOS DO ENVIO</h3>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding: 4px 0; font-size: 10px;"><strong style="color:#666;">Destino:</strong> <span>Guiné-Bissau</span></div>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding: 4px 0; font-size: 10px;"><strong style="color:#666;">Peso/Vol:</strong> <span>${d.weight || '0'}kg - ${d.volumes || '1'}vol</span></div>
+                        <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 10px;"><strong style="color:#666;">Status:</strong> <span>${d.order_status || 'Processando'}</span></div>
+                    </div>
+
+                    <div style="flex: 1; background: #f4f6f9; border-radius: 8px; border-top: 3px solid #0a1931; padding: 12px;">
+                        <h3 style="margin: 0 0 10px 0; font-size: 11px; color: #0a1931; font-weight: bold;">RETIRADA EM GUINÉ</h3>
+                        <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding: 4px 0; font-size: 10px;"><strong style="color:#666;">Contato:</strong> <span>+245 956604423</span></div>
+                        <div style="background: #fff3cd; color: #856404; padding: 6px; border-radius: 4px; margin-top: 6px; font-size: 9px;">
+                            <strong style="color: #d32f2f;">RETIRAR:</strong><br>👤 ${d.receiver_name ? d.receiver_name : 'O Próprio Cliente'}<br>📄 ${d.receiver_doc ? d.receiver_doc : '-'}
+                        </div>
+                    </div>
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; position: relative; z-index: 1;">
+                    <thead>
+                        <tr style="background: #0a1931; color: #dfaf12;">
+                            <th style="padding: 10px; font-size: 11px; text-align: left;">SERVIÇO / CONTEÚDO</th>
+                            <th style="padding: 10px; font-size: 11px; text-align: center;">PESO</th>
+                            <th style="padding: 10px; font-size: 11px; text-align: right;">VALOR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 10px; font-size: 11px;"><strong>Frete Internacional</strong><br><span style="color:#666; font-size:9px;">${d.products || 'Diversos'}</span></td>
+                            <td style="padding: 10px; font-size: 11px; text-align: center;">${d.weight || '0'} kg</td>
+                            <td style="padding: 10px; font-size: 11px; text-align: right;">${valorFreteReais}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #eee; background: #fafbfc;">
+                            <td style="padding: 10px; font-size: 11px;"><strong>Taxa de Despacho / N.F.</strong></td>
+                            <td style="padding: 10px; font-size: 11px; text-align: center;">-</td>
+                            <td style="padding: 10px; font-size: 11px; text-align: right;">${valorNfReais}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="text-align: right; margin-bottom: 30px; position: relative; z-index: 1;">
+                    <div style="display: inline-block; background: #d32f2f; color: #fff; padding: 10px 20px; border-radius: 20px;">
+                        <span style="font-size: 12px; font-weight: bold; margin-right: 15px;">TOTAL A PAGAR:</span>
+                        <span style="font-size: 18px; font-weight: 900;">${valorTotalReais}</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-around; margin-top: 40px; padding-bottom: 20px; position: relative; z-index: 1;">
+                    <div style="width: 40%; text-align: center;">
+                        <div style="border-bottom: 1px solid #28425c; height: 30px; margin-bottom: 5px;"></div>
+                        <span style="font-size: 10px; font-weight: bold;">GUINEEXPRESS LOGÍSTICA</span>
+                    </div>
+                    <div style="width: 40%; text-align: center;">
+                        <div style="border-bottom: 1px solid #28425c; height: 30px; margin-bottom: 5px;"></div>
+                        <span style="font-size: 10px; font-weight: bold;">ASSINATURA DO CLIENTE</span>
+                    </div>
+                </div>
+            </div>
         `;
 
-        // 2. Coloca o HTML escondido na tela com tamanho de PC
-        const divInvisivel = document.createElement('div');
-        divInvisivel.innerHTML = receiptHTML;
-        divInvisivel.style.position = 'absolute';
-        divInvisivel.style.left = '-9999px';
-        divInvisivel.style.top = '-9999px';
-        divInvisivel.style.width = '800px'; 
-        document.body.appendChild(divInvisivel);
-
-        // 3. Manda gerar e baixar automaticamente!
+        // 4. MÁGICA: Em vez de criar Divs falsas, passamos a string HTML direto para o gerador!
         const config = {
-            margin:       [0.2, 0.2, 0.2, 0.2],
-            filename:     `Recibo_Guineexpress_Box_${d.box_code}.pdf`,
+            margin:       0.1,
+            filename:     `Recibo_Guine_Box_${d.box_code}.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true },
             jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
 
-        html2pdf().set(config).from(divInvisivel).toPdf().get('pdf').then(function(pdfObj) {
-            const pdfBlob = pdfObj.output('blob');
-            const blobUrl = URL.createObjectURL(pdfBlob);
-
-            const linkDownload = document.createElement('a');
-            linkDownload.href = blobUrl;
-            linkDownload.download = config.filename;
-            document.body.appendChild(linkDownload);
-            linkDownload.click(); 
-
-            // Limpeza
-            setTimeout(() => {
-                document.body.removeChild(linkDownload);
-                document.body.removeChild(divInvisivel);
-                document.body.removeChild(loadingMsg);
-                URL.revokeObjectURL(blobUrl);
-            }, 1000);
-
+        // O ".save()" é o comando nativo que resolve os bugs do celular
+        html2pdf().set(config).from(receiptHTML).save().then(() => {
+            document.body.removeChild(loadingMsg);
         }).catch(err => {
             console.error("Erro no PDF: ", err);
             document.body.removeChild(loadingMsg);
-            if(document.body.contains(divInvisivel)) document.body.removeChild(divInvisivel);
-            alert("Erro ao gerar arquivo PDF.");
+            alert("Falha ao montar o arquivo PDF. Tente novamente.");
         });
 
     } catch (e) {
         console.error(e);
-        document.body.removeChild(loadingMsg);
+        if(document.body.contains(loadingMsg)) document.body.removeChild(loadingMsg);
         alert("Erro de conexão ao tentar gerar o recibo.");
     }
 }
