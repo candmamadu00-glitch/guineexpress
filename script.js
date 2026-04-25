@@ -4009,10 +4009,17 @@ function loadMoreReceipts() {
 // 5. GERAR RECIBO A4 (A SOLUÇÃO DEFINITIVA SEM TRAVAMENTOS)
 // ============================================================
 async function printReceipt(boxId) {
-    // 🚀 TRUQUE MESTRE 1: Abre a aba ANTES de buscar os dados para o celular não bloquear (Popup Blocker)
-    let janelaRecibo = window.open('', '_blank');
-    if (janelaRecibo) {
-        janelaRecibo.document.write('<h2 style="font-family:sans-serif; text-align:center; margin-top:50px; color:#0a1931;">Gerando seu recibo... Por favor, aguarde ⏳</h2>');
+    let janelaRecibo = null;
+    
+    // Detecta se é celular. Celular não lida bem com abas fantasmas, vamos usar link direto!
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (!isMobile) {
+        // No PC, tenta abrir a aba antes para evitar bloqueio do navegador
+        janelaRecibo = window.open('', '_blank');
+        if (janelaRecibo) {
+            janelaRecibo.document.write('<h2 style="font-family:sans-serif; text-align:center; margin-top:50px; color:#0a1931;">Gerando seu recibo... Por favor, aguarde ⏳</h2>');
+        }
     }
 
     try {
@@ -4047,136 +4054,40 @@ async function printReceipt(boxId) {
             <html lang="pt">
             <head>
                 <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Recibo Guineexpress - ${d.box_code}</title>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Roboto:wght@400;500;700&display=swap');
                     
-                    :root {
-                        --azul-oficial: #0a1931;
-                        --dourado-luxo: #dfaf12;
-                        --vermelho-total: #d32f2f;
-                        --fundo-cards: #f4f6f9;
-                        --texto-escuro: #28425c;
-                        --borda-clara: #e1e8ed;
-                    }
-
-                    body { 
-                        font-family: 'Roboto', sans-serif; 
-                        color: var(--texto-escuro); 
-                        margin: 0; 
-                        padding: 15px; 
-                        background: #fff;
-                    }
-
-                    .document-wrapper {
-                        border: 1px solid var(--borda-clara);
-                        padding: 25px;
-                        border-radius: 10px;
-                        position: relative;
-                        overflow: hidden;
-                        min-height: 950px; 
-                    }
-                    
-                    .watermark {
-                        position: absolute; 
-                        top: 50%; 
-                        left: 50%; 
-                        transform: translate(-50%, -50%) rotate(-35deg); 
-                        font-size: 130px; 
-                        font-family: 'Nunito', sans-serif;
-                        font-weight: 900; 
-                        color: ${stampColor}; 
-                        border: 8px solid ${stampBorder}; 
-                        padding: 15px 60px; 
-                        text-transform: uppercase; 
-                        z-index: 9999;
-                        border-radius: 20px;
-                        pointer-events: none; 
-                        letter-spacing: 10px;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
-
-                    .header { 
-                        display: flex; 
-                        justify-content: space-between; 
-                        align-items: center; 
-                        padding-bottom: 20px;
-                        border-bottom: 3px solid var(--fundo-cards);
-                        margin-bottom: 20px;
-                    }
+                    :root { --azul-oficial: #0a1931; --dourado-luxo: #dfaf12; --vermelho-total: #d32f2f; --fundo-cards: #f4f6f9; --texto-escuro: #28425c; --borda-clara: #e1e8ed; }
+                    body { font-family: 'Roboto', sans-serif; color: var(--texto-escuro); margin: 0; padding: 15px; background: #fff; }
+                    .document-wrapper { border: 1px solid var(--borda-clara); padding: 25px; border-radius: 10px; position: relative; overflow: hidden; min-height: 950px; }
+                    .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-35deg); font-size: 130px; font-family: 'Nunito', sans-serif; font-weight: 900; color: ${stampColor}; border: 8px solid ${stampBorder}; padding: 15px 60px; text-transform: uppercase; z-index: 9999; border-radius: 20px; pointer-events: none; letter-spacing: 10px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 3px solid var(--fundo-cards); margin-bottom: 20px; }
                     .header-brand { display: flex; align-items: center; gap: 20px; }
                     .header-brand img { width: 90px; height: 90px; object-fit: contain; }
                     .brand-text h1 { margin: 0; font-family: 'Nunito', sans-serif; font-size: 28px; color: var(--azul-oficial); font-weight: 900; letter-spacing: 1.5px;}
                     .brand-text p { margin: 3px 0 0 0; font-size: 11px; font-weight: 700; color: var(--dourado-luxo); letter-spacing: 0.5px;}
-                    
                     .header-contact { text-align: right; font-size: 11px; line-height: 1.6; color: #695a5a; }
                     .header-contact strong { color: var(--azul-oficial); font-size: 12px; }
-
-                    .title-bar {
-                        background: var(--azul-oficial);
-                        color: #fff;
-                        border-radius: 8px;
-                        padding: 15px 20px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 25px;
-                        box-shadow: 0 4px 10px rgba(10, 25, 49, 0.15);
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
+                    .title-bar { background: var(--azul-oficial); color: #fff; border-radius: 8px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(10, 25, 49, 0.15); -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     .title-bar h2 { margin: 0; font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--dourado-luxo); font-weight: 900; }
                     .title-info { display: flex; gap: 20px; }
                     .info-badge { border-left: 2px solid rgba(121, 85, 85, 0.2); padding-left: 15px; }
                     .info-badge span { display: block; font-size: 9px; color: var(--dourado-luxo); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
                     .info-badge strong { font-size: 14px; letter-spacing: 0.5px; }
-
-                    .cards-grid { 
-                        display: grid; 
-                        grid-template-columns: repeat(3, 1fr); 
-                        gap: 15px; 
-                        margin-bottom: 25px; 
-                    }
-                    .info-card { 
-                        background: var(--fundo-cards); 
-                        border-radius: 8px; 
-                        border-top: 4px solid var(--azul-oficial);
-                        padding: 15px;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
+                    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+                    .info-card { background: var(--fundo-cards); border-radius: 8px; border-top: 4px solid var(--azul-oficial); padding: 15px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     .info-card h3 { margin: 0 0 12px 0; font-size: 13px; color: var(--azul-oficial); text-transform: uppercase; font-weight: 800; }
                     .data-row { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--borda-clara); padding: 6px 0; font-size: 11px; }
                     .data-row:last-child { border-bottom: none; }
                     .data-row span:first-child { font-weight: 700; color: #666; }
                     .data-row span:last-child { font-weight: 600; color: var(--texto-escuro); text-align: right; }
-
-                    .alert-receiver {
-                        background: #fff3cd;
-                        border: 1px solid #ffeeba;
-                        color: #856404;
-                        padding: 8px;
-                        border-radius: 6px;
-                        margin-top: 8px;
-                        font-size: 11px;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
+                    .alert-receiver { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 8px; border-radius: 6px; margin-top: 8px; font-size: 11px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     .alert-receiver strong { color: #d32f2f; display: block; margin-bottom: 4px; font-size: 11px; }
-
                     .table-container { border-radius: 8px; overflow: hidden; border: 1px solid var(--borda-clara); margin-bottom: 30px; }
                     table { width: 100%; border-collapse: collapse; }
-                    th { 
-                        background: var(--azul-oficial); 
-                        color: var(--dourado-luxo); 
-                        padding: 12px; 
-                        font-size: 12px;
-                        text-transform: uppercase;
-                        letter-spacing: 1px;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
+                    th { background: var(--azul-oficial); color: var(--dourado-luxo); padding: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     th:not(:first-child) { text-align: center; }
                     th:first-child { text-align: left; }
                     td { padding: 12px; font-size: 12px; border-bottom: 1px solid var(--borda-clara); }
@@ -4184,35 +4095,18 @@ async function printReceipt(boxId) {
                     tr:nth-child(even) { background-color: #fafbfc; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     .service-title { font-weight: 700; color: var(--azul-oficial); display: block; margin-bottom: 4px; font-size: 13px;}
                     .service-desc { font-size: 11px; color: #5c4242; }
-
                     .checkout-area { text-align: right; margin-top: 20px; margin-bottom: 40px; width: 100%; }
                     .totals-box { display: inline-block; width: 320px; }
-                    .total-pill {
-                        background-color: #d32f2f;
-                        color: #fff;
-                        padding: 12px 25px;
-                        border-radius: 30px;
-                        width: 100%;
-                        box-sizing: border-box;
-                        box-shadow: 0 5px 15px rgba(211, 47, 47, 0.3);
-                        display: table;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
+                    .total-pill { background-color: #d32f2f; color: #fff; padding: 12px 25px; border-radius: 30px; width: 100%; box-sizing: border-box; box-shadow: 0 5px 15px rgba(211, 47, 47, 0.3); display: table; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     .total-pill span { display: table-cell; vertical-align: middle; }
                     .total-pill-left { text-align: left; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
                     .total-pill-right { text-align: right; font-size: 22px; font-weight: 900; }
-
                     .footer-terms { text-align: center; font-size: 11px; color: #886e6e; margin-bottom: 50px; padding: 0 40px; font-style: italic; }
                     .signatures { display: flex; justify-content: space-around; margin-top: 50px; padding-bottom: 20px; }
                     .sign-box { width: 40%; text-align: center; }
                     .sign-line { border-bottom: 1px solid var(--texto-escuro); margin-bottom: 8px; height: 30px; }
                     .sign-box span { font-size: 12px; font-weight: 700; color: var(--texto-escuro); }
-
-                    @media print { 
-                        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                        @page { size: A4 portrait; margin: 5mm; }
-                    }
+                    @media print { body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } @page { size: A4 portrait; margin: 5mm; } }
                 </style>
             </head>
             <body>
@@ -4339,40 +4233,28 @@ async function printReceipt(boxId) {
                         </div>
                     </div>
                 </div>
+
+                <script>
+                    window.onload = function() {
+                        setTimeout(() => { window.print(); }, 800);
+                    };
+                </script>
             </body>
             </html>
         `;
 
         if (janelaRecibo) {
-            // Se conseguiu abrir a aba nova (Celular e PC moderno)
+            // Se abriu a aba no PC
             janelaRecibo.document.open();
             janelaRecibo.document.write(receiptHTML);
             janelaRecibo.document.close();
-            
-            // O celular vai abrir a tela nativa de gerar PDF/Imprimir onde o cliente pode mandar pro WhatsApp!
-            setTimeout(() => {
-                janelaRecibo.focus();
-                janelaRecibo.print();
-            }, 800);
         } else {
-            // PLANO B: Se o navegador for muito antigo e bloquear a aba nova
-            // Usa a técnica do Iframe invisível (Garante que funciona no PC e celulares antigos)
-            let printIframe = document.getElementById('print-iframe');
-            if (!printIframe) {
-                printIframe = document.createElement('iframe');
-                printIframe.id = 'print-iframe';
-                printIframe.style.cssText = 'position:absolute; width:0px; height:0px; border:none;';
-                document.body.appendChild(printIframe);
-            }
-            const iframeDoc = printIframe.contentWindow.document;
-            iframeDoc.open();
-            iframeDoc.write(receiptHTML);
-            iframeDoc.close();
-
-            setTimeout(() => {
-                printIframe.contentWindow.focus();
-                printIframe.contentWindow.print();
-            }, 800);
+            // 🚀 TRUQUE SUPREMO PARA O CELULAR (BLOB URL DIRETO)
+            // Transforma o HTML numa página web real na hora e MUDA a tela atual do cliente!
+            // O cliente vai ver o recibo em tela cheia, vai gerar o PDF, e depois é só ele apertar "Voltar" no celular.
+            const blob = new Blob([receiptHTML], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            window.location.href = blobUrl;
         }
 
     } catch (e) {
