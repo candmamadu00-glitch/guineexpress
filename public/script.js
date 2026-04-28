@@ -3737,7 +3737,7 @@ async function printSelectedLabels() {
 
     let carimboData = null;
     try {
-        const imgCarimbo = new Image(); imgCarimbo.src = 'carimbo.png'; imgCarimbo.crossOrigin = 'Anonymous';
+        const imgCarimbo = new Image(); imgCarimbo.src = 'logo.png'; imgCarimbo.crossOrigin = 'Anonymous';
         await new Promise((resolve) => {
             imgCarimbo.onload = () => {
                 const canvas = document.createElement('canvas');
