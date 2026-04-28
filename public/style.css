@@ -2447,3 +2447,75 @@ button:active {
     50% { transform: scale(1.05); box-shadow: 0 0 10px 10px rgba(0, 177, 234, 0); }
     100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 177, 234, 0); }
 }
+/* ============================================================
+   🛠️ CORREÇÃO DE CORES NA TABELA DE ENCOMENDAS (MOBILE/DESKTOP)
+   ============================================================ */
+
+/* 1. Cores para os Botões de Ação na Tabela */
+#orders-list .btn-details {
+    background-color: var(--azul-oficial);
+    color: white;
+    border: none;
+    transition: background 0.3s;
+}
+
+#orders-list .btn-details:hover {
+    background-color: #1a3a61; /* Um azul um pouco mais claro para o efeito de passar o mouse */
+}
+
+#orders-list .btn-more {
+    background-color: transparent;
+    color: var(--texto-escuro);
+    border: 1px solid var(--borda-clara);
+}
+
+#orders-list .btn-more:hover {
+    background-color: var(--fundo-cards);
+}
+
+/* 2. Cores para os Badges de Status na Tabela */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* Status: Processando (Cinza/Padrão) */
+.status-processando { 
+    background-color: #e2e6ea; 
+    color: #383d41; 
+} 
+
+/* Status: Entregue (Verde) */
+.status-entregue { 
+    background-color: #d4edda; 
+    color: #155724; 
+}
+
+/* Status: Em Rota (Amarelo) */
+.status-em-rota { 
+    background-color: #fff3cd; 
+    color: #856404; 
+}
+
+/* Status: Cancelado (Vermelho) */
+.status-cancelado { 
+    background-color: #f8d7da; 
+    color: #721c24; 
+}
+
+/* 3. Ajuste específico para garantir que os botões fiquem alinhados e coloridos no Telemóvel */
+@media screen and (max-width: 768px) {
+    #orders-list td[data-label="Ação"] {
+        justify-content: flex-end;
+        border-top: 1px solid var(--borda-clara);
+        padding-top: 10px;
+        margin-top: 5px;
+    }
+
+    #orders-list td[data-label="Ação"] .btn {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+}

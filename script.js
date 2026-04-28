@@ -3684,9 +3684,19 @@ async function printSelectedLabels() {
 
     alert("Gerando a Etiqueta... Por favor, aguarde.");
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
+    // 🛡️ MÁGICA: Pega o jsPDF de forma segura, driblando o ofuscador
+    const PDFDocument = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
+    
+    if (!PDFDocument) {
+        return alert("Erro: A biblioteca de impressão não foi carregada. Recarregue a página.");
+    }
 
+    // Inicializa o PDF com as medidas da etiqueta
+    const doc = new PDFDocument({
+        orientation: 'portrait', 
+        unit: 'mm',
+        format: [100, 151] // 10x15 cm (Padrão de etiquetas)
+    });
     // ==========================================
     // 1. CARREGAR A LOGO NORMAL (logo.png)
     // ==========================================
@@ -4715,11 +4725,14 @@ async function editOrder(id) {
 
         // Preenche o formulário com os dados do banco
         document.getElementById('editing-order-id').value = order.id;
-        document.getElementById('order-code').value = order.code;
-        document.getElementById('order-desc').value = order.description;
-        document.getElementById('order-weight').value = order.weight;
-        document.getElementById('order-status').value = order.status;
-        document.getElementById('order-client-select').value = order.client_id;
+        document.getElementById('order-code').value = order.code || '';
+        document.getElementById('order-desc').value = order.description || '';
+        document.getElementById('order-weight').value = order.weight || '';
+        document.getElementById('order-status').value = order.status || 'Processando';
+        document.getElementById('order-client-select').value = order.client_id || '';
+        
+        // 👇 AQUI ESTAVA FALTANDO O LOTE 👇
+        document.getElementById('order-lote').value = order.lote || 'Sem Lote'; 
 
         // Muda título e abre
         document.getElementById('modal-order-title').innerText = '✏️ Editar Encomenda';
@@ -4730,7 +4743,6 @@ async function editOrder(id) {
         alert('Erro ao carregar dados.');
     }
 }
-
 // 3. Função EXCLUIR
 async function deleteOrder(id) {
     if (!confirm("⚠️ Tem certeza que deseja EXCLUIR esta encomenda?")) return;
@@ -4750,26 +4762,59 @@ async function deleteOrder(id) {
     }
 }
 
-async function handleOrderSubmit(e) {
-    e.preventDefault();
-    const id = document.getElementById('editing-order-id').value;
+// 3. Salva a Encomenda (Detecta se é Nova ou Edição)
+async function handleOrderSubmit(event) {
+    event.preventDefault(); // Impede a página de recarregar
 
-    // Bloqueia botão para evitar duplo clique
-    const btn = e.target.querySelector('button[type="submit"]');
-    const txtOriginal = btn.innerText;
-    btn.disabled = true;
-    btn.innerText = "Salvando...";
+    // Pega todos os dados digitados no modal
+    const id = document.getElementById('editing-order-id').value;
+    const lote = document.getElementById('order-lote').value;
+    const client_id = document.getElementById('order-client-select').value;
+    const code = document.getElementById('order-code').value;
+    const description = document.getElementById('order-desc').value;
+    const weight = document.getElementById('order-weight').value;
+    const status = document.getElementById('order-status').value;
+
+    // Monta o "pacote" de dados para enviar ao servidor
+    const payload = {
+        lote: lote,
+        client_id: client_id,
+        code: code,
+        description: description,
+        weight: weight,
+        status: status
+    };
 
     try {
+        let res;
+        
         if (id) {
-            await updateOrder(id); // Edição
+            // Se tem ID, é EDIÇÃO (Usa a sua rota PUT)
+            res = await fetch(`/api/orders/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
         } else {
-            // Verifica se a função createOrder existe antes de chamar
-            if(typeof createOrder === 'function') await createOrder(); 
+            // Se NÃO tem ID, é CRIAÇÃO DE NOVA ENCOMENDA (Usa a rota POST)
+            res = await fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
         }
-    } finally {
-        btn.disabled = false;
-        btn.innerText = txtOriginal;
+
+        const data = await res.json();
+        
+        if (data.success) {
+            closeModal('modal-order'); // Fecha a janelinha
+            loadOrders(); // Recarrega a tabela para mostrar os dados novos!
+        } else {
+            alert("Erro ao salvar: " + (data.msg || "Verifique os dados."));
+        }
+    } catch (error) {
+        console.error("Erro na requisição:", error);
+        alert("Erro de conexão ao tentar salvar.");
     }
 }
 
