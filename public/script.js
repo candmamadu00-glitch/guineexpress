@@ -3701,11 +3701,20 @@ async function printSelectedLabels() {
         window.define = undefined; 
 
         try {
-            // 2. Injeta o PDF direto na veia do sistema
+            // 2. Injeta o PDF direto na veia do sistema usando links oficiais que não dão 404
             await new Promise((resolve) => {
                 const s = document.createElement('script');
-                s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+                // Link principal (jsDelivr)
+                s.src = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
                 s.onload = resolve;
+                s.onerror = () => {
+                    console.warn("Plano B: Baixando jsPDF do servidor alternativo...");
+                    const s2 = document.createElement('script');
+                    // Plano B (Unpkg)
+                    s2.src = "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js";
+                    s2.onload = resolve;
+                    document.head.appendChild(s2);
+                };
                 document.head.appendChild(s);
             });
             
@@ -3714,7 +3723,7 @@ async function printSelectedLabels() {
             else if (window['jsPDF']) ClassePDF = window['jsPDF'];
             
         } catch(e) { 
-            console.error(e); 
+            console.error("Falha extrema ao baixar jsPDF:", e); 
         }
 
         // 4. Liga os interceptadores de volta para não quebrar o Excel e outras funções
