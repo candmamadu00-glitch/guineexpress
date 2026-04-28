@@ -3687,7 +3687,7 @@ async function printSelectedLabels() {
     // ==========================================
     // 🛡️ CORREÇÃO: PUXA O JSPDF DE FORMA À PROVA DE FALHAS
     // ==========================================
-    const ClassePDF = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
+const ClassePDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
     
     if (!ClassePDF) {
         console.error("Biblioteca jsPDF não encontrada no navegador.");
