@@ -3684,19 +3684,18 @@ async function printSelectedLabels() {
 
     alert("Gerando a Etiqueta... Por favor, aguarde.");
 
-    // 🛡️ MÁGICA: Pega o jsPDF de forma segura, driblando o ofuscador
-    const PDFDocument = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
+    // ==========================================
+    // 🛡️ CORREÇÃO: PUXA O JSPDF DE FORMA À PROVA DE FALHAS
+    // ==========================================
+    const ClassePDF = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
     
-    if (!PDFDocument) {
-        return alert("Erro: A biblioteca de impressão não foi carregada. Recarregue a página.");
+    if (!ClassePDF) {
+        console.error("Biblioteca jsPDF não encontrada no navegador.");
+        return alert("Erro: O gerador de PDF não carregou corretamente. Por favor, atualize a página (F5) e tente novamente.");
     }
 
-    // Inicializa o PDF com as medidas da etiqueta
-    const doc = new PDFDocument({
-        orientation: 'portrait', 
-        unit: 'mm',
-        format: [100, 151] // 10x15 cm (Padrão de etiquetas)
-    });
+    const doc = new ClassePDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
+    // ==========================================
     // ==========================================
     // 1. CARREGAR A LOGO NORMAL (logo.png)
     // ==========================================
