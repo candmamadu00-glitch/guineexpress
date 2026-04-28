@@ -3685,26 +3685,49 @@ async function printSelectedLabels() {
    alert("Gerando a Etiqueta... Por favor, aguarde.");
 
     // ==========================================
-    // 🛡️ CORREÇÃO DEFINITIVA DO JSPDF (ANTI-OFUSCADOR)
+    // 🛡️ MODO DEUS: FORÇA O CARREGAMENTO DO JSPDF IGNORANDO CONFLITOS
     // ==========================================
     let ClassePDF = null;
     
-    // Usando colchetes para o ofuscador não destruir o código
-    if (window['jspdf'] && window['jspdf']['jsPDF']) {
-        ClassePDF = window['jspdf']['jsPDF'];
-    } else if (window['jsPDF']) {
-        ClassePDF = window['jsPDF'];
+    if (window['jspdf'] && window['jspdf']['jsPDF']) ClassePDF = window['jspdf']['jsPDF'];
+    else if (window['jsPDF']) ClassePDF = window['jsPDF'];
+
+    // Se alguma biblioteca "roubou" o jsPDF, nós baixamos à força agora:
+    if (!ClassePDF) {
+        console.warn("Conflito detectado! Forçando o download limpo do jsPDF...");
+        
+        // 1. Desliga os interceptadores de código das outras bibliotecas
+        const oldDefine = window.define;
+        window.define = undefined; 
+
+        try {
+            // 2. Injeta o PDF direto na veia do sistema
+            await new Promise((resolve) => {
+                const s = document.createElement('script');
+                s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+                s.onload = resolve;
+                document.head.appendChild(s);
+            });
+            
+            // 3. Tenta pegar a ferramenta novamente
+            if (window['jspdf'] && window['jspdf']['jsPDF']) ClassePDF = window['jspdf']['jsPDF'];
+            else if (window['jsPDF']) ClassePDF = window['jsPDF'];
+            
+        } catch(e) { 
+            console.error(e); 
+        }
+
+        // 4. Liga os interceptadores de volta para não quebrar o Excel e outras funções
+        window.define = oldDefine;
     }
 
     if (!ClassePDF) {
-        console.error("jsPDF não encontrado no window.");
-        return alert("Erro: O gerador de PDF não carregou. Pressione Ctrl + F5 para atualizar a página completamente.");
+        return alert("Erro Crítico: O navegador bloqueou totalmente o PDF. Tente usar uma aba anônima ou outro navegador.");
     }
 
     const doc = new ClassePDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
     // ==========================================
-    // ==========================================
-    // ==========================================
+   // ==========================================
     // 1. CARREGAR A LOGO NORMAL (logo.png)
     // ==========================================
     let logoData = null;
