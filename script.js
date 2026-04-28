@@ -3682,19 +3682,27 @@ async function printSelectedLabels() {
         if (!nomeEscolhido.toLowerCase().endsWith('.pdf')) nomeEscolhido += '.pdf';
     }
 
-    alert("Gerando a Etiqueta... Por favor, aguarde.");
+   alert("Gerando a Etiqueta... Por favor, aguarde.");
 
     // ==========================================
-    // 🛡️ CORREÇÃO: PUXA O JSPDF DE FORMA À PROVA DE FALHAS
+    // 🛡️ CORREÇÃO DEFINITIVA DO JSPDF (ANTI-OFUSCADOR)
     // ==========================================
-const ClassePDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+    let ClassePDF = null;
     
+    // Usando colchetes para o ofuscador não destruir o código
+    if (window['jspdf'] && window['jspdf']['jsPDF']) {
+        ClassePDF = window['jspdf']['jsPDF'];
+    } else if (window['jsPDF']) {
+        ClassePDF = window['jsPDF'];
+    }
+
     if (!ClassePDF) {
-        console.error("Biblioteca jsPDF não encontrada no navegador.");
-        return alert("Erro: O gerador de PDF não carregou corretamente. Por favor, atualize a página (F5) e tente novamente.");
+        console.error("jsPDF não encontrado no window.");
+        return alert("Erro: O gerador de PDF não carregou. Pressione Ctrl + F5 para atualizar a página completamente.");
     }
 
     const doc = new ClassePDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
+    // ==========================================
     // ==========================================
     // ==========================================
     // 1. CARREGAR A LOGO NORMAL (logo.png)
