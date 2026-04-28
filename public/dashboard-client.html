@@ -935,6 +935,19 @@ async function copiarPixExato(idFatura, banco) {
         });
     });
 </script>
+<script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister().then(function() {
+                        console.log("Service Worker antigo destruído com sucesso!");
+                    });
+                }
+            });
+            // Opcional: Limpa também o armazenamento local para garantir
+            localStorage.removeItem('cici_cache'); 
+        }
+    </script>
     <script src="script.js?v=2.0"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => { 

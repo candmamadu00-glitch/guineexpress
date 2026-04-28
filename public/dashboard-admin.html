@@ -1530,6 +1530,19 @@
     }
 </script>
 <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister().then(function() {
+                        console.log("Service Worker antigo destruído com sucesso!");
+                    });
+                }
+            });
+            // Opcional: Limpa também o armazenamento local para garantir
+            localStorage.removeItem('cici_cache'); 
+        }
+    </script>
+<script>
 // Função que trava a geração da fatura se o valor for repetido
 async function verificarConflitoDeValor(event) {
     event.preventDefault(); // Impede o envio imediato
