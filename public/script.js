@@ -3891,27 +3891,51 @@ async function printSelectedLabels() {
         }
     } // Fim do loop de páginas
 
+    // ==========================================
+    // 🚀 FINALIZAÇÃO: DOWNLOAD BLINDADO (MOBILE) OU IMPRESSÃO (DESKTOP)
+    // ==========================================
     if (isMobile) {
-        doc.save(nomeEscolhido);
+        // Criamos um link fantasma para forçar o celular a baixar
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = nomeEscolhido;
+        document.body.appendChild(a);
+        a.click(); // Força o clique
+        document.body.removeChild(a); // Limpa o link fantasma
+        
         alert(`✅ O arquivo "${nomeEscolhido}" foi baixado!\n\nAbra o aplicativo Print Label e vá em 'Impressão de PDF' para imprimir.`);
     } else {
         doc.autoPrint(); 
         const blob = doc.output('blob');
         const url = URL.createObjectURL(blob);
         
+        // Criamos um iframe escondido (mas não com display: none, senão o Chrome bloqueia)
         const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
+        iframe.style.visibility = 'hidden'; 
+        iframe.style.position = 'absolute';
+        iframe.style.width = '1px';
+        iframe.style.height = '1px';
         iframe.src = url;
         document.body.appendChild(iframe);
         
         iframe.onload = function() {
+            // Damos 800 milissegundos para o PDF renderizar bem antes de chamar a impressora
             setTimeout(function() {
-                iframe.focus();
-                iframe.contentWindow.print();
-            }, 100);
+                try {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+                } catch (err) {
+                    console.warn("O navegador bloqueou a impressão automática. Abrindo numa nova aba...");
+                    // Plano B: Se o navegador for super restrito, abre o PDF numa nova aba
+                    window.open(url, '_blank'); 
+                }
+            }, 800); 
         };
     }
-}
+} // <-- Fim da função printSelectedLabels
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (COM FILTRO DE LOTE 🚀)
 // ============================================================
