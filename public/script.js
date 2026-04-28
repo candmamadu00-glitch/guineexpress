@@ -3662,18 +3662,13 @@ async function printSelectedLabels() {
     if (qtdVolumes === null) return; 
     qtdVolumes = parseInt(qtdVolumes) || 1; 
 
-    // ==========================================
-    // NOVA MÁGICA: SALVA OS VOLUMES NO BANCO DE DADOS EM SILÊNCIO
-    // ==========================================
+    // Salva volumes no banco silenciosamente
     const itemType = box.value.startsWith('box-') ? 'box' : 'order';
-    
     fetch('/api/update-volumes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: data.id, type: itemType, volumes: qtdVolumes })
-    }).then(() => console.log("Volumes salvos no banco com sucesso!"))
-      .catch(e => console.error("Erro ao salvar volumes:", e));
-    // ==========================================
+    }).catch(e => console.error("Erro ao salvar volumes:", e));
 
     let nomeEscolhido = `Etiqueta_${data.code}.pdf`;
     if (isMobile) {
@@ -3682,35 +3677,29 @@ async function printSelectedLabels() {
         if (!nomeEscolhido.toLowerCase().endsWith('.pdf')) nomeEscolhido += '.pdf';
     }
 
-   alert("Gerando a Etiqueta... Por favor, aguarde.");
+    alert("Gerando a Etiqueta... Por favor, aguarde.");
 
     // ==========================================
-    // 🛡️ MODO DEUS: FORÇA O CARREGAMENTO DO JSPDF IGNORANDO CONFLITOS
+    // 🛡️ MODO DEUS: DOWNLOAD BLINDADO (LINKS NOVOS - SEM ERRO 404)
     // ==========================================
     let ClassePDF = null;
-    
     if (window['jspdf'] && window['jspdf']['jsPDF']) ClassePDF = window['jspdf']['jsPDF'];
     else if (window['jsPDF']) ClassePDF = window['jsPDF'];
 
-    // Se alguma biblioteca "roubou" o jsPDF, nós baixamos à força agora:
     if (!ClassePDF) {
-        console.warn("Conflito detectado! Forçando o download limpo do jsPDF...");
-        
-        // 1. Desliga os interceptadores de código das outras bibliotecas
+        console.warn("Forçando o download limpo do jsPDF pelos links oficiais...");
         const oldDefine = window.define;
         window.define = undefined; 
 
         try {
-            // 2. Injeta o PDF direto na veia do sistema usando links oficiais que não dão 404
             await new Promise((resolve) => {
                 const s = document.createElement('script');
-                // Link principal (jsDelivr)
+                // Link oficial 1 (jsDelivr - NÃO É O CDNJS)
                 s.src = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
                 s.onload = resolve;
                 s.onerror = () => {
-                    console.warn("Plano B: Baixando jsPDF do servidor alternativo...");
+                    // Link oficial 2 (Unpkg - Plano B)
                     const s2 = document.createElement('script');
-                    // Plano B (Unpkg)
                     s2.src = "https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js";
                     s2.onload = resolve;
                     document.head.appendChild(s2);
@@ -3718,75 +3707,57 @@ async function printSelectedLabels() {
                 document.head.appendChild(s);
             });
             
-            // 3. Tenta pegar a ferramenta novamente
             if (window['jspdf'] && window['jspdf']['jsPDF']) ClassePDF = window['jspdf']['jsPDF'];
             else if (window['jsPDF']) ClassePDF = window['jsPDF'];
-            
-        } catch(e) { 
-            console.error("Falha extrema ao baixar jsPDF:", e); 
-        }
+        } catch(e) { console.error(e); }
 
-        // 4. Liga os interceptadores de volta para não quebrar o Excel e outras funções
         window.define = oldDefine;
     }
 
-    if (!ClassePDF) {
-        return alert("Erro Crítico: O navegador bloqueou totalmente o PDF. Tente usar uma aba anônima ou outro navegador.");
-    }
+    if (!ClassePDF) return alert("Erro Crítico: O navegador bloqueou o PDF.");
 
     const doc = new ClassePDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
+
     // ==========================================
-   // ==========================================
-    // 1. CARREGAR A LOGO NORMAL (logo.png)
+    // CARREGA IMAGENS (LOGO E CARIMBO)
     // ==========================================
     let logoData = null;
     try {
-        const img = new Image();
-        img.src = 'logo.png'; 
-        img.crossOrigin = 'Anonymous';
+        const img = new Image(); img.src = 'logo.png'; img.crossOrigin = 'Anonymous';
         await new Promise((resolve) => {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = img.width; canvas.height = img.height;
                 canvas.getContext('2d').drawImage(img, 0, 0);
-                logoData = canvas.toDataURL('image/png');
-                resolve();
+                logoData = canvas.toDataURL('image/png'); resolve();
             };
             img.onerror = resolve; 
         });
     } catch(e) {}
 
-    // ==========================================
-    // 2. CARREGAR O NOVO CARIMBO ROBUSTO (carimbo.png)
-    // ==========================================
     let carimboData = null;
     try {
-        const imgCarimbo = new Image();
-        imgCarimbo.src = 'carimbo.png'; 
-        imgCarimbo.crossOrigin = 'Anonymous';
+        const imgCarimbo = new Image(); imgCarimbo.src = 'carimbo.png'; imgCarimbo.crossOrigin = 'Anonymous';
         await new Promise((resolve) => {
             imgCarimbo.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = imgCarimbo.width; canvas.height = imgCarimbo.height;
                 canvas.getContext('2d').drawImage(imgCarimbo, 0, 0);
-                carimboData = canvas.toDataURL('image/png');
-                resolve();
+                carimboData = canvas.toDataURL('image/png'); resolve();
             };
             imgCarimbo.onerror = resolve; 
         });
     } catch(e) {}
 
-    // Gera as páginas
+    // ==========================================
+    // DESENHA A ETIQUETA
+    // ==========================================
     for (let i = 1; i <= qtdVolumes; i++) {
         if (i > 1) doc.addPage();
-
         doc.setFillColor(255, 255, 255);
         doc.rect(0, 0, 100, 151, 'F');
 
-        // --- CABEÇALHO ---
-        if (logoData) {
-            doc.addImage(logoData, 'PNG', 5, 5, 18, 18); 
-        }
+        if (logoData) doc.addImage(logoData, 'PNG', 5, 5, 18, 18); 
         
         doc.setTextColor(0, 0, 0);
         doc.setFont("helvetica", "bold");
@@ -3802,7 +3773,6 @@ async function printSelectedLabels() {
         doc.setLineWidth(0.5);
         doc.line(5, 25, 95, 25);
 
-        // --- CAIXA: DESTINATÁRIO ---
         doc.setLineWidth(0.5);
         doc.setFillColor(255, 255, 255); 
         doc.roundedRect(5, 28, 90, 24, 2, 2, 'S'); 
@@ -3819,7 +3789,6 @@ async function printSelectedLabels() {
         doc.text(`Tel: ${data.client_phone || '-'}`, 7, 46);
         doc.text(`Email: ${data.client_email ? data.client_email.substring(0, 35) : '-'}`, 7, 50);
 
-        // --- CAIXAS: CÓDIGO E PESO ---
         doc.setLineWidth(0.5);
         doc.roundedRect(5, 54, 43, 16, 2, 2, 'S');
         doc.setFont("helvetica", "bold");
@@ -3834,7 +3803,6 @@ async function printSelectedLabels() {
         doc.setFontSize(15);
         doc.text(`${data.weight} kg`, 73.5, 66, { align: "center" });
 
-        // --- CAIXA: CONTEÚDO / DESCRIÇÃO ---
         doc.roundedRect(5, 72, 90, 50, 2, 2, 'S');
         doc.setFontSize(8);
         doc.text("CONTEÚDO / DESCRIÇÃO", 7, 76);
@@ -3846,7 +3814,6 @@ async function printSelectedLabels() {
         let splitDesc = doc.splitTextToSize(descText, 86);
         doc.text(splitDesc, 7, 82);
 
-        // --- RODAPÉ (BOX, VOLUME E QR CODE) ---
         doc.line(5, 125, 95, 125); 
         
         doc.setFont("helvetica", "bold");
@@ -3861,9 +3828,6 @@ async function printSelectedLabels() {
         doc.setFontSize(18);
         doc.text(`${i}/${qtdVolumes}`, 58, 141, { align: "center" });
 
-        // ==========================================
-        // 🛡️ SUPER FILTRO DO QR CODE (À PROVA DE ERROS)
-        // ==========================================
         const limparTexto = (texto) => {
             if (!texto) return 'N/A';
             return texto.normalize("NFD").replace(/[^a-zA-Z0-9 \-]/g, "").trim();
@@ -3889,22 +3853,18 @@ async function printSelectedLabels() {
             doc.addImage(qrData, 'PNG', 75, 126.5, 20, 20);
         }
 
-        // ==========================================
-        // 3. BATER O NOVO CARIMBO POR CIMA DE TUDO
-        // ==========================================
         if (carimboData) {
             doc.saveGraphicsState(); 
             doc.setGState(new doc.GState({opacity: 0.85})); 
             doc.addImage(carimboData, 'PNG', 20, 45, 60, 60);
             doc.restoreGraphicsState();
         }
-    } // Fim do loop de páginas
+    }
 
     // ==========================================
-    // 🚀 FINALIZAÇÃO: DOWNLOAD BLINDADO (MOBILE) OU IMPRESSÃO (DESKTOP)
+    // IMPRESSÃO E DOWNLOAD GARANTIDOS
     // ==========================================
     if (isMobile) {
-        // Criamos um link fantasma para forçar o celular a baixar
         const blob = doc.output('blob');
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -3912,8 +3872,8 @@ async function printSelectedLabels() {
         a.href = url;
         a.download = nomeEscolhido;
         document.body.appendChild(a);
-        a.click(); // Força o clique
-        document.body.removeChild(a); // Limpa o link fantasma
+        a.click(); 
+        document.body.removeChild(a); 
         
         alert(`✅ O arquivo "${nomeEscolhido}" foi baixado!\n\nAbra o aplicativo Print Label e vá em 'Impressão de PDF' para imprimir.`);
     } else {
@@ -3921,7 +3881,6 @@ async function printSelectedLabels() {
         const blob = doc.output('blob');
         const url = URL.createObjectURL(blob);
         
-        // Criamos um iframe escondido (mas não com display: none, senão o Chrome bloqueia)
         const iframe = document.createElement('iframe');
         iframe.style.visibility = 'hidden'; 
         iframe.style.position = 'absolute';
@@ -3931,20 +3890,18 @@ async function printSelectedLabels() {
         document.body.appendChild(iframe);
         
         iframe.onload = function() {
-            // Damos 800 milissegundos para o PDF renderizar bem antes de chamar a impressora
             setTimeout(function() {
                 try {
                     iframe.contentWindow.focus();
                     iframe.contentWindow.print();
                 } catch (err) {
-                    console.warn("O navegador bloqueou a impressão automática. Abrindo numa nova aba...");
-                    // Plano B: Se o navegador for super restrito, abre o PDF numa nova aba
+                    console.warn("Navegador bloqueou a impressão, abrindo em nova aba...");
                     window.open(url, '_blank'); 
                 }
             }, 800); 
         };
     }
-} // <-- Fim da função printSelectedLabels
+}
 // ============================================================
 // LÓGICA DE RECIBOS PROFISSIONAIS (COM FILTRO DE LOTE 🚀)
 // ============================================================
