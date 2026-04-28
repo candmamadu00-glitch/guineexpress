@@ -32,7 +32,7 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // =======================================================
-// 🛡️ SEGURANÇA (HELMET COM LISTA VIP LIBERADA)
+// 🛡️ SEGURANÇA (HELMET COM LISTA VIP LIBERADA PARA O SW.JS)
 // =======================================================
 app.use(helmet({
     contentSecurityPolicy: {
@@ -42,12 +42,11 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://cdn.jsdelivr.net"],
             scriptSrcAttr: ["'unsafe-inline'"], 
             
-            // 👇 LIBERAMOS O UI-AVATARS AQUI PARA O SW.JS PODER BAIXAR A IMAGEM:
-           connectSrc: ["'self'", "https://api.google.com", "https://unpkg.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+            // 👇 A MÁGICA ESTÁ AQUI: Adicionamos os links externos no connectSrc 
+            // para o Service Worker (sw.js) ter permissão de fazer o download!
+            connectSrc: ["'self'", "https://api.google.com", "https://unpkg.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
 
-            // 👇 E GARANTIMOS ELE AQUI TAMBÉM SÓ POR PRECAUÇÃO:
             imgSrc: ["'self'", "data:", "blob:", "https:", "https://ui-avatars.com"],
-            
             workerSrc: ["'self'", "blob:"]
         }
     }
