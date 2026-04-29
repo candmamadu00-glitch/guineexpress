@@ -4765,9 +4765,8 @@ async function deleteOrder(id) {
 
 // 3. Salva a Encomenda (Detecta se é Nova ou Edição)
 async function handleOrderSubmit(event) {
-    event.preventDefault(); // Impede a página de recarregar
+    event.preventDefault();
 
-    // Pega todos os dados digitados no modal
     const id = document.getElementById('editing-order-id').value;
     const lote = document.getElementById('order-lote').value;
     const client_id = document.getElementById('order-client-select').value;
@@ -4776,7 +4775,6 @@ async function handleOrderSubmit(event) {
     const weight = document.getElementById('order-weight').value;
     const status = document.getElementById('order-status').value;
 
-    // Monta o "pacote" de dados para enviar ao servidor
     const payload = {
         lote: lote,
         client_id: client_id,
@@ -4790,15 +4788,15 @@ async function handleOrderSubmit(event) {
         let res;
         
         if (id) {
-            // Se tem ID, é EDIÇÃO (Usa a sua rota PUT)
+            // Rota de Edição
             res = await fetch(`/api/orders/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
         } else {
-            // Se NÃO tem ID, é CRIAÇÃO DE NOVA ENCOMENDA (Usa a rota POST)
-            res = await fetch('/api/orders', {
+            // ✨ CORREÇÃO AQUI: Mudamos de '/api/orders' para '/api/orders/create'
+            res = await fetch('/api/orders/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -4808,8 +4806,9 @@ async function handleOrderSubmit(event) {
         const data = await res.json();
         
         if (data.success) {
-            closeModal('modal-order'); // Fecha a janelinha
-            loadOrders(); // Recarrega a tabela para mostrar os dados novos!
+            alert("✅ Encomenda salva com sucesso!");
+            closeModal('modal-order');
+            if (typeof loadOrders === 'function') loadOrders(); 
         } else {
             alert("Erro ao salvar: " + (data.msg || "Verifique os dados."));
         }
