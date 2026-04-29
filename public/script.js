@@ -3719,7 +3719,7 @@ async function printSelectedLabels() {
     const doc = new ClassePDF({ orientation: 'portrait', unit: 'mm', format: [100, 151] });
 
     // ==========================================
-    // CARREGA IMAGENS (LOGO E CARIMBO)
+    // CARREGA IMAGENS (APENAS A LOGO DO CABEÇALHO)
     // ==========================================
     let logoData = null;
     try {
@@ -3732,20 +3732,6 @@ async function printSelectedLabels() {
                 logoData = canvas.toDataURL('image/png'); resolve();
             };
             img.onerror = resolve; 
-        });
-    } catch(e) {}
-
-    let carimboData = null;
-    try {
-        const imgCarimbo = new Image(); imgCarimbo.src = 'logo.png'; imgCarimbo.crossOrigin = 'Anonymous';
-        await new Promise((resolve) => {
-            imgCarimbo.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = imgCarimbo.width; canvas.height = imgCarimbo.height;
-                canvas.getContext('2d').drawImage(imgCarimbo, 0, 0);
-                carimboData = canvas.toDataURL('image/png'); resolve();
-            };
-            imgCarimbo.onerror = resolve; 
         });
     } catch(e) {}
 
@@ -3852,13 +3838,8 @@ async function printSelectedLabels() {
             const qrData = qrCanvas.toDataURL('image/png');
             doc.addImage(qrData, 'PNG', 75, 126.5, 20, 20);
         }
-
-        if (carimboData) {
-            doc.saveGraphicsState(); 
-            doc.setGState(new doc.GState({opacity: 0.85})); 
-            doc.addImage(carimboData, 'PNG', 20, 45, 60, 60);
-            doc.restoreGraphicsState();
-        }
+        
+        // CÓDIGO DO CARIMBO (LOGO GRANDE) FOI REMOVIDO DAQUI
     }
 
     // ==========================================
