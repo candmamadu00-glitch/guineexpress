@@ -452,6 +452,53 @@ async function sendEmailHtml(to, subject, title, message) {
         console.error("❌ Erro ao enviar email:", error);
     }
 }
+// ==================================================================
+// 🛡️ BACKUP AUTOMÁTICO INVISÍVEL (ENVIADO PARA EMAIL ESPECÍFICO)
+// ==================================================================
+cron.schedule('0 3 * * *', async () => {
+    console.log('⏳ Iniciando backup automático do banco de dados...');
+
+    const dbPath = path.join(__dirname, 'database.sqlite'); 
+    
+    // ✨ ALTERADO: Agora envia direto para o seu e-mail ideal
+    const adminEmail = 'candmamadu00@gmail.com'; 
+
+    if (!fs.existsSync(dbPath)) {
+        console.error('❌ Arquivo de banco de dados não encontrado.');
+        return;
+    }
+
+    const dataAtual = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+
+    const mailOptions = {
+        from: `"Guineexpress - Cofre" <${process.env.EMAIL_USER}>`,
+        to: adminEmail,
+        subject: `📦 [BACKUP] Guineexpress - ${dataAtual}`,
+        html: `
+            <div style="font-family: Arial, sans-serif; border: 1px solid #ddd; padding: 20px;">
+                <h2 style="color: #28a745;">✅ Cópia de Segurança Pronta</h2>
+                <p>Olá Mamadu, segue o backup diário do sistema <b>Guineexpress</b>.</p>
+                <p>Data: <b>${dataAtual}</b> às 03:00</p>
+                <p style="background: #f8f9fa; padding: 10px; border-left: 4px solid #d4af37;">
+                   <b>Dica:</b> Não apague este e-mail. Ele contém todos os seus dados (clientes, faturas, encomendas).
+                </p>
+            </div>
+        `,
+        attachments: [
+            {
+                filename: `backup_guineexpress_${dataAtual}.sqlite`,
+                path: dbPath
+            }
+        ]
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Backup enviado para ${adminEmail}`);
+    } catch (error) {
+        console.error("❌ Erro no backup:", error);
+    }
+});
 // ==========================================
 // 🧠 INTELIGÊNCIA ARTIFICIAL DA CICÍ (GEMINI) - FUNÇÃO CONVERSORA
 // ==========================================
