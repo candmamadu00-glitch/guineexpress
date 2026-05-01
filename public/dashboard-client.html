@@ -712,7 +712,6 @@
        <input type="hidden" id="pay-amount">
     </div>
 </div>
-
 <script>
 async function copiarPixExato(idFatura, banco, eventoClique) {
     if (!idFatura) {
@@ -720,90 +719,103 @@ async function copiarPixExato(idFatura, banco, eventoClique) {
         return;
     }
 
-    // Identifica o botão clicado para dar feedback de "Carregando"
-    const btnClicado = eventoClique.currentTarget;
-    const textoOriginal = btnClicado.innerHTML;
-    btnClicado.innerHTML = "⏳ Gerando...";
-    btnClicado.disabled = true;
+    const btnClicado = eventoClique ? eventoClique.currentTarget : null;
+    let textoOriginal = "";
+    
+    if (btnClicado) {
+        textoOriginal = btnClicado.innerHTML;
+        btnClicado.innerHTML = "⏳ Gerando...";
+        btnClicado.disabled = true;
+    }
 
     try {
         const resposta = await fetch(`/api/gerar-pix/${banco}/${idFatura}`);
         const dados = await resposta.json();
 
-        // Restaura o botão
-        btnClicado.innerHTML = textoOriginal;
-        btnClicado.disabled = false;
+        if (btnClicado) {
+            btnClicado.innerHTML = textoOriginal;
+            btnClicado.disabled = false;
+        }
 
         if (dados.sucesso) {
             const textoPix = dados.pix_copia_cola;
             let copiouComSucesso = false;
 
-            // 1. Tenta a API Moderna (Funciona no Android e PCs)
+            // 1. TENTA A CÓPIA MODERNA (Funciona no Android e PC)
             if (navigator.clipboard && window.isSecureContext) {
                 try {
                     await navigator.clipboard.writeText(textoPix);
                     copiouComSucesso = true;
                 } catch (err) {
-                    console.warn("API moderna bloqueada, indo para o fallback...");
-                }
-            }
-
-            // 2. O Fallback Supremo para iOS
-            if (!copiouComSucesso) {
-                // Cria ou pega a área de fallback na tela
-                let fallbackDiv = document.getElementById("pix-fallback-area");
-                if (!fallbackDiv) {
-                    fallbackDiv = document.createElement("div");
-                    fallbackDiv.id = "pix-fallback-area";
-                    fallbackDiv.style.marginTop = "15px";
-                    fallbackDiv.innerHTML = `
-                        <p style="font-size:12px; color:#d32f2f; margin-bottom:5px; font-weight:bold;">
-                            ⚠️ Seu celular bloqueou a cópia automática. Clique em copiar abaixo:
-                        </p>
-                        <textarea id="pix-texto-visivel" readonly style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 11px; resize: none; word-break: break-all;" rows="4"></textarea>
-                    `;
-                    // Insere logo abaixo da div dos botões
-                    btnClicado.parentElement.insertAdjacentElement('afterend', fallbackDiv);
-                }
-                
-                const textAreaVisivel = document.getElementById("pix-texto-visivel");
-                textAreaVisivel.value = textoPix;
-                fallbackDiv.style.display = "block";
-                
-                // Foca e seleciona o texto (Isso aciona o balão nativo "Copiar" do iPhone)
-                textAreaVisivel.focus();
-                textAreaVisivel.select();
-                textAreaVisivel.setSelectionRange(0, 99999); // Necessário para Mobile
-
-                try {
-                    // Tenta forçar a cópia mesmo assim
-                    const sucessoExec = document.execCommand('copy');
-                    if (sucessoExec) copiouComSucesso = true;
-                } catch (err) {
-                    console.error('execCommand falhou:', err);
+                    console.warn("API moderna bloqueada pelo iPhone.");
                 }
             }
 
             if (copiouComSucesso) {
                 const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
-                alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor exato: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.`);
-                
-                // Esconde a área de fallback se deu tudo certo
-                const fallbackArea = document.getElementById("pix-fallback-area");
-                if (fallbackArea) fallbackArea.style.display = "none";
-            } else {
-                // Se tudo falhar, o texto já está selecionado na tela para o usuário
-                alert("⚠️ O iPhone bloqueou a cópia em segundo plano. O código já está selecionado na tela, basta tocar em 'Copiar' no balão do seu celular.");
+                alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor: R$ ${dados.valor}\n\nAbra o app do seu banco, escolha "Pix Copia e Cola" e realize o pagamento.`);
+                return; // Acaba aqui se deu certo
             }
+
+            // ========================================================
+            // 2. O PULO DO GATO PARA IPHONE: Menu Nativo do iOS
+            // ========================================================
+            if (navigator.share && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                try {
+                    await navigator.share({
+                        title: 'Pagamento Guineexpress',
+                        text: textoPix
+                    });
+                    // Se o menu abriu, o usuário pode clicar em "Copiar" lá dentro.
+                    return; 
+                } catch (err) {
+                    console.warn("Usuário fechou o menu de share ou falhou.");
+                }
+            }
+
+            // ========================================================
+            // 3. PLANO C: Mostra na tela pro cliente copiar no dedo
+            // ========================================================
+            let fallbackDiv = document.getElementById("pix-fallback-area");
+            if (!fallbackDiv) {
+                fallbackDiv = document.createElement("div");
+                fallbackDiv.id = "pix-fallback-area";
+                fallbackDiv.style.marginTop = "20px";
+                fallbackDiv.style.padding = "15px";
+                fallbackDiv.style.background = "#fff3cd";
+                fallbackDiv.style.border = "2px dashed #ffeeba";
+                fallbackDiv.style.borderRadius = "8px";
+                fallbackDiv.innerHTML = `
+                    <p style="font-size:14px; color:#856404; margin-bottom:10px; font-weight:bold;">
+                        ⚠️ Pressione e segure o texto abaixo para copiar:
+                    </p>
+                    <textarea id="pix-texto-visivel" readonly style="width: 100%; padding: 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 13px; resize: none; word-break: break-all; background: #fff;" rows="4"></textarea>
+                `;
+                
+                // Insere no modal, logo acima dos botões ocultos
+                const containerAvo = document.getElementById("pay-order-id").parentElement;
+                containerAvo.appendChild(fallbackDiv);
+            }
+            
+            const textAreaVisivel = document.getElementById("pix-texto-visivel");
+            textAreaVisivel.value = textoPix;
+            fallbackDiv.style.display = "block";
+            
+            // Foca e seleciona automaticamente para facilitar a vida do cliente
+            textAreaVisivel.focus();
+            textAreaVisivel.select();
+            textAreaVisivel.setSelectionRange(0, 99999);
 
         } else {
             alert("❌ Erro ao gerar o Pix automático. O servidor recusou o pedido.");
         }
     } catch (erro) {
         console.error("Erro interno no cliente:", erro);
-        btnClicado.innerHTML = textoOriginal;
-        btnClicado.disabled = false;
-        alert("❌ Erro de conexão com o servidor. Tente novamente ou chame o suporte.");
+        if (btnClicado) {
+            btnClicado.innerHTML = textoOriginal;
+            btnClicado.disabled = false;
+        }
+        alert("❌ Erro de conexão com o servidor. Tente novamente.");
     }
 }
 </script>
