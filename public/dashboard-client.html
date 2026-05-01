@@ -698,14 +698,14 @@
             <p style="font-size:12px; color:#141414; margin-bottom:10px;">Copie o código abaixo, pague no seu banco e o sistema aprova sozinho. Escolha o banco:</p>
             
             <div style="display: flex; gap: 10px;">
-                <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'nubank')" style="flex:1; background:#a203e0; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(138,5,190,0.3);">
-                    🟣 Copiar (Nubank)
-                </button>
-                
-                <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'mp')" style="flex:1; background:#e3df00; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(0,158,227,0.3);">
-                    🔵 Copiar (Mercado Pago)
-                </button>
-            </div>
+    <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'nubank', event)" style="flex:1; background:#a203e0; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(138,5,190,0.3);">
+        🟣 Copiar (Nubank)
+    </button>
+    
+    <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'mp', event)" style="flex:1; background:#e3df00; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(0,158,227,0.3);">
+        🔵 Copiar (Mercado Pago)
+    </button>
+</div>
         </div>
 
        <input type="hidden" id="pay-order-id">
@@ -714,69 +714,95 @@
 </div>
 
 <script>
-async function copiarPixExato(idFatura, banco) {
+async function copiarPixExato(idFatura, banco, eventoClique) {
     if (!idFatura) {
         alert("❌ Erro: Fatura não identificada.");
         return;
     }
 
+    // Identifica o botão clicado para dar feedback de "Carregando"
+    const btnClicado = eventoClique.currentTarget;
+    const textoOriginal = btnClicado.innerHTML;
+    btnClicado.innerHTML = "⏳ Gerando...";
+    btnClicado.disabled = true;
+
     try {
         const resposta = await fetch(`/api/gerar-pix/${banco}/${idFatura}`);
         const dados = await resposta.json();
 
-        if (dados.sucesso) {
-            
-            // FUNÇÃO BLINDADA DE CÓPIA PARA IOS E ANDROID
-            const copiarTexto = (texto) => {
-                if (navigator.clipboard && window.isSecureContext) {
-                    // API Moderna
-                    return navigator.clipboard.writeText(texto);
-                } else {
-                    // Fallback blindado para iOS
-                    let textArea = document.createElement("textarea");
-                    textArea.value = texto;
-                    // Evita que o teclado abra e dê scroll no iOS
-                    textArea.style.position = "fixed";
-                    textArea.style.top = "0";
-                    textArea.style.left = "0";
-                    textArea.style.width = "2em";
-                    textArea.style.height = "2em";
-                    textArea.style.padding = "0";
-                    textArea.style.border = "none";
-                    textArea.style.outline = "none";
-                    textArea.style.boxShadow = "none";
-                    textArea.style.background = "transparent";
-                    document.body.appendChild(textArea);
-                    
-                    textArea.focus();
-                    textArea.select();
-                    
-                    try {
-                        document.execCommand('copy');
-                        return Promise.resolve();
-                    } catch (err) {
-                        return Promise.reject(err);
-                    } finally {
-                        document.body.removeChild(textArea);
-                    }
-                }
-            };
+        // Restaura o botão
+        btnClicado.innerHTML = textoOriginal;
+        btnClicado.disabled = false;
 
-            copiarTexto(dados.pix_copia_cola)
-                .then(() => {
-                    const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
-                    alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor exato: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.\n\nAprovação automática em instantes!`);
-                })
-                .catch((err) => {
-                    console.error('Falha ao copiar:', err);
-                    alert("⚠️ Seu aparelho bloqueou a cópia automática. Por favor, tente novamente ou use outro navegador.");
-                });
+        if (dados.sucesso) {
+            const textoPix = dados.pix_copia_cola;
+            let copiouComSucesso = false;
+
+            // 1. Tenta a API Moderna (Funciona no Android e PCs)
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(textoPix);
+                    copiouComSucesso = true;
+                } catch (err) {
+                    console.warn("API moderna bloqueada, indo para o fallback...");
+                }
+            }
+
+            // 2. O Fallback Supremo para iOS
+            if (!copiouComSucesso) {
+                // Cria ou pega a área de fallback na tela
+                let fallbackDiv = document.getElementById("pix-fallback-area");
+                if (!fallbackDiv) {
+                    fallbackDiv = document.createElement("div");
+                    fallbackDiv.id = "pix-fallback-area";
+                    fallbackDiv.style.marginTop = "15px";
+                    fallbackDiv.innerHTML = `
+                        <p style="font-size:12px; color:#d32f2f; margin-bottom:5px; font-weight:bold;">
+                            ⚠️ Seu celular bloqueou a cópia automática. Clique em copiar abaixo:
+                        </p>
+                        <textarea id="pix-texto-visivel" readonly style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 11px; resize: none; word-break: break-all;" rows="4"></textarea>
+                    `;
+                    // Insere logo abaixo da div dos botões
+                    btnClicado.parentElement.insertAdjacentElement('afterend', fallbackDiv);
+                }
+                
+                const textAreaVisivel = document.getElementById("pix-texto-visivel");
+                textAreaVisivel.value = textoPix;
+                fallbackDiv.style.display = "block";
+                
+                // Foca e seleciona o texto (Isso aciona o balão nativo "Copiar" do iPhone)
+                textAreaVisivel.focus();
+                textAreaVisivel.select();
+                textAreaVisivel.setSelectionRange(0, 99999); // Necessário para Mobile
+
+                try {
+                    // Tenta forçar a cópia mesmo assim
+                    const sucessoExec = document.execCommand('copy');
+                    if (sucessoExec) copiouComSucesso = true;
+                } catch (err) {
+                    console.error('execCommand falhou:', err);
+                }
+            }
+
+            if (copiouComSucesso) {
+                const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
+                alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor exato: R$ ${dados.valor}\n\n1. Abra o app do seu banco.\n2. Escolha "Pix Copia e Cola".\n3. Cole o código e confirme.`);
+                
+                // Esconde a área de fallback se deu tudo certo
+                const fallbackArea = document.getElementById("pix-fallback-area");
+                if (fallbackArea) fallbackArea.style.display = "none";
+            } else {
+                // Se tudo falhar, o texto já está selecionado na tela para o usuário
+                alert("⚠️ O iPhone bloqueou a cópia em segundo plano. O código já está selecionado na tela, basta tocar em 'Copiar' no balão do seu celular.");
+            }
 
         } else {
             alert("❌ Erro ao gerar o Pix automático. O servidor recusou o pedido.");
         }
     } catch (erro) {
         console.error("Erro interno no cliente:", erro);
+        btnClicado.innerHTML = textoOriginal;
+        btnClicado.disabled = false;
         alert("❌ Erro de conexão com o servidor. Tente novamente ou chame o suporte.");
     }
 }
