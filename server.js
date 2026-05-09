@@ -547,22 +547,27 @@ app.use(express.static('public'));
 // SESSÃO BLINDADA (SOBREVIVE A DEPLOYS NO RENDER)
 // ==================================================================
 
-// 1. Avisar ao servidor que ele está no Render (para o cookie funcionar com o HTTPS deles)
+// 1. Avisar ao servidor que ele está no Render (para não bloquear os cookies do proxy)
 app.set('trust proxy', 1);
 
 app.use(session({
-    // 2. Salva o arquivo sessions.db no Disco Persistente da Render (se existir)
+    // 2. Salva o arquivo no disco permanente corretamente!
     store: new SQLiteStore({ 
         db: 'sessions.db', 
-        dir: process.env.RENDER_DISK_PATH || baseStorageFolder 
+        // 👇 CORREÇÃO: Usamos a variável exata que você criou lá no topo!
+        dir: discoPermanente 
     }),
     secret: process.env.SESSION_SECRET || 'chave_super_secreta_guineexpress_2024',
     resave: false,
     saveUninitialized: false,
     cookie: { 
         maxAge: 1000 * 60 * 60 * 24 * 30, // ⏳ 30 DIAS LOGADO (Estilo Gmail)
-        secure: process.env.NODE_ENV === 'production', // true no Render (HTTPS), false no seu PC
-        sameSite: 'lax' // Proteção moderna para cookies
+        
+        // 👇 CORREÇÃO: Deixamos secure falso. O Render já blinda o site com HTTPS 
+        // externamente, forçar aqui no Express é o que estava destruindo seu cookie.
+        secure: false, 
+        
+        sameSite: 'lax' // Proteção moderna que permite redirecionamentos normais
     } 
 }));
 // 🛡️ Middleware: Só deixa passar se for ADMIN
@@ -4463,46 +4468,6 @@ app.get('/disparar-meu-push', (req, res) => {
     
     res.send("<h1>Comando enviado!</h1><p>Verifique a tela do seu celular agora.</p>");
 });
-// ==================================================================
-// ROTA DA ROLETA: SALVAR PONTOS GANHOS
-// ==================================================================
-app.post('/api/save-points', (req, res) => {
-    // Verifica se o utilizador está logado na sessão
-    if (!req.session.userId) {
-        return res.status(401).json({ success: false, message: "Não autorizado" });
-    }
-
-    const userId = req.session.userId;
-    const pontosGanhos = 1; // Por enquanto a roleta dá sempre 1 ponto
-
-    const query = "UPDATE users SET express_points = express_points + ? WHERE id = ?";
-    
-    db.run(query, [pontosGanhos, userId], function(err) {
-        if (err) {
-            console.error("❌ Erro ao salvar pontos:", err.message);
-            return res.status(500).json({ success: false });
-        }
-        console.log(`🎁 Pontos adicionados ao utilizador ${userId}`);
-        res.json({ success: true, newTotal: "Atualizado" });
-    });
-});
-// ==================================================================
-// ROTA DO JOGO: SALVAR PONTOS POR RECORDE (50 PONTOS)
-// ==================================================================
-app.post('/api/save-game-points', (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ success: false });
-
-    const userId = req.session.userId;
-    const pontosPremio = 5; // Prémio por ser um craque no jogo!
-
-    const query = "UPDATE users SET express_points = express_points + ? WHERE id = ?";
-    
-    db.run(query, [pontosPremio, userId], function(err) {
-        if (err) return res.status(500).json({ success: false });
-        console.log(`🎮 Recorde batido! 5 pontos para o utilizador ${userId}`);
-        res.json({ success: true });
-    });
-});
 
 // Rota para marcar a encomenda como impressa no banco de dados
 app.post('/api/orders/mark-printed', (req, res) => {
@@ -4790,30 +4755,58 @@ app.get('/api/cici-avisos', (req, res) => {
     res.json({ avisos: mensagens });
 });
 // ==============================================================
-// 🏦 ROTA PARA GERAR PIX (NUBANK OU MERCADO PAGO)
+// 🏦 ROTA PARA GERAR PIX (INTELIGENTE: LOGÍSTICA E LOJA)
 // ==============================================================
 app.get('/api/gerar-pix/:banco/:id_fatura', (req, res) => {
     const { banco, id_fatura } = req.params;
 
-    // Busca o valor da fatura no banco de dados
+    // 1. Configura as chaves dependendo do banco que o cliente clicou
+    let chavePix, nomeTitular;
+    if (banco === 'mp') {
+        chavePix = "49356085000134"; // Mercado Pago
+        nomeTitular = "LELO JOSE GOMES";
+    } else {
+        chavePix = "comercialguineexpress245@gmail.com"; // Nubank
+        nomeTitular = "GUINE EXPRESS LTDA";
+    }
+    const cidadeTitular = "FORTALEZA";
+
+    // ==========================================================
+    // 🛍️ ROTA A: É UM PEDIDO DA LOJA? (Verifica se começa com STORE-)
+    // ==========================================================
+    if (id_fatura.startsWith('STORE-')) {
+        const orderId = id_fatura.replace('STORE-', ''); // Tira a palavra STORE- para pegar só o número
+        
+        db.get("SELECT total_brl FROM store_orders WHERE id = ?", [orderId], (err, pedidoLoja) => {
+            if (err || !pedidoLoja) {
+                return res.status(404).json({ erro: 'Pedido da loja não encontrado' });
+            }
+
+            const valorFatura = pedidoLoja.total_brl;
+            
+            // Fabrica o código mágico na hora com o ID da Loja!
+            const codigoPronto = gerarPixCopiaECola(chavePix, nomeTitular, cidadeTitular, valorFatura, `LOJA${orderId}`);
+
+            // Devolve pro cliente
+            return res.json({ 
+                sucesso: true, 
+                pix_copia_cola: codigoPronto,
+                valor: valorFatura,
+                banco_escolhido: banco
+            });
+        });
+        return; // Sai da função aqui, para não tentar rodar o código de baixo
+    }
+
+    // ==========================================================
+    // 📦 ROTA B: É UMA FATURA NORMAL DE ENVIO DE CAIXA (O seu original)
+    // ==========================================================
     db.get("SELECT amount FROM invoices WHERE id = ?", [id_fatura], (err, fatura) => {
         if (err || !fatura) {
             return res.status(404).json({ erro: 'Fatura não encontrada' });
         }
 
-        let chavePix, nomeTitular;
-
-        // Verifica qual banco o botão enviou
-        if (banco === 'mp') {
-            chavePix = "49356085000134"; // Mercado Pago
-            nomeTitular = "LELO JOSE GOMES";
-        } else {
-            chavePix = "comercialguineexpress245@gmail.com"; // Nubank
-            nomeTitular = "GUINE EXPRESS LTDA";
-        }
-
         const valorFatura = fatura.amount; 
-        const cidadeTitular = "FORTALEZA";
 
         // Fabrica o código mágico na hora!
         const codigoPronto = gerarPixCopiaECola(chavePix, nomeTitular, cidadeTitular, valorFatura, `FAT${id_fatura}`);
@@ -4827,7 +4820,44 @@ app.get('/api/gerar-pix/:banco/:id_fatura', (req, res) => {
         });
     });
 });
+// =======================================================
+// 👑 PAINEL ADMIN DA LOJA - GESTÃO DE PEDIDOS
+// =======================================================
 
+// 1. Buscar todos os pedidos da loja (com seus itens)
+app.get('/api/admin/store/orders', (req, res) => {
+    if (req.session.role !== 'admin' && req.session.role !== 'employee') return res.status(403).json({ success: false });
+
+    // Busca os pedidos mais recentes primeiro
+    const sql = `SELECT * FROM store_orders ORDER BY created_at DESC`;
+    db.all(sql, [], (err, orders) => {
+        if (err) return res.json({ success: false, msg: "Erro ao buscar pedidos." });
+
+        // Busca todos os itens de uma vez para cruzar os dados
+        db.all(`SELECT * FROM store_order_items`, [], (err2, allItems) => {
+            if (err2) return res.json({ success: false, msg: "Erro ao buscar itens." });
+
+            const pedidosCompletos = orders.map(order => {
+                return {
+                    ...order,
+                    items: allItems.filter(i => i.order_id === order.id)
+                };
+            });
+            res.json({ success: true, orders: pedidosCompletos });
+        });
+    });
+});
+
+// 2. Atualizar o Status do Pedido (Ex: Pago, Enviado)
+app.post('/api/admin/store/orders/status', (req, res) => {
+    if (req.session.role !== 'admin' && req.session.role !== 'employee') return res.status(403).json({ success: false });
+    
+    const { order_id, new_status } = req.body;
+    db.run(`UPDATE store_orders SET status = ? WHERE id = ?`, [new_status, order_id], (err) => {
+        if (err) return res.json({ success: false, msg: "Erro ao atualizar status." });
+        res.json({ success: true });
+    });
+});
 app.post('/api/notifications/subscribe', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ success: false, msg: 'Não logado' });
     
@@ -5030,7 +5060,34 @@ app.get('/api/store/products', (req, res) => {
         res.json({ success: true, products: rows });
     });
 });
+// =======================================================
+// 🛍️ ROTA PARA O CLIENTE VER SEUS PRÓPRIOS PEDIDOS
+// =======================================================
+app.get('/api/store/my-orders', (req, res) => {
+    if (!req.session.userId) return res.status(403).json({ success: false });
 
+    // Pega o telefone do cliente logado para buscar só os pedidos dele
+    const clientPhone = req.session.userPhone;
+    const clientName = req.session.userName;
+
+    // Busca os pedidos que pertencem a ele
+    db.all(`SELECT * FROM store_orders WHERE client_name = ? OR client_phone = ? ORDER BY created_at DESC`, 
+    [clientName, clientPhone], (err, orders) => {
+        if (err) return res.json({ success: false, msg: "Erro ao buscar." });
+
+        db.all(`SELECT * FROM store_order_items`, [], (err2, allItems) => {
+            if (err2) return res.json({ success: false });
+
+            const meusPedidos = orders.map(order => {
+                return {
+                    ...order,
+                    items: allItems.filter(i => i.order_id === order.id)
+                };
+            });
+            res.json({ success: true, orders: meusPedidos });
+        });
+    });
+});
 // A Rota que recebe o formulário do Admin
 app.post('/api/store/products', upload.single('image'), (req, res) => {
     // Só o Admin pode cadastrar
@@ -5101,6 +5158,42 @@ app.post('/api/store/products/delete', (req, res) => {
     if (req.session.role !== 'admin') return res.status(403).json({ success: false, msg: 'Sem permissão' });
     db.run(`DELETE FROM products WHERE id = ?`, [req.body.id], (err) => {
         res.json({ success: !err, msg: err ? err.message : null });
+    });
+});
+// =======================================================
+// 🛍️ ROTA DE CHECKOUT PREMIUM DA LOJA
+// =======================================================
+app.post('/api/store/checkout', (req, res) => {
+    // O cliente vai mandar quem ele é, endereço e o que tem no carrinho
+    const { client_name, client_phone, delivery_address, items, total_brl, payment_method, currency_used } = req.body;
+
+    if (!items || items.length === 0) return res.json({ success: false, msg: "Carrinho vazio." });
+
+    // 1. Cria o Pedido Principal
+    const sqlOrder = `INSERT INTO store_orders (client_name, client_phone, delivery_address, total_brl, currency_used, payment_method) VALUES (?, ?, ?, ?, ?, ?)`;
+    
+    db.run(sqlOrder, [client_name, client_phone, delivery_address, total_brl, currency_used, payment_method], function(err) {
+        if (err) return res.json({ success: false, msg: "Erro ao gerar pedido." });
+        
+        const orderId = this.lastID; // Pega o Número do Pedido que acabou de nascer
+
+        // 2. Salva cada item do carrinho amarrado a este pedido
+        const sqlItem = `INSERT INTO store_order_items (order_id, product_id, product_name, image_url, quantity, price_brl) VALUES (?, ?, ?, ?, ?, ?)`;
+        
+        let itemsSaved = 0;
+        items.forEach(item => {
+            db.run(sqlItem, [orderId, item.id, item.name, item.image_url, 1, item.price_brl], (err2) => {
+                itemsSaved++;
+                // Quando terminar de salvar todos os itens, avisa o frontend que deu certo!
+                if (itemsSaved === items.length) {
+                    res.json({ 
+                        success: true, 
+                        order_id: orderId, // Retorna o ID do pedido para o cliente poder pagar!
+                        msg: "Pedido criado com sucesso!" 
+                    });
+                }
+            });
+        });
     });
 });
 // ==============================================================

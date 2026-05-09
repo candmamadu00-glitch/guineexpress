@@ -652,7 +652,65 @@
         </div>
     </div>
 </section>
+<section id="store-orders-admin-view" class="hidden" style="padding: 20px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h2 style="color: #0a1931; margin: 0; font-size: 24px;"><i class="fas fa-cash-register" style="color: #dfaf12;"></i> Pedidos da Loja</h2>
+            <p style="color: #666; font-size: 13px;">Gerencie as vendas, pagamentos e envios.</p>
+        </div>
+        <button onclick="carregarPedidosLojaAdmin()" style="background: #0a1931; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold;"><i class="fas fa-sync-alt"></i> Atualizar Painel</button>
+    </div>
 
+    <div id="admin-orders-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+        </div>
+
+</section>
+
+<div id="modal-store-order-details" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; backdrop-filter: blur(5px);">
+    <div class="modal-content" style="background:#f4f7f6; margin:5% auto; border-radius:20px; width:90%; max-width:600px; position:relative; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+        
+        <div style="background: #0a1931; padding: 20px; color: white; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; color: #dfaf12;"><i class="fas fa-receipt"></i> Pedido #<span id="modal-order-id"></span></h3>
+            <span onclick="closeModal('modal-store-order-details')" style="cursor:pointer; font-size:24px; font-weight:bold;">&times;</span>
+        </div>
+
+        <div style="padding: 25px; max-height: 70vh; overflow-y: auto;">
+            
+            <div style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-left: 4px solid #39dac4;">
+                <p style="margin: 0 0 5px 0; font-size: 14px;"><b><i class="fas fa-user"></i> Cliente:</b> <span id="modal-order-client"></span></p>
+                <p style="margin: 0 0 5px 0; font-size: 14px;"><b><i class="fas fa-phone"></i> Zap:</b> <span id="modal-order-phone"></span></p>
+                <p style="margin: 0; font-size: 14px;"><b><i class="fas fa-map-marker-alt"></i> Endereço:</b> <span id="modal-order-address"></span></p>
+            </div>
+
+            <h4 style="color: #0a1931; margin-bottom: 10px; font-size: 15px;">Itens Comprados:</h4>
+            <div id="modal-order-items" style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                <div style="flex: 1; background: #0a1931; color: white; padding: 15px; border-radius: 12px; text-align: center;">
+                    <p style="margin: 0; font-size: 12px; color: #dfaf12;">Total a Pagar</p>
+                    <h3 style="margin: 5px 0 0 0;" id="modal-order-total">R$ 0,00</h3>
+                </div>
+                <div style="flex: 1; background: white; padding: 15px; border-radius: 12px; border: 1px solid #ddd;">
+                    <label style="font-size: 12px; font-weight: bold; color: #666;">Status do Pedido:</label>
+                    <select id="modal-order-status" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 8px; border: 1px solid #ccc; font-weight: bold; cursor: pointer;">
+                        <option value="Aguardando Pagamento">Aguardando Pagamento</option>
+                        <option value="Pago">✅ Pagamento Aprovado</option>
+                        <option value="Enviado">📦 Produto Enviado</option>
+                        <option value="Entregue">🏆 Entregue</option>
+                    </select>
+                    <button onclick="salvarStatusPedido()" style="width: 100%; margin-top: 10px; background: #dfaf12; color: #0a1931; border: none; padding: 5px; border-radius: 5px; font-weight: bold; cursor: pointer;">Salvar</button>
+                </div>
+            </div>
+
+            <button onclick="enviarReciboCicizaNoZap()" style="width: 100%; background: #25D366; color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3); display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <i class="fab fa-whatsapp" style="font-size: 20px;"></i> Cicí, Enviar Recibo no Zap!
+            </button>
+
+        </div>
+    </div>
+</div>
     <div id="modal-box" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">

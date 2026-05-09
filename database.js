@@ -189,6 +189,15 @@ db.serialize(() => {
         FOREIGN KEY(order_id) REFERENCES store_orders(id),
         FOREIGN KEY(product_id) REFERENCES products(id)
     )`);
+    // 🛍️ PATCH DA LOJA: Adicionando colunas novas nas tabelas antigas (Ignora erro se já existir)
+    db.run("ALTER TABLE store_orders ADD COLUMN client_name TEXT", () => {});
+    db.run("ALTER TABLE store_orders ADD COLUMN client_phone TEXT", () => {});
+    db.run("ALTER TABLE store_orders ADD COLUMN delivery_address TEXT", () => {});
+    db.run("ALTER TABLE store_orders ADD COLUMN currency_used TEXT", () => {});
+    db.run("ALTER TABLE store_orders ADD COLUMN payment_method TEXT", () => {});
+    
+    db.run("ALTER TABLE store_order_items ADD COLUMN product_name TEXT", () => {});
+    db.run("ALTER TABLE store_order_items ADD COLUMN image_url TEXT", () => {});
     // Agendamento - Vagas
     db.run(`CREATE TABLE IF NOT EXISTS availability (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

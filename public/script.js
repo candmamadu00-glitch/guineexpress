@@ -5,18 +5,20 @@ let mediaRecorder;
 let recordedChunks = [];
 let currentStream = null;
 let currentBlob = null;
+
 // 👇 ADICIONE AQUI NO TOPO!
 let itensNoCarrinho = []; 
 let produtosOriginais = [];
 let meuGraficoEstoque = null;
+// 👇 ADICIONE BEM NO TOPO DO SEU script.js
+var categoriaAtualLoja = 'Todos';
 window.verHistoricoCompleto = false;
-// COLOQUE AQUI: Configuração global de cotação das moedas
+// O banco de dados salva em Reais (BRL). Aqui definimos quanto vale R$ 1 nas outras moedas:
 const COTACAO = {
-    XOF: 1,        // Franco CFA (Base)
-    BRL: 0.0085,   // Real
-    EUR: 0.0015,   // Euro
-    USD: 0.0016    // Dólar
-    // (Use os valores exatos que você já tinha no seu código)
+    BRL: 1,      // R$ 1 é R$ 1
+    XOF: 120,    // Exemplo: R$ 1 = 120 Francos CFA (Ajuste conforme o câmbio atual)
+    EUR: 0.18,   // Exemplo: R$ 1 = 0,18 Euros
+    USD: 0.20    // Exemplo: R$ 1 = 0,20 Dólares
 };
 // ============================================================
 // BLOQUEADOR DE NAVEGADOR INTERNO (WHATSAPP, INSTAGRAM, ETC)
@@ -6008,8 +6010,6 @@ window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
 });
 
-// Rodar a notificação ao carregar a página (removi a duplicação que tinha no seu código)
-document.addEventListener('DOMContentLoaded',registerNotificationSystem );
 // ==========================================
 // 🔔 SISTEMA DE NOTIFICAÇÕES WEB-PUSH (COM FAXINA AUTOMÁTICA)
 // ==========================================
@@ -6798,123 +6798,6 @@ if (roletaBtn) {
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     });
-}
-
-const truck = document.getElementById("truck");
-const gameContainer = document.getElementById("game-container");
-const scoreElement = document.getElementById("score");
-const modalJogo = document.getElementById("modal-jogo");
-let score = 0;
-let isGameOver = false;
-
-// Abrir e Fechar o Jogo (CORRIGIDO)
-const btnAbrirJogo = document.getElementById("btn-abrir-jogo");
-const btnFecharJogo = document.getElementById("fechar-jogo");
-
-if (btnAbrirJogo) {
-    btnAbrirJogo.onclick = () => { 
-        modalJogo.style.display = 'flex'; 
-        resetJogo(); 
-    };
-}
-
-if (btnFecharJogo) {
-    btnFecharJogo.onclick = () => { 
-        modalJogo.style.display = 'none'; 
-        isGameOver = true; 
-    };
-}
-
-// Função de Saltar
-function jump() {
-    if (truck && !truck.classList.contains("animate-jump")) {
-        truck.classList.add("animate-jump");
-        setTimeout(() => truck.classList.remove("animate-jump"), 500);
-    }
-}
-
-// Detetar clique/toque para saltar (CORRIGIDO)
-if (gameContainer) {
-    gameContainer.addEventListener("mousedown", jump);
-    gameContainer.addEventListener("touchstart", (e) => { e.preventDefault(); jump(); });
-}
-
-// Detetar clique/toque para saltar
-gameContainer.addEventListener("mousedown", jump);
-gameContainer.addEventListener("touchstart", (e) => { e.preventDefault(); jump(); });
-
-// Criar Obstáculos (Caixas)
-function createObstacle() {
-    if (isGameOver) return;
-
-    const obstacle = document.createElement("div");
-    obstacle.classList.add("box-obstacle");
-    obstacle.innerHTML = "📦";
-    gameContainer.appendChild(obstacle);
-
-    let obstaclePosition = 400; // Começa fora da tela à direita
-    let randomSpeed = 3 + Math.random() * 5; // Velocidade aleatória
-
-    let timer = setInterval(() => {
-        // Colisão
-        let truckTop = parseInt(window.getComputedStyle(truck).getPropertyValue("bottom"));
-        
-        if (obstaclePosition > 20 && obstaclePosition < 60 && truckTop < 30) {
-            clearInterval(timer);
-            isGameOver = true;
-            document.getElementById("game-over-text").style.display = "block";
-            return;
-        }
-
-        obstaclePosition -= randomSpeed;
-        obstacle.style.left = obstaclePosition + "px";
-
-        if (obstaclePosition < -50) {
-            clearInterval(timer);
-            gameContainer.removeChild(obstacle);
-            
-            if (!isGameOver) {
-                score++;
-                scoreElement.innerHTML = "Pontos: " + score;
-
-                // --- VERIFICAÇÃO DE RECORDE ---
-                // Se chegar exatamente a 50, dispara o prémio!
-                if (score === 50) {
-                    ganhouPremioJogo();
-                }
-            }
-        }
-    }, 20);
-
-    // Cria a próxima caixa num tempo aleatório
-    if (!isGameOver) setTimeout(createObstacle, 1500 + Math.random() * 2000);
-}
-
-function resetJogo() {
-    isGameOver = false;
-    score = 0;
-    scoreElement.innerHTML = "Pontos: 0";
-    document.getElementById("game-over-text").style.display = "none";
-    // Limpar caixas antigas
-    document.querySelectorAll('.box-obstacle').forEach(box => box.remove());
-    createObstacle();
-}
-function ganhouPremioJogo() {
-    // 💥 Confettis de Elite!
-    if (typeof confetti === "function") {
-        confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 } });
-    }
-
-    // Avisa a Cici para gritar a vitória
-    if (typeof ciciAvisa === "function") {
-        ciciAvisa("INCRÍVEL! Chegou aos 50 pontos e ganhou 5 Pontos Express! 🏆", "sucesso");
-    }
-
-    // Guarda no Banco de Dados
-    fetch('/api/save-game-points', { method: 'POST' })
-    .then(res => res.json())
-    .then(() => console.log("Prémio do jogo guardado!"))
-    .catch(err => console.error("Erro ao guardar pontos do jogo"));
 }
 
 // ==============================================================
@@ -8584,26 +8467,6 @@ async function deletarProdutoLoja(id) {
         else alert("Erro ao apagar: " + json.msg);
     } catch(err) { alert("Erro de conexão."); }
 }
-
-
-async function carregarLojaCliente() {
-    const grid = document.getElementById('store-products-grid');
-    grid.innerHTML = '<div class="loader">Cicí está organizando a vitrine...</div>';
-
-    try {
-        const res = await fetch('/api/store/products');
-        const json = await res.json();
-        if (json.success) {
-            produtosOriginais = json.products;
-            renderizarProdutos();
-        }
-    } catch (err) { console.error("Erro ao carregar loja:", err); }
-}
-
-function alterarMoedaLoja() {
-    renderizarProdutos(); // Re-desenha os preços quando muda a moeda
-}
-
 function renderizarProdutos() {
     const grid = document.getElementById('store-products-grid');
     const moeda = document.getElementById('currency-selector').value;
@@ -8618,19 +8481,32 @@ function renderizarProdutos() {
         else if (moeda === 'USD') { precoFinal = p.price_brl * COTACAO.USD; simbolo = '$'; }
 
         html += `
-            <div class="product-card">
-                <img src="${p.image_url || '/logo.png'}" style="width:100%; height:200px; object-fit:cover; border-radius:15px;">
-                <span style="font-size:11px; color:#d4af37; font-weight:bold;">${p.category}</span>
-                <h3 style="margin:10px 0; font-size:18px;">${p.name}</h3>
-                <p style="color:#666; font-size:13px; height:40px; overflow:hidden;">${p.description || ''}</p>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
-                    <span style="font-size:22px; font-weight:900; color:#0a1931;">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                    <button onclick="adicionarAoCarrinho(${p.id})" style="background:#0a1931; color:white; border:none; width:40px; height:40px; border-radius:10px; cursor:pointer;">
-                        <i class="fas fa-cart-plus"></i>
-                    </button>
-                </div>
+    <div class="product-card-premium">
+        <div class="promo-badge">Oferta</div>
+        <div class="fav-btn" onclick="this.style.color='#d32f2f'; event.stopPropagation();"><i class="fas fa-heart"></i></div>
+        
+        <div class="img-container">
+            <img src="${p.image_url || '/logo.png'}" alt="${p.name}">
+        </div>
+
+        <div class="product-details">
+            <span class="product-cat">${p.category}</span>
+            <h3 class="product-title">${p.name}</h3>
+            
+            <div class="product-stars">
+                <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star-half-alt"></i>
+                <span>(99+)</span>
             </div>
-        `;
+
+            <div class="price-row">
+                <span class="price-amount">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                <button class="add-btn-premium" onclick="adicionarAoCarrinho(${p.id}, event)">
+                    <i class="fas fa-cart-plus"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+`;
     });
     grid.innerHTML = html;
 }
@@ -8734,33 +8610,68 @@ function atualizarContadorCarrinho() {
         contador.classList.add('hidden');
     }
 }
-// =======================================================
-// 🛒 GESTÃO DO CARRINHO E CHECKOUT
-// =======================================================
 
+// ==========================================
+// 🛒 CONTROLE VISUAL DO CARRINHO (BLINDADO)
+// ==========================================
 function abrirModalCarrinho() {
-    document.getElementById('side-cart').classList.add('open');
-    document.getElementById('cart-overlay').classList.remove('hidden');
-    renderizarItensCarrinho();
+    try {
+        // 1. Mostra a sombra cinza
+        const overlay = document.getElementById('cart-overlay');
+        if (overlay) overlay.classList.remove('hidden');
+
+        // 2. FORÇA O CARRINHO A ENTRAR NA TELA (Isso resolve o bug!)
+        const sideCart = document.getElementById('side-cart');
+        if (sideCart) sideCart.style.right = '0';
+
+        // 3. Garante que abra na Etapa 1
+        const step1 = document.getElementById('cart-step-1');
+        const step2 = document.getElementById('cart-step-2');
+        if (step1) step1.classList.remove('hidden');
+        if (step2) step2.classList.add('hidden');
+
+        document.getElementById('cart-title-text').innerHTML = '<i class="fas fa-shopping-bag"></i> Meu Carrinho';
+        
+        // 4. Desenha os produtos lá dentro
+        renderizarItensCarrinho();
+        
+    } catch (erro) {
+        console.error("Erro ao abrir a sacola:", erro);
+    }
 }
 
 function fecharModalCarrinho() {
-    document.getElementById('side-cart').classList.remove('open');
-    document.getElementById('cart-overlay').classList.add('hidden');
+    // 1. Esconde a sombra cinza
+    const overlay = document.getElementById('cart-overlay');
+    if (overlay) overlay.classList.add('hidden');
+
+    // 2. FORÇA O CARRINHO A SAIR DA TELA
+    const sideCart = document.getElementById('side-cart');
+    if (sideCart) sideCart.style.right = '-100%';
+    
+    // Reseta para o passo 1
+    const step1 = document.getElementById('cart-step-1');
+    const step2 = document.getElementById('cart-step-2');
+    if (step1) step1.classList.remove('hidden');
+    if (step2) step2.classList.add('hidden');
 }
 
 function renderizarItensCarrinho() {
     const container = document.getElementById('cart-items-container');
     const totalDisplay = document.getElementById('cart-total-value');
-    const moeda = document.getElementById('currency-selector').value;
     
-    if (itensNoCarrinho.length === 0) {
+    // Verificações de segurança para garantir que os elementos HTML existem
+    if (!container || !totalDisplay) return; 
+
+    const moedaSelecionadaElement = document.getElementById('currency-selector');
+    const moeda = moedaSelecionadaElement ? moedaSelecionadaElement.value : 'BRL';
+    
+    if (!itensNoCarrinho || itensNoCarrinho.length === 0) {
         container.innerHTML = `
             <div style="text-align:center; margin-top:50px; color:#999;">
                 <i class="fas fa-cart-arrow-down" style="font-size:50px; margin-bottom:15px;"></i>
                 <p>Seu carrinho está vazio.<br>A Cicí está ansiosa para te ajudar!</p>
-            </div>
-        `;
+            </div>`;
         totalDisplay.innerText = "---";
         return;
     }
@@ -8769,15 +8680,18 @@ function renderizarItensCarrinho() {
     let somaTotalBRL = 0;
 
     itensNoCarrinho.forEach((item, index) => {
-        somaTotalBRL += item.price_brl;
+        // Garantimos que o valor é sempre um número, mesmo se vier quebrado do banco
+        const precoItem = item.price_brl || 0; 
+        somaTotalBRL += precoItem;
+        
         html += `
-            <div class="cart-item">
+            <div class="cart-item" style="display:flex; gap:15px; background:white; padding:10px; border-radius:12px; margin-bottom:10px; border:1px solid #eee;">
                 <img src="${item.image_url || '/logo.png'}" style="width:60px; height:60px; border-radius:10px; object-fit:cover;">
                 <div style="flex-grow:1">
                     <h4 style="margin:0; font-size:14px; color:#0a1931;">${item.name}</h4>
-                    <span style="font-size:12px; color:#666;">R$ ${item.price_brl.toFixed(2)}</span>
+                    <span style="font-size:12px; color:#666;">Base: R$ ${precoItem.toFixed(2)}</span>
                 </div>
-                <button onclick="removerDoCarrinho(${index})" style="background:none; border:none; color:#dc3545; cursor:pointer;">
+                <button onclick="removerDoCarrinho(${index})" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:16px;">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
@@ -8786,12 +8700,15 @@ function renderizarItensCarrinho() {
 
     container.innerHTML = html;
 
-    // Converte o total para a moeda selecionada
+    // 💰 CONVERSÃO DE MOEDA (Com fallback de segurança usando window.COTACAO)
     let precoFinal = somaTotalBRL;
     let simbolo = 'R$';
-    if (moeda === 'CFA') { precoFinal = somaTotalBRL * COTACAO.CFA; simbolo = 'XOF'; }
-    else if (moeda === 'EUR') { precoFinal = somaTotalBRL * COTACAO.EUR; simbolo = '€'; }
-    else if (moeda === 'USD') { precoFinal = somaTotalBRL * COTACAO.USD; simbolo = '$'; }
+    
+    const cotacoesGlobais = window.COTACAO || { XOF: 1, EUR: 1, USD: 1 };
+
+    if (moeda === 'CFA') { precoFinal = somaTotalBRL * cotacoesGlobais.XOF; simbolo = 'XOF'; } 
+    else if (moeda === 'EUR') { precoFinal = somaTotalBRL * cotacoesGlobais.EUR; simbolo = '€'; }
+    else if (moeda === 'USD') { precoFinal = somaTotalBRL * cotacoesGlobais.USD; simbolo = '$'; }
 
     totalDisplay.innerText = `${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
 }
@@ -8802,27 +8719,147 @@ function removerDoCarrinho(index) {
     renderizarItensCarrinho();
 }
 
-// A FUNÇÃO DE FECHAMENTO (A Cicí no Zap)
-function finalizarCompraComCici() {
-    if (itensNoCarrinho.length === 0) return alert("Seu carrinho está vazio!");
+function irParaCheckout() {
+    if (!itensNoCarrinho || itensNoCarrinho.length === 0) return alert("Seu carrinho está vazio!");
+    
+    // Esconde a lista e mostra o formulário de endereço
+    document.getElementById('cart-step-1').classList.add('hidden');
+    document.getElementById('cart-step-2').classList.remove('hidden');
+    document.getElementById('cart-title-text').innerHTML = '<i class="fas fa-lock"></i> Pagamento Seguro';
 
-    let lista = "*NOVO PEDIDO DA LOJA GUINEEXPRESS* 🛒\n\n";
-    let total = 0;
+    // Copia o valor total convertido
+    document.getElementById('checkout-total-value').innerText = document.getElementById('cart-total-value').innerText;
 
-    itensNoCarrinho.forEach((item, i) => {
-        lista += `${i+1}. ${item.name} - R$ ${item.price_brl.toFixed(2)}\n`;
-        total += item.price_brl;
-    });
+    if (currentUser && currentUser.phone) {
+        document.getElementById('checkout-phone').value = currentUser.phone;
+    }
+}
 
-    lista += `\n*TOTAL ESTIMADO:* R$ ${total.toFixed(2)}`;
-    lista += `\n\nOlá Cicí! Gostaria de confirmar a compra destes itens. Pode me ajudar?`;
+function voltarParaCarrinho() {
+    document.getElementById('cart-step-2').classList.add('hidden');
+    document.getElementById('cart-step-1').classList.remove('hidden');
+    document.getElementById('cart-title-text').innerHTML = '<i class="fas fa-shopping-bag"></i> Meu Carrinho';
+}
 
-    // Codifica para URL do WhatsApp
-    const msgZap = encodeURIComponent(lista);
-    const linkZap = `https://wa.me/558598239207?text=${msgZap}`; // Coloque o número do seu atendimento
+async function processarCompraDaLoja() {
+    const address = document.getElementById('checkout-address').value.trim();
+    const phone = document.getElementById('checkout-phone').value.trim();
+    const paymentMethodInput = document.querySelector('input[name="pay-method"]:checked');
+if (!paymentMethodInput) {
+    return alert("Por favor, selecione uma forma de pagamento!");
+}
+const paymentMethod = paymentMethodInput.value;
 
-    // Abre o WhatsApp
-    window.open(linkZap, '_blank');
+    if (!address || !phone) return alert("Por favor, preencha o endereço de entrega e seu telefone de contato.");
+
+    const totalBRL = itensNoCarrinho.reduce((acc, item) => acc + item.price_brl, 0);
+    const moedaSelecionada = document.getElementById('currency-selector') ? document.getElementById('currency-selector').value : 'BRL';
+
+    const btn = document.getElementById('btn-final-buy');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/store/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_name: currentUser ? currentUser.name : 'Visitante',
+                client_phone: phone,
+                delivery_address: address,
+                items: itensNoCarrinho,
+                total_brl: totalBRL,
+                currency_used: moedaSelecionada,
+                payment_method: paymentMethod
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            itensNoCarrinho = [];
+            atualizarContadorCarrinho();
+            fecharModalCarrinho();
+
+            if (paymentMethod === 'pix') {
+                // Abre o Pix Automático!
+                document.getElementById('pay-order-id').value = `STORE-${data.order_id}`; 
+                document.getElementById('pay-desc').innerText = `Pedido Loja #${data.order_id}`;
+                document.getElementById('modal-payment').style.display = 'block';
+            } else {
+                // Pagamento Manual - Vai pro Zap
+                const zapMsg = `Olá Cicí! Acabei de fazer o Pedido #${data.order_id} na loja da Guineexpress.\n\nVou enviar o meu comprovante de pagamento abaixo 👇`;
+                window.open(`https://wa.me/558598239207?text=${encodeURIComponent(zapMsg)}`, '_blank');
+            }
+        } else {
+            alert("Erro ao processar pedido: " + data.msg);
+        }
+    } catch (error) {
+        alert("Erro de conexão. Verifique sua internet.");
+    } finally {
+        btn.innerHTML = 'FINALIZAR PEDIDO <i class="fas fa-lock" style="margin-left: 5px;"></i>';
+        btn.disabled = false;
+    }
+}
+
+// =======================================================
+// 🛍️ VER MINHAS COMPRAS
+// =======================================================
+async function abrirMeusPedidosLoja() {
+    document.getElementById('modal-my-store-orders').style.display = 'block';
+    const container = document.getElementById('my-store-orders-list');
+    
+    container.innerHTML = '<div style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const res = await fetch('/api/store/my-orders');
+        const data = await res.json();
+
+        if (data.success) {
+            if (data.orders.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center; color:#666; padding: 40px;">
+                        <i class="fas fa-box-open fa-3x" style="margin-bottom:15px; color:#ccc;"></i>
+                        <p>Você ainda não fez nenhuma compra.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            data.orders.forEach(order => {
+                let statusColor = '#f39c12'; // Aguardando
+                if (order.status === 'Pago') statusColor = '#27ae60';
+                if (order.status === 'Enviado') statusColor = '#2980b9';
+                if (order.status === 'Entregue') statusColor = '#8e44ad';
+
+                html += `
+                    <div style="background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid ${statusColor};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h4 style="margin: 0; color: #0a1931;">Pedido #${order.id}</h4>
+                            <span style="background: ${statusColor}22; color: ${statusColor}; padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: bold;">${order.status}</span>
+                        </div>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">💳 Pagamento: ${order.payment_method.toUpperCase()}</p>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 5px;">`;
+
+                order.items.forEach(item => {
+                    html += `<div style="font-size: 13px; color: #333;"><i class="fas fa-check" style="color: #39dac4; margin-right: 5px;"></i> ${item.quantity}x ${item.product_name}</div>`;
+                });
+
+                html += `
+                        </div>
+                        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 12px; color: #666;">Total:</span>
+                            <span style="font-size: 16px; font-weight: 900; color: #d32f2f;">${order.currency_used} ${order.total_brl.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+    } catch (err) {
+        container.innerHTML = '<p style="color:red; text-align:center;">Erro ao carregar compras.</p>';
+    }
 }
 // =======================================================
 // 📊 MOTOR DE RELATÓRIOS (ADMIN)
@@ -8904,81 +8941,28 @@ async function dispararPromoçaoEstoque() {
         }
     } catch (err) { alert("Erro ao preparar promoção."); }
 }
-// Atualizar o botão de "Loja Virtual" do Admin para carregar também os relatórios
-// No dashboard-admin.html, o botão deve ficar assim:
-// <button onclick="showView('store-admin-view'); carregarProdutosAdmin(); carregarEstatisticasLoja();">
-// =======================================================
-// 🔍 SISTEMA DE FILTRO DA VITRINE (CATEGORIAS)
-// =======================================================
-function filtrarLoja(categoria) {
-    const grid = document.getElementById('store-products-grid');
-    if (!grid) return;
 
-    let produtosParaMostrar = [];
-
-    // Se a pessoa clicar em "Todos", mostra a lista original completa
-    if (categoria === 'Todos' || categoria === 'todos') {
-        produtosParaMostrar = produtosOriginais;
-    } else {
-        // Se não, filtra só os que têm a mesma categoria
-        produtosParaMostrar = produtosOriginais.filter(p => p.category === categoria);
+// 2. Fica "escutando" o cliente digitar na barra de pesquisa em tempo real
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-store');
+    if (searchInput) {
+        searchInput.addEventListener('input', aplicarFiltrosLoja);
     }
+});
 
-    // Se não tiver nenhum produto nessa categoria, mostra um aviso bonitinho
-    if (produtosParaMostrar.length === 0) {
-        grid.innerHTML = `
-            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
-                <i class="fas fa-box-open" style="font-size: 50px; margin-bottom: 15px; color: #ccc;"></i>
-                <h3>Poxa!</h3>
-                <p>Ainda não temos produtos na categoria <b>${categoria}</b>.</p>
-            </div>
-        `;
-        return;
-    }
-
-    // Desenha os produtos filtrados na tela com as moedas certas
-    const moeda = document.getElementById('currency-selector') ? document.getElementById('currency-selector').value : 'BRL';
-    let html = '';
-
-    produtosParaMostrar.forEach(p => {
-        let precoFinal = p.price_brl;
-        let simbolo = 'R$';
-
-        if (moeda === 'CFA') { precoFinal = p.price_brl * COTACAO.CFA; simbolo = 'XOF'; }
-        else if (moeda === 'EUR') { precoFinal = p.price_brl * COTACAO.EUR; simbolo = '€'; }
-        else if (moeda === 'USD') { precoFinal = p.price_brl * COTACAO.USD; simbolo = '$'; }
-
-        html += `
-            <div class="product-card">
-                <img src="${p.image_url || '/logo.png'}" style="width:100%; height:200px; object-fit:cover; border-radius:15px;">
-                <span style="font-size:11px; color:#d4af37; font-weight:bold;">${p.category}</span>
-                <h3 style="margin:10px 0; font-size:18px;">${p.name}</h3>
-                <p style="color:#666; font-size:13px; height:40px; overflow:hidden;">${p.description || ''}</p>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
-                    <span style="font-size:22px; font-weight:900; color:#0a1931;">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                    <button onclick="adicionarAoCarrinho(${p.id}, event)" style="background:#0a1931; color:white; border:none; width:40px; height:40px; border-radius:10px; cursor:pointer;">
-                        <i class="fas fa-cart-plus"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    });
-    
-    grid.innerHTML = html;
-}
 // =======================================================
-// 🛒 CARREGAR LOJA DO CLIENTE (ANIMAÇÃO SUAVE)
+// 🛍️ MOTOR DA VITRINE DO CLIENTE (BUSCA, FILTRO E VISUAL)
 // =======================================================
 
 async function carregarLojaCliente() {
     const grid = document.getElementById('store-products-grid');
     if (!grid) return;
 
-    // Efeito de carregamento premium
     grid.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 50px;">
-            <i class="fas fa-circle-notch fa-spin" style="font-size: 40px; color: #d4af37; margin-bottom: 15px;"></i>
-            <h3 style="color: #0a1931;">Preparando a vitrine...</h3>
+        <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px;">
+            <i class="fas fa-circle-notch fa-spin" style="font-size: 50px; color: #dfaf12; margin-bottom: 20px;"></i>
+            <h3 style="color: #0a1931; margin-bottom: 5px;">Aguarde um momento...</h3>
+            <p style="color: #666; font-size: 14px;">Cicí está organizando as vitrines para você!</p>
         </div>
     `;
 
@@ -8988,14 +8972,116 @@ async function carregarLojaCliente() {
 
         if (data.success) {
             produtosOriginais = data.products;
-            filtrarLoja('Todos'); // Chama a função que desenha os cards!
+            // Quando os produtos chegam, chama a função para desenhar todos na tela
+            filtrarLoja('Todos'); 
         } else {
-            grid.innerHTML = '<p style="text-align:center; color: red;">Erro ao carregar os produtos.</p>';
+            grid.innerHTML = '<p style="text-align:center; color: red;">Erro ao carregar a vitrine.</p>';
         }
     } catch (error) {
-        console.error("Erro na loja:", error);
         grid.innerHTML = '<p style="text-align:center; color: #666;">Verifique sua conexão com a internet.</p>';
     }
+}
+
+// Fica "escutando" quando o cliente digita na barra de pesquisa
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-store');
+    if (searchInput) {
+        searchInput.addEventListener('input', aplicarFiltrosLoja);
+    }
+});
+
+function alterarMoedaLoja() {
+    aplicarFiltrosLoja(); // Re-desenha com a moeda nova
+}
+
+function filtrarLoja(categoria, elementoClicado) {
+    categoriaAtualLoja = categoria;
+
+    // Atualiza a cor das bolinhas de categoria lá no topo
+    if (elementoClicado) {
+        document.querySelectorAll('.cat-item').forEach(el => el.classList.remove('active'));
+        elementoClicado.closest('.cat-item').classList.add('active');
+    }
+
+    aplicarFiltrosLoja();
+}
+
+function aplicarFiltrosLoja() {
+    const grid = document.getElementById('store-products-grid');
+    if (!grid) return;
+    
+    const inputPesquisa = document.getElementById('search-store');
+    const termoBusca = inputPesquisa ? inputPesquisa.value.toLowerCase() : '';
+    const moeda = document.getElementById('currency-selector') ? document.getElementById('currency-selector').value : 'BRL';
+
+    let produtosFiltrados = produtosOriginais;
+
+    // 1. Filtra pela Categoria escolhida (se não for "Todos")
+    if (categoriaAtualLoja !== 'Todos') {
+        produtosFiltrados = produtosFiltrados.filter(p => p.category === categoriaAtualLoja);
+    }
+
+    // 2. Filtra pelo texto que o cliente digitou
+    if (termoBusca !== '') {
+        produtosFiltrados = produtosFiltrados.filter(p => 
+            p.name.toLowerCase().includes(termoBusca) || 
+            (p.description && p.description.toLowerCase().includes(termoBusca))
+        );
+    }
+
+    // 3. O que acontece se não encontrar nenhum produto?
+    if (produtosFiltrados.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 50px 20px; color: #666;">
+                <i class="fas fa-search-minus" style="font-size: 50px; margin-bottom: 15px; color: #ccc;"></i>
+                <h3 style="color: #0a1931;">Poxa!</h3>
+                <p>Não encontramos nenhum produto.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // 4. Desenha os produtos lindos na tela
+    let html = '';
+    produtosFiltrados.forEach(p => {
+        let precoFinal = p.price_brl;
+        let simbolo = 'R$';
+
+        // Usa a sua cotação global do sistema
+        if (moeda === 'CFA') { precoFinal = p.price_brl * (window.COTACAO?.XOF || window.COTACAO?.CFA || 1); simbolo = 'XOF'; }
+        else if (moeda === 'EUR') { precoFinal = p.price_brl * (window.COTACAO?.EUR || 1); simbolo = '€'; }
+        else if (moeda === 'USD') { precoFinal = p.price_brl * (window.COTACAO?.USD || 1); simbolo = '$'; }
+
+        html += `
+            <div class="product-card-premium">
+                <div class="promo-badge">Oferta</div>
+                <div class="fav-btn" onclick="this.style.color='#d32f2f'; event.stopPropagation();"><i class="fas fa-heart"></i></div>
+                
+                <div class="img-container">
+                    <img src="${p.image_url || '/logo.png'}" alt="${p.name}">
+                </div>
+
+                <div class="product-details">
+                    <span class="product-cat">${p.category}</span>
+                    <h3 class="product-title">${p.name}</h3>
+                    
+                    <div class="product-stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star-half-alt"></i>
+                        <span>(99+)</span>
+                    </div>
+
+                    <div class="price-row">
+                        <span class="price-amount">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                        <button class="add-btn-premium" onclick="adicionarAoCarrinho(${p.id}, event)">
+                            <i class="fas fa-cart-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    grid.innerHTML = html;
 }
 // =======================================================
 // 📱 MOTOR DE CÓPIA UNIVERSAL (À PROVA DE IPHONE/SAFARI)
@@ -9102,4 +9188,186 @@ window.alternarHistorico = function() {
     if (typeof loadOrders === 'function') loadOrders(); // Ou a função que carrega as Boxes
     if (typeof loadClientVideos === 'function') loadClientVideos();
     if (typeof loadReceipts === 'function') loadReceipts();
+}
+// =======================================================
+// 👑 GESTÃO DE PEDIDOS DA LOJA (ADMIN)
+// =======================================================
+let pedidoAtualAdmin = null; // Guarda o pedido que está aberto no modal
+
+async function carregarPedidosLojaAdmin() {
+    const grid = document.getElementById('admin-orders-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '<div style="text-align:center; padding: 40px; grid-column: 1/-1;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Buscando pedidos...</p></div>';
+
+    try {
+        const res = await fetch('/api/admin/store/orders');
+        const data = await res.json();
+
+        if (data.success) {
+            if (data.orders.length === 0) {
+                grid.innerHTML = '<div style="text-align:center; color:#666; grid-column: 1/-1; padding: 40px;"><i class="fas fa-box-open fa-3x" style="margin-bottom:15px; color:#ccc;"></i><p>Nenhum pedido recebido ainda.</p></div>';
+                return;
+            }
+
+            let html = '';
+            data.orders.forEach(order => {
+                // Cores dinâmicas para o status
+                let statusColor = '#f39c12'; // Aguardando
+                if (order.status === 'Pago') statusColor = '#27ae60';
+                if (order.status === 'Enviado') statusColor = '#2980b9';
+                if (order.status === 'Entregue') statusColor = '#8e44ad';
+
+                html += `
+                    <div style="background: white; border-radius: 15px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); position: relative; border-top: 5px solid ${statusColor}; cursor: pointer; transition: 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'" onclick='abrirModalPedidoLoja(${JSON.stringify(order)})'>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0; color: #0a1931;">Pedido #${order.id}</h3>
+                            <span style="background: ${statusColor}22; color: ${statusColor}; padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: bold;">${order.status}</span>
+                        </div>
+                        
+                        <p style="margin: 5px 0; font-size: 14px; color: #333;"><i class="fas fa-user" style="color:#dfaf12;"></i> ${order.client_name}</p>
+                        <p style="margin: 5px 0; font-size: 12px; color: #666;"><i class="fas fa-clock"></i> ${new Date(order.created_at).toLocaleString('pt-BR')}</p>
+                        
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 12px; color: #666;">${order.items.length} item(ns)</span>
+                            <span style="font-size: 18px; font-weight: 900; color: #d32f2f;">R$ ${order.total_brl.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            grid.innerHTML = html;
+        }
+    } catch (err) {
+        console.error(err);
+        grid.innerHTML = '<p style="color:red; text-align:center;">Erro de conexão.</p>';
+    }
+}
+
+// Abre o Modal com os dados bonitos
+function abrirModalPedidoLoja(order) {
+    pedidoAtualAdmin = order; // Salva globalmente
+
+    document.getElementById('modal-order-id').innerText = order.id;
+    document.getElementById('modal-order-client').innerText = order.client_name;
+    document.getElementById('modal-order-phone').innerText = order.client_phone;
+    document.getElementById('modal-order-address').innerText = order.delivery_address;
+    document.getElementById('modal-order-total').innerText = `R$ ${order.total_brl.toFixed(2)}`;
+    document.getElementById('modal-order-status').value = order.status;
+
+    let itemsHtml = '';
+    order.items.forEach(item => {
+        itemsHtml += `
+            <div style="display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;">
+                <img src="${item.image_url || '/logo.png'}" style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover;">
+                <div style="flex: 1;">
+                    <h5 style="margin: 0; color: #0a1931; font-size: 13px;">${item.product_name}</h5>
+                    <span style="font-size: 11px; color: #666;">Qtd: ${item.quantity}</span>
+                </div>
+                <span style="font-size: 13px; font-weight: bold; color: #0a1931;">R$ ${item.price_brl.toFixed(2)}</span>
+            </div>
+        `;
+    });
+    document.getElementById('modal-order-items').innerHTML = itemsHtml;
+
+    document.getElementById('modal-store-order-details').style.display = 'block';
+}
+
+// Salva a alteração de status
+async function salvarStatusPedido() {
+    const novoStatus = document.getElementById('modal-order-status').value;
+    
+    try {
+        const res = await fetch('/api/admin/store/orders/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: pedidoAtualAdmin.id, new_status: novoStatus })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert("✅ Status atualizado com sucesso!");
+            pedidoAtualAdmin.status = novoStatus; // Atualiza localmente
+            carregarPedidosLojaAdmin(); // Recarrega a tela de fundo
+        } else {
+            alert("Erro ao atualizar: " + data.msg);
+        }
+    } catch(err) { alert("Erro de conexão."); }
+}
+
+// A MÁGICA: Formata a mensagem com a "personalidade" da Cicí e envia pro Zap!
+function enviarReciboCicizaNoZap() {
+    if (!pedidoAtualAdmin) return;
+
+    let telefone = pedidoAtualAdmin.client_phone.replace(/\D/g, ''); // Limpa tudo que não for número
+    // Se não tiver código de país, assume Brasil ou Bissau dependendo do seu formato. O ideal é que o cliente já coloque com o código.
+    
+    // Constrói o Recibo Lindo da Cicí
+    let msg = `✨ Olá ${pedidoAtualAdmin.client_name}! Aqui é a *Cicí*, da Guineexpress! 🤖💙\n\n`;
+    
+    if (pedidoAtualAdmin.status === 'Aguardando Pagamento') {
+        msg += `Passando para confirmar que recebi o seu pedido *#${pedidoAtualAdmin.id}* na nossa loja! 🛍️\n\n`;
+        msg += `Estou aguardando a confirmação do pagamento para pedir pro pessoal separar seu pacote, tá bem? 😉\n\n`;
+    } else if (pedidoAtualAdmin.status === 'Pago') {
+        msg += `Uhuu! 🎉 Passando para avisar que o pagamento do seu pedido *#${pedidoAtualAdmin.id}* foi *APROVADO*! ✅\n\n`;
+        msg += `Já estamos separando tudo com muito carinho e em breve te aviso sobre o envio. 📦💨\n\n`;
+    } else if (pedidoAtualAdmin.status === 'Enviado') {
+        msg += `Seu pacote está a caminho! ✈️📦\n\nO pedido *#${pedidoAtualAdmin.id}* acabou de ser despachado. Fique de olho, em breve chegará no endereço: _${pedidoAtualAdmin.delivery_address}_\n\n`;
+    }
+
+    msg += `*🧾 RESUMO DA COMPRA:*\n`;
+    pedidoAtualAdmin.items.forEach(item => {
+        msg += `▪️ ${item.quantity}x ${item.product_name}\n`;
+    });
+    msg += `\n*Total:* R$ ${pedidoAtualAdmin.total_brl.toFixed(2)}\n\n`;
+    msg += `Qualquer dúvida, é só me chamar aqui! 🥰`;
+
+    // Redireciona para o WhatsApp Web/App do Admin com a mensagem preenchida
+    const linkZap = `https://wa.me/${telefone}?text=${encodeURIComponent(msg)}`;
+    window.open(linkZap, '_blank');
+}
+
+function renderizarModalPedidosLoja(orders) {
+    // Verifica se o modal já existe, se não, cria um novo
+    let modal = document.getElementById('modal-meus-pedidos');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-meus-pedidos';
+        modal.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 30000; display: flex; justify-content: center; align-items: center;";
+        document.body.appendChild(modal);
+    }
+
+    let html = `
+    <div style="background: white; width: 90%; max-width: 500px; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; max-height: 80vh;">
+        <div style="background: #0a1931; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; color: #dfaf12;"><i class="fas fa-receipt"></i> Minhas Compras</h3>
+            <button onclick="document.getElementById('modal-meus-pedidos').style.display='none'" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
+        </div>
+        <div style="padding: 20px; overflow-y: auto; flex-grow: 1; background: #f4f7f6;">`;
+
+    if (orders.length === 0) {
+        html += `<div style="text-align: center; padding: 30px; color: #666;"><i class="fas fa-box-open" style="font-size: 40px; margin-bottom: 10px; color: #ccc;"></i><p>Você ainda não tem compras na loja.</p></div>`;
+    } else {
+        orders.forEach(o => {
+            html += `
+            <div style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid #dfaf12;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <strong>Pedido #${o.id}</strong>
+                    <span style="color: #d32f2f; font-weight: bold;">${o.currency_used} ${o.total_brl.toFixed(2)}</span>
+                </div>
+                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Método: <strong>${o.payment_method.toUpperCase()}</strong></div>
+                <div style="font-size: 13px;">`;
+            
+            o.items.forEach(item => {
+                html += `<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 4px 0;">
+                            <span>${item.quantity}x ${item.product_name}</span>
+                         </div>`;
+            });
+            html += `</div></div>`;
+        });
+    }
+
+    html += `</div></div>`;
+    modal.innerHTML = html;
+    modal.style.display = 'flex';
 }
