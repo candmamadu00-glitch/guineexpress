@@ -84,7 +84,6 @@ app.use('/api/user/login', authLimiter);
 app.use('/api/admin/register-client', authLimiter);
 
 // Configuração do caminho da sessão
-const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
 
 let clientZap = null;
 // Configuração de identidade para as Notificações
