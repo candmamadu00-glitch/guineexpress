@@ -1,9 +1,9 @@
-const {join} = require('path');
+const { join } = require('path');
 
 /**
  * @type {import("puppeteer").Configuration}
  */
 module.exports = {
-  // Diz para o Puppeteer salvar o Chrome dentro da nossa pasta do projeto!
+  // Diz ao Puppeteer para instalar e ler o Chrome sempre na mesma pasta oculta
   cacheDirectory: join(__dirname, '.cache', 'puppeteer'),
 };
