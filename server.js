@@ -19,7 +19,6 @@ const path = require('path');
 const SQLiteStore = require('connect-sqlite3')(session);
 const db = require('./database'); 
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
 const qrcode = require('qrcode');
 const fs = require('fs');
 const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
@@ -77,6 +76,7 @@ app.use('/api/user/login', authLimiter);
 app.use('/api/admin/register-client', authLimiter);
 
 // Configuração do caminho da sessão
+const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
 
 let clientZap = null;
 // Configuração de identidade para as Notificações
@@ -1438,23 +1438,22 @@ function ligarMotorDoZap(res = null) {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
+  // No topo do arquivo, certifique-se de ter o puppeteer importado
+
 var clientZap = new Client({
-    authStrategy: new LocalAuth({ 
-        dataPath: discoPermanente // Use a variável que aponta para /data
-    }), 
+    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
     puppeteer: {
-        // FORÇA O CAMINHO EXATO DO RENDER
-        executablePath: '/opt/render/project/src/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome',
-        handleSIGINT: false,
-        handleSIGTERM: false,
-        handleSIGHUP: false,
+        executablePath: puppeteer.executablePath(), // <-- ADICIONE ISSO AQUI
+        protocolTimeout: 600000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-extensions',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
             '--no-zygote',
-            '--single-process'
+            '--single-process', // Importante para o Render não estourar a RAM
+            '--disable-gpu'
         ]
     }
 });
