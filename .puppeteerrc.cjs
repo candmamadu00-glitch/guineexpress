@@ -4,6 +4,6 @@ const { join } = require('path');
  * @type {import("puppeteer").Configuration}
  */
 module.exports = {
-  // Diz ao Puppeteer para instalar e ler o Chrome sempre na mesma pasta oculta
-  cacheDirectory: join(__dirname, '.cache', 'puppeteer'),
+  // Mudámos o nome para não ter ponto. O Render não vai apagar isto!
+  cacheDirectory: join(__dirname, 'chrome-cache'),
 };
