@@ -1437,13 +1437,10 @@ function ligarMotorDoZap(res = null) {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    const puppeteer = require('puppeteer');
-
-// Apenas mudei "const" para "var" aqui em baixo:
+    // Remova o executablePath para deixar o WhatsApp achar sozinho!
 var clientZap = new Client({
-    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), // Ou discoPermanente
+    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
     puppeteer: {
-        executablePath: puppeteer.executablePath(),
         protocolTimeout: 600000,
         args: [
             '--no-sandbox',
