@@ -1437,15 +1437,12 @@ function ligarMotorDoZap(res = null) {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    // 1. Certifique-se que esta linha está no topo do arquivo ou antes do Client
-const puppeteer = require('puppeteer');
+    const puppeteer = require('puppeteer');
 
-// 2. A nova configuração "Blindada"
-const clientZap = new Client({
-    // Mantive o seu SESSION_PATH ou discoPermanente (use o que estiver definido no seu código)
-    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
+// Apenas mudei "const" para "var" aqui em baixo:
+var clientZap = new Client({
+    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), // Ou discoPermanente
     puppeteer: {
-        // ✅ RESOLVE O ERRO: Localiza o Chrome baixado pelo Render
         executablePath: puppeteer.executablePath(),
         protocolTimeout: 600000,
         args: [
@@ -1455,7 +1452,7 @@ const clientZap = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process', // Importante para não travar o Render
+            '--single-process',
             '--disable-gpu'
         ]
     }
