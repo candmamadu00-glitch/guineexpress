@@ -1401,19 +1401,11 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
-
 // ==============================================================
 // 🤖 FUNÇÃO INDEPENDENTE PARA LIGAR O MOTOR DO ZAP
 // ==============================================================
-function ligarMotorDoZap(res = null) {
-    if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-        if (res && !res.headersSent) return res.json({ success: true, msg: "WhatsApp já está conectado!" });
-        return; // Já tá rodando, não faz nada
-    }
 
-    console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
-
-    // 1. Radar Sniper (Destrava as permissões do Linux)
+// 1. Radar Sniper (Destrava as permissões do Linux)
 const encontrarChrome = () => {
     try {
         const basePath = '/opt/render/project/src/.cache/puppeteer/chrome';
@@ -1438,9 +1430,7 @@ const encontrarChrome = () => {
         procurarExecutavel(basePath);
 
         if (executavelEncontrado) {
-            // Se essa mensagem com o ALVO aparecer no log, a vitória é garantida!
             console.log("🎯 [RADAR] Executável do Chrome ACHADO em:", executavelEncontrado);
-            
             // 🔥 A MÁGICA: Quebra as correntes de permissão do Render!
             fs.chmodSync(executavelEncontrado, '777'); 
             return executavelEncontrado;
@@ -1451,24 +1441,57 @@ const encontrarChrome = () => {
     return puppeteer.executablePath();
 };
 
-// 2. Criação do Zap
-var clientZap = new Client({
-    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
-    puppeteer: {
-        executablePath: encontrarChrome(), 
-        protocolTimeout: 600000,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process', 
-            '--disable-gpu'
-        ]
+function ligarMotorDoZap(res = null) {
+    if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+        if (res && !res.headersSent) return res.json({ success: true, msg: "WhatsApp já está conectado!" });
+        return; 
     }
-});
+
+    console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
+    
+    try {
+        function destruirCadeados(diretorio) {
+            if (!fs.existsSync(diretorio)) return;
+            let arquivos = [];
+            try { arquivos = fs.readdirSync(diretorio); } catch (e) { return; }
+            for (const arquivo of arquivos) {
+                const caminhoCompleto = path.join(diretorio, arquivo);
+                try {
+                    const stats = fs.lstatSync(caminhoCompleto);
+                    if (stats.isDirectory()) {
+                        destruirCadeados(caminhoCompleto);
+                    } else if (arquivo.startsWith('Singleton')) {
+                        fs.unlinkSync(caminhoCompleto);
+                        console.log(`🔥 Cadeado aniquilado: ${caminhoCompleto}`);
+                    }
+                } catch (err) { }
+            }
+        }
+        destruirCadeados(SESSION_PATH);
+    } catch (e) {
+        console.error("Aviso geral na limpeza:", e.message);
+    }
+
+    // 2. Criação do Zap
+    clientZap = new Client({
+        authStrategy: new LocalAuth({ dataPath: discoPermanente }), 
+        puppeteer: {
+            executablePath: encontrarChrome(), // <--- CHAMA O RADAR AQUI!
+            protocolTimeout: 600000,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process', 
+                '--disable-gpu'
+            ]
+        }
+    });
+
+    // ... [O RESTO DO SEU CÓDIGO DA FUNÇÃO CONTINUA AQUI (clientZap.on('qr', ... etc)]
     clientZap.once('qr', async (qr) => {
         console.log("📞 [ZAP] QR Code gerado! Aguardando Lelo escanear...");
         if (res && !res.headersSent) {
