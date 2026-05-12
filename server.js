@@ -1413,13 +1413,12 @@ function ligarMotorDoZap(res = null) {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
 
-    // 1. Radar Sniper (Busca o arquivo real e destrava as permissões)
+    // 1. Radar Sniper (Destrava as permissões do Linux)
 const encontrarChrome = () => {
     try {
         const basePath = '/opt/render/project/src/.cache/puppeteer/chrome';
         let executavelEncontrado = null;
 
-        // Fuça em todas as subpastas até achar o arquivo chamado "chrome"
         const procurarExecutavel = (pastaAtual) => {
             if (!fs.existsSync(pastaAtual)) return;
             const itens = fs.readdirSync(pastaAtual);
@@ -1429,9 +1428,9 @@ const encontrarChrome = () => {
                 const stat = fs.lstatSync(caminhoCompleto);
                 
                 if (stat.isDirectory()) {
-                    procurarExecutavel(caminhoCompleto); // Entra na subpasta
+                    procurarExecutavel(caminhoCompleto); 
                 } else if (item === 'chrome') {
-                    executavelEncontrado = caminhoCompleto; // Achou o alvo!
+                    executavelEncontrado = caminhoCompleto; 
                 }
             }
         };
@@ -1440,16 +1439,13 @@ const encontrarChrome = () => {
 
         if (executavelEncontrado) {
             console.log("🎯 [RADAR] Executável do Chrome ACHADO em:", executavelEncontrado);
-            // MÁGICA: Força o Linux a liberar permissão de execução para o Zap conseguir abrir!
+            // 🔥 A MÁGICA ESTÁ AQUI: Isso força o Render a liberar o arquivo!
             fs.chmodSync(executavelEncontrado, '777'); 
             return executavelEncontrado;
-        } else {
-            console.log("❌ [RADAR] O executável 'chrome' não foi encontrado nas pastas.");
         }
     } catch (e) {
         console.log("Erro no radar:", e.message);
     }
-    // Se tudo falhar, tenta a sorte com o caminho padrão
     return puppeteer.executablePath();
 };
 
