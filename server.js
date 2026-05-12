@@ -1413,39 +1413,51 @@ function ligarMotorDoZap(res = null) {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
 
-    // 1. Função Radar Melhorada (Ignora arquivos .zip)
+    // 1. Radar Sniper (Busca o arquivo real e destrava as permissões)
 const encontrarChrome = () => {
     try {
         const basePath = '/opt/render/project/src/.cache/puppeteer/chrome';
-        if (fs.existsSync(basePath)) {
-            // Lê tudo o que tem na pasta
-            const itens = fs.readdirSync(basePath);
-            
-            // FILTRO MÁGICO: Separa apenas o que é PASTA (ignora o .zip)
-            const pastas = itens.filter(item => {
-                const caminhoItem = path.join(basePath, item);
-                return fs.lstatSync(caminhoItem).isDirectory();
-            });
+        let executavelEncontrado = null;
 
-            if (pastas.length > 0) {
-                // Agora ele pega com certeza a pasta extraída
-                const caminhoReal = path.join(basePath, pastas[0], 'chrome-linux64', 'chrome');
-                console.log("🔍 [RADAR] Chrome encontrado com sucesso em:", caminhoReal);
-                return caminhoReal;
+        // Fuça em todas as subpastas até achar o arquivo chamado "chrome"
+        const procurarExecutavel = (pastaAtual) => {
+            if (!fs.existsSync(pastaAtual)) return;
+            const itens = fs.readdirSync(pastaAtual);
+            
+            for (let item of itens) {
+                const caminhoCompleto = path.join(pastaAtual, item);
+                const stat = fs.lstatSync(caminhoCompleto);
+                
+                if (stat.isDirectory()) {
+                    procurarExecutavel(caminhoCompleto); // Entra na subpasta
+                } else if (item === 'chrome') {
+                    executavelEncontrado = caminhoCompleto; // Achou o alvo!
+                }
             }
+        };
+
+        procurarExecutavel(basePath);
+
+        if (executavelEncontrado) {
+            console.log("🎯 [RADAR] Executável do Chrome ACHADO em:", executavelEncontrado);
+            // MÁGICA: Força o Linux a liberar permissão de execução para o Zap conseguir abrir!
+            fs.chmodSync(executavelEncontrado, '777'); 
+            return executavelEncontrado;
+        } else {
+            console.log("❌ [RADAR] O executável 'chrome' não foi encontrado nas pastas.");
         }
     } catch (e) {
-        console.log("Erro no radar do Chrome:", e.message);
+        console.log("Erro no radar:", e.message);
     }
-    // Se falhar, tenta o padrão
+    // Se tudo falhar, tenta a sorte com o caminho padrão
     return puppeteer.executablePath();
 };
 
-// 2. Criação do Zap usando o Radar
+// 2. Criação do Zap
 var clientZap = new Client({
     authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
     puppeteer: {
-        executablePath: encontrarChrome(), // <--- A MÁGICA ESTÁ AQUI
+        executablePath: encontrarChrome(), 
         protocolTimeout: 600000,
         args: [
             '--no-sandbox',
