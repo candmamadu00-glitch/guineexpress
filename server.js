@@ -1,14 +1,4 @@
 require('dotenv').config(); // Lê o arquivo .env
-
-// 1. PRIMEIRO: Importamos os módulos do sistema (fs e path)
-const fs = require('fs');
-const path = require('path');
-
-// 2. SEGUNDO: Agora que o 'fs' existe, podemos checar as pastas com segurança!
-const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
-const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
-
-// 3. TERCEIRO: O resto das suas importações...
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -19,27 +9,30 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet'); 
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('express-rate-limit'); // <-- NOVA IMPORTAÇÃO AQUI
 const compression = require('compression'); 
 const MercadoPagoConfig = require('mercadopago').MercadoPagoConfig;
 const Payment = require('mercadopago').Payment;
 const Preference = require('mercadopago').Preference;
 const cron = require('node-cron'); 
+const path = require('path');      
 const SQLiteStore = require('connect-sqlite3')(session);
 const db = require('./database'); 
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const SESSION_PATH = fs.existsSync('/data') ? '/data/session-admin' : './session-admin';
 const qrcode = require('qrcode');
+const fs = require('fs');
+const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
 const webpush = require('web-push');
-const ExcelJS = require('exceljs');
-const ffmpeg = require('fluent-ffmpeg');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-const puppeteer = require('puppeteer');
-
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-
 const app = express(); // <-- O App é criado aqui
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
+const ExcelJS = require('exceljs');
+// === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+const puppeteer = require('puppeteer');
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // =======================================================
 // 🛡️ SEGURANÇA (HELMET COM LISTA VIP LIBERADA PARA O SW.JS)
 // =======================================================
@@ -556,6 +549,7 @@ app.use(express.static('public'));
 // ==================================================================
 
 // 1. Avisar ao servidor que ele está no Render (para não bloquear os cookies do proxy)
+app.set('trust proxy', 1);
 
 app.use(session({
     // 2. Salva o arquivo no disco permanente corretamente!
