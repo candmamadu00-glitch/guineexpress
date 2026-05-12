@@ -18,7 +18,8 @@ const cron = require('node-cron');
 const path = require('path');      
 const SQLiteStore = require('connect-sqlite3')(session);
 const db = require('./database'); 
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const pino = require('pino');
 const qrcode = require('qrcode');
 const fs = require('fs');
 const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
@@ -1402,139 +1403,98 @@ app.get('/api/expenses/list', (req, res) => {
     });
 });
 // ==============================================================
-// 🤖 FUNÇÃO INDEPENDENTE PARA LIGAR O MOTOR DO ZAP
+// 🤖 NOVO MOTOR DO ZAP (BAILEYS - SEM CHROME)
 // ==============================================================
 
-// 1. Radar Sniper (Destrava as permissões do Linux)
-const encontrarChrome = () => {
-    try {
-        const basePath = '/opt/render/project/src/.cache/puppeteer/chrome';
-        let executavelEncontrado = null;
+let sock = null; 
 
-        const procurarExecutavel = (pastaAtual) => {
-            if (!fs.existsSync(pastaAtual)) return;
-            const itens = fs.readdirSync(pastaAtual);
-            
-            for (let item of itens) {
-                const caminhoCompleto = path.join(pastaAtual, item);
-                const stat = fs.lstatSync(caminhoCompleto);
-                
-                if (stat.isDirectory()) {
-                    procurarExecutavel(caminhoCompleto); 
-                } else if (item === 'chrome') {
-                    executavelEncontrado = caminhoCompleto; 
-                }
-            }
-        };
-
-        procurarExecutavel(basePath);
-
-        if (executavelEncontrado) {
-            console.log("🎯 [RADAR] Executável do Chrome ACHADO em:", executavelEncontrado);
-            // 🔥 A MÁGICA: Quebra as correntes de permissão do Render!
-            fs.chmodSync(executavelEncontrado, '777'); 
-            return executavelEncontrado;
-        }
-    } catch (e) {
-        console.log("Erro no radar:", e.message);
-    }
-    return puppeteer.executablePath();
-};
-
-// ==============================================================
-// 🤖 FUNÇÃO INDEPENDENTE PARA LIGAR O MOTOR DO ZAP
-// ==============================================================
-
-function ligarMotorDoZap(res = null) {
-    if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+async function ligarMotorDoZap(res = null) {
+    // Verifica se já está conectado
+    if (sock && sock.user) {
         if (res && !res.headersSent) return res.json({ success: true, msg: "WhatsApp já está conectado!" });
         return; 
     }
 
-    console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
+    console.log("📞 [ZAP] Iniciando o motor Baileys (Super Leve)...");
     
-    // Proteção: Limpa cadeados de sessões antigas que travaram
-    try {
-        function destruirCadeados(diretorio) {
-            if (!fs.existsSync(diretorio)) return;
-            let arquivos = [];
-            try { arquivos = fs.readdirSync(diretorio); } catch (e) { return; }
-            for (const arquivo of arquivos) {
-                const caminhoCompleto = path.join(diretorio, arquivo);
+    // O Baileys gerencia a própria sessão na pasta baileys_auth_info dentro do disco permanente
+    const authPath = path.join(discoPermanente, 'baileys_auth_info');
+    const { state, saveCreds } = await useMultiFileAuthState(authPath);
+
+    sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: true,
+        logger: pino({ level: 'silent' }), 
+        browser: ['Guineexpress', 'Chrome', '1.0.0']
+    });
+
+    // 🎭 MANTEMOS O NOME clientZap PARA NÃO QUEBRAR O RESTO DO SEU CÓDIGO
+    clientZap = {
+        info: true,
+        sendMessage: async (numero, texto) => {
+            if (!sock) return;
+            // Formata o número para o padrão do Baileys
+            const jid = numero.includes('@') ? numero : `${numero.replace(/\D/g, '')}@s.whatsapp.net`;
+            return await sock.sendMessage(jid, { text: texto });
+        }
+    };
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            console.log("📞 [ZAP] QR Code gerado! Aguardando escanear...");
+            if (res && !res.headersSent) {
                 try {
-                    const stats = fs.lstatSync(caminhoCompleto);
-                    if (stats.isDirectory()) {
-                        destruirCadeados(caminhoCompleto);
-                    } else if (arquivo.startsWith('Singleton')) {
-                        fs.unlinkSync(caminhoCompleto);
-                        console.log(`🔥 Cadeado aniquilado: ${caminhoCompleto}`);
-                    }
-                } catch (err) { }
+                    const qrImage = await qrcode.toDataURL(qr);
+                    res.json({ success: true, qr: qrImage });
+                } catch (err) {
+                    console.log("Erro ao gerar imagem do QR:", err);
+                }
             }
         }
-        destruirCadeados(SESSION_PATH);
-    } catch (e) {
-        console.error("Aviso geral na limpeza:", e.message);
-    }
 
-    // 2. Criação do Zap - Oficial e Limpo
-    clientZap = new Client({
-        authStrategy: new LocalAuth({ dataPath: discoPermanente }), 
-        puppeteer: {
-            executablePath: puppeteer.executablePath(), // <-- AQUI ESTÁ A CORREÇÃO PRINCIPAL!
-            protocolTimeout: 600000,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process', 
-                '--disable-gpu'
-            ]
+        if (connection === 'close') {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('❌ [ZAP] Conexão caiu. Reconectando...', shouldReconnect);
+            if (shouldReconnect) ligarMotorDoZap();
+        } else if (connection === 'open') {
+            console.log('✅ [ZAP] WhatsApp Conectado (Baileys)!');
+            if (res && !res.headersSent) res.json({ success: true, msg: "Conectado!" });
+            
+            // Ativa o ouvinte de mensagens
+            configurarEventosDoZap(sock);
         }
-    });
-    clientZap.once('qr', async (qr) => {
-        console.log("📞 [ZAP] QR Code gerado! Aguardando Lelo escanear...");
-        if (res && !res.headersSent) {
-            const qrImage = await qrcode.toDataURL(qr);
-            res.json({ success: true, qr: qrImage });
-        }
-    });
-
-    clientZap.once('ready', () => {
-        console.log('✅ [ZAP] WhatsApp Pronto e Conectado!');
-        if (res && !res.headersSent) {
-            res.json({ success: true, msg: "Conectado com sucesso!" });
-        }
-    });
-
-    // Quando o Whatsapp percebe que a sessão expirou ou foi desconectada no celular
-    clientZap.on('auth_failure', msg => {
-        console.error('❌ [ZAP] Falha de Autenticação. Você desconectou no celular?', msg);
-        // Aqui a sessão morreu mesmo. Vai precisar de novo QR Code.
-    });
-
-    configurarEventosDoZap(clientZap);
-
-    clientZap.initialize().catch((err) => { 
-        console.log("❌ Erro fatal ao abrir o Chrome do Zap:", err.message);
-        clientZap = null; 
-        if (res && !res.headersSent) {
-            res.json({ success: false, msg: "Falha ao iniciar o WhatsApp. Verifique os logs." });
-        }
-        // Tenta religar sozinho depois de 30 segundos
-        setTimeout(() => ligarMotorDoZap(), 30000);
     });
 }
 
 // ==============================================================
-// 📱 ROTA PARA INICIAR O ZAP E GERAR QR CODE
+// 📱 ROTA PARA GERAR QR CODE
 // ==============================================================
-app.get('/api/admin/zap-qr', async (req, res) => {
+app.get('/api/admin/zap-qr', (req, res) => {
     ligarMotorDoZap(res);
 });
+
+// ==============================================================
+// 📩 NOVO CONFIGURADOR DE EVENTOS (PARA BAILEYS)
+// ==============================================================
+function configurarEventosDoZap(socket) {
+    socket.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return;
+        const m = messages[0];
+        if (!m.message || m.key.fromMe) return;
+
+        const remetente = m.key.remoteJid;
+        const textoRecebido = m.message.conversation || m.message.extendedTextMessage?.text || "";
+
+        console.log(`📩 Mensagem de ${remetente}: ${textoRecebido}`);
+
+        // AQUI VOCÊ PODE RECOLOCAR A LÓGICA DA CICÍ / GEMINI
+        // Exemplo: if (textoRecebido.toLowerCase().includes('pix')) { ... }
+    });
+}
 
 // ==============================================================
 // 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS
