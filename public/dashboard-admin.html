@@ -1314,17 +1314,21 @@
         <i class="fas fa-trash-alt"></i> Apagar <span id="count-selected">0</span> vídeos selecionados
     </button>
 </div>
-    <table class="data-table" style="width: 100%;">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Cliente</th>
-                <th>Data</th>
-                <th>Ação</th>
-            </tr>
-        </thead>
-        <tbody id="admin-video-list"></tbody>
-    </table>
+
+<table class="data-table" style="width: 100%;">
+    <thead>
+        <tr>
+            <th style="width: 40px; text-align: center;">
+                <input type="checkbox" id="selectAllVideos" onclick="toggleSelectAllVideos(this)" style="transform: scale(1.3); cursor: pointer; accent-color: #dc3545;">
+            </th>
+            <th>ID</th>
+            <th>Cliente</th>
+            <th>Data</th>
+            <th>Ação</th>
+        </tr>
+    </thead>
+    <tbody id="admin-video-list"></tbody>
+</table>
 </div>
         </section>
 

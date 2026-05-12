@@ -1437,25 +1437,29 @@ function ligarMotorDoZap(res = null) {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    // 2. Iniciando o Zap com LocalAuth apontando para o Disco Permanente
-    clientZap = new Client({
-        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), // <-- O SEGREDO ESTÁ AQUI
-        puppeteer: {
-            protocolTimeout: 600000, 
-            args: [
-                '--no-sandbox', 
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process', // Economiza RAM no Render
-                '--disable-gpu',
-                '--memory-pressure-off'
-            ]
-        }
-    });
+    // 1. Certifique-se que esta linha está no topo do arquivo ou antes do Client
+const puppeteer = require('puppeteer');
 
+// 2. A nova configuração "Blindada"
+const clientZap = new Client({
+    // Mantive o seu SESSION_PATH ou discoPermanente (use o que estiver definido no seu código)
+    authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
+    puppeteer: {
+        // ✅ RESOLVE O ERRO: Localiza o Chrome baixado pelo Render
+        executablePath: puppeteer.executablePath(),
+        protocolTimeout: 600000,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', // Importante para não travar o Render
+            '--disable-gpu'
+        ]
+    }
+});
     clientZap.once('qr', async (qr) => {
         console.log("📞 [ZAP] QR Code gerado! Aguardando Lelo escanear...");
         if (res && !res.headersSent) {
