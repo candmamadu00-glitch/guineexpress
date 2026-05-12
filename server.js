@@ -1413,37 +1413,31 @@ function ligarMotorDoZap(res = null) {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
 
-    // 1. O EXTERMINADOR BLINDADO (Limpa apenas travas, sem apagar a sessão!)
+    // 1. Função Radar: Procura a pasta exata que o Render criou hoje
+const encontrarChrome = () => {
     try {
-        function destruirCadeados(diretorio) {
-            if (!fs.existsSync(diretorio)) return;
-            let arquivos = [];
-            try { arquivos = fs.readdirSync(diretorio); } catch (e) { return; }
-
-            for (const arquivo of arquivos) {
-                const caminhoCompleto = path.join(diretorio, arquivo);
-                try {
-                    const stats = fs.lstatSync(caminhoCompleto);
-                    if (stats.isDirectory()) {
-                        destruirCadeados(caminhoCompleto);
-                    } else if (arquivo.startsWith('Singleton')) {
-                        fs.unlinkSync(caminhoCompleto);
-                        console.log(`🔥 Cadeado aniquilado: ${caminhoCompleto}`);
-                    }
-                } catch (err) { }
+        const basePath = '/opt/render/project/src/.cache/puppeteer/chrome';
+        if (fs.existsSync(basePath)) {
+            const versoes = fs.readdirSync(basePath);
+            if (versoes.length > 0) {
+                // Pega a primeira pasta de versão que encontrar e monta o caminho
+                const caminhoReal = path.join(basePath, versoes[0], 'chrome-linux64', 'chrome');
+                console.log("🔍 [RADAR] Chrome encontrado com sucesso em:", caminhoReal);
+                return caminhoReal;
             }
         }
-        destruirCadeados(SESSION_PATH); 
-    } catch (e) { 
-        console.error("Aviso geral na limpeza:", e.message);
+    } catch (e) {
+        console.log("Erro no radar do Chrome:", e.message);
     }
+    // Se o radar falhar, usa o padrão do Puppeteer
+    return puppeteer.executablePath();
+};
 
-  // No topo do arquivo, certifique-se de ter o puppeteer importado
-
+// 2. Criação do Zap usando o Radar
 var clientZap = new Client({
     authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
     puppeteer: {
-        executablePath: puppeteer.executablePath(), // <-- ADICIONE ISSO AQUI
+        executablePath: encontrarChrome(), // <--- A MÁGICA ESTÁ AQUI
         protocolTimeout: 600000,
         args: [
             '--no-sandbox',
@@ -1452,7 +1446,7 @@ var clientZap = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process', // Importante para o Render não estourar a RAM
+            '--single-process', 
             '--disable-gpu'
         ]
     }
