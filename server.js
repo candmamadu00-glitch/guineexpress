@@ -1444,15 +1444,14 @@ function ligarMotorDoZap(res = null) {
 var clientZap = new Client({
     authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
     puppeteer: {
-        // Substitua a linha do executablePath por esta lógica:
-        executablePath: process.env.PUPPETEER_CACHE_DIR 
-            ? require('path').join(process.env.PUPPETEER_CACHE_DIR, 'chrome', 'linux-148.0.7778.97', 'chrome-linux64', 'chrome')
-            : puppeteer.executablePath(),
+        // MUDANÇA AQUI: Deixe o próprio Puppeteer encontrar o caminho!
+        executablePath: puppeteer.executablePath(), 
         protocolTimeout: 600000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
+            '--no-zygote',
             '--single-process', 
             '--disable-gpu'
         ]
