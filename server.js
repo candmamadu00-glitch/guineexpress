@@ -1441,6 +1441,10 @@ const encontrarChrome = () => {
     return puppeteer.executablePath();
 };
 
+// ==============================================================
+// 🤖 FUNÇÃO INDEPENDENTE PARA LIGAR O MOTOR DO ZAP
+// ==============================================================
+
 function ligarMotorDoZap(res = null) {
     if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
         if (res && !res.headersSent) return res.json({ success: true, msg: "WhatsApp já está conectado!" });
@@ -1449,6 +1453,7 @@ function ligarMotorDoZap(res = null) {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
     
+    // Proteção: Limpa cadeados de sessões antigas que travaram
     try {
         function destruirCadeados(diretorio) {
             if (!fs.existsSync(diretorio)) return;
@@ -1472,11 +1477,11 @@ function ligarMotorDoZap(res = null) {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    // 2. Criação do Zap
+    // 2. Criação do Zap - Oficial e Limpo
     clientZap = new Client({
         authStrategy: new LocalAuth({ dataPath: discoPermanente }), 
         puppeteer: {
-            executablePath: encontrarChrome(), // <--- CHAMA O RADAR AQUI!
+            executablePath: puppeteer.executablePath(), // <-- AQUI ESTÁ A CORREÇÃO PRINCIPAL!
             protocolTimeout: 600000,
             args: [
                 '--no-sandbox',
@@ -1490,8 +1495,6 @@ function ligarMotorDoZap(res = null) {
             ]
         }
     });
-
-    // ... [O RESTO DO SEU CÓDIGO DA FUNÇÃO CONTINUA AQUI (clientZap.on('qr', ... etc)]
     clientZap.once('qr', async (qr) => {
         console.log("📞 [ZAP] QR Code gerado! Aguardando Lelo escanear...");
         if (res && !res.headersSent) {
