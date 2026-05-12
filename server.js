@@ -31,7 +31,6 @@ const ExcelJS = require('exceljs');
 // === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-const puppeteer = require('puppeteer');
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // =======================================================
 // 🛡️ SEGURANÇA (HELMET COM LISTA VIP LIBERADA PARA O SW.JS)
