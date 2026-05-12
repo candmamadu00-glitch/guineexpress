@@ -1413,15 +1413,23 @@ function ligarMotorDoZap(res = null) {
 
     console.log("📞 [ZAP] Iniciando o motor do Chrome... Lendo sessão permanente...");
 
-    // 1. Função Radar: Procura a pasta exata que o Render criou hoje
+    // 1. Função Radar Melhorada (Ignora arquivos .zip)
 const encontrarChrome = () => {
     try {
         const basePath = '/opt/render/project/src/.cache/puppeteer/chrome';
         if (fs.existsSync(basePath)) {
-            const versoes = fs.readdirSync(basePath);
-            if (versoes.length > 0) {
-                // Pega a primeira pasta de versão que encontrar e monta o caminho
-                const caminhoReal = path.join(basePath, versoes[0], 'chrome-linux64', 'chrome');
+            // Lê tudo o que tem na pasta
+            const itens = fs.readdirSync(basePath);
+            
+            // FILTRO MÁGICO: Separa apenas o que é PASTA (ignora o .zip)
+            const pastas = itens.filter(item => {
+                const caminhoItem = path.join(basePath, item);
+                return fs.lstatSync(caminhoItem).isDirectory();
+            });
+
+            if (pastas.length > 0) {
+                // Agora ele pega com certeza a pasta extraída
+                const caminhoReal = path.join(basePath, pastas[0], 'chrome-linux64', 'chrome');
                 console.log("🔍 [RADAR] Chrome encontrado com sucesso em:", caminhoReal);
                 return caminhoReal;
             }
@@ -1429,7 +1437,7 @@ const encontrarChrome = () => {
     } catch (e) {
         console.log("Erro no radar do Chrome:", e.message);
     }
-    // Se o radar falhar, usa o padrão do Puppeteer
+    // Se falhar, tenta o padrão
     return puppeteer.executablePath();
 };
 
