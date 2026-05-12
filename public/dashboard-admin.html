@@ -1,6 +1,39 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+    <style>
+    /* ==========================================
+       🍊 TEMA LARANJA PREMIUM (GUINEEXPRESS)
+       ========================================== */
+    :root {
+        --primary-orange: #ea580c; /* Laranja vibrante principal */
+        --hover-orange: #c2410c;   /* Laranja escuro para cliques */
+        --light-orange: #fff7ed;   /* Fundo super suave */
+        --dark-bg: #1a0600;        /* Fundo escuro (se tiver dark mode) */
+    }
+
+    /* Forçando a cor Laranja nos botões e elementos principais */
+    .add-btn-premium { background: var(--primary-orange) !important; color: white !important; }
+    .add-btn-premium:hover { background: var(--hover-orange) !important; }
+    
+    .promo-badge { background: var(--primary-orange) !important; }
+    
+    /* Botões gerais que antes eram azuis ou dourados */
+    button[style*="background: rgb(36, 199, 3)"] { background: var(--primary-orange) !important; color: white !important; }
+    button[style*="background: #0a1931"] { background: var(--primary-orange) !important; }
+    button[style*="background: linear-gradient(135deg, #0a1931, #172a46)"] { 
+        background: linear-gradient(135deg, #ea580c, #c2410c) !important; 
+        color: white !important;
+    }
+
+    /* Ícones de estrelas e destaques */
+    .product-stars i, .fas.fa-star { color: #f59e0b !important; } /* Amarelo ouro para estrelas */
+    i[style*="color:#dfaf12"] { color: var(--primary-orange) !important; }
+    i[style*="color: #dfaf12"] { color: var(--primary-orange) !important; }
+    
+    /* Fundo da vitrine do cliente */
+    body { background-color: #fafaf9; }
+</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -51,7 +84,6 @@
         }
     </script>
 </head>
-<body>
 <body onload="requestNotificationPermission()">
 
     <nav class="dashboard-nav">
@@ -192,7 +224,232 @@
                 <i class="fas fa-shield-alt"></i> Backup Agora
             </button>
         </div>
+        <style>
+    /* Animações e Estilos Premium Específicos do Admin da Loja */
+    .admin-store-tab { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .admin-store-tab:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
+    .admin-store-card { background: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.02); }
+    .form-group-modern label { font-size: 13px; font-weight: 700; color: #4a5568; margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-control-modern { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 14px; transition: 0.3s; color: #1e293b; font-weight: 500; }
+    .form-control-modern:focus { border-color: #dfaf12; background: #fff; box-shadow: 0 0 0 3px rgba(223, 175, 18, 0.15); outline: none; }
+    .pulse-btn { animation: pulse-promo 2s infinite; }
+    @keyframes pulse-promo { 0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(211, 47, 47, 0); } 100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); } }
+</style>
 
+<section id="store-admin-view" class="painel-view hidden" style="background: #f1f5f9; min-height: 100vh; padding-bottom: 50px;">
+    
+    <div style="background: linear-gradient(135deg, #0a1931 0%, #172a46 100%); padding: 35px 30px; border-radius: 0 0 25px 25px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(10, 25, 49, 0.15); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+        <div>
+            <h2 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">
+                <i class="fas fa-store" style="color: #dfaf12; margin-right: 10px;"></i>Gestão da Loja Express
+            </h2>
+            <p style="color: #94a3b8; font-size: 15px; margin: 8px 0 0 0;">Controle o seu stock, adicione novidades e faça a gestão das vendas num só lugar.</p>
+        </div>
+        <button onclick="carregarPedidosLojaAdmin(); carregarProdutosAdmin(); carregarEstatisticasLoja();" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; cursor: pointer; font-weight: bold; backdrop-filter: blur(5px); transition: 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+            <i class="fas fa-sync-alt" style="margin-right: 5px;"></i> Sincronizar Dados
+        </button>
+    </div>
+
+    <div style="padding: 0 20px;">
+        <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 15px; scrollbar-width: none;">
+            
+            <button onclick="abrirSubAbaLoja('aba-pedidos-loja', this); carregarPedidosLojaAdmin();" class="sub-aba-btn admin-store-tab" style="background: #0a1931; color: #dfaf12; border: none; padding: 14px 24px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 14px; white-space: nowrap; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-shopping-bag"></i> Pedidos
+            </button>
+            
+            <button onclick="abrirSubAbaLoja('aba-vitrine', this); carregarProdutosAdmin();" class="sub-aba-btn admin-store-tab" style="background: white; color: #475569; border: 1px solid #e2e8f0; padding: 14px 24px; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-eye"></i> Minha Vitrine
+            </button>
+            
+            <button onclick="abrirSubAbaLoja('aba-add-produto', this)" class="sub-aba-btn admin-store-tab" style="background: white; color: #475569; border: 1px solid #e2e8f0; padding: 14px 24px; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-plus-circle"></i> Novo Produto
+            </button>
+
+            <button onclick="abrirSubAbaLoja('aba-produtos-loja', this); carregarEstatisticasLoja();" class="sub-aba-btn admin-store-tab" style="background: white; color: #475569; border: 1px solid #e2e8f0; padding: 14px 24px; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 14px; white-space: nowrap; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-chart-pie"></i> Estoque & Gráficos
+            </button>
+
+            <button onclick="dispararPromoçaoEstoque()" class="sub-aba-btn admin-store-tab pulse-btn" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 14px 24px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 14px; white-space: nowrap; display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                <i class="fas fa-bolt"></i> Promoção Relâmpago
+            </button>
+            
+        </div>
+    </div>
+
+    <div style="padding: 0 20px;">
+
+        <div id="aba-pedidos-loja" class="sub-aba-loja" style="display: block; animation: fadeIn 0.4s;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="color: #0a1931; margin: 0; font-size: 20px;"><i class="fas fa-cash-register" style="color: #dfaf12;"></i> Vendas Recentes</h3>
+            </div>
+            <div id="admin-orders-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+                </div>
+        </div>
+
+        <div id="aba-vitrine" class="sub-aba-loja" style="display: none; animation: fadeIn 0.4s;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="color: #0a1931; margin: 0; font-size: 20px;"><i class="fas fa-tags" style="color: #dfaf12;"></i> Catálogo Online</h3>
+            </div>
+            <div id="admin-products-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;">
+                </div>
+        </div>
+
+        <div id="aba-add-produto" class="sub-aba-loja" style="display: none; animation: fadeIn 0.4s;">
+            <form id="form-new-product" onsubmit="adicionarProdutoLoja(event)">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;">
+                    
+                    <div class="admin-store-card">
+                        <h4 style="margin-top: 0; color: #0a1931; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px;"><i class="fas fa-info-circle text-gray-400"></i> Informações do Produto</h4>
+                        
+                        <div class="form-group-modern" style="margin-bottom: 15px;">
+                            <label>Nome do Produto</label>
+                            <input type="text" id="prod-name" class="form-control-modern" required placeholder="Ex: iPhone 15 Pro Max">
+                        </div>
+                        
+                        <div class="form-group-modern" style="margin-bottom: 15px;">
+                            <label>Categoria</label>
+                            <select id="prod-category" class="form-control-modern" required>
+                                <option value="Eletrônicos">Eletrônicos</option>
+                                <option value="Cabelos/Perucas">Cabelos / Perucas</option>
+                                <option value="Cosméticos">Cosméticos</option>
+                                <option value="Perfumes">Perfumes</option>
+                                <option value="Roupas">Roupas</option>
+                                <option value="Roupas Íntimas">Roupas Íntimas</option>
+                                <option value="Alimentos">Alimentos</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group-modern">
+                            <label>Descrição Detalhada</label>
+                            <textarea id="prod-desc" class="form-control-modern" rows="4" placeholder="Destaque as qualidades do produto..." style="resize: vertical;"></textarea>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 25px;">
+                        <div class="admin-store-card">
+                            <h4 style="margin-top: 0; color: #0a1931; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px;"><i class="fas fa-money-bill-wave"></i> Preço e Estoque</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="form-group-modern">
+                                    <label>Preço Base (R$)</label>
+                                    <div style="position: relative;">
+                                        <span style="position: absolute; left: 15px; top: 14px; color: #64748b; font-weight: bold;">R$</span>
+                                        <input type="number" id="prod-price" class="form-control-modern" step="0.01" required placeholder="0.00" style="padding-left: 45px;">
+                                    </div>
+                                </div>
+                                <div class="form-group-modern">
+                                    <label>Stock Inicial</label>
+                                    <input type="number" id="prod-stock" class="form-control-modern" required placeholder="Qtd. unidades">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="admin-store-card">
+                            <h4 style="margin-top: 0; color: #0a1931; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px;"><i class="fas fa-camera"></i> Mídia</h4>
+                            <div class="form-group-modern">
+                                <div style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 20px; text-align: center; background: #f8fafc; transition: 0.3s;" onmouseover="this.style.borderColor='#dfaf12'" onmouseout="this.style.borderColor='#cbd5e1'">
+                                    <i class="fas fa-cloud-upload-alt" style="font-size: 30px; color: #94a3b8; margin-bottom: 10px;"></i>
+                                    <p style="margin: 0 0 10px 0; font-size: 13px; color: #64748b;">Faça upload da foto principal (Obrigatório)</p>
+                                    <input type="file" id="prod-image" accept="image/*" required style="width: 100%; font-size: 13px; cursor: pointer;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" style="background: #0a1931; color: #dfaf12; border: none; padding: 18px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; box-shadow: 0 10px 20px rgba(10, 25, 49, 0.2); transition: 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <i class="fas fa-check-circle" style="margin-right: 8px;"></i> PUBLICAR PRODUTO
+                        </button>
+                    </div>
+
+                </div>
+            </form>
+        </div>
+
+        <div id="aba-produtos-loja" class="sub-aba-loja" style="display: none; animation: fadeIn 0.4s;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px;">
+                <div class="admin-store-card">
+                    <h3 style="color: #0a1931; margin-top: 0; font-size: 18px;"><i class="fas fa-chart-bar" style="color: #dfaf12;"></i> Produtos com mais Estoque</h3>
+                    <canvas id="stockChart" style="width: 100%; height: 250px;"></canvas>
+                </div>
+                
+                <div class="admin-store-card" style="border-top: 5px solid #ef4444;">
+                    <h3 style="color: #ef4444; margin-top: 0; font-size: 18px;"><i class="fas fa-exclamation-triangle"></i> Alertas de Estoque Crítico</h3>
+                    <p style="font-size: 13px; color: #64748b; margin-bottom: 15px;">Produtos com menos de 5 unidades. Faça reposição!</p>
+                    <div id="low-stock-list" style="max-height: 250px; overflow-y: auto; padding-right: 5px;">
+                        </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="modal-store-order-details" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); z-index: 50000; justify-content: center; align-items: center; padding: 20px;">
+        
+        <div style="background: #fff; width: 100%; max-width: 550px; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+            
+            <div style="background: #f8fafc; padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
+                <div>
+                    <span style="background: #0a1931; color: #dfaf12; font-size: 11px; font-weight: 900; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 1px;">Gestão de Pedido</span>
+                    <h2 style="margin: 8px 0 0 0; color: #0f172a; font-size: 24px;">Pedido #<span id="modal-order-id"></span></h2>
+                </div>
+                <button onclick="document.getElementById('modal-store-order-details').style.display='none'" style="background: #f1f5f9; border: none; color: #64748b; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; transition: 0.3s;" onmouseover="this.style.background='#e2e8f0'"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div style="padding: 30px; overflow-y: auto; flex-grow: 1;">
+                
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 16px; margin-bottom: 25px;">
+                    <div style="display: flex; gap: 15px; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;">
+                        <div style="flex: 1;">
+                            <p style="margin: 0 0 4px 0; color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700;">👤 Cliente</p>
+                            <h4 id="modal-order-client" style="margin: 0; color: #0f172a; font-size: 15px;"></h4>
+                        </div>
+                        <div style="flex: 1;">
+                            <p style="margin: 0 0 4px 0; color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700;">📱 Telefone</p>
+                            <h4 id="modal-order-phone" style="margin: 0; color: #0f172a; font-size: 15px;"></h4>
+                        </div>
+                    </div>
+                    <div>
+                        <p style="margin: 0 0 4px 0; color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700;">📍 Endereço de Entrega</p>
+                        <h4 id="modal-order-address" style="margin: 0; color: #0f172a; font-size: 14px; line-height: 1.4;"></h4>
+                    </div>
+                </div>
+
+                <h4 style="color: #0f172a; margin-bottom: 15px; font-size: 16px;"><i class="fas fa-box-open" style="color: #dfaf12;"></i> Itens do Pacote</h4>
+                <div id="modal-order-items" style="display: flex; flex-direction: column; gap: 10px;">
+                    </div>
+            </div>
+
+            <div style="padding: 25px 30px; background: #fff; border-top: 1px solid #e2e8f0;">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #f8fafc; padding: 15px 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <span style="font-size: 15px; color: #475569; font-weight: bold;">Total Recebido:</span>
+                    <span id="modal-order-total" style="font-size: 24px; color: #16a34a; font-weight: 900;"></span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="font-size: 13px; font-weight: 700; color: #64748b; text-transform: uppercase; white-space: nowrap;">Ação:</span>
+                        <select id="modal-order-status" style="width: 100%; padding: 12px 15px; border-radius: 10px; border: 2px solid #e2e8f0; font-weight: bold; font-size: 14px; color: #0f172a; cursor: pointer; outline: none; transition: 0.3s;" onfocus="this.style.borderColor='#0a1931'">
+                            <option value="Aguardando Pagamento">⏳ Aguardando Pagamento</option>
+                            <option value="Pago">✅ Pago / Preparando</option>
+                            <option value="Enviado">✈️ Enviado (Em Trânsito)</option>
+                            <option value="Entregue">🎉 Entregue ao Cliente</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="salvarStatusPedido()" style="flex: 1; background: #0a1931; color: white; border: none; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(10, 25, 49, 0.2);" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <i class="fas fa-save"></i> Salvar Status
+                        </button>
+                        <button onclick="enviarReciboCicizaNoZap()" style="flex: 1; background: #25D366; color: white; border: none; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <i class="fab fa-whatsapp"></i> Notificar Cliente
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
         <section id="dashboard-home">
             <div class="header-flex">
                 <h2>📊 Visão Geral do Negócio</h2>
@@ -584,133 +841,6 @@
             </div>
         </div>
         
-        <div style="margin: 15px 0; position: relative;">
-            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
-            <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" 
-                   placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-        </div>
-
-        <div id="box-summary-container" style="display: flex; gap: 15px; overflow-x: auto; margin-bottom: 20px; padding-bottom: 10px;"></div>
-
-        <div style="overflow-x:auto;">
-            <table class="data-table">
-                <thead>
-                    <tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th><th>Ações</th></tr>
-                </thead>
-                <tbody id="box-table-body"></tbody>
-            </table>
-        </div>
-    </div>
-    <section id="store-admin-view" class="hidden">
-    <div class="card" style="background: #f4f7f6; border-left: 5px solid #d4af37;">
-        <h3 style="color: #0a1931;"><i class="fas fa-box-open"></i> Cadastrar Novo Produto</h3>
-        <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Adicione produtos à sua vitrine. Os preços devem ser cadastrados em <b>Reais (R$)</b>.</p>
-        
-        <form id="form-new-product" onsubmit="adicionarProdutoLoja(event)" style="display: flex; flex-wrap: wrap; gap: 15px;">
-            <div class="form-group" style="flex: 1 1 200px;">
-                <label>Nome do Produto</label>
-                <input type="text" id="prod-name" class="form-control" required placeholder="Ex: iPhone 15 Pro Max">
-            </div>
-            <div class="form-group" style="flex: 1 1 150px;">
-                <label>Categoria</label>
-                <select id="prod-category" class="form-control" required>
-                    <option value="Eletrônicos">Eletrônicos</option>
-                    <option value="Cabelos/Perucas">Cabelos / Perucas</option>
-                    <option value="Cosméticos">Cosméticos</option>
-                    <option value="Perfumes">Perfumes</option>
-                    <option value="Roupas">Roupas</option>
-                    <option value="Roupas Íntimas">Roupas Íntimas (Cuecas/Calcinhas)</option>
-                    <option value="Alimentos">Alimentos</option>
-                    <option value="Outros">Outros</option>
-                </select>
-            </div>
-            <div class="form-group" style="flex: 1 1 100px;">
-                <label>Preço Base (R$)</label>
-                <input type="number" id="prod-price" class="form-control" step="0.01" required placeholder="Ex: 150.00">
-            </div>
-            <div class="form-group" style="flex: 1 1 100px;">
-                <label>Estoque Inicial</label>
-                <input type="number" id="prod-stock" class="form-control" required placeholder="Qtd">
-            </div>
-            <div class="form-group" style="flex: 1 1 100%;">
-                <label>Descrição Curta</label>
-                <textarea id="prod-desc" class="form-control" rows="2" placeholder="Detalhes do produto..."></textarea>
-            </div>
-            <div class="form-group" style="flex: 1 1 100%;">
-                <label>Foto do Produto</label>
-                <input type="file" id="prod-image" class="form-control" accept="image/*" required>
-            </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%; background: #d4af37; border: none; color: #0a1931; font-weight: 900;">
-                <i class="fas fa-plus"></i> Guardar Produto na Vitrine
-            </button>
-        </form>
-    </div>
-
-    <div class="card" style="margin-top: 20px;">
-        <h3><i class="fas fa-tags"></i> A Sua Vitrine Atual</h3>
-        <div id="admin-products-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 15px;">
-        </div>
-    </div>
-</section>
-<section id="store-orders-admin-view" class="hidden" style="padding: 20px;">
-    
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
-        <div>
-            <h2 style="color: #0a1931; margin: 0; font-size: 24px;"><i class="fas fa-cash-register" style="color: #dfaf12;"></i> Pedidos da Loja</h2>
-            <p style="color: #666; font-size: 13px;">Gerencie as vendas, pagamentos e envios.</p>
-        </div>
-        <button onclick="carregarPedidosLojaAdmin()" style="background: #0a1931; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold;"><i class="fas fa-sync-alt"></i> Atualizar Painel</button>
-    </div>
-
-    <div id="admin-orders-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
-        </div>
-
-</section>
-
-<div id="modal-store-order-details" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; backdrop-filter: blur(5px);">
-    <div class="modal-content" style="background:#f4f7f6; margin:5% auto; border-radius:20px; width:90%; max-width:600px; position:relative; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
-        
-        <div style="background: #0a1931; padding: 20px; color: white; display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; color: #dfaf12;"><i class="fas fa-receipt"></i> Pedido #<span id="modal-order-id"></span></h3>
-            <span onclick="closeModal('modal-store-order-details')" style="cursor:pointer; font-size:24px; font-weight:bold;">&times;</span>
-        </div>
-
-        <div style="padding: 25px; max-height: 70vh; overflow-y: auto;">
-            
-            <div style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-left: 4px solid #39dac4;">
-                <p style="margin: 0 0 5px 0; font-size: 14px;"><b><i class="fas fa-user"></i> Cliente:</b> <span id="modal-order-client"></span></p>
-                <p style="margin: 0 0 5px 0; font-size: 14px;"><b><i class="fas fa-phone"></i> Zap:</b> <span id="modal-order-phone"></span></p>
-                <p style="margin: 0; font-size: 14px;"><b><i class="fas fa-map-marker-alt"></i> Endereço:</b> <span id="modal-order-address"></span></p>
-            </div>
-
-            <h4 style="color: #0a1931; margin-bottom: 10px; font-size: 15px;">Itens Comprados:</h4>
-            <div id="modal-order-items" style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                </div>
-
-            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-                <div style="flex: 1; background: #0a1931; color: white; padding: 15px; border-radius: 12px; text-align: center;">
-                    <p style="margin: 0; font-size: 12px; color: #dfaf12;">Total a Pagar</p>
-                    <h3 style="margin: 5px 0 0 0;" id="modal-order-total">R$ 0,00</h3>
-                </div>
-                <div style="flex: 1; background: white; padding: 15px; border-radius: 12px; border: 1px solid #ddd;">
-                    <label style="font-size: 12px; font-weight: bold; color: #666;">Status do Pedido:</label>
-                    <select id="modal-order-status" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 8px; border: 1px solid #ccc; font-weight: bold; cursor: pointer;">
-                        <option value="Aguardando Pagamento">Aguardando Pagamento</option>
-                        <option value="Pago">✅ Pagamento Aprovado</option>
-                        <option value="Enviado">📦 Produto Enviado</option>
-                        <option value="Entregue">🏆 Entregue</option>
-                    </select>
-                    <button onclick="salvarStatusPedido()" style="width: 100%; margin-top: 10px; background: #dfaf12; color: #0a1931; border: none; padding: 5px; border-radius: 5px; font-weight: bold; cursor: pointer;">Salvar</button>
-                </div>
-            </div>
-
-            <button onclick="enviarReciboCicizaNoZap()" style="width: 100%; background: #25D366; color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3); display: flex; align-items: center; justify-content: center; gap: 10px;">
-                <i class="fab fa-whatsapp" style="font-size: 20px;"></i> Cicí, Enviar Recibo no Zap!
-            </button>
-
-        </div>
-    </div>
-</div>
     <div id="modal-box" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
@@ -800,6 +930,13 @@
             </table>
         </div>
     </div>
+    <div style="margin-bottom: 15px;">
+    <label style="display: block; font-size: 13px; font-weight: bold; color: #475569; margin-bottom: 5px;">
+        <i class="fas fa-video" style="color: #ea580c;"></i> Link do Mini-Vídeo (Opcional)
+    </label>
+    <input type="text" id="product-video-url" placeholder="Ex: https://meuservidor.com/video.mp4" style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px;">
+    <p style="font-size: 11px; color: #94a3b8; margin-top: 5px;">Cole um link direto para o vídeo (formato .mp4).</p>
+</div>
 </section>
         <section id="billing-view" class="hidden">
     <div class="card" id="admin-billing-panel" style="background: #e8f0fe; border-left: 5px solid #0a1931;">
@@ -1172,7 +1309,11 @@
 
         <input type="text" id="search-video-history" placeholder="🔍 Buscar ID, cliente ou data..." onkeyup="filterVideoHistory()" style="flex: 2; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
     </div>
-
+<div style="margin-bottom: 15px;">
+    <button id="btn-bulk-delete" onclick="deleteSelectedVideos()" style="display: none; background-color: #dc3545; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(220,53,69,0.3); font-size: 14px; transition: 0.3s;">
+        <i class="fas fa-trash-alt"></i> Apagar <span id="count-selected">0</span> vídeos selecionados
+    </button>
+</div>
     <table class="data-table" style="width: 100%;">
         <thead>
             <tr>
@@ -1318,7 +1459,7 @@
             </div>
         </div>
     </div>
-
+    
     <div id="delivery-photo-modal" class="modal-overlay hidden">
     <div class="modal-content" style="text-align:center; max-width: 400px;">
         <h3>📸 Comprovante de Entrega</h3>

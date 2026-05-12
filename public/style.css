@@ -2535,7 +2535,9 @@ button:active {
     display: none; /* Esconde barra no Chrome/Safari */
 }
 
-/* Bolinhas de Categoria */
+/* =======================================================
+   🟡 BOLINHAS DE CATEGORIA (LUZ GIRATÓRIA ESTILO GOOGLE/TCL)
+   ======================================================= */
 .cat-item {
     display: flex;
     flex-direction: column;
@@ -2544,6 +2546,7 @@ button:active {
     cursor: pointer;
     min-width: 65px;
 }
+
 .cat-icon {
     width: 55px;
     height: 55px;
@@ -2556,22 +2559,55 @@ button:active {
     color: #0a1931;
     box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
+    position: relative; /* Importante para a luz giratória não fugir */
+    z-index: 1;
 }
+
 .cat-item span {
     font-size: 11px;
     color: #666;
     font-weight: 600;
     text-align: center;
+    transition: all 0.3s ease;
 }
+
+/* Quando o cliente clica na categoria (Ativada) */
 .cat-item.active .cat-icon {
-    background: #0a1931;
+    background: transparent; /* O fundo fica transparente para revelar o miolo escuro */
     color: #dfaf12;
     transform: scale(1.1);
-    box-shadow: 0 6px 15px rgba(10, 25, 49, 0.3);
 }
+
+/* O Miolo Escuro do Botão Ativo */
+.cat-item.active .cat-icon::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px; right: 3px; bottom: 3px;
+    background: #0a1931; /* Cor do fundo da bolinha quando ativa */
+    border-radius: 50%;
+    z-index: -1;
+}
+
+/* 🔥 A LUZ QUE GIRA POR TRÁS (A MÁGICA) */
+.cat-item.active .cat-icon::before {
+    content: '';
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    border-radius: 50%;
+    background: conic-gradient(#dfaf12, #ff8c00, #39dac4, #0a1931, #dfaf12);
+    z-index: -2;
+    animation: giraLuzTCL 2s linear infinite;
+}
+
 .cat-item.active span {
     color: #0a1931;
     font-weight: 900;
+}
+
+/* O Motor que faz a luz rodar */
+@keyframes giraLuzTCL {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* Grid de Produtos Moderno */
@@ -2723,4 +2759,109 @@ button:active {
 
 #side-cart {
     z-index: 1000; /* Fica na frente de tudo, inclusive do overlay */
+}
+/* =======================================================
+   ESTILOS DOS PAINÉIS E NAVEGAÇÃO VIP
+   ======================================================= */
+.painel-view {
+    display: none; /* Por padrão, todos ficam escondidos */
+    padding: 20px;
+    animation: fadeIn 0.4s ease-in-out forwards;
+}
+
+/* O painel que tiver esta classe aparece assim que a página carrega */
+.painel-view.active-panel {
+    display: block; 
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.menu-btn {
+    transition: all 0.3s ease;
+}
+.menu-btn:hover {
+    transform: scale(1.05);
+}
+/* ==========================================
+   🛍️ NOVO VISUAL DA LOJA (ESTILO SHEIN)
+   ========================================== */
+
+/* O Container que segura os produtos */
+#store-items-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 colunas iguais sempre! */
+    gap: 12px;
+    padding: 15px;
+    background: #f4f7f6; /* fundo leve */
+}
+
+/* O Cartão do Produto */
+.product-card {
+    background: white;
+    border-radius: 8px; /* Bordas um pouco menos redondas, mais modernas */
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s;
+    position: relative;
+}
+
+/* Foto do Produto - Estilo Catálogo (Mais alta do que larga) */
+.product-image {
+    width: 100%;
+    aspect-ratio: 3 / 4; /* Proporção ideal para roupas e produtos */
+    object-fit: cover;
+    cursor: zoom-in; /* Mostra que dá para clicar */
+}
+
+/* Área do texto e botão */
+.product-info {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+/* Título em tamanho normal e elegante */
+.product-title {
+    font-size: 14px;
+    color: #333;
+    margin: 0 0 5px 0;
+    font-weight: 400;
+    line-height: 1.3;
+    /* Corta o texto com 2 linhas se for gigante */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Preço forte e legível */
+.product-price {
+    font-size: 16px;
+    font-weight: 900;
+    color: #0a1931;
+    margin-top: auto; /* Empurra pro fundo */
+    margin-bottom: 8px;
+}
+
+/* Novo Botão de Comprar Pequeno e Rápido (+) */
+.btn-add-shein {
+    background: #0a1931;
+    color: #dfaf12;
+    border: none;
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
 }

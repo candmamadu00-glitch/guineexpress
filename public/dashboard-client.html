@@ -1,6 +1,30 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+    <style>
+    /* ==========================================
+       🛍️ TEMA SHOPEE (APLICA-SE APENAS À LOJA)
+       ========================================== */
+    /* Para a Loja do Cliente */
+    #store-view h2, 
+    #store-view h2 i { color: #ee4d2d !important; text-shadow: none !important; }
+    #store-view button[onclick="abrirMeusPedidosLoja()"] { background: #ee4d2d !important; color: white !important; }
+    #store-view .add-btn-premium { background: #ee4d2d !important; color: white !important; }
+    #store-view .add-btn-premium:hover { background: #d73211 !important; }
+    #store-view .promo-badge { background: #ee4d2d !important; }
+    #store-view .cat-icon i { color: #ee4d2d !important; }
+    #store-view .cat-item.active { border-bottom: 3px solid #ee4d2d !important; color: #ee4d2d !important; }
+    #store-view .price-amount { color: #ee4d2d !important; }
+    
+    /* Carrinho Flutuante da Loja */
+    #floating-cici-cart { background: #ee4d2d !important; }
+    #cart-counter { background: #0a1931 !important; } /* Contador escuro para contrastar */
+
+    /* Para a Loja do Admin (Opcional, para combinar) */
+    #store-admin-view .sub-aba-btn[style*="background: #0a1931"] { background: #ee4d2d !important; color: white !important; border-color: #ee4d2d !important;}
+    #store-admin-view button[type="submit"] { background: #ee4d2d !important; color: white !important; }
+    #store-admin-view i.fa-store { color: #ee4d2d !important; }
+</style>
     <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
     <link rel="stylesheet" href="cici.css">
     <meta charset="UTF-8">
@@ -546,167 +570,250 @@
                 </div>
             </div>
             </section>
-          <section id="store-view" class="hidden" style="background: #f4f7f6; min-height: 100vh; padding-bottom: 80px;">
+    <section id="store-view" class="hidden" style="background: #f4f7f6; min-height: 100vh; padding-bottom: 80px;">
 
-    <div style="background: #0a1931; padding: 20px; border-radius: 0 0 25px 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: -20px; position: relative; z-index: 2;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <div>
-                <h2 style="color: #dfaf12; margin: 0; font-size: 22px; font-weight: 900;"><i class="fas fa-shopping-bag"></i> Loja Express</h2>
-                <p style="color: #a0aabf; font-size: 12px; margin-top: 5px;">Os melhores produtos para a Guiné!</p>
-            </div>
+    <div style="background: linear-gradient(135deg, #ee4d2d, #ff7337); padding: 25px 20px 30px 20px; border-radius: 0 0 30px 30px; box-shadow: 0 10px 25px rgba(238, 77, 45, 0.3); margin-bottom: -20px; position: relative; z-index: 2;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+        
+        <div>
+            <h2 style="color: #ffffff !important; margin: 0; font-size: 24px; font-weight: 900; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-shopping-bag" style="color: #ffffff !important;"></i> Loja
+            </h2>
+            <p style="color: rgba(255,255,255,0.9); font-size: 12px; margin: 3px 0 0 0;">Os melhores produtos para a Guiné!</p>
+        </div>
+        
+        <div style="display: flex; gap: 8px; align-items: center;">
             
-            <div style="display: flex; gap: 10px;">
-                <button onclick="abrirMeusPedidosLoja()" style="background: #dfaf12; color: #0a1931; border: none; padding: 8px 12px; border-radius: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
-                    <i class="fas fa-receipt"></i> <span style="font-size: 11px;">Compras</span>
-                </button>
+            <button onclick="abrirMeusPedidosLoja()" style="background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255,255,255,0.4); width: 42px; height: 42px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: 0.3s;">
+                <i class="fas fa-receipt"></i>
+            </button>
 
-                <div style="background: rgba(255,255,255,0.1); padding: 8px 10px; border-radius: 12px; backdrop-filter: blur(5px);">
-                    <select id="currency-selector" onchange="alterarMoedaLoja()" style="background: transparent; color: white; border: none; font-size: 14px; font-weight: bold; cursor: pointer; outline: none;">
-                        <option value="BRL">🇧🇷 R$</option>
-                        <option value="CFA">🇬🇼 XOF</option>
-                        <option value="EUR">🇪🇺 €</option>
-                        <option value="USD">🇺🇸 $</option>
-                    </select>
-                </div>
+            <div onclick="abrirModalCarrinho()" style="position: relative; background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255,255,255,0.4); width: 42px; height: 42px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: 0.3s;">
+                <i class="fas fa-shopping-cart"></i>
+                <span id="cart-counter" class="hidden" style="position: absolute; top: -5px; right: -5px; background: #0a1931; color: white; font-size: 11px; font-weight: 900; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid #ee4d2d;">0</span>
             </div>
-        </div>
 
-        <div style="position: relative;">
-            <input type="text" id="search-store" placeholder="O que você está procurando?" style="width: 100%; padding: 12px 15px 12px 40px; border-radius: 20px; border: none; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
-            <i class="fas fa-search" style="position: absolute; left: 15px; top: 14px; color: #666;"></i>
-        </div>
-    </div>
-
-    <div style="padding: 40px 20px 20px 20px;">
-        <div style="background: linear-gradient(135deg, #dfaf12, #ff8c00); border-radius: 15px; padding: 20px; color: white; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 10px 20px rgba(223, 175, 18, 0.3);">
-            <div>
-                <span style="background: #d32f2f; font-size: 10px; font-weight: 900; padding: 3px 8px; border-radius: 5px; text-transform: uppercase;">Novidade</span>
-                <h3 style="margin: 8px 0 5px 0; font-size: 18px; font-weight: 900;">Frete Reduzido!</h3>
-                <p style="margin: 0; font-size: 12px;">Compre agora e receba em Bissau.</p>
+            <div style="background: rgba(255, 255, 255, 0.2); padding: 8px 10px; border-radius: 20px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.4); display: flex; align-items: center;">
+                <select id="currency-selector" onchange="alterarMoedaLoja()" style="background: transparent; color: white; border: none; font-size: 13px; font-weight: bold; cursor: pointer; outline: none; appearance: none; -webkit-appearance: none;">
+                    <option value="BRL" style="color: #333;">R$</option>
+                    <option value="CFA" style="color: #333;">XOF</option>
+                    <option value="EUR" style="color: #333;">€</option>
+                    <option value="USD" style="color: #333;">$</option>
+                </select>
+                <i class="fas fa-chevron-down" style="color: white; font-size: 10px; margin-left: 4px; pointer-events: none;"></i>
             </div>
-            <i class="fas fa-plane-departure" style="font-size: 40px; opacity: 0.8;"></i>
+
         </div>
     </div>
 
-    <div id="category-filters" class="category-scroll-container">
-        <div class="cat-item active" onclick="filtrarLoja('Todos', this)">
-            <div class="cat-icon"><i class="fas fa-th-large"></i></div>
-            <span>Todos</span>
-        </div>
-        <div class="cat-item" onclick="filtrarLoja('Eletrônicos', this)">
-            <div class="cat-icon"><i class="fas fa-mobile-alt"></i></div>
-            <span>Celulares</span>
-        </div>
-        <div class="cat-item" onclick="filtrarLoja('Cabelos/Perucas', this)">
-            <div class="cat-icon"><i class="fas fa-cut"></i></div>
-            <span>Cabelos</span>
-        </div>
-        <div class="cat-item" onclick="filtrarLoja('Perfumes', this)">
-            <div class="cat-icon"><i class="fas fa-spray-can"></i></div>
-            <span>Perfumes</span>
-        </div>
-        <div class="cat-item" onclick="filtrarLoja('Roupas', this)">
-            <div class="cat-icon"><i class="fas fa-tshirt"></i></div>
-            <span>Roupas</span>
-        </div>
-    </div>
-
-    <div style="padding: 0 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="font-size: 16px; color: #0a1931; margin: 0;">Recomendados para você</h3>
-        </div>
-        <div id="store-products-grid" class="premium-product-grid">
-            </div>
-    </div>
-
-</section>
-
-<div id="floating-cici-cart" onclick="abrirModalCarrinho()" style="position: fixed; bottom: 30px; left: 30px; background: #0a1931; width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); cursor: pointer; z-index: 10000; transition: transform 0.3s ease;">
-    <div id="cart-icon-bg" style="position: relative; color: white; font-size: 24px;">
-        <i class="fas fa-shopping-bag"></i>
-        <span id="cart-counter" class="hidden" style="position: absolute; top: -10px; right: -15px; background: #dc3545; color: white; font-size: 12px; font-weight: 900; padding: 4px 8px; border-radius: 20px; border: 2px solid #0a1931;">0</span>
+    <div style="position: relative;">
+        <input type="text" id="search-store" placeholder="O que você está procurando?" style="width: 100%; padding: 14px 15px 14px 45px; border-radius: 16px; border: none; font-size: 14px; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.15); outline: none; color: #333;">
+        <i class="fas fa-search" style="position: absolute; left: 18px; top: 16px; color: #ee4d2d; font-size: 16px;"></i>
     </div>
 </div>
 
-<div id="cart-overlay" class="hidden" onclick="fecharModalCarrinho()" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 19999; transition: 0.3s;"></div>
-
-<div id="side-cart" class="modal-carrinho" style="position: fixed; top: 0; right: -100%; width: 400px; max-width: 100vw; height: 100vh; background: #fff; box-shadow: -10px 0 30px rgba(0,0,0,0.1); z-index: 20000; transition: right 0.4s cubic-bezier(0.77, 0, 0.175, 1); display: flex; flex-direction: column;">
-    
-    <div style="background: #0a1931; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
-        <h3 id="cart-title-text" style="margin: 0; font-size: 18px; color: #dfaf12;"><i class="fas fa-shopping-bag"></i> Meu Carrinho</h3>
-        <button onclick="fecharModalCarrinho()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
-    </div>
-
-    <div id="cart-step-1" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
-        <div id="cart-items-container" style="flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #f4f7f6;">
-            </div>
-
-        <div style="padding: 20px; background: white; border-top: 1px solid #eee; box-shadow: 0 -5px 15px rgba(0,0,0,0.03);">
-            <div style="display: flex; justify-content: space-between; font-size: 20px; font-weight: 900; color: #0a1931; margin-bottom: 15px;">
-                <span>Total Estimado:</span>
-                <span id="cart-total-value" style="color: #d32f2f;">R$ 0,00</span>
+    <div style="padding: 40px 20px 20px 20px;">
+        <div style="width: 100%; overflow: hidden; position: relative; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
+            <div id="banner-track" style="display: flex; width: 300%; transition: transform 0.5s ease-in-out;">
+                <div style="width: 33.333%; position: relative;">
+                    <img src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop" style="width: 100%; height: 160px; object-fit: cover;">
+                    <div style="position: absolute; bottom: 10px; left: 15px; color: white; text-shadow: 1px 1px 5px rgba(0,0,0,0.8);">
+                        <h3 style="margin:0; font-weight:900;">MEGA OFERTA</h3>
+                    </div>
+                </div>
+                <div style="width: 33.333%; position: relative;">
+                    <img src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000&auto=format&fit=crop" style="width: 100%; height: 160px; object-fit: cover;">
+                    <div style="position: absolute; bottom: 10px; left: 15px; color: white; text-shadow: 1px 1px 5px rgba(0,0,0,0.8);">
+                        <h3 style="margin:0; font-weight:900;">CHEGOU NOVIDADE</h3>
+                    </div>
+                </div>
+                <div style="width: 33.333%; position: relative;">
+                    <img src="https://images.unsplash.com/photo-1472851294608-062f824d29cc?q=80&w=1000&auto=format&fit=crop" style="width: 100%; height: 160px; object-fit: cover;">
+                    <div style="position: absolute; bottom: 10px; left: 15px; color: white; text-shadow: 1px 1px 5px rgba(0,0,0,0.8);">
+                        <h3 style="margin:0; font-weight:900;">FRETE REDUZIDO</h3>
+                    </div>
+                </div>
             </div>
             
-            <button onclick="irParaCheckout()" style="width: 100%; background: #0a1931; color: #dfaf12; border: none; padding: 15px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.3s;">
+            <div style="position: absolute; bottom: 10px; width: 100%; display: flex; justify-content: center; gap: 6px;">
+                <div class="dot active" style="width: 8px; height: 8px; background: white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.5);"></div>
+                <div class="dot" style="width: 8px; height: 8px; background: rgba(255,255,255,0.5); border-radius: 50%;"></div>
+                <div class="dot" style="width: 8px; height: 8px; background: rgba(255,255,255,0.5); border-radius: 50%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="category-filters" style="display: flex; overflow-x: auto; gap: 15px; padding: 15px 20px; background: white; margin-bottom: 20px; scrollbar-width: none; -ms-overflow-style: none; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+    <style>#category-filters::-webkit-scrollbar { display: none; }</style>
+
+    <div class="cat-item active" onclick="filtrarLoja('Todos', this)" style="display: flex; flex-direction: column; align-items: center; min-width: 60px; cursor: pointer; gap: 5px;">
+        <div class="cat-icon" style="width: 50px; height: 50px; background: #fff0ed; border-radius: 50%; display: flex; justify-content: center; align-items: center; border: 2px solid #ee4d2d; transition: 0.3s;">
+            <i class="fas fa-th-large" style="color: #ee4d2d; font-size: 20px; transition: 0.3s;"></i>
+        </div>
+        <span style="font-size: 11px; font-weight: bold; color: #333; text-align: center; transition: 0.3s;">Todos</span>
+    </div>
+
+    <div class="cat-item" onclick="filtrarLoja('Eletrônicos', this)" style="display: flex; flex-direction: column; align-items: center; min-width: 60px; cursor: pointer; gap: 5px;">
+        <div class="cat-icon" style="width: 50px; height: 50px; background: #f8fafc; border-radius: 50%; display: flex; justify-content: center; align-items: center; border: 2px solid transparent; transition: 0.3s;">
+            <i class="fas fa-mobile-alt" style="color: #64748b; font-size: 20px; transition: 0.3s;"></i>
+        </div>
+        <span style="font-size: 11px; font-weight: bold; color: #64748b; text-align: center; transition: 0.3s;">Celulares</span>
+    </div>
+
+    <div class="cat-item" onclick="filtrarLoja('Cabelos/Perucas', this)" style="display: flex; flex-direction: column; align-items: center; min-width: 60px; cursor: pointer; gap: 5px;">
+        <div class="cat-icon" style="width: 50px; height: 50px; background: #f8fafc; border-radius: 50%; display: flex; justify-content: center; align-items: center; border: 2px solid transparent; transition: 0.3s;">
+            <i class="fas fa-cut" style="color: #64748b; font-size: 20px; transition: 0.3s;"></i>
+        </div>
+        <span style="font-size: 11px; font-weight: bold; color: #64748b; text-align: center; transition: 0.3s;">Cabelos</span>
+    </div>
+
+    <div class="cat-item" onclick="filtrarLoja('Perfumes', this)" style="display: flex; flex-direction: column; align-items: center; min-width: 60px; cursor: pointer; gap: 5px;">
+        <div class="cat-icon" style="width: 50px; height: 50px; background: #f8fafc; border-radius: 50%; display: flex; justify-content: center; align-items: center; border: 2px solid transparent; transition: 0.3s;">
+            <i class="fas fa-spray-can" style="color: #64748b; font-size: 20px; transition: 0.3s;"></i>
+        </div>
+        <span style="font-size: 11px; font-weight: bold; color: #64748b; text-align: center; transition: 0.3s;">Perfumes</span>
+    </div>
+
+    <div class="cat-item" onclick="filtrarLoja('Roupas', this)" style="display: flex; flex-direction: column; align-items: center; min-width: 60px; cursor: pointer; gap: 5px;">
+        <div class="cat-icon" style="width: 50px; height: 50px; background: #f8fafc; border-radius: 50%; display: flex; justify-content: center; align-items: center; border: 2px solid transparent; transition: 0.3s;">
+            <i class="fas fa-tshirt" style="color: #64748b; font-size: 20px; transition: 0.3s;"></i>
+        </div>
+        <span style="font-size: 11px; font-weight: bold; color: #64748b; text-align: center; transition: 0.3s;">Roupas</span>
+    </div>
+</div>
+
+<script>
+    // Magia para trocar as cores (ficar laranja) da bolinha clicada!
+    function atualizarEstiloCategoriaClicada(elementoClicado) {
+        // Tira o laranja de todos
+        document.querySelectorAll('.cat-item').forEach(item => {
+            item.querySelector('.cat-icon').style.border = "2px solid transparent";
+            item.querySelector('.cat-icon').style.background = "#f8fafc";
+            item.querySelector('i').style.color = "#64748b";
+            item.querySelector('span').style.color = "#64748b";
+        });
+        // Bota laranja apenas no que foi clicado
+        elementoClicado.querySelector('.cat-icon').style.border = "2px solid #ee4d2d";
+        elementoClicado.querySelector('.cat-icon').style.background = "#fff0ed";
+        elementoClicado.querySelector('i').style.color = "#ee4d2d";
+        elementoClicado.querySelector('span').style.color = "#333";
+    }
+
+    // Se já tinha a sua função "filtrarLoja", vamos intercetar o clique para animar a cor
+    const catItems = document.querySelectorAll('.cat-item');
+    catItems.forEach(item => {
+        item.addEventListener('click', function() {
+            atualizarEstiloCategoriaClicada(this);
+        });
+    });
+</script>
+</section> <div id="modal-my-store-orders" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(10, 25, 49, 0.8); z-index:50000; backdrop-filter: blur(8px); justify-content: center; align-items: center;">
+    <div class="modal-content" style="background: #f1f5f9; border-radius: 24px; width: 95%; max-width: 500px; display: flex; flex-direction: column; max-height: 85vh; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.3);">
+        
+        <div style="background: white; padding: 25px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0; color: #0f172a; font-size: 20px;"><i class="fas fa-truck-fast" style="color: #dfaf12; margin-right: 8px;"></i> Rastreio de Pedidos</h3>
+                <p style="margin: 5px 0 0 0; font-size: 13px; color: #64748b;">Acompanhe as suas compras em tempo real.</p>
+            </div>
+            <button onclick="document.getElementById('modal-my-store-orders').style.display='none'" style="background: #f1f5f9; border: none; color: #64748b; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; transition: 0.3s;"><i class="fas fa-times"></i></button>
+        </div>
+      
+        <div id="my-store-orders-list" style="padding: 20px; overflow-y: auto; flex-grow: 1;">
+            </div>
+    </div>
+</div>
+
+<div id="cart-overlay" onclick="toggleCarrinho()" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; backdrop-filter: blur(3px);"></div>
+
+<div id="side-cart" style="position: fixed; top: 0; right: -450px; width: 100%; max-width: 450px; height: 100%; background: white; z-index: 10002; transition: 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); box-shadow: -10px 0 30px rgba(0,0,0,0.2); display: flex; flex-direction: column;">
+    
+    <div style="padding: 20px; background: #0a1931; color: white; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 18px;"><i class="fas fa-shopping-bag" style="color: #dfaf12;"></i> Sua Sacola</h3>
+        <button onclick="toggleCarrinho()" style="background: transparent; border: none; color: white; font-size: 24px; cursor: pointer;"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div id="cart-step-1" style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden;">
+        <div id="cart-items-container" style="flex-grow: 1; overflow-y: auto; padding: 20px; background: #f8fafc;">
+        </div>
+        
+        <div style="padding: 20px; border-top: 1px solid #e2e8f0; background: white; padding-bottom: env(safe-area-inset-bottom, 25px);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: 900; font-size: 18px; color: #0a1931;">
+                <span>Total:</span>
+                <span id="cart-side-total" style="color: #ee4d2d;">R$ 0,00</span>
+            </div>
+            
+            <button onclick="irParaCheckout()" style="width: 100%; background: #0a1931; color: #dfaf12; border: none; padding: 15px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(10, 25, 49, 0.2);">
                 AVANÇAR PARA PAGAMENTO <i class="fas fa-arrow-right" style="margin-left: 5px;"></i>
             </button>
         </div>
     </div>
 
-    <div id="cart-step-2" class="hidden" style="flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 20px; background: #f4f7f6;">
+    <div id="cart-step-2" style="display: none; flex-direction: column; flex-grow: 1; overflow: hidden; background: #f8fafc;">
         
-        <button onclick="voltarParaCarrinho()" style="background: none; border: none; color: #0a1931; font-weight: bold; cursor: pointer; text-align: left; margin-bottom: 15px; padding: 0;"><i class="fas fa-arrow-left"></i> Voltar</button>
-
-        <h4 style="color: #0a1931; margin-bottom: 10px; font-size: 14px;"><i class="fas fa-map-marker-alt" style="color: #dfaf12;"></i> 1. Endereço de Entrega</h4>
-        <div style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-            <input type="text" id="checkout-address" placeholder="Rua, Bairro, Cidade - País" style="width: 100%; border: none; outline: none; font-size: 14px;">
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-            <input type="text" id="checkout-phone" placeholder="Seu Telefone (WhatsApp)" style="width: 100%; border: none; outline: none; font-size: 14px;">
+        <div style="padding: 15px 20px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center;">
+            <button onclick="voltarParaCarrinho()" style="background: none; border: none; color: #0a1931; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 16px;">
+                <i class="fas fa-arrow-left"></i> Voltar à Sacola
+            </button>
         </div>
+        
+        <div style="flex-grow: 1; overflow-y: auto; padding: 20px;">
+            <h4 style="margin: 0 0 15px 0; color: #0f172a;"><i class="fas fa-map-marker-alt" style="color: #ee4d2d;"></i> Dados de Entrega</h4>
+            <input type="text" id="checkout-name" placeholder="Seu Nome Completo" style="width: 100%; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; margin-bottom: 10px; font-size: 14px; outline: none;">
+            <input type="text" id="checkout-phone" placeholder="Seu Telefone / WhatsApp" style="width: 100%; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; margin-bottom: 10px; font-size: 14px; outline: none;">
+            <textarea id="checkout-address" placeholder="Endereço de Entrega (Rua, Bairro, Referência)" rows="3" style="width: 100%; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; margin-bottom: 25px; font-size: 14px; outline: none; font-family: inherit; resize: none;"></textarea>
 
-        <h4 style="color: #0a1931; margin-bottom: 10px; font-size: 14px;"><i class="fas fa-wallet" style="color: #dfaf12;"></i> 2. Forma de Pagamento</h4>
-        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-            <label style="background: white; padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; border: 2px solid #39dac4;">
-                <input type="radio" name="pay-method" value="pix" checked style="accent-color: #39dac4; transform: scale(1.2);">
-                <div>
-                    <span style="display: block; font-weight: bold; color: #013f35; font-size: 14px;"><i class="fab fa-pix"></i> Pix Automático</span>
-                    <span style="font-size: 11px; color: #666;">Aprovação na hora via Copia e Cola</span>
+            <h4 style="margin: 0 0 15px 0; color: #0f172a;"><i class="fas fa-wallet" style="color: #ee4d2d;"></i> Forma de Pagamento</h4>
+            
+            <div style="background: white; border: 2px solid #24c703; border-radius: 12px; padding: 15px; margin-bottom: 15px; position: relative;">
+                <div style="position: absolute; top: -10px; right: 15px; background: #24c703; color: white; font-size: 10px; font-weight: 900; padding: 3px 8px; border-radius: 20px;">RECOMENDADO</div>
+                
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <i class="fab fa-pix" style="color: #24c703; font-size: 24px;"></i>
+                    <span style="font-weight: 900; color: #0a1931;">PIX / Transferência</span>
                 </div>
-            </label>
-            <label style="background: white; padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; border: 1px solid #eee;">
-                <input type="radio" name="pay-method" value="manual" style="accent-color: #0a1931; transform: scale(1.2);">
-                <div>
-                    <span style="display: block; font-weight: bold; color: #0a1931; font-size: 14px;"><i class="fas fa-money-bill-wave"></i> Pagamento Manual</span>
-                    <span style="font-size: 11px; color: #666;">Enviar comprovante no Zap</span>
+                
+                <p style="font-size: 12px; color: #64748b; margin: 0 0 10px 0;">Copie a chave, faça o pagamento no seu banco e finalize o pedido aqui para liberação imediata!</p>
+                
+                <div style="background: #f1f5f9; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="chave-pix-loja" style="font-size: 13px; font-weight: bold; color: #0f172a;">sua-chave-pix-aqui@email.com</span>
+                    <button onclick="copiarPixLoja()" style="background: #0a1931; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                        COPIAR
+                    </button>
                 </div>
-            </label>
-        </div>
-
-        <div style="margin-top: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 -5px 15px rgba(0,0,0,0.03);">
-            <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 900; color: #0a1931; margin-bottom: 15px;">
-                <span>Total a Pagar:</span>
-                <span id="checkout-total-value" style="color: #d32f2f;">R$ 0,00</span>
             </div>
-            <button onclick="processarCompraDaLoja()" id="btn-final-buy" style="width: 100%; background: #39dac4; color: #013f35; border: none; padding: 15px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer;">
-                FINALIZAR PEDIDO <i class="fas fa-lock" style="margin-left: 5px;"></i>
+
+            <div style="background: white; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-money-bill-wave" style="color: #64748b; font-size: 20px;"></i>
+                    <span style="font-weight: 900; color: #64748b;">Pagar na Entrega (Em breve)</span>
+                </div>
+            </div>
+        </div>
+        
+        <div style="padding: 20px; border-top: 1px solid #e2e8f0; background: white; padding-bottom: 90px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: 900; font-size: 18px; color: #0a1931;">
+                <span>Total a Pagar:</span>
+                <span id="checkout-side-total" style="color: #ee4d2d;">R$ 0,00</span>
+            </div>
+            
+            <button onclick="processarCompraDaLoja()" id="btn-final-buy" style="width: 100%; background: #24c703; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 10px rgba(36, 199, 3, 0.3); display: flex; justify-content: center; align-items: center; gap: 8px;">
+                FINALIZAR PEDIDO <i class="fas fa-check-circle"></i>
             </button>
         </div>
     </div>
 </div>
 
-<div id="modal-my-store-orders" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; backdrop-filter: blur(5px);">
-    <div class="modal-content" style="background:#f4f7f6; margin:10% auto; border-radius:20px; width:90%; max-width:500px; position:relative; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-height: 80vh;">
-        
-        <div style="background: #0a1931; padding: 20px; color: white; display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; color: #dfaf12;"><i class="fas fa-shopping-bag"></i> Minhas Compras</h3>
-            <span onclick="closeModal('modal-my-store-orders')" style="cursor:pointer; font-size:24px; font-weight:bold;">&times;</span>
-        </div>
+<script>
+function copiarPixLoja() {
+    const chave = document.getElementById('chave-pix-loja').innerText;
+    navigator.clipboard.writeText(chave).then(() => {
+        alert("✅ Chave PIX copiada! Vá ao seu banco, pague e volte aqui para clicar em FINALIZAR PEDIDO.");
+    });
+}
+</script>
 
-        <div id="my-store-orders-list" style="padding: 20px; overflow-y: auto; flex-grow: 1;">
-            </div>
-    </div>
-</div>
-        <section id="schedule-view" class="hidden">
+<section id="schedule-view" class="hidden">
             <div class="card" style="margin-bottom: 20px;">
                 <h3>📅 Agendar Horário</h3>
                 <p>Selecione um horário disponível para atendimento.</p>
@@ -817,6 +924,7 @@
        <input type="hidden" id="pay-amount">
     </div>
 </div>
+
 <div id="modal-my-store-orders" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; backdrop-filter: blur(5px);">
     <div class="modal-content" style="background:#f4f7f6; margin:10% auto; border-radius:20px; width:90%; max-width:500px; position:relative; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-height: 80vh;">
         
@@ -824,11 +932,61 @@
             <h3 style="margin: 0; color: #dfaf12;"><i class="fas fa-shopping-bag"></i> Minhas Compras</h3>
             <span onclick="closeModal('modal-my-store-orders')" style="cursor:pointer; font-size:24px; font-weight:bold;">&times;</span>
         </div>
-
+      
         <div id="my-store-orders-list" style="padding: 20px; overflow-y: auto; flex-grow: 1;">
             </div>
     </div>
 </div>
+<div id="modal-product-details" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:25000; backdrop-filter: blur(5px);">
+    
+    <div class="modal-content" style="background: #f4f7f6; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 500px; border-radius: 25px 25px 0 0; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; animation: slideUp 0.3s ease-out;">
+        
+        <div style="position: relative; background: #fff;">
+            <button onclick="fecharDetalhesProduto()" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.8); border: none; width: 35px; height: 35px; border-radius: 50%; font-size: 18px; color: #333; cursor: pointer; z-index: 2; box-shadow: 0 2px 10px rgba(0,0,0,0.1);"><i class="fas fa-times"></i></button>
+<img id="detail-image" src="" onclick="abrirImagemTelaCheia(this.src)" style="width: 100%; height: 350px; object-fit: cover; border-bottom: 1px solid #eee; cursor: zoom-in;">
+        </div>
+
+        <div style="padding: 20px; overflow-y: auto; flex-grow: 1; background: white;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                <div>
+                    <span id="detail-category" style="background: #dfaf12; color: #0a1931; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 900; text-transform: uppercase;"></span>
+                    <h2 id="detail-name" style="margin: 8px 0; color: #0a1931; font-size: 20px; font-weight: bold; line-height: 1.2;"></h2>
+                </div>
+                <div style="text-align: right;">
+                    <h2 id="detail-price" style="margin: 0; color: #d32f2f; font-size: 24px; font-weight: 900;"></h2>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 12px; color: #666;">
+                <span style="color: #ffc107;"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star-half-alt"></i> (99+ vendidos)</span>
+                <span>•</span>
+                <span id="detail-stock" style="color: #28a745; font-weight: bold;"><i class="fas fa-box"></i> Em Estoque</span>
+            </div>
+
+            <h4 style="color: #0a1931; font-size: 14px; margin-bottom: 5px;">Descrição do Produto:</h4>
+            <p id="detail-desc" style="color: #555; font-size: 13px; line-height: 1.6; margin-bottom: 20px;"></p>
+            
+            <div style="display: flex; gap: 10px; border-top: 1px solid #eee; padding-top: 15px;">
+                <div style="flex: 1; text-align: center; font-size: 11px; color: #666;"><i class="fas fa-shield-alt" style="font-size: 20px; color: #39dac4; margin-bottom: 5px; display: block;"></i> Compra Segura</div>
+                <div style="flex: 1; text-align: center; font-size: 11px; color: #666;"><i class="fas fa-plane" style="font-size: 20px; color: #0a1931; margin-bottom: 5px; display: block;"></i> Envio Rápido</div>
+                <div style="flex: 1; text-align: center; font-size: 11px; color: #666;"><i class="fas fa-undo" style="font-size: 20px; color: #dfaf12; margin-bottom: 5px; display: block;"></i> Garantia</div>
+            </div>
+        </div>
+
+        <div style="padding: 15px 20px; background: white; border-top: 1px solid #eee; box-shadow: 0 -5px 10px rgba(0,0,0,0.03);">
+            <button id="btn-add-detail" style="width: 100%; background: #0a1931; color: #dfaf12; border: none; padding: 16px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; transition: 0.3s;">
+                ADICIONAR À SACOLA <i class="fas fa-shopping-bag"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes slideUp {
+        from { bottom: -100%; opacity: 0; }
+        to { bottom: 0; opacity: 1; }
+    }
+</style>
 <script>
 async function copiarPixExato(idFatura, banco, eventoClique) {
     if (!idFatura) {
@@ -1043,7 +1201,27 @@ async function copiarPixExato(idFatura, banco, eventoClique) {
         <button onclick="closeThemeModal()" style="width:100%; background:#0a1931; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">Pronto!</button>
     </div>
 </div>
-<div id="cart-overlay" onclick="fecharModalCarrinho()" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:19000;"></div>
+<div id="floating-carousel-container" style="position: fixed; bottom: 120px; right: 20px; width: 110px; height: 160px; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.3); z-index: 9999; border: 2px solid #dfaf12; background: #fff;">
+    <button onclick="this.parentElement.style.display='none'" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 10px; cursor: pointer; z-index: 10;">X</button>
+    <img id="carousel-dynamic-img" src="" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.5s ease;">
+    <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 15px 5px 5px 5px;">
+        <p id="carousel-dynamic-name" style="color: white; font-size: 9px; font-weight: bold; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></p>
+        <span style="color: #dfaf12; font-size: 10px; font-weight: 900;">VER AGORA</span>
+    </div>
+</div>
+
+<div id="marketing-toast" style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-150px); background: rgba(10, 25, 49, 0.95); color: white; padding: 10px 20px; border-radius: 30px; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 30000; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); backdrop-filter: blur(5px); border: 1px solid #dfaf12; width: 90%; max-width: 350px;">
+    <i class="fas fa-shopping-bag" style="color: #dfaf12; font-size: 18px;"></i>
+    <span id="marketing-toast-text" style="font-size: 12px; font-weight: bold;"></span>
+</div>
+<div id="floating-carousel-container" style="position: fixed; bottom: 120px; right: 20px; width: 110px; height: 160px; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.3); z-index: 9999; border: 2px solid #ee4d2d; background: #fff;">
+    <button onclick="this.parentElement.style.display='none'" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 10px; cursor: pointer; z-index: 10;">X</button>
+    <img id="carousel-dynamic-img" src="" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.5s ease;">
+    <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 15px 5px 5px 5px; text-align: center;">
+        <p id="carousel-dynamic-name" style="color: white; font-size: 9px; font-weight: bold; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></p>
+        <span style="color: #ee4d2d; font-size: 10px; font-weight: 900;">VER OFERTA</span>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>
         // Seleciona todos os cards de estatística
@@ -1480,6 +1658,94 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
                 ripple.remove();
             }, 600);
         }
+    });
+</script>
+<style>
+    /* Dá espaço no final da página para o menu não esconder os produtos */
+    body { padding-bottom: 70px; }
+
+    .bottom-nav-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: white;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        padding: 10px 0;
+        padding-bottom: env(safe-area-inset-bottom, 15px); /* Adapta-se aos iPhones novos */
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.08);
+        z-index: 10000;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .bottom-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-decoration: none;
+        color: #94a3b8; /* Cinza por padrão */
+        font-size: 10px;
+        font-weight: 800;
+        transition: 0.3s;
+        cursor: pointer;
+        background: transparent;
+        border: none;
+        width: 20%;
+    }
+
+    .bottom-nav-item i {
+        font-size: 22px;
+        margin-bottom: 4px;
+        transition: 0.3s;
+    }
+
+    /* Quando ativado (clicado), fica laranja e sobe um pouquinho */
+    .bottom-nav-item.active { color: #ee4d2d; }
+    .bottom-nav-item.active i { transform: translateY(-3px); }
+</style>
+
+<div class="bottom-nav-bar">
+    <button onclick="showSection('home-view')" class="bottom-nav-item active" id="nav-home">
+        <i class="fas fa-home"></i>
+        <span>Início</span>
+    </button>
+    
+    <button onclick="showSection('store-view'); carregarLojaCliente();" class="bottom-nav-item" id="nav-store">
+        <i class="fas fa-store"></i>
+        <span>Loja</span>
+    </button>
+
+    <button onclick="abrirModalCarrinho()" class="bottom-nav-item" style="position: relative;">
+        <i class="fas fa-shopping-cart"></i>
+        <span>Sacola</span>
+        <span id="bottom-cart-counter" class="hidden" style="position: absolute; top: -5px; right: 15px; background: #ee4d2d; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white;">0</span>
+    </button>
+
+    <button onclick="abrirMeusPedidosLoja()" class="bottom-nav-item">
+        <i class="fas fa-receipt"></i>
+        <span>Pedidos</span>
+    </button>
+
+    <button onclick="showSection('profile-view')" class="bottom-nav-item" id="nav-profile">
+        <i class="fas fa-user"></i>
+        <span>Perfil</span>
+    </button>
+</div>
+
+<script>
+    // Faz a cor laranja pular para o botão que o cliente acabou de clicar!
+    const navItemsBottom = document.querySelectorAll('.bottom-nav-item');
+    navItemsBottom.forEach(item => {
+        item.addEventListener('click', () => {
+            // Não muda a cor para laranja se for só abrir o carrinho ou pedidos, 
+            // pois eles abrem como janelas por cima da loja (modais)
+            if(!item.getAttribute('onclick').includes('Carrinho') && !item.getAttribute('onclick').includes('Pedidos')) {
+                navItemsBottom.forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+            }
+        });
     });
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>

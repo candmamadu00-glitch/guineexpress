@@ -2516,17 +2516,39 @@ app.get('/api/videos/list', (req, res) => {
         });
     }
 });
-// 3. Excluir Vídeo
-app.post('/api/videos/delete', (req, res) => {
-    if(req.session.role === 'client') return res.status(403).json({}); // Cliente não deleta
-    const { id, filename } = req.body;
+// ==========================================
+// 🗑️ APAGAR VÁRIOS VÍDEOS DE UMA VEZ
+// ==========================================
+app.post('/api/videos/delete-bulk', (req, res) => {
+    // Bloqueia clientes
+    if(req.session.role === 'client') return res.status(403).json({ success: false, msg: "Acesso negado" });
     
-    db.run("DELETE FROM videos WHERE id = ?", [id], (err) => {
-        if(!err) {
-            // Tenta apagar o arquivo físico
-            try { fs.unlinkSync(path.join(videosFolder, filename)); } catch(e){ console.log("Erro ao apagar arquivo:", e.message) }
+    // Recebe a lista de vídeos: [{id: 1, filename: '...'}, {id: 2, filename: '...'}]
+    const { videos } = req.body; 
+    
+    if (!videos || videos.length === 0) return res.json({ success: true });
+
+    // Pega só os IDs
+    const ids = videos.map(v => v.id);
+    const placeholders = ids.map(() => '?').join(',');
+
+    // Apaga do Banco de Dados
+    db.run(`DELETE FROM videos WHERE id IN (${placeholders})`, ids, function(err) {
+        if (err) {
+            console.error("Erro ao apagar vários vídeos:", err);
+            return res.json({ success: false, msg: "Erro no banco de dados." });
         }
-        res.json({success: !err});
+        
+        // Apaga os ficheiros físicos do disco para libertar espaço!
+        videos.forEach(v => {
+            try { 
+                fs.unlinkSync(path.join(videosFolder, v.filename)); 
+            } catch(e) { 
+                // Se o ficheiro já não existir, ignora
+            }
+        });
+        
+        res.json({ success: true, count: ids.length });
     });
 });
 // ==========================================
@@ -4848,14 +4870,39 @@ app.get('/api/admin/store/orders', (req, res) => {
     });
 });
 
-// 2. Atualizar o Status do Pedido (Ex: Pago, Enviado)
+// =======================================================
+// 🛒 ROTA: ATUALIZAR STATUS DO PEDIDO E BAIXAR ESTOQUE
+// =======================================================
 app.post('/api/admin/store/orders/status', (req, res) => {
-    if (req.session.role !== 'admin' && req.session.role !== 'employee') return res.status(403).json({ success: false });
-    
     const { order_id, new_status } = req.body;
-    db.run(`UPDATE store_orders SET status = ? WHERE id = ?`, [new_status, order_id], (err) => {
-        if (err) return res.json({ success: false, msg: "Erro ao atualizar status." });
-        res.json({ success: true });
+
+    // 1. Primeiro, vemos qual era o estado antigo para não descontar o stock duas vezes
+    db.get("SELECT status FROM store_orders WHERE id = ?", [order_id], (err, order) => {
+        if (err || !order) return res.json({ success: false, msg: "Pedido não encontrado." });
+
+        const statusAntigo = order.status;
+
+        // 2. Atualiza o estado do pedido
+        db.run("UPDATE store_orders SET status = ? WHERE id = ?", [new_status, order_id], function(err2) {
+            if (err2) return res.json({ success: false, msg: "Erro ao atualizar estado." });
+
+            // 3. A MÁGICA DO ESTOQUE: Se mudou para "Pago" e ainda não era "Pago"
+            if (new_status === 'Pago' && statusAntigo !== 'Pago') {
+                
+                // Vai procurar o que é que o cliente comprou
+                db.all("SELECT product_id, quantity FROM store_order_items WHERE order_id = ?", [order_id], (err3, items) => {
+                    if (!err3 && items) {
+                        // Desconta cada item ao stock automaticamente!
+                        items.forEach(item => {
+                            db.run("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?", [item.quantity, item.product_id, item.quantity]);
+                        });
+                        console.log(`✅ Stock atualizado automaticamente para o pedido #${order_id}`);
+                    }
+                });
+            }
+
+            res.json({ success: true, msg: "Status atualizado com sucesso!" });
+        });
     });
 });
 app.post('/api/notifications/subscribe', (req, res) => {
@@ -5064,27 +5111,36 @@ app.get('/api/store/products', (req, res) => {
 // 🛍️ ROTA PARA O CLIENTE VER SEUS PRÓPRIOS PEDIDOS
 // =======================================================
 app.get('/api/store/my-orders', (req, res) => {
-    if (!req.session.userId) return res.status(403).json({ success: false });
+    if (!req.session || !req.session.userId) {
+        return res.json({ success: true, orders: [] });
+    }
 
-    // Pega o telefone do cliente logado para buscar só os pedidos dele
-    const clientPhone = req.session.userPhone;
-    const clientName = req.session.userName;
+    const clientId = req.session.userId;
 
-    // Busca os pedidos que pertencem a ele
-    db.all(`SELECT * FROM store_orders WHERE client_name = ? OR client_phone = ? ORDER BY created_at DESC`, 
-    [clientName, clientPhone], (err, orders) => {
-        if (err) return res.json({ success: false, msg: "Erro ao buscar." });
+    // Busca o telefone do cliente
+    db.get(`SELECT phone, name FROM clients WHERE id = ?`, [clientId], (err, clientData) => {
+        if (err) return res.json({ success: false, msg: "Erro ao validar cliente." });
 
-        db.all(`SELECT * FROM store_order_items`, [], (err2, allItems) => {
-            if (err2) return res.json({ success: false });
+        const phone = clientData ? clientData.phone : '';
+        const name = clientData ? clientData.name : '';
 
-            const meusPedidos = orders.map(order => {
-                return {
-                    ...order,
-                    items: allItems.filter(i => i.order_id === order.id)
-                };
+        // Busca pedidos pelo ID, Telefone ou Nome (À prova de falhas!)
+        db.all(`SELECT * FROM store_orders WHERE client_id = ? OR client_phone = ? OR client_name = ? ORDER BY created_at DESC`, 
+        [clientId, phone, name], (err, orders) => {
+            if (err) return res.json({ success: false, msg: "Erro ao buscar pedidos." });
+
+            db.all(`SELECT * FROM store_order_items`, [], (err2, allItems) => {
+                if (err2) return res.json({ success: false });
+
+                const meusPedidos = orders.map(order => {
+                    return {
+                        ...order,
+                        items: allItems.filter(i => i.order_id === order.id)
+                    };
+                });
+                
+                res.json({ success: true, orders: meusPedidos });
             });
-            res.json({ success: true, orders: meusPedidos });
         });
     });
 });
@@ -5161,7 +5217,7 @@ app.post('/api/store/products/delete', (req, res) => {
     });
 });
 // =======================================================
-// 🛍️ ROTA DE CHECKOUT PREMIUM DA LOJA
+// 🛍️ ROTA DE CHECKOUT PREMIUM DA LOJA (COM AVISO NO ZAP)
 // =======================================================
 app.post('/api/store/checkout', (req, res) => {
     // O cliente vai mandar quem ele é, endereço e o que tem no carrinho
@@ -5182,13 +5238,52 @@ app.post('/api/store/checkout', (req, res) => {
         
         let itemsSaved = 0;
         items.forEach(item => {
+            // Nota: No seu código original a quantity estava fixa em 1. Se futuramente agrupar itens, mude o '1' para 'item.quantity'
             db.run(sqlItem, [orderId, item.id, item.name, item.image_url, 1, item.price_brl], (err2) => {
                 itemsSaved++;
-                // Quando terminar de salvar todos os itens, avisa o frontend que deu certo!
+                
+                // Quando terminar de salvar todos os itens...
                 if (itemsSaved === items.length) {
+                    
+                    // =================================================
+                    // 🔔 TOQUE DE OURO: AVISO NO WHATSAPP DO ADMIN
+                    // =================================================
+                    try {
+                        // Substitua pelo seu número real com código do país (Ex: 5585999999999)
+                        // O ideal é colocar este número no seu ficheiro .env como ADMIN_PHONE_NUMBER
+                        const numeroAdmin = process.env.ADMIN_PHONE_NUMBER || 'SEUNUMEROAQUI'; 
+                        
+                        let mensagemZap = `🚨 *NOVO PEDIDO NA LOJA GUINEEXPRESS!* 🚨\n\n`;
+                        mensagemZap += `👤 *Cliente:* ${client_name}\n`;
+                        mensagemZap += `📱 *Contato:* ${client_phone}\n`;
+                        mensagemZap += `📍 *Endereço:* ${delivery_address || 'Retirada Física'}\n\n`;
+                        mensagemZap += `🛒 *Resumo da Sacola:*\n`;
+                        
+                        items.forEach(i => {
+                            mensagemZap += `▫️ 1x ${i.name} (${currency_used} ${i.price_brl.toFixed(2)})\n`;
+                        });
+                        
+                        mensagemZap += `\n💰 *Total:* ${currency_used} ${total_brl.toFixed(2)}\n`;
+                        mensagemZap += `💳 *Método:* ${payment_method}\n\n`;
+                        mensagemZap += `🏃💨 _Acesse o seu Painel Admin para aprovar e faturar o pedido #${orderId}!_`;
+
+                        // Dispara a mensagem usando o motor do whatsapp-web.js
+                        // (Verifique se a variável global do seu bot chama-se 'client', 'clienteZap' ou outro nome)
+                        if (typeof client !== 'undefined') {
+                            client.sendMessage(`${numeroAdmin}@c.us`, mensagemZap);
+                        } else {
+                            console.log("Motor do WhatsApp não está globalmente disponível neste ficheiro para o aviso.");
+                        }
+
+                    } catch (erroZap) {
+                        console.error("Falha ao notificar o Admin no WhatsApp:", erroZap);
+                    }
+                    // =================================================
+
+                    // Retorna sucesso para o cliente
                     res.json({ 
                         success: true, 
-                        order_id: orderId, // Retorna o ID do pedido para o cliente poder pagar!
+                        order_id: orderId, 
                         msg: "Pedido criado com sucesso!" 
                     });
                 }
