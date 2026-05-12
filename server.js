@@ -1438,8 +1438,10 @@ const encontrarChrome = () => {
         procurarExecutavel(basePath);
 
         if (executavelEncontrado) {
+            // Se essa mensagem com o ALVO aparecer no log, a vitória é garantida!
             console.log("🎯 [RADAR] Executável do Chrome ACHADO em:", executavelEncontrado);
-            // 🔥 A MÁGICA ESTÁ AQUI: Isso força o Render a liberar o arquivo!
+            
+            // 🔥 A MÁGICA: Quebra as correntes de permissão do Render!
             fs.chmodSync(executavelEncontrado, '777'); 
             return executavelEncontrado;
         }
