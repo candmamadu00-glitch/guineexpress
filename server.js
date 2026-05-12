@@ -30,6 +30,7 @@ const ExcelJS = require('exceljs');
 // === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+const puppeteer = require('puppeteer');
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // =======================================================
 // 🛡️ SEGURANÇA (HELMET COM LISTA VIP LIBERADA PARA O SW.JS)
@@ -1437,19 +1438,22 @@ function ligarMotorDoZap(res = null) {
         console.error("Aviso geral na limpeza:", e.message);
     }
 
-    // Remova o executablePath para deixar o WhatsApp achar sozinho!
+  // No topo do arquivo, certifique-se de ter o puppeteer importado
+
+// ... dentro da função ligarMotorDoZap
 var clientZap = new Client({
     authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
     puppeteer: {
+        // Substitua a linha do executablePath por esta lógica:
+        executablePath: process.env.PUPPETEER_CACHE_DIR 
+            ? require('path').join(process.env.PUPPETEER_CACHE_DIR, 'chrome', 'linux-148.0.7778.97', 'chrome-linux64', 'chrome')
+            : puppeteer.executablePath(),
         protocolTimeout: 600000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
+            '--single-process', 
             '--disable-gpu'
         ]
     }
