@@ -24,11 +24,15 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
 const webpush = require('web-push');
+// Variáveis globais para controlar os timers da IA
+const conversasEmPausa = new Map();
+const cronometrosCici = new Map();
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+
 const app = express(); // <-- O App é criado aqui
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
 const ExcelJS = require('exceljs');
-// === NOVAS IMPORTAÇÕES DO FFMPEG (CONVERSOR DE VÍDEO) ===
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -1477,190 +1481,173 @@ app.get('/api/admin/zap-qr', (req, res) => {
 });
 
 // ==============================================================
-// 📩 NOVO CONFIGURADOR DE EVENTOS (PARA BAILEYS)
+// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (BAILEYS)
 // ==============================================================
+
 function configurarEventosDoZap(socket) {
+    
+    // 1. ESCUTA DE MENSAGENS (O QUE O LELO DIGITA E O QUE O CLIENTE MANDA)
     socket.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
-        const m = messages[0];
-        if (!m.message || m.key.fromMe) return;
+        const msg = messages[0];
+        if (!msg.message) return;
 
-        const remetente = m.key.remoteJid;
-        const textoRecebido = m.message.conversation || m.message.extendedTextMessage?.text || "";
+        const chatID = msg.key.remoteJid;
 
-        console.log(`📩 Mensagem de ${remetente}: ${textoRecebido}`);
+        // 🛑 IGNORA STATUS E GRUPOS
+        if (chatID === 'status@broadcast' || chatID.endsWith('@g.us')) return;
 
-        // AQUI VOCÊ PODE RECOLOCAR A LÓGICA DA CICÍ / GEMINI
-        // Exemplo: if (textoRecebido.toLowerCase().includes('pix')) { ... }
-    });
-}
-
-// ==============================================================
-// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS
-// ==============================================================
-function configurarEventosDoZap(client) {
-    // 1. Escuta o que VOCÊ (Lelo) digita no celular físico
-    client.on('message_create', async (msg) => {
-        if (msg.fromMe) {
-            const chat = await msg.getChat();
-            if (chat.isGroup) return;
-
-            const chatID = msg.to;
-            
-            // Pausa a IA por 1 hora se o Lelo assumir a conversa
+        // ==========================================================
+        // 🙋‍♂️ SE O LELO DIGITAR NO CELULAR (PAUSA A IA POR 1 HORA)
+        // ==========================================================
+        if (msg.key.fromMe) {
             conversasEmPausa.set(chatID, Date.now() + 3600000);
-            console.log(`👤 [CICÍ] Lelo assumiu o chat com ${chatID}. Ficarei calada por 1 hora aqui.`);
+            console.log(`👤 [CICÍ] Lelo assumiu o chat com ${chatID.split('@')[0]}. Ficarei calada por 1 hora aqui.`);
 
             if (cronometrosCici.has(chatID)) {
                 clearTimeout(cronometrosCici.get(chatID));
                 cronometrosCici.delete(chatID);
-                console.log(`⏳ [CICÍ] Cancelei a resposta que estava agendada para ${chatID}.`);
+                console.log(`⏳ [CICÍ] Cancelei a resposta que estava agendada para ${chatID.split('@')[0]}.`);
             }
+            return; // Lelo assumiu, a Cicí para por aqui.
         }
-    });
 
-   // 2. Escuta o que o CLIENTE manda
-    client.on('message', async (msg) => {
-        try {
-            // 🛑 TRAVA ANTI-STATUS: Impede a Cicí de ler, responder ou postar em Status!
-            if (msg.from === 'status@broadcast' || msg.isStatus || msg.type === 'broadcast') return;
+        // ==========================================================
+        // 🤖 SE O CLIENTE MANDAR MENSAGEM (ATIVA A CICÍ)
+        // ==========================================================
+        
+        // Verifica se ainda está na pausa de 1 hora
+        let tempoPausa = conversasEmPausa.get(chatID);
+        if (tempoPausa && tempoPausa > Date.now()) return; 
 
-            const chat = await msg.getChat();
-            if (chat.isGroup) return; 
+        // Tenta pegar o texto (mensagem normal ou respondendo outra mensagem)
+        let textoUsuario = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
+        let mensagemFoiDeAudio = false;
+        let audioData = null;
 
-            const chatID = msg.from;
+        // Verifica se é arquivo de mídia (Áudio, Foto, Vídeo)
+        const temAudio = msg.message.audioMessage;
+        const temImagemOuVideo = msg.message.imageMessage || msg.message.videoMessage;
 
-            // Se o Lelo assumiu a conversa recentemente, ignora a mensagem
-            let tempoPausa = conversasEmPausa.get(chatID);
-            if (tempoPausa && tempoPausa > Date.now()) return; 
-
-            let textoUsuario = msg.body || "";
-            let mensagemFoiDeAudio = false;
-            let audioData = null;
-
-            if (msg.hasMedia && (msg.type === 'ptt' || msg.type === 'audio')) {
-                const media = await msg.downloadMedia();
-                if (media) {
-                    console.log("🎙️ [CICÍ] Áudio recebido! Vou analisar...");
-                    mensagemFoiDeAudio = true;
-                    textoUsuario = "O usuário enviou um áudio no WhatsApp. Eis o conteúdo desse áudio:";
-                    audioData = { inlineData: { data: media.data, mimeType: media.mimetype } };
-                }
-            } else if (msg.hasMedia) {
-                return; // Ignora fotos/vídeos por enquanto
-            }
-
-            if (!textoUsuario && !mensagemFoiDeAudio) return;
-
-            // Filtro de Assunto Consolidado
-            const assuntoLogistica = /encomenda|pacote|frete|caixa|entrega|rastreio|valor|preço|kg|quilo|guiné|enviar|receber|etiqueta|pagamento|fatura|pix/i;
-            
-            if (!mensagemFoiDeAudio && !assuntoLogistica.test(textoUsuario)) {
-                console.log(`🤫 [CICÍ] Assunto fora da logística. Deixando pro Lelo.`);
-                return; 
-            }
-
-            console.log(`⏳ [CICÍ] Mensagem sobre logística de ${chatID}. Esperando 10 MINUTOS pelo Lelo...`);
-
-            // Se já existia um timer rolando para essa pessoa, reseta
-            if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
-
-            const timer = setTimeout(async () => {
-                // 👇 ADICIONAMOS UM TRY...CATCH AQUI PARA BLINDAR O SERVIDOR 👇
-                try {
-                    let checkFinal = conversasEmPausa.get(chatID);
-                    if (checkFinal && checkFinal > Date.now()) return; 
-
-                    console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID}...`);
-                    await chat.sendStateTyping();
-
-                    const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
-                    Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
-
-                    REGRAS DE OURO:
-                    1. Se o cliente perguntar algo fora do tema, responda educadamente que só trata de envios e logística.
-                    2. Seja carinhosa e educada.
-                    3. Se o cliente terminar uma dúvida, pergunte o que mais você pode ajudar.`;
-
-                    let modelChat = model.startChat({
-                        history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
-                    });
-
-                    let iaResult;
-                    if (mensagemFoiDeAudio) {
-                        iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
-                    } else {
-                        iaResult = await modelChat.sendMessage(textoUsuario);
-                    }
-
-                    if (clientZap && clientZap.info) { 
-                        await msg.reply(iaResult.response.text());
-                    }
-                } catch (erroIA) {
-                    console.error("❌ Erro GRAVE na IA (Cicí):", erroIA.message);
-                    
-                    // Se o Google bloquear por falta de créditos, a Cicí avisa o cliente mas NÃO DERRUBA O ZAP!
-                    if (clientZap && clientZap.info) {
-                        const msgQueda = `🤖 *Aviso Automático:*\n\nDesculpe, meu sistema de inteligência artificial está passando por uma manutenção técnica no momento.\n\nPor favor, aguarde que o Lelo responderá sua mensagem assim que possível!`;
-                        await msg.reply(msgQueda).catch(e => console.log("Erro ao enviar msg de queda:", e.message));
-                    }
-                } finally {
-                    cronometrosCici.delete(chatID);
-                }
-            }, 10 * 60 * 1000); 
-
-            cronometrosCici.set(chatID, timer);
-
-        } catch (error) {
-            console.error("❌ [CICÍ ZAP] Erro ao processar mensagem do Zap:", error);
-        }
-    });
-
-    // 3. Chamadas de Voz / Vídeo
-    client.on('call', async (call) => {
-        console.log(`📞 [CICÍ] Chamada recebida de: ${call.from}. Deixando tocar...`);
-
-        setTimeout(async () => {
+        if (temAudio) {
+            console.log("🎙️ [CICÍ] Áudio recebido! Vou analisar...");
+            mensagemFoiDeAudio = true;
+            textoUsuario = "O usuário enviou um áudio no WhatsApp. Eis o conteúdo desse áudio:";
             try {
-                console.log(`🎙️ [CICÍ] Respondendo chamada perdida de: ${call.from}`);
-                
-                const msgTexto = `🤖 *Mensagem da Cicí:*\n\nOi! Vi que você ligou, mas o Lelo está ocupado no momento e não pôde atender. Por favor, tente ligar mais tarde.\n\n🚨 *Se for urgente:* deixe um áudio ou uma mensagem escrita aqui embaixo que eu aviso ele depois!`;
-                await clientZap.sendMessage(call.from, msgTexto);
-
-                const caminhoAudio = path.join(__dirname, 'cici-recado.mp3');
-                if (fs.existsSync(caminhoAudio)) {
-                    const mediaAudio = MessageMedia.fromFilePath(caminhoAudio);
-                    await clientZap.sendMessage(call.from, mediaAudio, { sendAudioAsVoice: true });
-                } else {
-                    console.log("⚠️ Arquivo 'cici-recado.mp3' não encontrado na pasta.");
-                }
-            } catch (error) {
-                console.error("❌ Erro ao enviar recado pós-chamada:", error);
+                // Baixa o áudio no padrão Baileys
+                const buffer = await downloadMediaMessage(msg, 'buffer', {}, { reuploadRequest: socket.updateMediaMessage });
+                audioData = { inlineData: { data: buffer.toString('base64'), mimeType: temAudio.mimetype } };
+            } catch (err) {
+                console.log("Erro ao baixar áudio:", err.message);
+                return;
             }
-        }, 45000); 
+        } else if (temImagemOuVideo) {
+            return; // Ignora fotos/vídeos por enquanto
+        }
+
+        if (!textoUsuario && !mensagemFoiDeAudio) return;
+
+        // Filtro de Assunto Consolidado
+        const assuntoLogistica = /encomenda|pacote|frete|caixa|entrega|rastreio|valor|preço|kg|quilo|guiné|enviar|receber|etiqueta|pagamento|fatura|pix/i;
+        
+        if (!mensagemFoiDeAudio && !assuntoLogistica.test(textoUsuario)) {
+            console.log(`🤫 [CICÍ] Assunto fora da logística. Deixando pro Lelo.`);
+            return; 
+        }
+
+        console.log(`⏳ [CICÍ] Mensagem sobre logística de ${chatID.split('@')[0]}. Esperando 10 MINUTOS pelo Lelo...`);
+
+        // Se já existia um timer rolando para essa pessoa, reseta
+        if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
+
+        const timer = setTimeout(async () => {
+            try {
+                let checkFinal = conversasEmPausa.get(chatID);
+                if (checkFinal && checkFinal > Date.now()) return; 
+
+                console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID.split('@')[0]}...`);
+                
+                // Mostra "Digitando..." no Zap do cliente
+                await socket.sendPresenceUpdate('composing', chatID);
+
+                const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
+                Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
+
+                REGRAS DE OURO:
+                1. Se o cliente perguntar algo fora do tema, responda educadamente que só trata de envios e logística.
+                2. Seja carinhosa e educada.
+                3. Se o cliente terminar uma dúvida, pergunte o que mais você pode ajudar.`;
+
+                let modelChat = model.startChat({
+                    history: [ { role: "user", parts: [{ text: systemPrompt }] } ]
+                });
+
+                let iaResult;
+                if (mensagemFoiDeAudio && audioData) {
+                    iaResult = await modelChat.sendMessage([textoUsuario, audioData]);
+                } else {
+                    iaResult = await modelChat.sendMessage(textoUsuario);
+                }
+
+                // Tira o "Digitando..." e envia respondendo a mensagem original
+                await socket.sendPresenceUpdate('paused', chatID);
+                await socket.sendMessage(chatID, { text: iaResult.response.text() }, { quoted: msg });
+
+            } catch (erroIA) {
+                console.error("❌ Erro GRAVE na IA (Cicí):", erroIA.message);
+                const msgQueda = `🤖 *Aviso Automático:*\n\nDesculpe, meu sistema de inteligência artificial está passando por uma manutenção técnica no momento.\n\nPor favor, aguarde que o Lelo responderá sua mensagem assim que possível!`;
+                await socket.sendMessage(chatID, { text: msgQueda });
+            } finally {
+                cronometrosCici.delete(chatID);
+            }
+        }, 10 * 60 * 1000); // 10 minutos em milissegundos
+
+        cronometrosCici.set(chatID, timer);
     });
 
-    // ==========================================
-    // 4. DESCONEXÕES: A MÁGICA DA RESSURREIÇÃO
-    // ==========================================
-    client.on('disconnected', async (reason) => {
-        console.log('💀 [ZAP] O WhatsApp desconectou! Motivo:', reason);
-        console.log('🔄 [ZAP] Destruindo a sessão atual para evitar falhas de memória...');
-        
-        try {
-            if (clientZap) await clientZap.destroy();
-        } catch (e) { console.log("Aviso ao destruir client:", e.message); }
-        
-        clientZap = null; 
-        
-        console.log('🚀 [ZAP] Iniciando ressurreição automática em 10 segundos...');
-        
-        setTimeout(() => {
-            ligarMotorDoZap(); // Liga o robô sozinho, sem o Lelo precisar fazer nada!
-        }, 10000);
+    // ==========================================================
+    // 2. CHAMADAS DE VOZ E VÍDEO (SECRETÁRIA ELETRÔNICA)
+    // ==========================================================
+    socket.ev.on('call', async (chamadas) => {
+        for (const chamada of chamadas) {
+            if (chamada.status === 'offer') {
+                const callerId = chamada.from;
+                console.log(`📞 [CICÍ] Chamada recebida de: ${callerId.split('@')[0]}. Deixando tocar...`);
+                
+                setTimeout(async () => {
+                    try {
+                        console.log(`🎙️ [CICÍ] Respondendo chamada perdida de: ${callerId.split('@')[0]}`);
+                        
+                        const msgTexto = `🤖 *Mensagem da Cicí:*\n\nOi! Vi que você ligou, mas o Lelo está ocupado no momento e não pôde atender. Por favor, tente ligar mais tarde.\n\n🚨 *Se for urgente:* deixe um áudio ou uma mensagem escrita aqui embaixo que eu aviso ele depois!`;
+                        await socket.sendMessage(callerId, { text: msgTexto });
+                        
+                        const caminhoAudio = path.join(__dirname, 'cici-recado.mp3');
+                        if (fs.existsSync(caminhoAudio)) {
+                            // Envia o recado como áudio gravado na hora
+                            await socket.sendMessage(callerId, { 
+                                audio: fs.readFileSync(caminhoAudio), 
+                                mimetype: 'audio/mp4', 
+                                ptt: true 
+                            });
+                        } else {
+                            console.log("⚠️ Arquivo 'cici-recado.mp3' não encontrado na pasta.");
+                        }
+                    } catch (error) {
+                        console.error("❌ Erro ao enviar recado pós-chamada:", error);
+                    }
+                }, 45000); // 45 segundos
+            }
+        }
     });
+
+    // A mágica da ressurreição (Desconexões) já está sendo feita na função `ligarMotorDoZap`,
+    // então não precisamos duplicar aquele código antigo de 'disconnected' aqui.
 }
-// Rota de Envio em Massa
+
+
+// ==============================================================
+// 📢 ROTA DE ENVIO EM MASSA (ATUALIZADA PARA BAILEYS)
+// ==============================================================
 app.post('/api/admin/broadcast-zap', (req, res) => {
     const { subject, message, sendZap } = req.body;
 
@@ -1674,17 +1661,16 @@ app.post('/api/admin/broadcast-zap', (req, res) => {
             sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
             
             // 2. Enviar WhatsApp Global
-            if (sendZap && typeof clientZap !== 'undefined' && clientZap && clientZap.info && client.phone) {
-                // Limpeza: Deixa APENAS números. O número deve estar com DDI no banco (ex: 245..., 55..., 351...)
+            if (sendZap && typeof sock !== 'undefined' && sock && sock.user && client.phone) {
                 let num = client.phone.replace(/\D/g, '');
 
                 try {
-                    // Busca o ID oficial no servidor do WhatsApp (Resolve o erro No LID e 9º dígito)
-                    const contatoOficial = await clientZap.getNumberId(num);
+                    // Busca o ID oficial no WhatsApp usando o motor Baileys
+                    const [resultado] = await sock.onWhatsApp(num);
 
-                    if (contatoOficial) {
+                    if (resultado && resultado.exists) {
                         const textoZap = `*${subject}*\n\nOlá ${client.name},\n${message}`;
-                        await clientZap.sendMessage(contatoOficial._serialized, textoZap);
+                        await sock.sendMessage(resultado.jid, { text: textoZap });
                         console.log(`✓ Zap Global enviado para: ${num}`);
                     } else {
                         console.error(`x Número não encontrado no WhatsApp: ${num}`);
