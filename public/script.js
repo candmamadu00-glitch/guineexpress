@@ -8905,20 +8905,127 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// =======================================================
+// 🛒 MOTOR DA VITRINE: FILTRAR, BUSCAR E DESENHAR
+// =======================================================
+
 function alterarMoedaLoja() {
-    aplicarFiltrosLoja(); // Re-desenha com a moeda nova
+    aplicarFiltrosLoja(); // Re-desenha com a moeda nova e com o filtro que já estava ativado
 }
 
 function filtrarLoja(categoria, elementoClicado) {
     categoriaAtualLoja = categoria;
 
-    // Atualiza a cor das bolinhas de categoria lá no topo
+    // Atualiza a cor das bolinhas de categoria lá no topo (Aba Laranja)
     if (elementoClicado) {
         document.querySelectorAll('.cat-item').forEach(el => el.classList.remove('active'));
         elementoClicado.closest('.cat-item').classList.add('active');
     }
 
     aplicarFiltrosLoja();
+}
+
+function aplicarFiltrosLoja() {
+    const grid = document.getElementById('store-products-grid');
+    if (!grid) return;
+
+    const termoBusca = document.getElementById('search-store') ? document.getElementById('search-store').value.toLowerCase() : '';
+    
+    // Filtra os produtos originais
+    let produtosFiltrados = produtosOriginais.filter(p => {
+        // 1. Filtro de Categoria (ignora se for 'Todos')
+        let bateCategoria = (categoriaAtualLoja === 'Todos' || p.category === categoriaAtualLoja);
+        
+        // 2. Filtro de Busca (Texto)
+        let bateBusca = p.name.toLowerCase().includes(termoBusca) || p.description.toLowerCase().includes(termoBusca);
+        
+        return bateCategoria && bateBusca;
+    });
+
+    renderizarProdutos(produtosFiltrados);
+}
+
+// A Função Master que desenha os cartões de produtos!
+function renderizarProdutos(listaDeProdutos) {
+    const grid = document.getElementById('store-products-grid');
+    if (!grid) return;
+
+    if (listaDeProdutos.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 50px 20px;">
+                <i class="fas fa-box-open" style="font-size: 50px; color: #ccc; margin-bottom: 15px;"></i>
+                <h3 style="color: #666;">Nenhum produto encontrado.</h3>
+                <p style="color: #999; font-size: 13px;">Tente buscar por outro termo ou categoria.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const moedaElement = document.getElementById('currency-selector');
+    const moeda = moedaElement ? moedaElement.value : 'BRL';
+    let html = '';
+
+    listaDeProdutos.forEach(p => {
+        let precoFinal = p.price_brl;
+        let simbolo = 'R$';
+
+        // Lógica da cotação
+        const cotacoes = window.COTACAO || { XOF: 120, EUR: 0.18, USD: 0.20 };
+        if (moeda === 'CFA') { precoFinal = p.price_brl * cotacoes.XOF; simbolo = 'XOF'; }
+        else if (moeda === 'EUR') { precoFinal = p.price_brl * cotacoes.EUR; simbolo = '€'; }
+        else if (moeda === 'USD') { precoFinal = p.price_brl * cotacoes.USD; simbolo = '$'; }
+
+        // Favoritos do localStorage
+        let favs = JSON.parse(localStorage.getItem('loja_favoritos')) || [];
+        let isFav = favs.includes(p.id);
+        let corCoracao = isFav ? '#ee4d2d' : '#ccc';
+
+        html += `
+        <div class="product-card-premium" style="position: relative; cursor: pointer; display: flex; flex-direction: column;" onclick="abrirDetalhesProduto(${p.id}, '${simbolo}', ${precoFinal})">
+            <div class="promo-badge">Oferta</div>
+            
+            <div id="fav-${p.id}" class="fav-btn" onclick="toggleFavorito(${p.id}); event.stopPropagation();" style="color: ${corCoracao}; position: absolute; top: 10px; right: 10px; z-index: 2; background: white; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                <i class="fas fa-heart"></i>
+            </div>
+            
+            <div class="img-container" style="border-radius: 12px 12px 0 0; overflow: hidden;">
+                <img src="${p.image_url || '/logo.png'}" alt="${p.name}" style="width: 100%; height: 160px; object-fit: cover;">
+            </div>
+
+            <div class="product-details" style="padding: 12px; display: flex; flex-direction: column; flex-grow: 1; background: white; border-radius: 0 0 12px 12px; border: 1px solid #eee; border-top: none;">
+                <span class="product-cat" style="font-size: 10px; font-weight: bold; color: #ee4d2d; text-transform: uppercase;">${p.category}</span>
+                <h3 class="product-title" style="margin: 5px 0; font-size: 14px; color: #333; height: 36px; overflow: hidden;">${p.name}</h3>
+                
+                <div class="product-stars" style="margin-bottom: 10px;">
+                    <i class="fas fa-star" style="color: #f59e0b; font-size: 10px;"></i>
+                    <i class="fas fa-star" style="color: #f59e0b; font-size: 10px;"></i>
+                    <i class="fas fa-star" style="color: #f59e0b; font-size: 10px;"></i>
+                    <i class="fas fa-star" style="color: #f59e0b; font-size: 10px;"></i>
+                    <i class="fas fa-star-half-alt" style="color: #f59e0b; font-size: 10px;"></i>
+                    <span style="font-size: 10px; color: #94a3b8;">(99+)</span>
+                </div>
+
+                <div style="margin-top: auto;">
+                    <div class="price-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span class="price-amount" style="color: #ee4d2d; font-weight: 900; font-size: 16px;">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    
+                    <div style="display: flex; gap: 6px; width: 100%;">
+                        <button class="add-btn-premium" onclick="adicionarAoCarrinho(${p.id}, event); event.stopPropagation();" style="flex: 1; border: none; background: #ee4d2d; color: white; border-radius: 8px; font-size: 13px; font-weight: bold; padding: 10px 0; display: flex; justify-content: center; align-items: center; gap: 5px; cursor: pointer;">
+                            <i class="fas fa-cart-plus"></i>
+                        </button>
+                        
+                        <button onclick="enviarDuvidaWhatsApp('${p.name.replace(/'/g, "\\'")}'); event.stopPropagation();" style="background: #25d366; color: white; border: none; width: 42px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);">
+                            <i class="fab fa-whatsapp" style="font-size: 18px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    });
+    
+    grid.innerHTML = html;
 }
 
 // =======================================================

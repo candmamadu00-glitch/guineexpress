@@ -819,26 +819,47 @@
             <h3 style="margin:0;">Gestão de Box</h3>
             
             <label style="cursor: pointer; color: #555; font-size: 14px; display: flex; align-items: center; margin: 0;">
-                    <input type="checkbox" id="toggle-boxes" onclick="loadBoxes()" style="margin-right: 8px;"> 
-                    👀 Mostrar boxes já enviadas/entregues
-                </label>
+                <input type="checkbox" id="toggle-boxes" onclick="loadBoxes()" style="margin-right: 8px;"> 
+                👀 Mostrar boxes já enviadas/entregues
+            </label>
 
-                <select id="filter-box-lote" onchange="loadBoxes()" style="padding: 10px; border-radius: 4px; border: 1px solid #ddd; font-size: 14px; min-width: 150px; background-color: #f8f9fa; font-weight: bold;">
-                    <option value="Todos">📦 Todos os Envios</option>
-                </select>
-                   
-                <div style="display:flex; gap: 10px;">
-                    <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none; display: flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-file-pdf"></i>Baixar PDF
-                    </button>
-                    <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none; display: flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-file-excel"></i>Baixar Excel
-                    </button>
-                    <button onclick="openModal('modal-box')" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-box-open"></i>Criar Novo Box
-                    </button>
-                </div>
+            <select id="filter-box-lote" onchange="loadBoxes()" style="padding: 10px; border-radius: 4px; border: 1px solid #ddd; font-size: 14px; min-width: 150px; background-color: #f8f9fa; font-weight: bold;">
+                <option value="Todos">📦 Todos os Envios</option>
+            </select>
+                
+            <div style="display:flex; gap: 10px;">
+                <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none; display: flex; align-items: center; gap: 5px;">
+                    <i class="fas fa-file-pdf"></i>Baixar PDF
+                </button>
+                <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none; display: flex; align-items: center; gap: 5px;">
+                    <i class="fas fa-file-excel"></i>Baixar Excel
+                </button>
+                <button onclick="openModal('modal-box')" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px;">
+                    <i class="fas fa-box-open"></i>Criar Novo Box
+                </button>
             </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table class="data-table" id="box-table">
+                <thead>
+                    <tr>
+                        <th>Box</th>
+                        <th>Cliente</th>
+                        <th>Ref. Pedido</th>
+                        <th>Peso</th>
+                        <th>Total (Frete + NF)</th>
+                        <th>Produtos</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="box-table-body">
+                    <tr>
+                        <td colspan="7" style="text-align: center;">Carregando caixas...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
         </div>
         
     <div id="modal-box" class="modal-overlay" style="display: none;">
@@ -886,7 +907,6 @@
                     <button type="button" class="btn" onclick="closeModal('modal-box')" style="background:#ccc; width:auto;">Cancelar</button>
                     <button type="submit" class="btn btn-primary" style="width:auto;">Criar</button>
                 </div>
-                
             </form>
         </div>
     </div>
