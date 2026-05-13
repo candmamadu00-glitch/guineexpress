@@ -1434,6 +1434,7 @@ async function ligarMotorDoZap(res = null) {
 
     console.log("📞 [ZAP] Iniciando o motor Baileys (Super Leve)...");
     
+    // USANDO O CAMINHO CORRETO DA PASTA (baileys_auth_info)
     const authPath = path.join(discoPermanente, 'baileys_auth_info');
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
@@ -1441,7 +1442,10 @@ async function ligarMotorDoZap(res = null) {
         auth: state,
         printQRInTerminal: true,
         logger: pino({ level: 'silent' }), 
-        browser: ['Guineexpress', 'Chrome', '1.0.0']
+        browser: ['Guineexpress', 'Chrome', '1.0.0'],
+        connectTimeoutMs: 60000, // Dá mais tempo para o Render conectar
+        defaultQueryTimeoutMs: 0,
+        keepAliveIntervalMs: 10000
     });
 
     // 🎭 2. CLIENT ZAP INTELIGENTE (Restaura o envio de vídeos, MP4, PDFs e Áudio de Voz)
