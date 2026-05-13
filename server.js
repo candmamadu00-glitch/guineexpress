@@ -5001,7 +5001,7 @@ app.delete('/api/videos/:id', (req, res) => {
 // 🧠 VARIÁVEIS GLOBAIS DE MEMÓRIA DA CICÍ
 // ==============================================================
 const cronometrosCici = new Map(); // Guarda o timer de 10 min de cada cliente
-const conversasEmPausa = new Map(); // Guarda a pausa de 1 hora quando o Lelo assume
+ // Guarda a pausa de 1 hora quando o Lelo assume
 
 // ==============================================================
 // ⏰ 🤖 CICI: DESPERTADOR PROATIVO (COBRANÇA E AVISOS)
