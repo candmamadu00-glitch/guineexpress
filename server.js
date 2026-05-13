@@ -1499,7 +1499,6 @@ app.get('/api/admin/zap-qr', (req, res) => {
 
 // 👇 AS VARIÁVEIS DA CICÍ (COLOQUEI DE VOLTA PARA NÃO DAR ERRO) 👇
 const conversasEmPausa = new Map();
-const cronometrosCici = new Map();
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 function configurarEventosDoZap(socket) {
