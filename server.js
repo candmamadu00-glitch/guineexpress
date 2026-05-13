@@ -24,11 +24,6 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
 const webpush = require('web-push');
-// Variáveis globais para controlar os timers da IA
-const conversasEmPausa = new Map();
-const cronometrosCici = new Map();
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
-
 const app = express(); // <-- O App é criado aqui
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
