@@ -2856,8 +2856,11 @@ app.post('/api/invoices/:id/approve-receipt', (req, res) => {
     db.run("UPDATE invoices SET status = 'approved' WHERE id = ?", [invoiceId], function(err) {
         if (err) return res.json({ success: false });
         
+        // 🔥 A MÁGICA ACONTECE AQUI: Assim que aprovar no banco, dispara o envio do PDF no Zap!
+        enviarReciboPDF(invoiceId);
+        
         // Aqui o pagamento está aprovado! O sistema já vai ler como ✅ PAGO
-        res.json({ success: true, message: 'Pagamento aprovado com sucesso!' });
+        res.json({ success: true, message: 'Pagamento aprovado e recibo enviado para o Zap do cliente!' });
     });
 });
 // ==============================================================
