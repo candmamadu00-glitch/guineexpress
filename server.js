@@ -1432,70 +1432,43 @@ async function ligarMotorDoZap(res = null) {
         return; 
     }
 
-    console.log("📞 [ZAP] Iniciando o motor Baileys (Super Leve)...");
+    console.log("📞 [ZAP] Iniciando motor: Criando sessão NOVA DO ZERO...");
     
-    // USANDO O CAMINHO CORRETO DA PASTA (baileys_auth_info)
-    const authPath = path.join(discoPermanente, 'baileys_auth_info');
+    // 🔥 Mudamos o nome da pasta para ignorar qualquer arquivo corrompido!
+    const authPath = path.join(discoPermanente, 'sessao_zap_nova');
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
         logger: pino({ level: 'silent' }), 
-        browser: ['Guineexpress', 'Chrome', '1.0.0'],
-        connectTimeoutMs: 60000, // Dá mais tempo para o Render conectar
-        defaultQueryTimeoutMs: 0,
-        keepAliveIntervalMs: 10000
+        browser: ['Guineexpress V2', 'Chrome', '2.0.0'],
+        connectTimeoutMs: 60000
     });
 
-    // 🎭 2. CLIENT ZAP INTELIGENTE (Restaura o envio de vídeos, MP4, PDFs e Áudio de Voz)
+    // 🎭 CLIENT ZAP INTELIGENTE 
     clientZap = {
         info: true,
         sendMessage: async (numero, conteudo, options = {}) => {
             if (!sock) return;
             const jid = numero.includes('@') ? numero : `${numero.replace(/\D/g, '')}@s.whatsapp.net`;
             
-            // Se for um texto simples
             if (typeof conteudo === 'string') {
                 return await sock.sendMessage(jid, { text: conteudo });
             }
 
-            // Se for arquivo (Vídeo, Imagem, Áudio ou PDF)
             if (conteudo && typeof conteudo === 'object' && conteudo.mimetype) {
                 const buffer = Buffer.from(conteudo.data, 'base64');
                 const mime = conteudo.mimetype;
 
-                // Áudio como Mensagem de Voz (Microfone)
                 if (options.sendAudioAsVoice || mime.startsWith('audio/')) {
-                    return await sock.sendMessage(jid, { 
-                        audio: buffer, 
-                        mimetype: 'audio/mp4', // Transforma para o formato aceito pelo Zap
-                        ptt: options.sendAudioAsVoice || false 
-                    });
-                } 
-                // Vídeos MP4
-                else if (mime.startsWith('video/')) {
-                    return await sock.sendMessage(jid, { 
-                        video: buffer, 
-                        caption: options.caption || '',
-                        mimetype: 'video/mp4'
-                    });
-                }
-                // Imagens
-                else if (mime.startsWith('image/')) {
-                    return await sock.sendMessage(jid, { 
-                        image: buffer, 
-                        caption: options.caption || ''
-                    });
-                }
-                // Faturas em PDF
-                else {
-                    return await sock.sendMessage(jid, { 
-                        document: buffer, 
-                        mimetype: mime, 
-                        fileName: conteudo.filename || 'Arquivo.pdf',
-                        caption: options.caption || ''
-                    });
+                    return await sock.sendMessage(jid, { audio: buffer, mimetype: 'audio/mp4', ptt: options.sendAudioAsVoice || false });
+                } else if (mime.startsWith('video/')) {
+                    return await sock.sendMessage(jid, { video: buffer, caption: options.caption || '', mimetype: 'video/mp4' });
+                } else if (mime.startsWith('image/')) {
+                    return await sock.sendMessage(jid, { image: buffer, caption: options.caption || '' });
+                } else {
+                    return await sock.sendMessage(jid, { document: buffer, mimetype: mime, fileName: conteudo.filename || 'Arquivo.pdf', caption: options.caption || '' });
                 }
             }
         },
@@ -1503,9 +1476,7 @@ async function ligarMotorDoZap(res = null) {
             if (!sock) return null;
             const numLimpo = numero.replace(/\D/g, '');
             const [resultado] = await sock.onWhatsApp(numLimpo);
-            if (resultado && resultado.exists) {
-                return { _serialized: resultado.jid }; 
-            }
+            if (resultado && resultado.exists) return { _serialized: resultado.jid }; 
             return null;
         }
     };
@@ -1516,7 +1487,7 @@ async function ligarMotorDoZap(res = null) {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            console.log("📞 [ZAP] QR Code gerado! Aguardando escanear...");
+            console.log("🟢 [ZAP] SUCESSO! QR Code gerado fresquinho. Pode escanear!");
             if (res && !res.headersSent) {
                 try {
                     const qrImage = await qrcode.toDataURL(qr);
@@ -1526,18 +1497,21 @@ async function ligarMotorDoZap(res = null) {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('❌ [ZAP] Conexão caiu. Reconectando...', shouldReconnect);
-            if (shouldReconnect) ligarMotorDoZap();
+            const codigoErro = lastDisconnect?.error?.output?.statusCode;
+            if (codigoErro === DisconnectReason.loggedOut) {
+                console.log("❌ [ZAP] Desconectado pelo celular. Para conectar de novo, reinicie o servidor.");
+                sock = null;
+            } else {
+                console.log("⚠️ [ZAP] A rede oscilou. O Zap vai reconectar sozinho em 5 segundos...");
+                setTimeout(() => ligarMotorDoZap(), 5000);
+            }
         } else if (connection === 'open') {
-            console.log('✅ [ZAP] WhatsApp Conectado (Baileys)!');
+            console.log('✅ [ZAP] WhatsApp 100% Conectado e Operacional!');
             if (res && !res.headersSent) res.json({ success: true, msg: "Conectado!" });
-            
-            configurarEventosDoZap(sock);
+            if (typeof configurarEventosDoZap === 'function') configurarEventosDoZap(sock);
         }
     });
 }
-
 // ==============================================================
 // 📱 ROTA PARA GERAR QR CODE
 // ==============================================================
