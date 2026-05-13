@@ -2063,19 +2063,17 @@ app.get('/api/orders', (req, res) => {
 app.get('/api/boxes', (req, res) => {
     let sql = `SELECT 
             boxes.*, 
-            u.name as client_name, 
+            users.name as client_name, 
             orders.code as order_code, 
             orders.status as order_status, 
             orders.weight as order_weight,
             invoices.nf_amount,
-            invoices.freight_amount,
-            -- 🚀 A MÁGICA DO LOTE: Garante que o painel sempre veja o lote, seja da caixa ou da encomenda!
-            COALESCE(boxes.lote, orders.lote, 'Sem Lote') as lote 
+            invoices.freight_amount
         FROM boxes 
-        LEFT JOIN users u ON boxes.client_id = u.id -- <-- CORRIGIDO PARA LEFT JOIN
+        JOIN users ON boxes.client_id = users.id 
         LEFT JOIN orders ON boxes.order_id = orders.id
         LEFT JOIN invoices ON boxes.id = invoices.box_id
-        WHERE (boxes.deleted = 0 OR boxes.deleted IS NULL)`; 
+        WHERE (boxes.deleted = 0 OR boxes.deleted IS NULL)`; // <-- MÁGICA: Aceita 0 ou vazio (NULL)
         
     let params = [];
     
@@ -2084,13 +2082,7 @@ app.get('/api/boxes', (req, res) => {
         params.push(req.session.userId); 
     }
     
-    db.all(sql, params, (err, rows) => {
-        if (err) {
-            console.error("❌ Erro ao buscar boxes no banco:", err);
-            return res.json([]);
-        }
-        res.json(rows);
-    });
+    db.all(sql, params, (err, rows) => res.json(rows));
 });
 // ROTA DO PAINEL FINANCEIRO (Junta Encomendas e Faturas com Lotes)
 app.get('/api/finances/all', async (req, res) => {
