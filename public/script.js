@@ -8471,7 +8471,65 @@ async function carregarProdutosAdmin() {
         grid.innerHTML = '<p style="color:red;">Erro ao carregar produtos.</p>';
     }
 }
+// ==============================================================
+// 🛍️ CARREGAR PRODUTOS NA VITRINE DO CLIENTE
+// ==============================================================
+async function carregarProdutosLoja() {
+    // 👇 ID CORRIGIDO PARA O SEU LAYOUT PREMIUM!
+    const grid = document.getElementById('store-products-grid');
+    
+    if (!grid) return; // Se não achar a caixa, não faz nada
 
+    grid.innerHTML = '<p style="text-align:center; padding: 20px; width: 100%; grid-column: 1 / -1;">Carregando a loja... <i class="fas fa-spinner fa-spin"></i></p>';
+
+    try {
+        const resposta = await fetch('/api/loja/produtos-clientes');
+        const dados = await resposta.json();
+
+        if (!dados.success || !dados.products || dados.products.length === 0) {
+            grid.innerHTML = '<p style="text-align:center; color:#666; padding: 20px; width: 100%; grid-column: 1 / -1;">A vitrine está vazia no momento.</p>';
+            return;
+        }
+
+        // Salva os produtos globais para o SEU layout Premium e a Cotação de Moedas funcionarem!
+        window.produtosOriginais = dados.products; 
+        
+        // Chama a SUA função que tem o design da Shopee/Premium
+        renderizarProdutos(); 
+
+    } catch (erro) {
+        console.error("Erro ao carregar loja:", erro);
+        grid.innerHTML = '<p style="color:red; text-align:center; padding: 20px; width: 100%; grid-column: 1 / -1;">Falha ao carregar o catálogo.</p>';
+    }
+}
+
+function renderizarProdutosLoja(produtos) {
+    const grid = document.getElementById('store-items') || document.querySelector('.store-items') || document.getElementById('produtos-grid');
+    if (!grid) return;
+
+    let html = '';
+    produtos.forEach(p => {
+        const foto = p.image_url ? p.image_url : '/logo.png';
+        const precoFormatado = parseFloat(p.price_brl).toFixed(2);
+        
+        html += `
+            <div style="background: white; border: 1px solid #e1e8ed; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+                <img src="${foto}" style="width: 100%; height: 180px; object-fit: cover; border-bottom: 2px solid #ee4d2d;">
+                <div style="padding: 15px; flex-grow: 1; display: flex; flex-direction: column;">
+                    <span style="font-size: 10px; color: #ee4d2d; font-weight: 900; text-transform: uppercase;">${p.category || 'Geral'}</span>
+                    <h4 style="margin: 8px 0; color: #0a1931; font-size: 15px;">${p.name}</h4>
+                    <p style="font-size: 18px; font-weight: 900; color: #d32f2f; margin: 5px 0;">R$ ${precoFormatado}</p>
+                    
+                    <button onclick="adicionarAoCarrinho(${p.id}, '${p.name.replace(/'/g, "\\'")}', ${p.price_brl}, '${foto}')" 
+                            style="margin-top: auto; background: #ee4d2d; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                        <i class="fas fa-cart-plus"></i> Comprar
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    grid.innerHTML = html;
+}
 async function deletarProdutoLoja(id) {
     if(!confirm("Tem certeza que deseja apagar este produto da sua loja?")) return;
     try {
@@ -9783,10 +9841,14 @@ async function processarCompraDaLoja() {
         return;
     }
 
-    // Pega os dados do cliente
-    const endereco = document.getElementById('checkout-address').value;
-    const telefone = document.getElementById('checkout-phone').value;
-    const metodoPagamento = document.querySelector('input[name="pay-method"]:checked').value;
+    // Pega os dados do cliente nos campos do HTML
+    const enderecoEl = document.getElementById('checkout-address');
+    const telefoneEl = document.getElementById('checkout-phone');
+    const nomeClienteEl = document.getElementById('user-name-display'); // Ou o campo onde tem o nome dele
+
+    const endereco = enderecoEl ? enderecoEl.value : '';
+    const telefone = telefoneEl ? telefoneEl.value : '';
+    const nome = nomeClienteEl ? nomeClienteEl.innerText : 'Cliente Loja';
 
     if (!endereco || !telefone) {
         alert("⚠️ Por favor, preencha o seu endereço e telefone para a entrega!");
@@ -9799,51 +9861,49 @@ async function processarCompraDaLoja() {
     btn.disabled = true;
 
     try {
+        // Calcula o total em BRL (o sistema da Cicí usa BRL para o PIX)
+        const totalBRL = itensNoCarrinho.reduce((sum, item) => sum + (item.price_brl || 0), 0);
         const moeda = document.getElementById('currency-selector') ? document.getElementById('currency-selector').value : 'XOF';
 
         const response = await fetch('/api/store/checkout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
+                client_name: nome,
+                client_phone: telefone,
+                delivery_address: endereco,
                 items: itensNoCarrinho, 
-                currency: moeda,
-                address: endereco,
-                phone: telefone,
-                payment_method: metodoPagamento
+                total_brl: totalBRL,
+                currency_used: moeda,
+                payment_method: 'pix_automatico'
             })
         });
 
         const data = await response.json();
 
         if (data.success) {
-            
-            // SE ESCOLHEU PIX (Vai para a Tela 3)
-            if (metodoPagamento === 'pix') {
-                document.getElementById('cart-step-2').style.display = 'none';
-                document.getElementById('cart-step-3').style.display = 'flex';
-                
-                // Preenche com os dados que vêm do seu servidor (Mercado Pago)
-                // Se o servidor ainda não gerar, coloquei um texto de teste
-                const pixCopiaCola = data.pix_copia_cola || "00020126580014br.gov.bcb.pix. CHAVE DE TESTE PIX";
-                document.getElementById('pix-copia-cola-text').value = pixCopiaCola;
-                
-                if (data.qr_code_base64) {
-                    document.getElementById('pix-qr-code').src = 'data:image/jpeg;base64,' + data.qr_code_base64;
-                } else {
-                    document.getElementById('pix-qr-code').src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(pixCopiaCola);
-                }
-            } 
-            // SE ESCOLHEU MANUAL
-            else {
-                alert("🎉 Pedido feito! Por favor, envie o comprovativo no WhatsApp.");
-                concluirPedidoAposPix(); // Limpa a sacola e fecha
-            }
+    // 1. Limpa o carrinho
+    itensNoCarrinho = []; 
+    localStorage.removeItem('loja_carrinho'); 
+    
+    // 2. PREPARA O ID COM O PREFIXO "STORE-" 
+    // É isso que avisa ao servidor que o pedido é da LOJA!
+    document.getElementById('pay-order-id').value = 'STORE-' + data.order_id;
+    
+    document.getElementById('pay-amount').value = data.total_confirmado;
+    document.getElementById('pay-desc').innerText = `Pedido #${data.order_id} - Total: R$ ${data.total_confirmado.toFixed(2)}`;
 
-        } else {
-            alert("❌ Ocorreu um problema ao finalizar: " + (data.msg || "Tente novamente."));
-        }
+    // 3. Abre o modal
+    document.getElementById('modal-payment').style.display = 'block';
+    
+    if (typeof toggleCarrinho === "function") toggleCarrinho();
+
+} else {
+    alert("❌ Erro: " + data.msg);
+}
     } catch (erro) {
-        alert("📡 Erro de conexão! Verifique a sua internet.");
+        console.error(erro);
+        alert("📡 Erro de conexão com o servidor.");
     } finally {
         btn.innerHTML = textoOriginal;
         btn.disabled = false;
@@ -9872,24 +9932,24 @@ function copiarCodigoPix() {
 }
 
 // =======================================================
-// ✅ CONCLUIR PEDIDO (Limpa carrinho e fecha tudo)
+// ✅ RESETAR INTERFACE APÓS O PEDIDO
 // =======================================================
 function concluirPedidoAposPix() {
+    // Garante que o carrinho está vazio
     itensNoCarrinho = []; 
     localStorage.removeItem('loja_carrinho'); 
     
     if (typeof renderizarCarrinhoLateral === "function") renderizarCarrinhoLateral();
     if (typeof atualizarContadorCarrinho === "function") atualizarContadorCarrinho();
     
-    // Restaura as telas para a próxima compra
+    // Volta os passos do carrinho para o início para a próxima compra
     const step1 = document.getElementById('cart-step-1');
     const step2 = document.getElementById('cart-step-2');
-    const step3 = document.getElementById('cart-step-3');
     if (step1) step1.style.display = 'flex';
     if (step2) step2.style.display = 'none';
-    if (step3) step3.style.display = 'none';
     
-    if (typeof toggleCarrinho === "function") toggleCarrinho();
+    // Fecha qualquer modal aberto e abre a lista de pedidos
+    document.getElementById('modal-payment').style.display = 'none';
     if (typeof abrirMeusPedidosLoja === "function") abrirMeusPedidosLoja();
 }
 // =======================================================
@@ -9942,6 +10002,22 @@ function dispararConfetesDaCici() {
             setTimeout(() => confete.remove(), 3000);
         }, i * 50);
     }
+}
+// Função para abrir o modal de pagamento PIX após finalizar o pedido na loja
+function abrirModalPagamentoLoja(orderId, total) {
+    const modal = document.getElementById('modal-payment');
+    if(modal) {
+        document.getElementById('pay-order-id').value = orderId;
+        document.getElementById('pay-amount').value = total;
+        document.getElementById('pay-desc').innerText = `Pedido #${orderId} - Total: R$ ${total.toFixed(2)}`;
+        modal.style.display = 'block';
+    }
+}
+
+function closePaymentModal() {
+    document.getElementById('modal-payment').style.display = 'none';
+    // Ao fechar, levamos o cliente para a tela de "Meus Pedidos" para ele ver o status
+    abrirMeusPedidosLoja();
 }
 function abrirModalCarrinho() {
     const sideCart = document.getElementById('side-cart');

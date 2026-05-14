@@ -2612,25 +2612,26 @@ app.post('/api/invoices/create', async (req, res) => {
                             sendEmailHtml(email, subject, title, msg);
                         }
 
-                        // 2. ENVIA O WHATSAPP (Avisando para acessar o painel)
-                        if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                            try {
-                                let cleanPhone = phone.replace(/\D/g, '');
-                                const numberId = await clientZap.getNumberId(cleanPhone);
-                                
-                                if (numberId) {
-                                    const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-
-                                    await clientZap.sendMessage(numberId._serialized, zapMsg);
-                                    console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
-                                } else {
-                                    console.log(`⚠️ [ZAP] Número ${cleanPhone} inválido. Tentando forçar...`);
-                                    await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg);
-                                }
-                            } catch (zapErr) {
-                                console.error("❌ Erro ao enviar Zap da fatura:", zapErr.message);
-                            }
-                        } else {
+                        // 2. ENVIA O WHATSAPP COM SEGURANÇA (Para não travar se o zap cair)
+if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+    try {
+        let cleanPhone = phone.replace(/\D/g, '');
+        // A TÁTICA: O bloco try/catch e o await evitam que a falha feche o servidor
+        const numberId = await clientZap.getNumberId(cleanPhone).catch(()=>null); 
+        
+        if (numberId) {
+            const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+            await clientZap.sendMessage(numberId._serialized, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar a msg."));
+            console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
+        } else {
+            // Tentativa cega caso não ache o ID
+            await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar tentativa cega."));
+        }
+    } catch (zapErr) {
+        // Se der qualquer erro fatal de conexão, apenas mostra no log e segue a vida
+        console.error("❌ Erro ao enviar Zap da fatura (Zap pode estar offline):", zapErr.message);
+    }
+} else {
                             console.log("⚠️ [ZAP] Cliente não notificado: Sem telefone cadastrado ou Robô do WhatsApp desconectado.");
                         }
                     });
@@ -5206,6 +5207,7 @@ app.post('/api/store/products/delete', (req, res) => {
         res.json({ success: !err, msg: err ? err.message : null });
     });
 });
+
 // =======================================================
 // 🛍️ ROTA DE CHECKOUT PREMIUM DA LOJA (COM AVISO NO ZAP)
 // =======================================================
@@ -5272,10 +5274,11 @@ app.post('/api/store/checkout', (req, res) => {
 
                     // Retorna sucesso para o cliente
                     res.json({ 
-                        success: true, 
-                        order_id: orderId, 
-                        msg: "Pedido criado com sucesso!" 
-                    });
+    success: true, 
+    order_id: orderId, 
+    total_confirmado: total_brl, // Importante para o modal saber quanto cobrar
+    msg: "Pedido criado com sucesso!" 
+});
                 }
             });
         });
@@ -5302,6 +5305,18 @@ app.get('/api/admin/store/stats', (req, res) => {
                 totalItems: topStock.reduce((a, b) => a + b.stock, 0)
             });
         });
+    });
+});
+// ==============================================================
+// 🛍️ ROTA DA VITRINE (EXCLUSIVA PARA CLIENTES - SEM BLOQUEIO)
+// ==============================================================
+app.get('/api/loja/produtos-clientes', (req, res) => {
+    const sql = `SELECT * FROM products ORDER BY id DESC`;
+    db.all(sql, [], (err, produtos) => {
+        if (err) {
+            return res.json({ success: false, message: "Erro no banco de dados." });
+        }
+        res.json({ success: true, products: produtos });
     });
 });
 ligarMotorDoZap();
