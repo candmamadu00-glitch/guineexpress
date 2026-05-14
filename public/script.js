@@ -3107,98 +3107,6 @@ async function deleteInvoice(id) {
     loadInvoices();
 }
 
-// ==========================================
-// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM FILTRO E MEMÓRIA DA CICÍ)
-// ==========================================
-async function loadClientInvoices(loteFiltro = '') {
-    const tbody = document.getElementById('client-invoices-list');
-    if(!tbody) return; 
-
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Carregando...</td></tr>';
-
-    try {
-        const res = await fetch('/api/invoices/my_invoices'); 
-        let list = await res.json();
-
-        // 🧠 MÁGICA DO FILTRO: Se tiver lote selecionado, esconde as outras faturas!
-        if (loteFiltro && loteFiltro !== '') {
-            list = list.filter(inv => (inv.lote || 'Sem Lote') === loteFiltro);
-        }
-
-        // 👇 A MÁGICA DO HISTÓRICO CORRIGIDA E DEFINITIVA 👇
-        if (!window.verHistoricoCompleto) {
-            list = list.filter(inv => {
-                const statusStr = String(inv.status || '').toLowerCase();
-                const isPago = (statusStr === 'pago' || statusStr === 'approved' || statusStr === 'paid');
-                return !isPago; // Só deixa passar e aparecer na tela se NÃO estiver pago!
-            });
-        }
-        // 👆 --------------------------------------------- 👆
-
-        tbody.innerHTML = '';
-        if(list.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente ${loteFiltro ? 'para este envio' : ''}.</td></tr>`;
-            return;
-        }
-
-        let faturasPendentes = 0; 
-
-        list.forEach(inv => {
-            let statusHtml = '';
-            let actionHtml = '';
-
-            let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
-            let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
-
-            if(inv.status === 'approved') {
-                statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
-                actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
-            } else if(inv.status === 'in_review') {
-                statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
-                actionHtml = '<span style="color:#ccc; font-size:12px;">Aguardando o Admin</span>';
-            } else if(inv.status === 'pending') {
-                faturasPendentes++; 
-                statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
-                
-                actionHtml = `
-                <div style="display:flex; justify-content:center; gap:8px;">
-                    <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${inv.amount}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        💸 Pagar pelo Pix 
-                    </button>
-                </div>`;
-            } else {
-                statusHtml = '<span style="color:red;">Cancelado</span>';
-                actionHtml = '-';
-            }
-
-            tbody.innerHTML += `
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding:12px; font-weight:bold; color:#0a1931;">#${inv.id}</td>
-                <td>${rawDesc}</td>
-                <td style="font-weight:bold; color:#0a1931;">R$ ${parseFloat(inv.amount).toFixed(2)}</td>
-                <td>${statusHtml}</td>
-                <td style="text-align:center;">${actionHtml}</td>
-            </tr>`;
-        });
-
-        // (Lógica da Cicí continua igualzinha aqui...)
-        if (faturasPendentes > 0 && sessionStorage.getItem('ciciJaAvisouFatura') !== 'sim') {
-            sessionStorage.setItem('ciciJaAvisouFatura', 'sim'); 
-            setTimeout(() => {
-                showSection('billing-view');
-                setTimeout(() => {
-                    CiciTour.focarElemento('.btn-pisca', `🚨 Ei! Vi que você tem fatura pendente.<br><br>Clique no botão azul que a seta está apontando para abrir o seu PIX.`);
-                    const overlay = document.getElementById('cici-overlay');
-                    if (overlay) overlay.onclick = () => CiciTour.limparFoco('.btn-pisca');
-                }, 500);
-            }, 8000); 
-        }
-
-    } catch (err) {
-        console.error(err);
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
-    }
-}
 
 // ==========================================
 // CICÍ COBRANDO DADOS DO RECEBEDOR (COM MEMÓRIA PROFUNDA)
@@ -9238,6 +9146,9 @@ async function carregarPedidosLojaAdmin() {
                 if (order.status === 'Enviado') statusColor = '#2980b9';
                 if (order.status === 'Entregue') statusColor = '#8e44ad';
 
+                // 🛡️ CORREÇÃO: Blinda o código caso o total seja nulo
+                const valorSeguro = parseFloat(order.total_brl) || 0;
+
                 html += `
                     <div style="background: white; border-radius: 15px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); position: relative; border-top: 5px solid ${statusColor}; cursor: pointer; transition: 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'" onclick='abrirModalPedidoLoja(${JSON.stringify(order)})'>
                         
@@ -9250,8 +9161,8 @@ async function carregarPedidosLojaAdmin() {
                         <p style="margin: 5px 0; font-size: 12px; color: #666;"><i class="fas fa-clock"></i> ${new Date(order.created_at).toLocaleString('pt-BR')}</p>
                         
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 12px; color: #666;">${order.items.length} item(ns)</span>
-                            <span style="font-size: 18px; font-weight: 900; color: #d32f2f;">R$ ${order.total_brl.toFixed(2)}</span>
+                            <span style="font-size: 12px; color: #666;">${order.items ? order.items.length : 0} item(ns)</span>
+                            <span style="font-size: 18px; font-weight: 900; color: #d32f2f;">R$ ${valorSeguro.toFixed(2)}</span>
                         </div>
                     </div>
                 `;

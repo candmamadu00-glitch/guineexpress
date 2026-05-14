@@ -445,6 +445,7 @@
             </div>
         </div>
     </div>
+    
 </section>
         <section id="dashboard-home">
             <div class="header-flex">
@@ -1520,38 +1521,6 @@
             <button onclick="exportFinancesExcel()" class="btn btn-primary" style="background: #27ae60;"><i class="fas fa-file-excel"></i> Abrir no Excel</button>
         </div>
     </div>
-<div class="card" style="margin-top: 25px; border-top: 4px solid #009ee3; background: #fdfdfd;">
-    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
-        <img src="/cici.png" style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid #dfaf12;">
-        <div>
-            <h3 style="margin:0;">Relatórios da Cicí</h3>
-            <p style="margin:0; font-size: 13px; color: #666;">Análise de estoque e tendências em tempo real.</p>
-        </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-        <div style="background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-            <h4 style="font-size: 14px; margin-bottom: 15px;"><i class="fas fa-chart-pie"></i> Top 5 - Maior Estoque</h4>
-            <canvas id="stockChart" height="200"></canvas>
-        </div>
-
-        <div id="cici-alerts" style="background: #fff; padding: 15px; border-radius: 15px; border: 1px dashed #dfaf12;">
-            <h4 style="font-size: 14px; color: #d32f2f;"><i class="fas fa-exclamation-triangle"></i> Atenção, Lelo!</h4>
-            <div id="low-stock-list" style="margin-top: 10px;">
-                </div>
-        </div>
-    </div>
-</div>
-<div id="cici-alerts" ...>
-    <h4 style="font-size: 14px; color: #d32f2f;"><i class="fas fa-exclamation-triangle"></i> Atenção, Lelo!</h4>
-    <div id="low-stock-list" style="margin-top: 10px; margin-bottom: 20px;">
-        </div>
-
-    <button onclick="dispararPromoçaoEstoque()" class="btn" style="width:100%; background: #25d366; color: white; border:none; padding: 12px; border-radius: 10px; font-weight: bold; cursor:pointer; display: flex; align-items:center; justify-content:center; gap: 10px;">
-        <i class="fab fa-whatsapp"></i> PROMOÇÃO RELÂMPAGO (DESOVAR)
-    </button>
-    <p style="font-size: 10px; color: #666; margin-top: 5px; text-align: center;">A Cicí enviará o item com mais estoque para todos os clientes.</p>
-</div>
     <<div class="card">
                 <div style="margin: 15px 0; display: flex; gap: 10px; flex-wrap: wrap;">
                     <select id="finances-lot-filter" onchange="loadFinances()" class="form-control" style="flex: 1; min-width: 200px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-weight: bold; cursor: pointer; color: #0a1931;">
@@ -1581,6 +1550,7 @@
             </table>
         </div>
 </section>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
