@@ -2289,17 +2289,14 @@ app.post('/api/orders/update', (req, res) => {
                     const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar todas as atualizações:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
 
                     const numberId = await clientZap.getNumberId(cleanPhone);
-// 👇 Puxa a logo da pasta public
-const logoMedia = MessageMedia.fromFilePath(path.join(__dirname, 'public', 'logo.jpg'));
-
-if (numberId) {
-    // 👇 Envia a imagem, e o zapMsg vira a legenda (caption)
-    await clientZap.sendMessage(numberId._serialized, logoMedia, { caption: zapMsg });
-    console.log(`✅ [ZAP INDIVIDUAL] Status com LOGO enviado por Zap para o cliente ${cleanPhone}`);
-} else {
-    console.log(`⚠️ [ZAP INDIVIDUAL] Número ${cleanPhone} inválido. Tentando forçar...`);
-    await clientZap.sendMessage(`${cleanPhone}@c.us`, logoMedia, { caption: zapMsg });
-}
+                    
+                    if (numberId) {
+                        await clientZap.sendMessage(numberId._serialized, zapMsg);
+                        console.log(`✅ [ZAP INDIVIDUAL] Status enviado por Zap para o cliente ${cleanPhone}`);
+                    } else {
+                        console.log(`⚠️ [ZAP INDIVIDUAL] Número ${cleanPhone} inválido. Tentando forçar...`);
+                        await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg);
+                    }
                 } catch (zapErr) {
                     console.error(`❌ Erro ao enviar Zap individual para ${row.name}:`, zapErr.message);
                 }
@@ -2458,10 +2455,7 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                             if (numberId) {
                                 try {
                                     const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
-                                   const logoMedia = MessageMedia.fromFilePath(path.join(__dirname, 'public', 'logo.jpg'));
-
-                                     // 👇 Primeiro manda a Logo com a mensagem de aviso...
-                                     await clientZap.sendMessage(numberId._serialized, logoMedia, { caption: message });
+                                    await clientZap.sendMessage(numberId._serialized, message);
 
                                     if (fs.existsSync(videoConvertidoMp4)) {
                                         const media = MessageMedia.fromFilePath(videoConvertidoMp4);
@@ -2633,18 +2627,13 @@ if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
         const numberId = await clientZap.getNumberId(cleanPhone).catch(()=>null); 
         
         if (numberId) {
-    const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-    
-    // 👇 Puxa a logo
-    const logoMedia = MessageMedia.fromFilePath(path.join(__dirname, 'public', 'logo.jpg'));
-    
-    // 👇 Envia a imagem com a legenda
-    await clientZap.sendMessage(numberId._serialized, logoMedia, { caption: zapMsg }).catch((e) => console.log("Zap offline: não conseguiu enviar a msg."));
-    console.log(`✅ [ZAP] Fatura com LOGO enviada por Zap para o cliente ${cleanPhone}`);
-} else {
-    const logoMedia = MessageMedia.fromFilePath(path.join(__dirname, 'public', 'logo.jpg'));
-    await clientZap.sendMessage(`${cleanPhone}@c.us`, logoMedia, { caption: zapMsg }).catch((e) => console.log("Zap offline: não conseguiu enviar tentativa cega."));
-}
+            const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+            await clientZap.sendMessage(numberId._serialized, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar a msg."));
+            console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
+        } else {
+            // Tentativa cega caso não ache o ID
+            await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar tentativa cega."));
+        }
     } catch (zapErr) {
         // Se der qualquer erro fatal de conexão, apenas mostra no log e segue a vida
         console.error("❌ Erro ao enviar Zap da fatura (Zap pode estar offline):", zapErr.message);
@@ -3886,15 +3875,13 @@ app.put('/api/orders/bulk-status', express.json(), (req, res) => {
                             const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
 
                             const numberId = await clientZap.getNumberId(cleanPhone);
-const logoMedia = MessageMedia.fromFilePath(path.join(__dirname, 'public', 'logo.jpg'));
-
-if (numberId) {
-    await clientZap.sendMessage(numberId._serialized, logoMedia, { caption: zapMsg });
-    console.log(`✅ [ZAP EM MASSA] LOGO + Status enviado para ${row.name} (${cleanPhone})`);
-} else {
-    console.log(`⚠️ [ZAP EM MASSA] Número ${cleanPhone} inválido. Forçando...`);
-    await clientZap.sendMessage(`${cleanPhone}@c.us`, logoMedia, { caption: zapMsg });
-}
+                            if (numberId) {
+                                await clientZap.sendMessage(numberId._serialized, zapMsg);
+                                console.log(`✅ [ZAP EM MASSA] Enviado para ${row.name} (${cleanPhone})`);
+                            } else {
+                                console.log(`⚠️ [ZAP EM MASSA] Número ${cleanPhone} inválido. Forçando...`);
+                                await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg);
+                            }
                             await new Promise(resolve => setTimeout(resolve, 2000)); // Trava 2 seg
                         } catch (zapErr) {
                             console.error(`❌ Erro Zap p/ ${row.name}:`, zapErr.message);
@@ -5031,14 +5018,68 @@ app.delete('/api/videos/:id', (req, res) => {
     });
 });
 // ==============================================================
+// 🧠 VARIÁVEIS GLOBAIS DE MEMÓRIA DA CICÍ
+// ==============================================================
+ // Guarda a pausa de 1 hora quando o Lelo assume
+
+// ==============================================================
 // ⏰ 🤖 CICI: DESPERTADOR PROATIVO (COBRANÇA E AVISOS)
 // ==============================================================
-// 🚫 DESLIGADO A PEDIDO DO CHEFE: A Cicí não vai mais cobrar ninguém automaticamente.
-/* cron.schedule('0 8 * * *', async () => {
-    console.log('⏰ Cicí acordou! Mas o chefe mandou não cobrar ninguém hoje.');
-    // Todo o resto do código de cobrança fica isolado aqui dentro do comentário gigante
-}); 
-*/
+// O cron roda todo dia às 08:00
+cron.schedule('0 8 * * *', async () => {
+    console.log('⏰ Cicí acordou! Verificando faturas pendentes para avisar os clientes...');
+
+    const sql = `
+        SELECT i.id as invoice_id, i.amount, i.description, 
+               u.name, u.phone 
+        FROM invoices i
+        JOIN users u ON i.client_id = u.id
+        WHERE i.status = 'pending' 
+        AND u.phone IS NOT NULL AND u.phone != ''
+        AND date('now') >= '2026-04-30'
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) % 16 = 0
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) > 0
+    `;
+
+    db.all(sql, [], async (err, faturasPendentes) => {
+        if (err) return console.error('❌ Erro ao buscar faturas para a Cicí:', err);
+
+        if (faturasPendentes.length === 0) {
+            return console.log('🤖 Cicí: Bom dia! Nenhuma fatura pendente hoje. Pode relaxar, chefe!');
+        }
+
+        console.log(`🤖 Cicí encontrou ${faturasPendentes.length} faturas pendentes. Iniciando envios...`);
+
+        const roboZap = typeof clientZap !== 'undefined' ? clientZap : null;
+        if (!roboZap || !roboZap.info) {
+             return console.log('⚠️ Cicí: O WhatsApp não está conectado. Não vou conseguir mandar as cobranças agora.');
+        }
+
+        for (const fatura of faturasPendentes) {
+            let cleanPhone = fatura.phone.replace(/\D/g, ''); 
+            
+            const msg = `Olá, *${fatura.name}*! Bom dia! ☀️\n\nAqui é a Cicí da Guineexpress!\nEstou passando para lembrar que sua fatura (*${fatura.description}*) no valor de *R$ ${fatura.amount.toFixed(2)}* está pendente no nosso sistema.\n\nAcesse o seu painel rapidinho para pagar e liberar sua encomenda:\n🔗 https://guineexpress-f6ab.onrender.com/\n\nQualquer dúvida, é só me chamar aqui! 📦✈️`;
+
+            try {
+                const numberId = await roboZap.getNumberId(cleanPhone);
+                if (numberId) {
+                    await roboZap.sendMessage(numberId._serialized, msg);
+                    console.log(`✅ [Cicí Cobrança] Mensagem enviada para ${fatura.name}.`);
+                } else {
+                    await roboZap.sendMessage(`${cleanPhone}@c.us`, msg);
+                    console.log(`✅ [Cicí Cobrança] Mensagem enviada para ${fatura.name} (Modo direto).`);
+                }
+            } catch (zapErr) {
+                 console.error(`❌ [Cicí Cobrança] Erro ao enviar para ${fatura.name}:`, zapErr.message);
+            }
+
+            // Pausa de 5 segundos para evitar banimento do WhatsApp
+            await new Promise(r => setTimeout(r, 5000));
+        }
+        
+        console.log('🤖 Cicí: Terminei as cobranças de hoje! Voltando a dormir...');
+    });
+});
 // =======================================================
 // 🔔 ROTA PARA RECEBER INSCRIÇÕES DE NOTIFICAÇÃO (PUSH)
 // =======================================================
