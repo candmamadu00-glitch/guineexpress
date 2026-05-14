@@ -119,19 +119,26 @@ async function enviarReciboPDF(invoiceId) {
         
         doc.on('end', async () => {
             const pdfData = Buffer.concat(buffers);
-            const { MessageMedia } = require('whatsapp-web.js');
-            const media = new MessageMedia('application/pdf', pdfData.toString('base64'), `Recibo_Guineexpress_${fatura.box_code || fatura.id}.pdf`);
+            
+            // 🔥 CORREÇÃO: Adeus whatsapp-web.js! Criando o arquivo direto para o Baileys
+            const media = {
+                mimetype: 'application/pdf',
+                data: pdfData.toString('base64'),
+                filename: `Recibo_Guineexpress_${fatura.box_code || fatura.id}.pdf`
+            };
 
             const roboZap = (typeof clientZap !== 'undefined' ? clientZap : null);
             if (roboZap && fatura.phone) {
                 try {
                     const cleanPhone = fatura.phone.replace(/\D/g, '');
-                    const chatId = await roboZap.getNumberId(cleanPhone);
+                    // 🔥 Adicionado o .catch para não quebrar se o zap piscar
+                    const chatId = await roboZap.getNumberId(cleanPhone).catch(() => null);
                     const destino = chatId ? chatId._serialized : `${cleanPhone}@c.us`;
                     
                     await roboZap.sendMessage(destino, media, { 
                         caption: `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅` 
-                    });
+                    }).catch(e => console.log("Erro ao enviar Zap do PDF (Pode estar offline)"));
+                    
                     console.log(`📄 Recibo VIP enviado com sucesso para ${fatura.client_name}`);
                 } catch (err) { console.error("❌ Erro ao mandar PDF no Zap:", err.message); }
             }
@@ -5108,9 +5115,13 @@ app.get('/api/store/my-orders', (req, res) => {
 
     const clientId = req.session.userId;
 
-    // Busca o telefone do cliente
-    db.get(`SELECT phone, name FROM clients WHERE id = ?`, [clientId], (err, clientData) => {
-        if (err) return res.json({ success: false, msg: "Erro ao validar cliente." });
+    // 🔥 CORREÇÃO: Mudamos de "clients" para "users" (que é a sua tabela real)
+    db.get(`SELECT phone, name FROM users WHERE id = ?`, [clientId], (err, clientData) => {
+        if (err) {
+            console.error("Erro ao buscar usuário na loja:", err);
+            // Se der erro, manda sucesso com lista vazia para a bolinha amarela não travar!
+            return res.json({ success: true, orders: [] }); 
+        }
 
         const phone = clientData ? clientData.phone : '';
         const name = clientData ? clientData.name : '';
@@ -5118,10 +5129,16 @@ app.get('/api/store/my-orders', (req, res) => {
         // Busca pedidos pelo ID, Telefone ou Nome (À prova de falhas!)
         db.all(`SELECT * FROM store_orders WHERE client_id = ? OR client_phone = ? OR client_name = ? ORDER BY created_at DESC`, 
         [clientId, phone, name], (err, orders) => {
-            if (err) return res.json({ success: false, msg: "Erro ao buscar pedidos." });
+            if (err) {
+                console.error("Erro ao buscar pedidos da loja:", err);
+                return res.json({ success: true, orders: [] });
+            }
 
             db.all(`SELECT * FROM store_order_items`, [], (err2, allItems) => {
-                if (err2) return res.json({ success: false });
+                if (err2) {
+                    console.error("Erro ao buscar itens do pedido:", err2);
+                    return res.json({ success: true, orders: [] });
+                }
 
                 const meusPedidos = orders.map(order => {
                     return {

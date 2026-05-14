@@ -1669,22 +1669,30 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
 </script>
 <style>
     /* Dá espaço no final da página para o menu não esconder os produtos */
-    body { padding-bottom: 70px; }
+    body { padding-bottom: 85px; }
 
+    /* O NOVO MENU INFERIOR MÁGICO (VIDRO TRANSPARENTE) */
     .bottom-nav-bar {
         position: fixed;
         bottom: 0;
         left: 0;
         width: 100%;
-        background: white;
+        
+        /* 🧊 O SEGREDO DO VIDRO COMEÇA AQUI */
+        background: rgba(255, 255, 255, 0.35); /* Muito mais transparente (35%) */
+        backdrop-filter: blur(12px); /* Efeito de vidro embaçado */
+        -webkit-backdrop-filter: blur(12px); /* Para funcionar perfeito em iPhones/Safari */
+        /* ================================ */
+
         display: flex;
         justify-content: space-around;
         align-items: center;
-        padding: 10px 0;
-        padding-bottom: env(safe-area-inset-bottom, 15px); /* Adapta-se aos iPhones novos */
-        box-shadow: 0 -5px 20px rgba(0,0,0,0.08);
+        padding: 12px 5px;
+        padding-bottom: env(safe-area-inset-bottom, 20px); /* Para iPhones */
+        box-shadow: 0 -8px 25px rgba(0,0,0,0.1); /* Sombra mais suave para destacar o vidro */
         z-index: 10000;
-        border-top: 1px solid #f1f5f9;
+        border-top: 1px solid rgba(255, 255, 255, 0.7); /* Bordinha branca brilhante do vidro */
+        border-radius: 25px 25px 0 0; /* Cantos arredondados no topo */
     }
 
     .bottom-nav-item {
@@ -1692,27 +1700,64 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         flex-direction: column;
         align-items: center;
         text-decoration: none;
-        color: #94a3b8; /* Cinza por padrão */
+        color: #64748b; /* Cinza um pouquinho mais escuro para ler bem no vidro */
         font-size: 10px;
         font-weight: 800;
-        transition: 0.3s;
         cursor: pointer;
         background: transparent;
         border: none;
         width: 20%;
+        /* Transição elástica super moderna */
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
     .bottom-nav-item i {
         font-size: 22px;
         margin-bottom: 4px;
-        transition: 0.3s;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
-    /* Quando ativado (clicado), fica laranja e sobe um pouquinho */
+    /* Quando ativado (clicado), fica laranja, sobe e cresce um pouquinho */
     .bottom-nav-item.active { color: #ee4d2d; }
-    .bottom-nav-item.active i { transform: translateY(-3px); }
-</style>
+    .bottom-nav-item.active i { 
+        transform: translateY(-4px) scale(1.15); 
+        color: #ee4d2d;
+        text-shadow: 0 4px 10px rgba(238, 77, 45, 0.4); /* Brilho laranja */
+    }
 
+    /* O contador da sacola modernizado */
+    #bottom-cart-counter {
+        position: absolute; 
+        top: -6px; 
+        right: 12px; 
+        background: #dfaf12; /* Dourado/Amarelo de destaque */
+        color: #0a1931; 
+        font-size: 10px; 
+        font-weight: 900; 
+        width: 18px; 
+        height: 18px; 
+        border-radius: 50%; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: transform 0.3s;
+    }
+
+    /* ANIMAÇÃO DA SACOLA QUANDO COMPRA ALGO */
+    @keyframes puloSacola {
+        0% { transform: scale(1); }
+        40% { transform: scale(1.3) translateY(-5px); }
+        60% { transform: scale(0.9); }
+        80% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+    .animar-sacola-compra {
+        animation: puloSacola 0.6s ease-in-out;
+        color: #dfaf12 !important; /* Pisca dourado */
+    }
+</style>
 <div class="bottom-nav-bar">
     <button onclick="showSection('home-view')" class="bottom-nav-item active" id="nav-home">
         <i class="fas fa-home"></i>
@@ -1720,17 +1765,19 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
     </button>
     
     <button onclick="showSection('store-view'); carregarLojaCliente();" class="bottom-nav-item" id="nav-store">
-        <i class="fas fa-store"></i>
+        <i class="fas fa-store-alt"></i> 
         <span>Loja</span>
     </button>
 
-    <button onclick="abrirModalCarrinho()" class="bottom-nav-item" style="position: relative;">
-        <i class="fas fa-shopping-cart"></i>
+    <button onclick="abrirModalCarrinho()" class="bottom-nav-item" id="nav-sacola">
+        <div style="position: relative;">
+            <i class="fas fa-shopping-bag"></i>
+            <span id="bottom-cart-counter" class="cart-badge hidden">0</span>
+        </div>
         <span>Sacola</span>
-        <span id="bottom-cart-counter" class="hidden" style="position: absolute; top: -5px; right: 15px; background: #ee4d2d; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white;">0</span>
     </button>
 
-    <button onclick="abrirMeusPedidosLoja()" class="bottom-nav-item">
+    <button onclick="abrirMeusPedidosLoja()" class="bottom-nav-item" id="nav-pedidos">
         <i class="fas fa-receipt"></i>
         <span>Pedidos</span>
     </button>
@@ -1742,12 +1789,11 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
 </div>
 
 <script>
-    // Faz a cor laranja pular para o botão que o cliente acabou de clicar!
+    // Faz a cor e a animação pularem para o botão que o cliente acabou de clicar!
     const navItemsBottom = document.querySelectorAll('.bottom-nav-item');
     navItemsBottom.forEach(item => {
         item.addEventListener('click', () => {
-            // Não muda a cor para laranja se for só abrir o carrinho ou pedidos, 
-            // pois eles abrem como janelas por cima da loja (modais)
+            // Não muda a cor se for só abrir o carrinho ou pedidos
             if(!item.getAttribute('onclick').includes('Carrinho') && !item.getAttribute('onclick').includes('Pedidos')) {
                 navItemsBottom.forEach(nav => nav.classList.remove('active'));
                 item.classList.add('active');

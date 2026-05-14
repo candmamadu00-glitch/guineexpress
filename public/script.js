@@ -584,7 +584,24 @@ function showSection(sectionId) {
         case 'employees-view':  if(typeof loadEmployees === 'function') loadEmployees(); break; 
         case 'clients-view':    if(typeof loadClients === 'function') loadClients(); break;
     }
+// ==========================================
+    // 🪄 MÁGICA: MOSTRAR/ESCONDER ITENS DA LOJA
+    // ==========================================
+    const btnSacola = document.getElementById('nav-sacola');
+    const btnPedidos = document.getElementById('nav-pedidos');
+    const videoFlutuante = document.getElementById('floating-carousel-container'); // <-- AGORA COM O ID REAL!
 
+    if (sectionId === 'store-view') {
+        // Se abriu a loja, MOSTRA tudo
+        if (btnSacola) btnSacola.style.display = 'flex';
+        if (btnPedidos) btnPedidos.style.display = 'flex';
+        if (videoFlutuante) videoFlutuante.style.display = 'block'; 
+    } else {
+        // Se abriu qualquer outra tela, ESCONDE tudo
+        if (btnSacola) btnSacola.style.display = 'none';
+        if (btnPedidos) btnPedidos.style.display = 'none';
+        if (videoFlutuante) videoFlutuante.style.display = 'none';
+    }
     // Lógica especial de vídeo
     if(sectionId === 'videos-section') {
         if(currentUser && currentUser.role !== 'client') {
@@ -10047,27 +10064,40 @@ function enviarDuvidaWhatsApp(nomeProduto) {
 }
 
 // --- ❤️ FUNÇÃO FAVORITOS (LOCALSTORAGE) ---
-let meusFavoritos = JSON.parse(localStorage.getItem('loja_favoritos')) || [];
+// Trocamos 'let' por 'var' para evitar o erro de inicialização (ReferenceError)
+var meusFavoritos = JSON.parse(localStorage.getItem('loja_favoritos')) || [];
 
 function toggleFavorito(id) {
+    // 🛡️ Trava de segurança: Se por acaso a variável falhar ao carregar, forçamos o carregamento aqui
+    if (!meusFavoritos) {
+        meusFavoritos = JSON.parse(localStorage.getItem('loja_favoritos')) || [];
+    }
+
     const index = meusFavoritos.indexOf(id);
     const iconDiv = document.getElementById(`fav-${id}`);
 
     if (index === -1) {
         meusFavoritos.push(id);
-        iconDiv.style.color = "#ee4d2d"; // Fica Vermelho
-        iconDiv.style.background = "#fff";
+        if (iconDiv) {
+            iconDiv.style.color = "#ee4d2d"; // Fica Vermelho
+            iconDiv.style.background = "#fff";
+        }
     } else {
         meusFavoritos.splice(index, 1);
-        iconDiv.style.color = "#ccc"; // Fica Cinza
-        iconDiv.style.background = "rgba(255,255,255,0.8)";
+        if (iconDiv) {
+            iconDiv.style.color = "#ccc"; // Fica Cinza
+            iconDiv.style.background = "rgba(255,255,255,0.8)";
+        }
     }
 
+    // Salva no armazenamento do celular/computador
     localStorage.setItem('loja_favoritos', JSON.stringify(meusFavoritos));
     
     // Pequeno efeito visual de "pulo"
-    iconDiv.style.transform = "scale(1.3)";
-    setTimeout(() => iconDiv.style.transform = "scale(1)", 200);
+    if (iconDiv) {
+        iconDiv.style.transform = "scale(1.3)";
+        setTimeout(() => iconDiv.style.transform = "scale(1)", 200);
+    }
 }
 function atualizarBarraFrete(total) {
     const metaFrete = 20000; // 👈 Valor que você quer dar frete grátis
