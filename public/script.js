@@ -9176,7 +9176,7 @@ async function carregarPedidosLojaAdmin() {
 }
 
 // =======================================================
-// 👑 ADMIN: GESTÃO DE PEDIDOS (BLINDADO)
+// 👑 ADMIN: GESTÃO DE PEDIDOS (BLINDADO DEFINITIVAMENTE)
 // =======================================================
 
 function abrirModalPedidoLoja(order) {
@@ -9191,7 +9191,10 @@ function abrirModalPedidoLoja(order) {
     
     // Moeda correta
     let simbolo = order.currency_used === 'CFA' ? 'XOF' : (order.currency_used === 'EUR' ? '€' : (order.currency_used === 'USD' ? '$' : 'R$'));
-    document.getElementById('modal-order-total').innerText = `${simbolo} ${order.total_brl.toFixed(2)}`;
+    
+    // 🛡️ CORREÇÃO 1: Blinda o valor total do pedido
+    const totalSeguro = parseFloat(order.total_brl) || 0;
+    document.getElementById('modal-order-total').innerText = `${simbolo} ${totalSeguro.toFixed(2)}`;
     
     // Trata o status (Se vier 'pending' do banco de dados, muda para 'Aguardando Pagamento')
     let statusCorreto = order.status;
@@ -9202,6 +9205,9 @@ function abrirModalPedidoLoja(order) {
     let itemsHtml = '';
     if (order.items && order.items.length > 0) {
         order.items.forEach(item => {
+            // 🛡️ CORREÇÃO 2: Blinda o preço de cada item da lista
+            const precoItemSeguro = parseFloat(item.price_brl) || 0;
+
             itemsHtml += `
             <div style="display: flex; align-items: center; gap: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0; margin-bottom: 10px;">
                 <img src="${item.image_url || '/logo.png'}" style="width: 50px; height: 50px; border-radius: 10px; object-fit: cover; border: 1px solid #e2e8f0;">
@@ -9209,7 +9215,7 @@ function abrirModalPedidoLoja(order) {
                     <h5 style="margin: 0; color: #0f172a; font-size: 14px;">${item.product_name}</h5>
                     <span style="font-size: 12px; color: #64748b; font-weight: bold;">Qtd: ${item.quantity}</span>
                 </div>
-                <span style="font-size: 14px; font-weight: 900; color: #0f172a;">R$ ${item.price_brl.toFixed(2)}</span>
+                <span style="font-size: 14px; font-weight: 900; color: #0f172a;">R$ ${precoItemSeguro.toFixed(2)}</span>
             </div>`;
         });
     } else {
@@ -10147,5 +10153,85 @@ async function deleteSelectedVideos() {
     } finally {
         btnBulk.innerHTML = txtOld;
         btnBulk.disabled = false;
+    }
+}
+// ==========================================
+// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM FILTRO)
+// ==========================================
+async function loadClientInvoices(loteFiltro = '') {
+    const tbody = document.getElementById('client-invoices-list');
+    if(!tbody) return; 
+
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Carregando...</td></tr>';
+
+    try {
+        const res = await fetch('/api/invoices/my_invoices'); 
+        let list = await res.json();
+
+        // 🧠 MÁGICA DO FILTRO: Se tiver lote selecionado, esconde as outras faturas!
+        if (loteFiltro && loteFiltro !== '') {
+            list = list.filter(inv => (inv.lote || 'Sem Lote') === loteFiltro);
+        }
+
+        // 👇 A MÁGICA DO HISTÓRICO CORRIGIDA E DEFINITIVA 👇
+        if (!window.verHistoricoCompleto) {
+            list = list.filter(inv => {
+                const statusStr = String(inv.status || '').toLowerCase();
+                const isPago = (statusStr === 'pago' || statusStr === 'approved' || statusStr === 'paid');
+                return !isPago; // Só deixa passar e aparecer na tela se NÃO estiver pago!
+            });
+        }
+
+        tbody.innerHTML = '';
+        if(list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente ${loteFiltro ? 'para este envio' : ''}.</td></tr>`;
+            return;
+        }
+
+        list.forEach(inv => {
+            let statusHtml = '';
+            let actionHtml = '';
+
+            let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
+            let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+
+            if(inv.status === 'approved') {
+                statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+                actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
+            } else if(inv.status === 'in_review') {
+                statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
+                actionHtml = '<span style="color:#ccc; font-size:12px;">Aguardando o Admin</span>';
+            } else if(inv.status === 'pending') {
+                statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
+                
+                // 🛡️ Blindagem contra valor vazio só por segurança:
+                const valorSeguro = parseFloat(inv.amount) || 0;
+
+                actionHtml = `
+                <div style="display:flex; justify-content:center; gap:8px;">
+                    <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${valorSeguro}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                        💸 Pagar pelo Pix 
+                    </button>
+                </div>`;
+            } else {
+                statusHtml = '<span style="color:red;">Cancelado</span>';
+                actionHtml = '-';
+            }
+
+            const valorExibicao = parseFloat(inv.amount) || 0;
+
+            tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding:12px; font-weight:bold; color:#0a1931;">#${inv.id}</td>
+                <td>${rawDesc}</td>
+                <td style="font-weight:bold; color:#0a1931;">R$ ${valorExibicao.toFixed(2)}</td>
+                <td>${statusHtml}</td>
+                <td style="text-align:center;">${actionHtml}</td>
+            </tr>`;
+        });
+
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
     }
 }

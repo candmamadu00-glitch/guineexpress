@@ -1439,9 +1439,8 @@ async function ligarMotorDoZap(res = null) {
         return; 
     }
 
-    console.log("📞 [ZAP] Iniciando motor: Criando sessão NOVA DO ZERO...");
+    console.log("📞 [ZAP] Iniciando motor: Conexão Ultra-Estável...");
     
-    // 🔥 Mudamos o nome da pasta para ignorar qualquer arquivo corrompido!
     const authPath = path.join(discoPermanente, 'sessao_zap_nova');
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
@@ -1450,40 +1449,52 @@ async function ligarMotorDoZap(res = null) {
         printQRInTerminal: true,
         logger: pino({ level: 'silent' }), 
         browser: ['Guineexpress V2', 'Chrome', '2.0.0'],
-        connectTimeoutMs: 60000
+        
+        // 🛠️ CONFIGURAÇÕES DE ESTABILIDADE (O SEGREDO)
+        connectTimeoutMs: 120000,      // 2 minutos para não dar timeout no Render
+        keepAliveIntervalMs: 30000,    // "Ping" pro Zap a cada 30 seg para não cair
+        defaultQueryTimeoutMs: 60000,  // Espera mais tempo por respostas do servidor
+        retryRequestDelayMs: 5000,     // Se falhar o envio, tenta de novo em 5 seg
+        
+        // 🚀 CONEXÃO LEVE
+        shouldSyncHistoryMessage: () => false, // NÃO baixa conversas antigas (evita travar o servidor)
+        markOnlineOnConnect: true,             // Se mantém online para evitar desconexão por ociosidade
     });
 
-    // 🎭 CLIENT ZAP INTELIGENTE 
+    // 🎭 MANTÉM O CLIENTZAP FUNCIONANDO
     clientZap = {
         info: true,
         sendMessage: async (numero, conteudo, options = {}) => {
             if (!sock) return;
             const jid = numero.includes('@') ? numero : `${numero.replace(/\D/g, '')}@s.whatsapp.net`;
-            
-            if (typeof conteudo === 'string') {
-                return await sock.sendMessage(jid, { text: conteudo });
-            }
-
-            if (conteudo && typeof conteudo === 'object' && conteudo.mimetype) {
-                const buffer = Buffer.from(conteudo.data, 'base64');
-                const mime = conteudo.mimetype;
-
-                if (options.sendAudioAsVoice || mime.startsWith('audio/')) {
-                    return await sock.sendMessage(jid, { audio: buffer, mimetype: 'audio/mp4', ptt: options.sendAudioAsVoice || false });
-                } else if (mime.startsWith('video/')) {
-                    return await sock.sendMessage(jid, { video: buffer, caption: options.caption || '', mimetype: 'video/mp4' });
-                } else if (mime.startsWith('image/')) {
-                    return await sock.sendMessage(jid, { image: buffer, caption: options.caption || '' });
-                } else {
-                    return await sock.sendMessage(jid, { document: buffer, mimetype: mime, fileName: conteudo.filename || 'Arquivo.pdf', caption: options.caption || '' });
+            try {
+                if (typeof conteudo === 'string') {
+                    return await sock.sendMessage(jid, { text: conteudo });
                 }
+                if (conteudo && typeof conteudo === 'object' && conteudo.mimetype) {
+                    const buffer = Buffer.from(conteudo.data, 'base64');
+                    const mime = conteudo.mimetype;
+                    if (options.sendAudioAsVoice || mime.startsWith('audio/')) {
+                        return await sock.sendMessage(jid, { audio: buffer, mimetype: 'audio/mp4', ptt: options.sendAudioAsVoice || false });
+                    } else if (mime.startsWith('video/')) {
+                        return await sock.sendMessage(jid, { video: buffer, caption: options.caption || '', mimetype: 'video/mp4' });
+                    } else if (mime.startsWith('image/')) {
+                        return await sock.sendMessage(jid, { image: buffer, caption: options.caption || '' });
+                    } else {
+                        return await sock.sendMessage(jid, { document: buffer, mimetype: mime, fileName: conteudo.filename || 'Arquivo.pdf', caption: options.caption || '' });
+                    }
+                }
+            } catch (e) {
+                console.error("❌ Erro ao enviar mensagem Zap:", e.message);
             }
         },
         getNumberId: async (numero) => {
             if (!sock) return null;
-            const numLimpo = numero.replace(/\D/g, '');
-            const [resultado] = await sock.onWhatsApp(numLimpo);
-            if (resultado && resultado.exists) return { _serialized: resultado.jid }; 
+            try {
+                const numLimpo = numero.replace(/\D/g, '');
+                const [resultado] = await sock.onWhatsApp(numLimpo);
+                if (resultado && resultado.exists) return { _serialized: resultado.jid }; 
+            } catch (e) { return null; }
             return null;
         }
     };
@@ -1493,27 +1504,29 @@ async function ligarMotorDoZap(res = null) {
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
-            console.log("🟢 [ZAP] SUCESSO! QR Code gerado fresquinho. Pode escanear!");
-            if (res && !res.headersSent) {
-                try {
-                    const qrImage = await qrcode.toDataURL(qr);
-                    res.json({ success: true, qr: qrImage });
-                } catch (err) { }
-            }
+        if (qr && res && !res.headersSent) {
+            try {
+                const qrImage = await qrcode.toDataURL(qr);
+                res.json({ success: true, qr: qrImage });
+            } catch (err) { }
         }
 
         if (connection === 'close') {
-            const codigoErro = lastDisconnect?.error?.output?.statusCode;
-            if (codigoErro === DisconnectReason.loggedOut) {
-                console.log("❌ [ZAP] Desconectado pelo celular. Para conectar de novo, reinicie o servidor.");
-                sock = null;
+            const status = lastDisconnect?.error?.output?.statusCode;
+            const deveReconectar = status !== DisconnectReason.loggedOut;
+
+            console.log(`⚠️ [ZAP] Conexão fechada. Motivo: ${status}. Reconectando? ${deveReconectar}`);
+
+            if (deveReconectar) {
+                // Tenta reconectar mais rápido (3 segundos)
+                setTimeout(() => ligarMotorDoZap(), 3000);
             } else {
-                console.log("⚠️ [ZAP] A rede oscilou. O Zap vai reconectar sozinho em 5 segundos...");
-                setTimeout(() => ligarMotorDoZap(), 5000);
+                console.log("❌ [ZAP] Sessão encerrada. Apagando pasta de sessão...");
+                sock = null;
+                // Opcional: fs.rmSync(authPath, { recursive: true, force: true });
             }
         } else if (connection === 'open') {
-            console.log('✅ [ZAP] WhatsApp 100% Conectado e Operacional!');
+            console.log('✅ [ZAP] CONEXÃO ESTABELECIDA! Sistema online.');
             if (res && !res.headersSent) res.json({ success: true, msg: "Conectado!" });
             if (typeof configurarEventosDoZap === 'function') configurarEventosDoZap(sock);
         }
@@ -2510,6 +2523,63 @@ app.get('/api/videos/list', (req, res) => {
             res.json(rows);
         });
     }
+});
+// ==============================================================
+// 🗑️ ROTA: DELETAR VÍDEO (BANCO DE DADOS E ARQUIVO FÍSICO)
+// ==============================================================
+app.post('/api/videos/delete', (req, res) => {
+    // 1. Segurança: Só Admin e Funcionário podem deletar vídeos
+    if (req.session.role !== 'admin' && req.session.role !== 'employee' && req.session.role !== 'funcionario') {
+        return res.status(403).json({ success: false, msg: "Acesso Negado." });
+    }
+
+    const { id } = req.body;
+
+    if (!id) {
+        return res.status(400).json({ success: false, msg: "ID do vídeo não fornecido." });
+    }
+
+    // 2. Busca o nome do arquivo no banco para deletar o arquivo físico também
+    db.get("SELECT filename FROM videos WHERE id = ?", [id], (err, video) => {
+        if (err) {
+            console.error("Erro ao buscar vídeo para exclusão:", err);
+            return res.status(500).json({ success: false, msg: "Erro interno ao buscar o vídeo." });
+        }
+
+        if (!video) {
+            return res.status(404).json({ success: false, msg: "Vídeo não encontrado no banco." });
+        }
+
+        // 3. Deleta o registro do banco de dados
+        db.run("DELETE FROM videos WHERE id = ?", [id], (errDb) => {
+            if (errDb) {
+                console.error("Erro ao deletar vídeo do banco:", errDb);
+                return res.status(500).json({ success: false, msg: "Erro ao excluir do banco de dados." });
+            }
+
+            // 4. Deleta o arquivo MP4 físico do servidor para não lotar o HD
+            // * Ajuste "uploads/videos" se a sua pasta tiver outro nome (como "public/videos")
+            const videoPath = path.join(__dirname, 'uploads', 'videos', video.filename);
+            
+            fs.unlink(videoPath, (errFs) => {
+                if (errFs) {
+                    console.log(`⚠️ Arquivo de vídeo já não existia na pasta, mas foi removido do banco: ${video.filename}`);
+                } else {
+                    console.log(`🗑️ ✅ Vídeo apagado com sucesso do HD e do Banco: ${video.filename}`);
+                }
+            });
+
+            // Retorna o sucesso para a tela fechar o modal ou recarregar
+            res.json({ success: true, msg: "Vídeo excluído com sucesso!" });
+        });
+    });
+});
+
+// 👉 Caso o seu front-end use o método HTTP DELETE ao invés de POST (ex: fetch('/api/videos/delete/1', {method: 'DELETE'}))
+// Coloque esta rota curinga abaixo também só por segurança:
+app.delete('/api/videos/delete/:id', (req, res) => {
+    req.body.id = req.params.id; // Joga o ID para o body
+    app._router.handle(req, res); // Reaproveita a lógica do POST acima
 });
 // ==========================================
 // 🗑️ APAGAR VÁRIOS VÍDEOS DE UMA VEZ
