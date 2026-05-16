@@ -1532,60 +1532,6 @@ async function ligarMotorDoZap(res = null) {
         }
     });
 }
-// =====================================================
-// 📦 NOTIFICAÇÃO DE RASTREIO NO WHATSAPP COM LOGO
-// =====================================================
-async function notificarRastreioZap(telefoneCliente, nomeCliente, codigoRastreio, statusPacote) {
-    // 1. Verifica se o Zap tá conectado
-    if (!clientZap || !clientZap.info) {
-        console.log("⚠️ [ZAP] Não foi possível notificar o cliente. O Zap não está conectado.");
-        return;
-    }
-
-    try {
-        // 2. Lê a logo da pasta public e transforma em Base64
-        const logoPath = path.join(__dirname, 'public', 'logo.jpg');
-        let base64Logo = '';
-        
-        if (fs.existsSync(logoPath)) {
-            const bitmap = fs.readFileSync(logoPath);
-            base64Logo = Buffer.from(bitmap).toString('base64');
-        }
-
-        // 3. Monta a mensagem bonitona (com emojis e negrito)
-        const mensagem = `📦 *GUINEEXPRESS LOGÍSTICA* 📦\n\nOlá, *${nomeCliente}*!\n\nHá uma atualização na sua encomenda!\n\n🎫 *Código de Rastreio:* ${codigoRastreio}\n📊 *Status Atual:* ${statusPacote}\n\nAcompanhe os detalhes da sua entrega direto no nosso sistema.\n\n_Mensagem automática, por favor não responda._`;
-
-        // 4. Formata o número (Ex: 5511999999999)
-        const numeroLimpo = telefoneCliente.replace(/\D/g, '');
-
-        // 5. Envia! Se achou a logo, manda com foto. Se não, manda só texto.
-        if (base64Logo) {
-            await clientZap.sendMessage(numeroLimpo, {
-                mimetype: 'image/jpeg',
-                data: base64Logo
-            }, { caption: mensagem });
-        } else {
-            await clientZap.sendMessage(numeroLimpo, mensagem);
-        }
-
-        console.log(`✅ [ZAP] Notificação enviada para ${nomeCliente} (${numeroLimpo})`);
-
-    } catch (erro) {
-        console.error("❌ [ZAP] Erro ao enviar notificação de rastreio:", erro.message);
-    }
-}// Função auxiliar para ler a logo da pasta public em Base64
-function obterLogoBase64() {
-    try {
-        const logoPath = path.join(__dirname, 'public', 'logo.jpg');
-        if (fs.existsSync(logoPath)) {
-            const bitmap = fs.readFileSync(logoPath);
-            return Buffer.from(bitmap).toString('base64');
-        }
-    } catch (e) {
-        console.error("⚠️ [ZAP] Erro ao ler arquivo da logo:", e.message);
-    }
-    return null;
-}
 // ==============================================================
 // 📱 ROTA PARA GERAR QR CODE
 // ==============================================================
@@ -2469,43 +2415,46 @@ app.post('/api/config/price', (req, res) => {
         res.json({ success: !err });
     });
 });
-// ==========================================
-// ROTA: SUBIR VÍDEO E AVISAR (COM LOGO E VÍDEO NATIVO BAILEYS)
-// ==========================================
 app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
     if(!req.file) return res.status(400).json({success: false, msg: "Nenhum vídeo enviado."});
     
+    // 🚀 AQUI: Adicionado o order_code para receber do front-end
     const { client_id, description, order_code } = req.body;
     if(!client_id) return res.status(400).json({success: false, msg: "Cliente não identificado."});
 
-    const videoOriginalWebm = req.file.path; 
-    const nomeArquivoMp4 = req.file.filename.replace('.webm', '.mp4'); 
-    const videoConvertidoMp4 = path.join(videosFolder, nomeArquivoMp4); 
+    // 1. Caminhos do arquivo
+    const videoOriginalWebm = req.file.path; // Arquivo .webm original que o multer salvou
+    const nomeArquivoMp4 = req.file.filename.replace('.webm', '.mp4'); // Troca a extensão no nome
+    const videoConvertidoMp4 = path.join(videosFolder, nomeArquivoMp4); // Caminho final do .mp4
 
     console.log(`⏳ Convertendo vídeo de .webm para .mp4... Aguarde.`);
 
+    // 2. Inicia a conversão com FFmpeg
     ffmpeg(videoOriginalWebm)
         .outputOptions([
-            '-preset veryfast', 
-            '-c:v libx264',     
-            '-c:a aac'          
+            '-preset veryfast', // Converte rápido
+            '-c:v libx264',     // Formato de vídeo universal (H.264)
+            '-c:a aac'          // Formato de áudio universal
         ])
         .save(videoConvertidoMp4)
         .on('end', () => {
             console.log(`✅ Vídeo convertido com sucesso para MP4!`);
 
+            // Apaga o arquivo .webm antigo para não lotar seu servidor
             fs.unlink(videoOriginalWebm, (err) => {
                 if (err) console.error("⚠️ Erro ao apagar arquivo .webm antigo:", err);
             });
 
+            // 3. 🚀 AQUI: Salva no banco de dados com a nova coluna order_code
             db.run("INSERT INTO videos (client_id, order_code, filename, description) VALUES (?, ?, ?, ?)", 
             [client_id, order_code, nomeArquivoMp4, description], function(err) {
                 if(err) return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
                 
                 console.log(`✅ Vídeo MP4 salvo no banco!`);
+                // 🔔 COLE A NOTIFICAÇÃO DE VÍDEO AQUI:
                 enviarNotificacaoNaTela(client_id, "🎥 Novo Vídeo Disponível!", "Acabamos de subir um vídeo mostrando os detalhes da sua encomenda.", "/dashboard-client.html");
                 
-                // Fluxo do WhatsApp (Baileys)
+                // 4. Fluxo do WhatsApp
                 db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
                     if (err || !user || !user.phone) {
                         return res.json({success: true, msg: "Vídeo salvo, mas cliente sem telefone."});
@@ -2514,42 +2463,33 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                     if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                         try {
                             let cleanPhone = user.phone.replace(/\D/g, '');
+                            const numberId = await clientZap.getNumberId(cleanPhone);
                             
-                            // 1. Prepara e envia a Logo + Mensagem de Texto
-                            const logoPath = path.join(__dirname, 'public', 'logo.jpg');
-                            let base64Logo = '';
-                            if (fs.existsSync(logoPath)) {
-                                base64Logo = Buffer.from(fs.readFileSync(logoPath)).toString('base64');
-                            }
+                            if (numberId) {
+                                try {
+                                    const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
+                                    await clientZap.sendMessage(numberId._serialized, message);
 
-                            const messageText = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
-                            
-                            if (base64Logo) {
-                                await clientZap.sendMessage(cleanPhone, {
-                                    mimetype: 'image/jpeg',
-                                    data: base64Logo
-                                }, { caption: messageText });
-                            } else {
-                                await clientZap.sendMessage(cleanPhone, messageText);
-                            }
-
-                            // 2. Prepara e envia o Vídeo logo em seguida
-                            if (fs.existsSync(videoConvertidoMp4)) {
-                                const base64Video = Buffer.from(fs.readFileSync(videoConvertidoMp4)).toString('base64');
-                                
-                                await clientZap.sendMessage(cleanPhone, {
-                                    mimetype: 'video/mp4',
-                                    data: base64Video,
-                                    filename: nomeArquivoMp4
-                                }, { caption: `Vídeo: ${description || 'Sua encomenda'}` });
-                                
-                                console.log(`✅ Vídeo e Logo enviados com sucesso para ${cleanPhone}`);
+                                    if (fs.existsSync(videoConvertidoMp4)) {
+                                        const media = MessageMedia.fromFilePath(videoConvertidoMp4);
+                                        
+                                        // 🔥 A MÁGICA ACONTECE AQUI: Tiramos o 'sendMediaAsDocument'
+                                        // Agora ele vai como vídeo nativo para tocar na hora!
+                                        await clientZap.sendMessage(numberId._serialized, media, { 
+                                            caption: `Vídeo: ${description || 'Sua encomenda'}` 
+                                        });
+                                        console.log(`✅ Vídeo nativo enviado com sucesso para ${cleanPhone}`);
+                                    }
+                                } catch (err) {
+                                    console.error("❌ Erro interno no envio da mídia:", err.message);
+                                }
                             }
                         } catch (zapErr) {
                             console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
                         }
                     }
                     
+                    // Retorna sucesso para liberar a tela do funcionário
                     res.json({success: true});
                 });
             });
@@ -2559,18 +2499,18 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
             res.status(500).json({success: false, msg: "Erro ao converter vídeo para MP4."});
         });
 });
-
-// 2. Listar Vídeos (MANTIDO INTACTO)
+// 2. Listar Vídeos (COM LOTES CORRIGIDOS! 🚀)
 app.get('/api/videos/list', (req, res) => {
     if(req.session.role === 'client') {
         db.all("SELECT * FROM videos WHERE client_id = ? ORDER BY id DESC", [req.session.userId], (err, rows) => {
             res.json(rows);
         });
     } else {
+        // 🚀 O ADMIN AGORA BUSCA O LOTE FAZENDO A BUSCA NO LUGAR CERTO!
         db.all(`SELECT 
                     videos.*, 
                     users.name as client_name,
-                    COALESCE(b.lote, o.lote, 'Sem Lote') as lote 
+                    COALESCE(b.lote, o.lote, 'Sem Lote') as lote -- 🚀 A CORREÇÃO ESTÁ AQUI
                 FROM videos 
                 LEFT JOIN users ON videos.client_id = users.id 
                 LEFT JOIN orders o ON videos.order_code = o.code
@@ -2701,34 +2641,42 @@ app.get('/api/invoices/check_amount', (req, res) => {
     });
 });
 // ==========================================
-// ROTA: CRIAR FATURA (PIX MANUAL) E AVISAR CLIENTE (COM LOGO)
+// ROTA: CRIAR FATURA (PIX MANUAL) E AVISAR CLIENTE
 // ==========================================
 app.post('/api/invoices/create', async (req, res) => {
     
+    // 🔴 APAGUE OU COMENTE ESTA LINHA:
+    // if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
+
+    // 🟢 COLOQUE ESTA LINHA NO LUGAR:
+    // Permite se for 'admin' OU 'employee' OU 'funcionario'
     if(req.session.role !== 'admin' && req.session.role !== 'employee' && req.session.role !== 'funcionario') {
         return res.status(403).json({msg: 'Sem permissão para criar faturas'});
     }
 
+    // Adicionamos os novos campos nf_amount e freight_amount aqui
     const { client_id, box_id, amount, description, email, nf_amount, freight_amount } = req.body; 
 
     try {
+        // A. Salva direto no Banco, agora com as colunas novas
         db.run(`INSERT INTO invoices (client_id, box_id, amount, description, status, nf_amount, freight_amount) 
                 VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-                [client_id, box_id, amount, description, nf_amount || 0, freight_amount || amount], 
+                [client_id, box_id, amount, description, nf_amount || 0, freight_amount || amount], // Se não vier frete, assume o total
                 function(err) {
                     if(err) {
                         console.error("Erro SQL ao criar fatura:", err);
                         return res.json({success: false, msg: 'Erro ao salvar fatura'});
                     }
-
-                    enviarNotificacaoNaTela(client_id, "Nova Fatura Gerada 🧾", "Uma nova fatura acabou de ser disponibilizada no seu painel. Clique para pagar.", "/dashboard-client.html");
+// 🔔 COLE A NOTIFICAÇÃO DE FATURA AQUI:
+            enviarNotificacaoNaTela(client_id, "Nova Fatura Gerada 🧾", "Uma nova fatura acabou de ser disponibilizada no seu painel. Clique para pagar.", "/dashboard-client.html");
                     const novaFaturaId = this.lastID;
 
+                    // B. BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO PARA AVISAR
                     db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (e, u) => {
                         const name = u ? u.name : 'Cliente';
                         const phone = u ? u.phone : null;
                         
-                        // 1. ENVIA O EMAIL 
+                        // 1. ENVIA O EMAIL (Simplificado para PIX Manual)
                         if (email) {
                             const subject = `Nova Fatura Pendente: R$ ${amount}`;
                             const title = "Pagamento Pendente";
@@ -2741,39 +2689,31 @@ app.post('/api/invoices/create', async (req, res) => {
                             sendEmailHtml(email, subject, title, msg);
                         }
 
-                        // 2. ENVIA O WHATSAPP COM LOGO DA EMPRESA
-                        if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                            try {
-                                let cleanPhone = phone.replace(/\D/g, '');
-                                
-                                // Prepara a logo
-                                const logoPath = path.join(__dirname, 'public', 'logo.jpg');
-                                let base64Logo = '';
-                                if (fs.existsSync(logoPath)) {
-                                    base64Logo = Buffer.from(fs.readFileSync(logoPath)).toString('base64');
-                                }
-
-                                const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na *Guineexpress* para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-
-                                // Envia a mensagem (com foto se a logo existir, ou só texto se não existir)
-                                if (base64Logo) {
-                                    await clientZap.sendMessage(cleanPhone, {
-                                        mimetype: 'image/jpeg',
-                                        data: base64Logo
-                                    }, { caption: zapMsg }).catch(e => console.log("Zap offline (foto)"));
-                                } else {
-                                    await clientZap.sendMessage(cleanPhone, zapMsg).catch(e => console.log("Zap offline (texto)"));
-                                }
-                                console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
-
-                            } catch (zapErr) {
-                                console.error("❌ Erro ao enviar Zap da fatura:", zapErr.message);
-                            }
-                        } else {
-                            console.log("⚠️ [ZAP] Cliente não notificado: Sem telefone cadastrado ou Zap offline.");
+                        // 2. ENVIA O WHATSAPP COM SEGURANÇA (Para não travar se o zap cair)
+if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+    try {
+        let cleanPhone = phone.replace(/\D/g, '');
+        // A TÁTICA: O bloco try/catch e o await evitam que a falha feche o servidor
+        const numberId = await clientZap.getNumberId(cleanPhone).catch(()=>null); 
+        
+        if (numberId) {
+            const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+            await clientZap.sendMessage(numberId._serialized, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar a msg."));
+            console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
+        } else {
+            // Tentativa cega caso não ache o ID
+            await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar tentativa cega."));
+        }
+    } catch (zapErr) {
+        // Se der qualquer erro fatal de conexão, apenas mostra no log e segue a vida
+        console.error("❌ Erro ao enviar Zap da fatura (Zap pode estar offline):", zapErr.message);
+    }
+} else {
+                            console.log("⚠️ [ZAP] Cliente não notificado: Sem telefone cadastrado ou Robô do WhatsApp desconectado.");
                         }
                     });
 
+                    // Retorna sucesso rápido para o painel do Admin não travar
                     res.json({success: true});
                 });
 
@@ -3951,13 +3891,6 @@ app.put('/api/orders/bulk-status', express.json(), (req, res) => {
         console.log("❌ [SISTEMA] Pedido barrado: Nenhum ID de encomenda chegou no servidor.");
         return res.status(400).json({ success: false, message: "Nenhum ID fornecido." });
     }
-    // Exemplo de como usar dentro da sua rota:
-notificarRastreioZap(
-    req.body.telefone,    // O telefone que veio do formulário
-    req.body.nome,        // O nome do cliente
-    "GX-1024",            // O código gerado
-    "Recebido na Agência" // O status daquele momento
-);
     if (!status) {
         console.log("❌ [SISTEMA] Pedido barrado: Nenhum Status chegou no servidor.");
         return res.status(400).json({ success: false, message: "Status não fornecido." });
