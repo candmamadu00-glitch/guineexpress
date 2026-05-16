@@ -275,7 +275,6 @@
     <div style="padding: 0 20px;">
 
         <div id="aba-pedidos-loja" class="sub-aba-loja" style="display: block; animation: fadeIn 0.4s;">
-            
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px;">
                 <div style="background: white; padding: 20px; border-radius: 15px; border-left: 5px solid #16a34a; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; justify-content: space-between; align-items: center;">
                     <div>
@@ -316,66 +315,19 @@
                 </div>
             </div>
 
-            <div id="admin-orders-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
-            </div>
+            <div id="admin-orders-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;"></div>
         </div>
+
         <div id="aba-vitrine" class="sub-aba-loja" style="display: none; animation: fadeIn 0.4s;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 style="color: #0a1931; margin: 0; font-size: 20px;"><i class="fas fa-tags" style="color: #dfaf12;"></i> Catálogo Online</h3>
             </div>
-            <div id="admin-products-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;">
-            </div>
-        </div>
-        <div id="aba-pedidos-loja" class="sub-aba-loja" style="display: block; animation: fadeIn 0.4s;">
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px;">
-                <div style="background: white; padding: 20px; border-radius: 15px; border-left: 5px solid #16a34a; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <p style="margin: 0; color: #64748b; font-size: 12px; font-weight: 800; text-transform: uppercase;">Faturamento Total</p>
-                        <h3 id="dash-faturamento" style="margin: 5px 0 0 0; color: #0a1931; font-size: 22px;">R$ 0,00</h3>
-                    </div>
-                    <div style="background: #dcfce7; padding: 12px; border-radius: 50%; color: #16a34a; font-size: 20px;"><i class="fas fa-dollar-sign"></i></div>
-                </div>
-                
-                <div style="background: white; padding: 20px; border-radius: 15px; border-left: 5px solid #3b82f6; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <p style="margin: 0; color: #64748b; font-size: 12px; font-weight: 800; text-transform: uppercase;">Pedidos Pagos</p>
-                        <h3 id="dash-pagos" style="margin: 5px 0 0 0; color: #0a1931; font-size: 22px;">0</h3>
-                    </div>
-                    <div style="background: #dbeafe; padding: 12px; border-radius: 50%; color: #3b82f6; font-size: 20px;"><i class="fas fa-check-circle"></i></div>
-                </div>
-
-                <div style="background: white; padding: 20px; border-radius: 15px; border-left: 5px solid #f59e0b; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <p style="margin: 0; color: #64748b; font-size: 12px; font-weight: 800; text-transform: uppercase;">Aguardando Pagto</p>
-                        <h3 id="dash-pendentes" style="margin: 5px 0 0 0; color: #0a1931; font-size: 22px;">0</h3>
-                    </div>
-                    <div style="background: #fef3c7; padding: 12px; border-radius: 50%; color: #f59e0b; font-size: 20px;"><i class="fas fa-clock"></i></div>
-                </div>
-            </div>
-
-            <div style="background: white; padding: 15px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-wrap: wrap; gap: 15px; justify-content: space-between; align-items: center;">
-                <div style="position: relative; flex-grow: 1; min-width: 280px;">
-                    <input type="text" id="admin-search-order" oninput="filtrarPedidosAdminPainel()" placeholder="🔍 Buscar por Nº do Pedido ou Nome do Cliente..." style="width: 100%; padding: 14px 15px 14px 45px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 14px; outline: none; transition: 0.3s;" onfocus="this.style.borderColor='#dfaf12'">
-                    <i class="fas fa-search" style="position: absolute; left: 18px; top: 16px; color: #94a3b8; font-size: 16px;"></i>
-                </div>
-                
-                <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none;">
-                    <button class="btn-filtro-admin active" onclick="mudarFiltroAdmin('Todos', this)" style="background: #0a1931; color: white; border: none; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">Todos</button>
-                    <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Aguardando Pagamento', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">⏳ Pendentes</button>
-                    <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Pago', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">✅ Pagos</button>
-                    <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Enviado', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">✈️ Enviados</button>
-                </div>
-            </div>
-
-            <div id="admin-orders-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
-            </div>
+            <div id="admin-products-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;"></div>
         </div>
 
         <div id="aba-add-produto" class="sub-aba-loja" style="display: none; animation: fadeIn 0.4s;">
             <form id="form-new-product" onsubmit="adicionarProdutoLoja(event)">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;">
-                    
                     <div class="admin-store-card">
                         <h4 style="margin-top: 0; color: #0a1931; font-size: 16px; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px;"><i class="fas fa-info-circle text-gray-400"></i> Informações do Produto</h4>
                         
@@ -437,7 +389,6 @@
                             <i class="fas fa-check-circle" style="margin-right: 8px;"></i> PUBLICAR PRODUTO
                         </button>
                     </div>
-
                 </div>
             </form>
         </div>
@@ -452,8 +403,7 @@
                 <div class="admin-store-card" style="border-top: 5px solid #ef4444;">
                     <h3 style="color: #ef4444; margin-top: 0; font-size: 18px;"><i class="fas fa-exclamation-triangle"></i> Alertas de Estoque Crítico</h3>
                     <p style="font-size: 13px; color: #64748b; margin-bottom: 15px;">Produtos com menos de 5 unidades. Faça reposição!</p>
-                    <div id="low-stock-list" style="max-height: 250px; overflow-y: auto; padding-right: 5px;">
-                        </div>
+                    <div id="low-stock-list" style="max-height: 250px; overflow-y: auto; padding-right: 5px;"></div>
                 </div>
             </div>
         </div>
@@ -461,9 +411,7 @@
     </div>
 
     <div id="modal-store-order-details" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); z-index: 50000; justify-content: center; align-items: center; padding: 20px;">
-        
         <div style="background: #fff; width: 100%; max-width: 550px; border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
-            
             <div style="background: #f8fafc; padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
                 <div>
                     <span style="background: #0a1931; color: #dfaf12; font-size: 11px; font-weight: 900; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 1px;">Gestão de Pedido</span>
@@ -473,7 +421,6 @@
             </div>
 
             <div style="padding: 30px; overflow-y: auto; flex-grow: 1;">
-                
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 16px; margin-bottom: 25px;">
                     <div style="display: flex; gap: 15px; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;">
                         <div style="flex: 1;">
@@ -492,12 +439,10 @@
                 </div>
 
                 <h4 style="color: #0f172a; margin-bottom: 15px; font-size: 16px;"><i class="fas fa-box-open" style="color: #dfaf12;"></i> Itens do Pacote</h4>
-                <div id="modal-order-items" style="display: flex; flex-direction: column; gap: 10px;">
-                    </div>
+                <div id="modal-order-items" style="display: flex; flex-direction: column; gap: 10px;"></div>
             </div>
 
             <div style="padding: 25px 30px; background: #fff; border-top: 1px solid #e2e8f0;">
-                
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #f8fafc; padding: 15px 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
                     <span style="font-size: 15px; color: #475569; font-weight: bold;">Total Recebido:</span>
                     <span id="modal-order-total" style="font-size: 24px; color: #16a34a; font-weight: 900;"></span>
@@ -523,11 +468,9 @@
                         </button>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
-    
 </section>
         <section id="dashboard-home">
             <div class="header-flex">
