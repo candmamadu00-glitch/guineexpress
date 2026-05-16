@@ -550,9 +550,17 @@
 
         <section id="billing-view" class="hidden">
             <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
                     <h3>💲 Minhas Faturas</h3>
-                    <button onclick="loadClientInvoices()" class="btn-secondary" style="font-size:12px;">🔄 Atualizar</button>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="moeda-fatura" onchange="loadClientInvoices()" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; color: #0a1931; background: #f8f9fa;">
+                            <option value="BRL">🇧🇷 Real (R$)</option>
+                            <option value="XOF">🌍 Franco (CFA)</option>
+                            <option value="EUR">🇪🇺 Euro (€)</option>
+                            <option value="USD">🇺🇸 Dólar ($)</option>
+                        </select>
+                        <button onclick="loadClientInvoices()" class="btn-secondary" style="font-size:12px;">🔄 Atualizar</button>
+                    </div>
                 </div>
                 <div style="overflow-x:auto; margin-top:15px;">
                     <table class="data-table">
@@ -608,7 +616,7 @@
     </div>
 
     <div style="position: relative;">
-        <input type="text" id="search-store" placeholder="O que você está procurando?" style="width: 100%; padding: 14px 15px 14px 45px; border-radius: 16px; border: none; font-size: 14px; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.15); outline: none; color: #333;">
+<input type="text" id="search-store" oninput="aplicarFiltrosLoja()" placeholder="🔍 O que você está procurando?" style="width: 100%; padding: 14px 15px 14px 45px; border-radius: 16px; border: none; font-size: 14px; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.15); outline: none; color: #333;">
         <i class="fas fa-search" style="position: absolute; left: 18px; top: 16px; color: #ee4d2d; font-size: 16px;"></i>
     </div>
 </div>

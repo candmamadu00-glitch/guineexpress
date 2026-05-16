@@ -8540,69 +8540,7 @@ function renderizarProdutos() {
     });
     grid.innerHTML = html;
 }
-// =======================================================
-// 🛍️ MOTOR EXTRAORDINÁRIO DA LOJA (ANIMAÇÕES DA CICÍ)
-// =======================================================
-function adicionarAoCarrinho(productId, event) {
-    // 1. Acha o produto original
-    const produto = produtosOriginais.find(p => p.id === productId);
-    if (!produto) return;
 
-    // 🚨 BLOQUEIO INTELIGENTE (PRODUÇÃO / ENCOMENDA)
-    if (produto.stock <= 0) {
-        // Em vez de bloquear, lança o gatilho de escassez e exclusividade!
-        const querEncomendar = confirm("⏳ A Cicí informa: Este produto esgotou e está a ser produzido neste momento!\n\nDeseja solicitar uma reserva para garantir o seu na próxima remessa?");
-        
-        if (!querEncomendar) {
-            return; // Se o cliente disser Cancelar, a função para aqui.
-        }
-        // Se ele disser OK, o código continua e o produto voa para o carrinho normalmente!
-    } else {
-        // Segurança normal: Verifica se já adicionou todas as unidades que existiam no stock
-        const qtdNoCarrinho = itensNoCarrinho.filter(item => item.id === productId).length;
-        if (qtdNoCarrinho >= produto.stock) {
-            alert(`Você já colocou todas as ${produto.stock} unidades disponíveis na sacola! 🛍️`);
-            return;
-        }
-    }
-
-    // 2. Adiciona ao carrinho em memória
-    itensNoCarrinho.push(produto);
-    
-    // 3. Atualiza o contador (Sempre!)
-    atualizarContadorCarrinho();
-
-    // 4. Lógica de Animações
-    if (event && event.currentTarget) {
-        // Se temos o botão, faz o produto voar
-        const botaoClicado = event.currentTarget;
-        fazerProdutoVoar(produto.image_url, botaoClicado);
-    } else {
-        // Se não, faz a Cicí comemorar no canto
-        const cici = document.getElementById('cici-avatar-float');
-        const carrinho = document.getElementById('cart-icon-bg');
-        
-        if(cici) cici.classList.add('cici-celebrate');
-        if(carrinho) carrinho.classList.add('cart-eat');
-
-        setTimeout(() => {
-            if(cici) cici.classList.remove('cici-celebrate');
-            if(carrinho) carrinho.classList.remove('cart-eat');
-        }, 600);
-    }
-
-    // 5. O TOQUE FINAL: Abre a gaveta lateral 800ms depois (para dar tempo à animação)
-    setTimeout(() => {
-        // Só abre se o carrinho ainda não estiver aberto
-        const cart = document.getElementById('side-cart');
-        if (cart && cart.style.right !== '0px') {
-            toggleCarrinho();
-        } else {
-            // Se já estiver aberto, apenas atualiza a lista de itens lá dentro
-            renderizarCarrinhoLateral();
-        }
-    }, 800);
-}
 // A Lógica do Voo Nível NASA
 function fazerProdutoVoar(imgUrl, elementoOrigem) {
     // A foto que vai voar (padrão é logo se não tiver foto)
@@ -8672,8 +8610,24 @@ function atualizarContadorCarrinho() {
     }
 }
 // =======================================================
-// 🛠️ FUNÇÕES CORRIGIDAS (FILTROS E CARRINHO NOVO)
+// 🛠️ FUNÇÕES CORRIGIDAS (FILTROS E GATILHO DE ESCASSEZ)
 // =======================================================
+
+// Adiciona a animação de piscar no CSS via JavaScript (Mágica!)
+if (!document.getElementById('animacao-escassez')) {
+    const style = document.createElement('style');
+    style.id = 'animacao-escassez';
+    style.innerHTML = `
+        @keyframes pulse-fire {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; box-shadow: 0 0 10px red; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .escassez-badge { background: #d32f2f !important; animation: pulse-fire 1s infinite; }
+        .esgotado-badge { background: #333 !important; }
+    `;
+    document.head.appendChild(style);
+}
 
 function aplicarFiltrosLoja() {
     const grid = document.getElementById('store-products-grid');
@@ -8703,9 +8657,17 @@ function aplicarFiltrosLoja() {
         else if (moeda === 'EUR') { precoFinal = p.price_brl * cotacoesGlobais.EUR; simbolo = '€'; }
         else if (moeda === 'USD') { precoFinal = p.price_brl * cotacoesGlobais.USD; simbolo = '$'; }
 
+        // 🔥 GATILHO DE ESCASSEZ E ESTOQUE
+        let badgeHtml = `<div class="promo-badge">Oferta</div>`;
+        if (p.stock <= 0) {
+            badgeHtml = `<div class="promo-badge esgotado-badge">⏳ Esgotado</div>`;
+        } else if (p.stock <= 5) {
+            badgeHtml = `<div class="promo-badge escassez-badge">🔥 Restam só ${p.stock}!</div>`;
+        }
+
         html += `
             <div class="product-card-premium" onclick="abrirDetalhesProduto(${p.id}, '${simbolo}', ${precoFinal})" style="cursor: pointer;">
-                <div class="promo-badge">Oferta</div>
+                ${badgeHtml}
                 <div class="fav-btn" onclick="this.style.color='#d32f2f'; event.stopPropagation();"><i class="fas fa-heart"></i></div>
                 <div class="img-container"><img src="${p.image_url || '/logo.png'}" alt="${p.name}"></div>
                 <div class="product-details">
@@ -8725,34 +8687,101 @@ function aplicarFiltrosLoja() {
     grid.innerHTML = html;
 }
 
+// =======================================================
+// 🛍️ MOTOR EXTRAORDINÁRIO DA LOJA (MEMÓRIA E VARIAÇÕES)
+// =======================================================
+
+// 🧠 SALVA E CARREGA DA MEMÓRIA
+function salvarCarrinhoNaMemoria() {
+    localStorage.setItem('guineexpressCarrinho', JSON.stringify(itensNoCarrinho));
+}
+
+function carregarCarrinhoDaMemoria() {
+    const salvo = localStorage.getItem('guineexpressCarrinho');
+    if (salvo) {
+        itensNoCarrinho = JSON.parse(salvo);
+        atualizarContadorCarrinho();
+        // Se a gaveta estiver aberta, atualiza ela
+        if (document.getElementById('side-cart') && document.getElementById('side-cart').style.right === '0px') {
+            renderizarCarrinhoLateral();
+        }
+    }
+}
+// Carrega o carrinho assim que o site abre
+window.addEventListener('DOMContentLoaded', carregarCarrinhoDaMemoria);
+
+
+function adicionarAoCarrinho(productId, event) {
+    const produtoOriginal = produtosOriginais.find(p => p.id === productId);
+    if (!produtoOriginal) return;
+
+    if (produtoOriginal.stock <= 0) {
+        const querEncomendar = confirm("⏳ A Cicí informa: Este produto esgotou e está a ser produzido!\n\nDeseja solicitar uma reserva para garantir o seu na próxima remessa?");
+        if (!querEncomendar) return; 
+    } else {
+        const qtdNoCarrinho = itensNoCarrinho.filter(item => item.id === productId).length;
+        if (qtdNoCarrinho >= produtoOriginal.stock) {
+            alert(`Você já colocou todas as ${produtoOriginal.stock} unidades disponíveis na sacola! 🛍️`);
+            return;
+        }
+    }
+
+    // 👕 VARIAÇÕES DE PRODUTO: Se for roupa ou cabelo, pergunta cor/tamanho
+    let nomeComVariacao = produtoOriginal.name;
+    if (produtoOriginal.category === 'Roupas' || produtoOriginal.category === 'Cabelos/Perucas') {
+        const escolha = prompt(`Você está comprando: ${produtoOriginal.name}\n\nDigite a Cor ou Tamanho desejado (Ex: P, M, Loiro, Preto):`);
+        if (escolha === null) return; // Se clicou em cancelar, aborta a compra
+        if (escolha.trim() !== '') {
+            nomeComVariacao = `${produtoOriginal.name} (${escolha})`;
+        }
+    }
+
+    // Cria uma cópia do produto com o nome atualizado para ir pra sacola
+    const produtoParaSacola = { ...produtoOriginal, name: nomeComVariacao };
+
+    itensNoCarrinho.push(produtoParaSacola);
+    
+    atualizarContadorCarrinho();
+    salvarCarrinhoNaMemoria(); // 💾 Salva na hora!
+
+    if (event && event.currentTarget) {
+        fazerProdutoVoar(produtoParaSacola.image_url, event.currentTarget);
+    }
+
+    setTimeout(() => {
+        const cart = document.getElementById('side-cart');
+        if (cart && cart.style.right !== '0px') {
+            toggleCarrinho();
+        } else {
+            renderizarCarrinhoLateral();
+        }
+    }, 800);
+}
+
 function removerDoCarrinho(productId) {
     const index = itensNoCarrinho.findIndex(item => item.id === productId);
     if (index > -1) {
         itensNoCarrinho.splice(index, 1);
         renderizarCarrinhoLateral();
         atualizarContadorCarrinho();
+        salvarCarrinhoNaMemoria(); // 💾 Atualiza a memória
     }
 }
+
 function alterarQuantidadeCarrinho(productId, operacao) {
     if (operacao === 'aumentar') {
-        // Encontra o produto e adiciona uma cópia dele ao carrinho
         const produtoParaAdicionar = itensNoCarrinho.find(item => item.id === productId);
-        if (produtoParaAdicionar) {
-            itensNoCarrinho.push({ ...produtoParaAdicionar });
-        }
+        if (produtoParaAdicionar) itensNoCarrinho.push({ ...produtoParaAdicionar });
     } else if (operacao === 'diminuir') {
-        // Encontra a primeira vez que o produto aparece e remove apenas uma unidade
         const index = itensNoCarrinho.findIndex(item => item.id === productId);
-        if (index > -1) {
-            itensNoCarrinho.splice(index, 1);
-        }
+        if (index > -1) itensNoCarrinho.splice(index, 1);
     }
     
-    // Atualiza a tela e a bolinha vermelha do carrinho em tempo real!
     renderizarCarrinhoLateral();
     if (typeof atualizarContadorCarrinho === 'function') {
         atualizarContadorCarrinho();
     }
+    salvarCarrinhoNaMemoria(); // 💾 Atualiza a memória
 }
 function voltarParaCarrinho() {
     document.getElementById('cart-step-2').style.display = 'none';
@@ -9118,61 +9147,160 @@ window.alternarHistorico = function() {
     if (typeof loadReceipts === 'function') loadReceipts();
 }
 // =======================================================
-// 👑 GESTÃO DE PEDIDOS DA LOJA (ADMIN)
+// 👑 GESTÃO DE PEDIDOS DA LOJA (COM DASHBOARD E FILTROS)
 // =======================================================
-let pedidoAtualAdmin = null; // Guarda o pedido que está aberto no modal
+let pedidoAtualAdmin = null; 
+window.todosPedidosAdmin = []; // Memória global dos pedidos
+window.filtroStatusAdmin = 'Todos'; // Filtro atual selecionado
 
 async function carregarPedidosLojaAdmin() {
     const grid = document.getElementById('admin-orders-grid');
     if (!grid) return;
 
-    grid.innerHTML = '<div style="text-align:center; padding: 40px; grid-column: 1/-1;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Buscando pedidos...</p></div>';
+    grid.innerHTML = '<div style="text-align:center; padding: 40px; grid-column: 1/-1;"><i class="fas fa-spinner fa-spin fa-2x" style="color: #dfaf12;"></i><p>Sincronizando Centro de Comando...</p></div>';
 
     try {
         const res = await fetch('/api/admin/store/orders');
         const data = await res.json();
 
         if (data.success) {
-            if (data.orders.length === 0) {
-                grid.innerHTML = '<div style="text-align:center; color:#666; grid-column: 1/-1; padding: 40px;"><i class="fas fa-box-open fa-3x" style="margin-bottom:15px; color:#ccc;"></i><p>Nenhum pedido recebido ainda.</p></div>';
-                return;
-            }
-
-            let html = '';
-            data.orders.forEach(order => {
-                // Cores dinâmicas para o status
-                let statusColor = '#f39c12'; // Aguardando
-                if (order.status === 'Pago') statusColor = '#27ae60';
-                if (order.status === 'Enviado') statusColor = '#2980b9';
-                if (order.status === 'Entregue') statusColor = '#8e44ad';
-
-                // 🛡️ CORREÇÃO: Blinda o código caso o total seja nulo
-                const valorSeguro = parseFloat(order.total_brl) || 0;
-
-                html += `
-                    <div style="background: white; border-radius: 15px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); position: relative; border-top: 5px solid ${statusColor}; cursor: pointer; transition: 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'" onclick='abrirModalPedidoLoja(${JSON.stringify(order)})'>
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="margin: 0; color: #0a1931;">Pedido #${order.id}</h3>
-                            <span style="background: ${statusColor}22; color: ${statusColor}; padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: bold;">${order.status}</span>
-                        </div>
-                        
-                        <p style="margin: 5px 0; font-size: 14px; color: #333;"><i class="fas fa-user" style="color:#dfaf12;"></i> ${order.client_name}</p>
-                        <p style="margin: 5px 0; font-size: 12px; color: #666;"><i class="fas fa-clock"></i> ${new Date(order.created_at).toLocaleString('pt-BR')}</p>
-                        
-                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 12px; color: #666;">${order.items ? order.items.length : 0} item(ns)</span>
-                            <span style="font-size: 18px; font-weight: 900; color: #d32f2f;">R$ ${valorSeguro.toFixed(2)}</span>
-                        </div>
-                    </div>
-                `;
-            });
-            grid.innerHTML = html;
+            window.todosPedidosAdmin = data.orders; // Salva na memória!
+            atualizarDashboardFinanceiro(); // 💰 Calcula o faturamento
+            filtrarPedidosAdminPainel(); // 🔍 Desenha os pedidos na tela
         }
     } catch (err) {
         console.error(err);
-        grid.innerHTML = '<p style="color:red; text-align:center;">Erro de conexão.</p>';
+        grid.innerHTML = '<p style="color:red; text-align:center; grid-column: 1/-1;">Erro de conexão com o banco de dados.</p>';
     }
+}
+
+// 💰 Calcula o Dinheiro e os Status (BLINDADA)
+function atualizarDashboardFinanceiro() {
+    let faturamento = 0;
+    let qtdPagos = 0;
+    let qtdPendentes = 0;
+
+    // 🛡️ BLINDAGEM: Se a memória estiver vazia, cria uma lista vazia para não dar erro
+    const pedidos = window.todosPedidosAdmin || [];
+
+    pedidos.forEach(order => {
+        const status = (order.status || '').toLowerCase();
+        // Soma Faturamento (Apenas se o status não for "Pendente" ou "Cancelado")
+        if (status !== 'pending' && status !== 'aguardando pagamento' && status !== 'cancelado') {
+            faturamento += parseFloat(order.total_brl) || 0;
+        }
+
+        if (status === 'pago' || status.includes('preparando')) qtdPagos++;
+        if (status === 'pending' || status === 'aguardando pagamento') qtdPendentes++;
+    });
+
+    if(document.getElementById('dash-faturamento')) {
+        document.getElementById('dash-faturamento').innerText = `R$ ${faturamento.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+        document.getElementById('dash-pagos').innerText = qtdPagos;
+        document.getElementById('dash-pendentes').innerText = qtdPendentes;
+    }
+}
+
+// 🎨 Função para trocar a cor do botão clicado
+function mudarFiltroAdmin(status, botao) {
+    window.filtroStatusAdmin = status;
+    
+    // Tira a cor de todos os botões
+    document.querySelectorAll('.btn-filtro-admin').forEach(btn => {
+        btn.style.background = '#f1f5f9';
+        btn.style.color = '#64748b';
+        btn.style.border = '1px solid #e2e8f0';
+    });
+
+    // Pinta o botão que foi clicado
+    botao.style.background = '#0a1931';
+    botao.style.color = 'white';
+    botao.style.border = 'none';
+
+    filtrarPedidosAdminPainel(); // Aplica o filtro na tela
+}
+
+// 🔍 A Mágica de Filtrar Instantaneamente (Busca + Status) (BLINDAGEM NÍVEL MÁXIMO)
+function filtrarPedidosAdminPainel() {
+    const grid = document.getElementById('admin-orders-grid');
+    if (!grid) return;
+    
+    // Pega o que o usuário digitou de forma 100% segura
+    const inputBusca = document.getElementById('admin-search-order');
+    const termoBusca = inputBusca && inputBusca.value ? String(inputBusca.value).toLowerCase() : '';
+
+    let filtrados = window.todosPedidosAdmin || [];
+    
+    // Garante que o status do filtro atual seja um texto válido
+    const filtroStatus = window.filtroStatusAdmin ? String(window.filtroStatusAdmin).toLowerCase() : 'todos';
+
+    // 1. Filtra pelo Status do Botão (Todos, Pendentes, Pagos...)
+    if (filtroStatus !== 'todos') {
+        filtrados = filtrados.filter(order => {
+            if (!order) return false; // Se o pedido vier quebrado, ignora
+            
+            // Transforma o status em String antes de qualquer coisa para evitar o erro 'toLowerCase'
+            let status = String(order.status || '').toLowerCase();
+            if(status === 'pending') status = 'aguardando pagamento';
+            
+            return status.includes(filtroStatus);
+        });
+    }
+
+    // 2. Filtra pela barra de pesquisa (Nome, ID do pedido ou Telefone)
+    if (termoBusca !== '') {
+        filtrados = filtrados.filter(order => {
+            if (!order) return false;
+
+            // Transforma TUDO em texto (String) antes de pesquisar. Adeus erros!
+            const idStr = String(order.id || '').toLowerCase();
+            const nomeStr = String(order.client_name || '').toLowerCase();
+            const phoneStr = String(order.client_phone || '').toLowerCase();
+            
+            return idStr.includes(termoBusca) || nomeStr.includes(termoBusca) || phoneStr.includes(termoBusca);
+        });
+    }
+
+    // Desenha na tela
+    if (filtrados.length === 0) {
+        grid.innerHTML = '<div style="text-align:center; color:#666; grid-column: 1/-1; padding: 40px;"><i class="fas fa-search-minus fa-3x" style="margin-bottom:15px; color:#ccc;"></i><p>Nenhum pedido encontrado com este filtro.</p></div>';
+        return;
+    }
+
+    let html = '';
+    filtrados.forEach(order => {
+        let statusColor = '#f39c12'; // Aguardando
+        let statusTratado = order.status ? String(order.status) : 'Pendente';
+        
+        if(statusTratado.toLowerCase() === 'pending') statusTratado = 'Aguardando Pagamento';
+
+        if (statusTratado === 'Pago') statusColor = '#27ae60';
+        if (statusTratado === 'Enviado') statusColor = '#2980b9';
+        if (statusTratado === 'Entregue') statusColor = '#8e44ad';
+
+        const valorSeguro = parseFloat(order.total_brl) || 0;
+
+        html += `
+            <div style="background: white; border-radius: 12px; padding: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-top: 4px solid ${statusColor}; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; height: 100%; transition: 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'" onclick='abrirModalPedidoLoja(${JSON.stringify(order)})'>
+                
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                    <h3 style="margin: 0; color: #0a1931; font-size: 14px; font-weight: 900;">#${order.id}</h3>
+                    <span style="background: ${statusColor}22; color: ${statusColor}; padding: 3px 6px; border-radius: 6px; font-size: 9px; font-weight: 900; text-transform: uppercase;">${statusTratado}</span>
+                </div>
+                
+                <div style="flex-grow: 1;">
+                    <p style="margin: 0 0 4px 0; font-size: 12px; color: #1e293b; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class="fas fa-user" style="color:#dfaf12; width: 14px;"></i> ${order.client_name || 'Anônimo'}</p>
+                    <p style="margin: 0; font-size: 10px; color: #64748b;"><i class="fas fa-clock" style="width: 14px;"></i> ${new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                </div>
+                
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 10px; color: #64748b; font-weight: bold; background: #f1f5f9; padding: 3px 6px; border-radius: 4px;">${order.items ? order.items.length : 0} it.</span>
+                    <span style="font-size: 13px; font-weight: 900; color: #d32f2f;">R$ ${valorSeguro.toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+    });
+    grid.innerHTML = html;
 }
 
 // =======================================================
@@ -10156,29 +10284,56 @@ async function deleteSelectedVideos() {
     }
 }
 // ==========================================
-// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM FILTRO)
+// FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM CÂMBIO EM TEMPO REAL 🌍)
 // ==========================================
 async function loadClientInvoices(loteFiltro = '') {
     const tbody = document.getElementById('client-invoices-list');
     if(!tbody) return; 
 
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Carregando...</td></tr>';
+    // Descobre qual moeda o cliente quer ver agora
+    const comboMoeda = document.getElementById('moeda-fatura');
+    const moedaSelecionada = comboMoeda ? comboMoeda.value : 'BRL';
+
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Carregando cotação atualizada e faturas... <i class="fas fa-spinner fa-spin"></i></td></tr>';
 
     try {
+        // 🌍 1. MÁGICA DA COTAÇÃO EM TEMPO REAL
+        let taxaConversao = 1;
+        let simboloMoeda = 'R$';
+        
+        if (moedaSelecionada !== 'BRL') {
+            try {
+                // Puxa a cotação oficial do dia baseada no Real (BRL)
+                const resCotacao = await fetch('https://open.er-api.com/v6/latest/BRL');
+                const dadosCotacao = await resCotacao.json();
+                
+                taxaConversao = dadosCotacao.rates[moedaSelecionada] || 1;
+                
+                if(moedaSelecionada === 'XOF') simboloMoeda = 'CFA';
+                if(moedaSelecionada === 'EUR') simboloMoeda = '€';
+                if(moedaSelecionada === 'USD') simboloMoeda = '$';
+            } catch(e) {
+                console.log("Erro ao buscar cotação. Usando Real Brasileiro por segurança.");
+                taxaConversao = 1;
+                simboloMoeda = 'R$';
+            }
+        }
+
+        // 2. BUSCA AS FATURAS NO SERVIDOR
         const res = await fetch('/api/invoices/my_invoices'); 
         let list = await res.json();
 
-        // 🧠 MÁGICA DO FILTRO: Se tiver lote selecionado, esconde as outras faturas!
+        // Filtro de Lote
         if (loteFiltro && loteFiltro !== '') {
             list = list.filter(inv => (inv.lote || 'Sem Lote') === loteFiltro);
         }
 
-        // 👇 A MÁGICA DO HISTÓRICO CORRIGIDA E DEFINITIVA 👇
+        // Filtro de Histórico (Esconde pagas se não quiser ver todas)
         if (!window.verHistoricoCompleto) {
             list = list.filter(inv => {
                 const statusStr = String(inv.status || '').toLowerCase();
                 const isPago = (statusStr === 'pago' || statusStr === 'approved' || statusStr === 'paid');
-                return !isPago; // Só deixa passar e aparecer na tela se NÃO estiver pago!
+                return !isPago; 
             });
         }
 
@@ -10195,6 +10350,10 @@ async function loadClientInvoices(loteFiltro = '') {
             let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
             let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
 
+            // 🧮 3. CALCULA O VALOR NA MOEDA ESCOLHIDA
+            const valorEmReais = parseFloat(inv.amount) || 0;
+            const valorConvertido = valorEmReais * taxaConversao;
+
             if(inv.status === 'approved') {
                 statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
                 actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
@@ -10204,13 +10363,10 @@ async function loadClientInvoices(loteFiltro = '') {
             } else if(inv.status === 'pending') {
                 statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
                 
-                // 🛡️ Blindagem contra valor vazio só por segurança:
-                const valorSeguro = parseFloat(inv.amount) || 0;
-
                 actionHtml = `
                 <div style="display:flex; justify-content:center; gap:8px;">
-                    <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${valorSeguro}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        💸 Pagar pelo Pix 
+                    <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${valorEmReais}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                        💸 Pagar 
                     </button>
                 </div>`;
             } else {
@@ -10218,13 +10374,11 @@ async function loadClientInvoices(loteFiltro = '') {
                 actionHtml = '-';
             }
 
-            const valorExibicao = parseFloat(inv.amount) || 0;
-
             tbody.innerHTML += `
             <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding:12px; font-weight:bold; color:#0a1931;">#${inv.id}</td>
                 <td>${rawDesc}</td>
-                <td style="font-weight:bold; color:#0a1931;">R$ ${valorExibicao.toFixed(2)}</td>
+                <td style="font-weight:bold; color:#0a1931;">${simboloMoeda} ${valorConvertido.toFixed(2)}</td>
                 <td>${statusHtml}</td>
                 <td style="text-align:center;">${actionHtml}</td>
             </tr>`;

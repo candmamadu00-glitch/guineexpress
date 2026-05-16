@@ -7,394 +7,315 @@
     <link rel="stylesheet" href="cici.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Guineexpress</title>
+    <title>Login - Guineexpress Premium Orange</title>
     <link rel="icon" type="image/png" href="/logo.png">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/imask"></script>
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#0a1931">
+    
+    <meta name="theme-color" content="#ff5e00"> 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Guineexpress">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        /* Define a imagem de fundo em tela cheia */
+        /* =========================================
+           1. VARIÁVEIS DE COR E FUNDO (AGORA LARANJA)
+           ========================================= */
+        :root {
+            /* 👇 NOVAS CORES DO TEMA ORANGE PREMIUm 👇 */
+            --primary-orange: #ff5e00; /* Laranja Vibrante GE */
+            --dark-orange: #e05200;    /* Laranja para Hover */
+            --bg-dark-glass: rgba(20, 10, 0, 0.75); /* Fundo vidro escurecido laranja */
+            --accent-gold: #d4af37;    /* Mantemos o dourado como detalhe secondary */
+        }
+
         body, html {
-            height: 100%;
-            margin: 0;
+            height: 100%; margin: 0; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0c0600; /* Quase preto laranja */
         }
 
         .login-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-image: linear-gradient(rgba(10, 25, 49, 0.75), rgba(10, 25, 49, 0.85)), url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=2070&auto=format&fit=crop');
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
+            display: flex; justify-content: center; align-items: center; min-height: 100vh;
+            /* 👇 FUNDO ESCURO COM DEGRADÊ LARANJA PROFUNDO 👇 */
+            background-image: linear-gradient(rgba(15, 8, 0, 0.88), rgba(30, 10, 0, 0.95)), url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=2070&auto=format&fit=crop');
+            background-size: cover; background-position: center; background-attachment: fixed;
             padding: 20px;
         }
 
-        /* Efeito Glassmorphism no Cartão */
+        /* Efeito Glassmorphism escurecido laranja */
         .login-card {
-            background: rgba(255, 255, 255, 0.12); 
-            backdrop-filter: blur(16px); 
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: var(--bg-dark-glass);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08); 
+            border-top: 1px solid rgba(255, 255, 255, 0.15); /* Brilho de vidro no topo */
             border-radius: 30px; 
             padding: 40px 30px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            width: 100%; max-width: 420px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255,255,255,0.05);
             color: #fff; 
-        }
-
-        .company-header h1 {
-            color: #fff;
-            margin-bottom: 5px;
-            font-weight: 800;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-            letter-spacing: 1px;
-        }
-        
-        .company-header p {
-            color: #e0e0e0;
-            margin: 0;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-        }
-        
-        .login-card h3 {
-            color: #009ee3; 
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-            margin-bottom: 20px;
-            text-transform: uppercase;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-
-        .form-group label {
-            color: #fff;
-            font-weight: 500;
-            margin-bottom: 5px;
-            display: block;
-            font-size: 14px;
-        }
-
-        /* Campos de texto arredondados */
-        .form-control {
-            background: rgba(255, 255, 255, 0.95);
-            border: 2px solid transparent;
-            color: #333;
-            border-radius: 20px; 
-            padding: 14px 15px;
-            width: 100%;
-            box-sizing: border-box;
-            margin-bottom: 15px;
-            transition: all 0.3s ease;
-        }
-        .form-control:focus {
-            background: #fff;
-            border: 2px solid #009ee3;
-            box-shadow: 0 0 10px rgba(0, 158, 227, 0.4);
-            outline: none;
-        }
-
-        /* Seletor de Perfil estilo iOS (Pill) */
-        #role-selector {
-            display: flex;
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 50px;
-            padding: 6px;
-            margin-bottom: 25px;
-        }
-        #role-selector .btn {
-            border: none;
-            background: transparent !important;
-            border-radius: 50px;
-            color: #ccc !important;
-            flex: 1;
-            padding: 10px 5px;
-            font-size: 13px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        #role-selector .btn-primary {
-            background: #009ee3 !important;
-            color: #fff !important;
-            box-shadow: 0 4px 10px rgba(0, 158, 227, 0.4);
-        }
-
-        /* Estilo base para botões arredondados */
-        .btn-pill {
-            border-radius: 50px !important;
-            padding: 14px;
-            border: none;
-            cursor: pointer;
-            transition: transform 0.2s, background 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .btn-pill:hover {
-            transform: translateY(-2px) scale(1.02);
+            animation: fadeIn 0.8s ease-out;
         }
 
         /* =========================================
-           ANIMAÇÕES DE PULSAR (PULSE GLOW)
+           2. CABEÇALHO (TEXTO BRANCO NO LARANJA)
            ========================================= */
-        @keyframes pulse-dourado {
-            0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(212, 175, 55, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
-        }
-        @keyframes pulse-azul {
-            0% { box-shadow: 0 0 0 0 rgba(0, 158, 227, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(0, 158, 227, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 158, 227, 0); }
-        }
-        @keyframes pulse-verde {
-            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(40, 167, 69, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-        }
-        @keyframes pulse-vermelho {
-            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(231, 76, 60, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+        .login-logo {
+            width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
+            border: 2px solid var(--accent-gold);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8), 0 0 20px rgba(212, 175, 55, 0.2); 
+            display: block; margin: 0 auto 15px auto;
         }
 
-        /* Links inferiores organizados */
-        .links-inferiores {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 20px;
+        .company-header h1 {
+            color: #fff; margin-bottom: 5px; font-weight: 900; font-size: 28px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8); letter-spacing: 0.5px;
         }
         
-        .links-inferiores button {
-            border-radius: 50px;
-            padding: 12px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-            border: none;
-            transition: all 0.3s;
+        .company-header p {
+            color: #ccc; margin: 0; font-size: 13px; font-weight: 500;
+        }
+
+        .login-card h3 {
+            color: var(--primary-orange); /* Destaque em Laranja */
+            text-align: center; margin-bottom: 25px; margin-top: 10px;
+            font-weight: 800; font-size: 18px; letter-spacing: 1px;
             text-transform: uppercase;
         }
+
+        /* =========================================
+           3. INPUTS ESTILO VIDRO (FOCuS LARANJA)
+           ========================================= */
+        .input-icon-wrapper { position: relative; margin-bottom: 15px; }
+        .input-icon-wrapper i { position: absolute; left: 16px; top: 16px; color: var(--accent-gold); font-size: 15px; }
         
-        /* Botão Criar Conta - Verde Pulsante */
-        #btn-cadastro {
-            background: #28a745;
-            color: white;
-            animation: pulse-verde 2.2s infinite; /* Tempo diferente para dar assimetria elegante */
+        .form-control-glass {
+            background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff; border-radius: 16px; padding: 14px 15px 14px 45px;
+            width: 100%; box-sizing: border-box; font-size: 14px;
+            transition: all 0.3s ease;
         }
-        #btn-cadastro:hover { background: #218838; }
-
-        /* Botão Esqueci a Senha - Transparente/Borda Vermelha Pulsante */
-        .btn-esqueci {
-            background: rgba(231, 76, 60, 0.1);
-            color: #fff;
-            border: 1px solid #e74c3c !important;
-            animation: pulse-vermelho 2.8s infinite;
-        }
-        .btn-esqueci:hover {
-            background: #e74c3c;
-            color: white;
+        .form-control-glass::placeholder { color: rgba(255, 255, 255, 0.4); }
+        .form-control-glass:focus {
+            background: rgba(0, 0, 0, 0.6); 
+            /* 👇 Foco agora é Laranja 👇 */
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 3px rgba(255, 94, 0, 0.2); outline: none;
         }
 
-        #register-form p { color: #fff; font-weight: 500; }
-        #register-form p:hover { color: #d4af37; }
-        /* ==========================================
-   ESTILOS DO RASTREAMENTO RÁPIDO
-   ========================================== */
-.tracking-card {
-    background: rgba(255, 255, 255, 0.05); /* Fundo translúcido */
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(212, 175, 55, 0.2); /* Borda levemente dourada */
-    border-radius: 20px;
-    padding: 20px;
-    margin: 20px 0;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
+        select.form-control-glass option { background: #120800; color: white; }
 
-.tracking-header h4 {
-    color: #fff;
-    margin: 0 0 15px 0;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 700;
-}
+        /* =========================================
+           4. BOTÕES E ANIMAÇÕES (SISTEMA PULSAR ATUALIZADO)
+           ========================================= */
+        @keyframes pulse-dourado {
+            0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.5); }
+            70% { box-shadow: 0 0 0 10px rgba(212, 175, 55, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+        }
+        
+        /* 👇 NOVA ANIMAÇÃO LARANJA 👇 */
+        @keyframes pulse-laranja {
+            0% { box-shadow: 0 0 0 0 rgba(255, 94, 0, 0.5); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 94, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 94, 0, 0); }
+        }
 
-.tracking-input-group {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 5px;
-}
+        .btn-pill-premium {
+            border-radius: 16px; padding: 15px; border: none; width: 100%;
+            cursor: pointer; transition: all 0.2s ease; text-transform: uppercase;
+            font-weight: 900; letter-spacing: 1px; font-size: 14px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn-pill-premium:active { transform: scale(0.96); }
 
-.tracking-input-group input {
-    flex: 1;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #fff;
-    padding: 12px 15px;
-    border-radius: 12px;
-    outline: none;
-    font-size: 14px;
-    transition: 0.3s;
-}
+        /* 👇 BOTÃO ENTRAR AGORA É LARANJA 👇 */
+        .btn-login { 
+            background: var(--primary-orange); 
+            color: white; 
+            box-shadow: 0 8px 20px rgba(255, 94, 0, 0.3); 
+            margin-top: 10px; 
+            animation: pulse-laranja 2.5s infinite; /* Pulsar laranja no botão principal */
+        }
+        .btn-login:hover { background: var(--dark-orange); }
+        
+        .btn-bio { background: rgba(0,0,0,0.5); border: 1px solid var(--accent-gold); color: var(--accent-gold); margin-top: 15px; }
+        .btn-bio:hover { background: rgba(212, 175, 55, 0.1); }
+        
+        .btn-register { background: linear-gradient(45deg, #d4af37, #f1db8a); color: #000; margin-top: 15px; animation: pulse-dourado 2s infinite; }
+        
+        .btn-link { background: none; border: none; color: #888; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.3s; margin-top: 15px; width: 100%; text-align: center; }
+        .btn-link:hover { color: #fff; text-decoration: underline; }
 
-.tracking-input-group input:focus {
-    border-color: #009ee3; /* Fica azul ao clicar */
-    box-shadow: 0 0 8px rgba(0, 158, 227, 0.3);
-}
+        /* =========================================
+           5. 👇 SELETOR DE PERFIL - O GRANDE EFEITO TCL TV 👇
+           ========================================= */
+        
+        /* 👇 NOVA ANIMAÇÃO DE LUZ NEON ESTILO GOOGLE TV PArA TV TCL (MUITO MAIS BONITA) 👇 */
+        @keyframes pulse-neon-google {
+            0% {
+                box-shadow: 0 0 5px rgba(255, 94, 0, 0.5),
+                            0 0 10px rgba(255, 94, 0, 0.3),
+                            inset 0 0 10px rgba(255, 255, 255, 0.2);
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(255, 94, 0, 0.8),
+                            0 0 30px rgba(255, 165, 0, 0.5),
+                            0 0 40px rgba(255, 94, 0, 0.3),
+                            inset 0 0 15px rgba(255, 255, 255, 0.4);
+            }
+            100% {
+                box-shadow: 0 0 5px rgba(255, 94, 0, 0.5),
+                            0 0 10px rgba(255, 94, 0, 0.3),
+                            inset 0 0 10px rgba(255, 255, 255, 0.2);
+            }
+        }
 
-.tracking-input-group button {
-    background: #009ee3;
-    color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 0 20px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 10px rgba(0, 158, 227, 0.3);
-}
+        #role-selector {
+            display: flex; background: rgba(0, 0, 0, 0.5); border-radius: 12px;
+            padding: 5px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.05);
+        }
+        #role-selector .btn {
+            border: none; background: transparent; border-radius: 8px;
+            color: #888; flex: 1; padding: 12px 5px; font-size: 12px; font-weight: 700;
+            transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.5px;
+            cursor: pointer;
+        }
 
-.tracking-input-group button:hover {
-    background: #007bb5;
-    transform: translateY(-2px);
-}
+        /* 👇 O EFEITO DE LUZ NEON ATIVA (ESTILO GOOGLE EM TV) 👇 */
+        #role-selector .btn.active-role {
+            background: var(--primary-orange); 
+            color: #fff; 
+            /* 👇 Aplica a luz neon pulsante 👇 */
+            animation: pulse-neon-google 1.5s infinite ease-in-out;
+            z-index: 1; /* Garante que a luz fique por cima */
+            font-weight: 900;
+        }
 
-.active-package-info {
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 15px;
-    padding: 15px;
-    margin-top: 15px;
-    animation: fadeIn 0.5s ease;
-}
+        /* =========================================
+           6. RASTREIO (ADAPTADO AO TEMA LARANJA)
+           ========================================= */
+        .active-package-info {
+            background: rgba(0, 0, 0, 0.4); border-radius: 15px; padding: 15px;
+            margin-bottom: 20px; 
+            border: 1px solid rgba(255, 94, 0, 0.2); /* Borda laranja translúcida */
+            animation: fadeIn 0.5s ease;
+        }
+        .package-status-header { display: flex; justify-content: space-between; margin-bottom: 12px; color: #fff; font-size: 14px; font-weight: bold; }
+        
+        /* 👇 Status agora é Dourado ou Laranja? Laranja para combinar 👇 */
+        .pkg-status { color: var(--primary-orange); }
 
-.package-status-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: bold;
-}
+        .progress-container { width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+        
+        /* 👇 Barra de progresso agora é Degradê Laranja 👇 */
+        .progress-bar { 
+            height: 100%; 
+            background: linear-gradient(90deg, var(--primary-orange), #ffae00); /* Degradê Laranja-Amarelo */
+            border-radius: 10px; transition: width 1s ease; 
+        }
+        .package-route { display: flex; justify-content: space-between; align-items: center; color: #ccc; font-size: 13px; font-weight: 600; }
+        
+        /* Seta do rastreio laranja */
+        .package-route i { color: var(--primary-orange) !important; }
 
-.pkg-status {
-    color: #d4af37; /* Dourado para destacar o status */
-}
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .hidden { display: none !important; }
 
-.progress-container {
-    width: 100%;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    margin-bottom: 12px;
-    overflow: hidden;
-}
-
-.progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #009ee3, #00d2ff); /* Degradê azul */
-    border-radius: 10px;
-    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.package-route {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: #ccc;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+        /* =========================================
+           7. MODAL RECUPERAÇÃO (TEMA LARANJA)
+           ========================================= */
+        #modal-recover .modal-card-input {
+            background: #1a0f00; /* Fundo escuro laranja */
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #modal-recover h3 { color: var(--primary-orange); }
+        #modal-recover .btn-login { animation: none; } /* Tira pulsar do modal */
     </style>
 
-<script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('App registrado'))
-                .catch(err => console.log('Erro PWA', err));
-        });
-    }
-</script>
+    <script>
+        // PWA Setup original (mantido intacto)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('App registrado'))
+                    .catch(err => console.log('Erro PWA', err));
+            });
+        }
+    </script>
 </head>
 <body>
 
 <div class="login-wrapper">
     <div class="login-card">
-        <div class="company-header" style="text-align: center; margin-bottom: 25px;">
-            <img src="/logo.png" alt="Logo Guineexpress" class="login-logo" style="width: 85px; height: 85px; border-radius: 50%; object-fit: cover; border: 3px solid #d4af37; box-shadow: 0 4px 15px rgba(0,0,0,0.4); margin-bottom: 15px;">
+        
+        <div class="company-header" style="text-align: center; margin-bottom: 20px;">
+            <img src="/logo.png" alt="Logo Guineexpress" class="login-logo">
             <h1>Guineexpress</h1>
-            <p>Logística Internacional</p>
-            <p style="font-size: 11px; margin-top: 8px; color:#bbb;">📍 Av. Tristão Gonçalves, 1203 - (85) 98239-207</p>
+            <p>Logística Internacional Premium</p>
         </div>
 
-    
-    <div id="active-package" class="active-package-info" style="display: none;">
-    <div class="package-status-header">
-        <span class="pkg-code" id="resultado-codigo">GX-1024</span>
-        <span class="pkg-status" id="status-texto">Em trânsito ✈️</span>
-    </div>
-    
-    <div class="progress-container">
-        <div class="progress-bar" id="barra-progresso" style="width: 0%;"></div>
-    </div>
-    
-    <div class="package-route">
-        <span>🇧🇷 Brasil</span>
-        <i class="fa-solid fa-arrow-right" style="color: #009ee3;"></i>
-        <span>🇬🇼 Guiné-Bissau</span>
-    </div>
-    <p id="status-data" style="font-size: 11px; color: #888; text-align: center; margin-top: 10px; margin-bottom: 0;">Última atualização: Hoje</p>
-</div>
-       <div id="role-selector" class="form-group">
-    <button onclick="setRole('client')" class="btn" id="btn-client">Cliente</button>
-    <button onclick="setRole('employee')" class="btn btn-primary" id="btn-employee">Colaborador</button>
-    <button onclick="setRole('admin')" class="btn" id="btn-admin">Admin</button>
-</div>
+        <div id="active-package" class="active-package-info" style="display: none;">
+            <div class="package-status-header">
+                <span class="pkg-code" id="resultado-codigo">GX-1024</span>
+                <span class="pkg-status" id="status-texto">Em trânsito ✈️</span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar" id="barra-progresso" style="width: 0%;"></div>
+            </div>
+            <div class="package-route">
+                <span>🇧🇷 Brasil</span>
+                <i class="fa-solid fa-arrow-right"></i>
+                <span>🇬🇼 Guiné-Bissau</span>
+            </div>
+            <p id="status-data" style="font-size: 10px; color: #888; text-align: center; margin-top: 10px; margin-bottom: 0;">Última atualização: Hoje</p>
+        </div>
+        
+        <div id="role-selector">
+            <button type="button" onclick="mudarVisualRole(this); setRole('client')" class="btn active-role" id="btn-client">Cliente</button>
+            <button type="button" onclick="mudarVisualRole(this); setRole('employee')" class="btn" id="btn-employee">Equipe</button>
+            <button type="button" onclick="mudarVisualRole(this); setRole('admin')" class="btn" id="btn-admin">Admin</button>
+        </div>
 
         <form id="login-form">
-            <h3 style="text-align:center;">Acessar Conta</h3>
-           
-            <div class="form-group" style="position: relative;">
-                <input type="text" id="login-user" class="form-control" placeholder="Nome, E-mail ou Celular" required autocomplete="username" style="margin-bottom: 5px;">
-                
-                
+            <h3>Acesso Restrito</h3>
             
-            <div class="form-group">
-                <input type="password" id="login-pass" class="form-control" placeholder="Sua Senha" required autocomplete="current-password">
+            <div class="input-icon-wrapper">
+                <i class="fas fa-user"></i>
+                <input type="text" id="login-user" class="form-control-glass" placeholder="Nome, E-mail ou Celular" required autocomplete="username">
             </div>
             
-            <button type="submit" class="btn-pill" style="width: 100%; font-weight: 800; background: #009ee3; color: white; margin-top: 5px; font-size: 16px; animation: pulse-azul 2.5s infinite;">ENTRAR</button>
+            <div class="input-icon-wrapper">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="login-pass" class="form-control-glass" placeholder="Sua Senha" required autocomplete="current-password">
+                <i class="fas fa-eye" onclick="togglePassword('login-pass', this)" style="left: auto; right: 16px; color: #888; cursor: pointer; transition: 0.3s;"></i>
+            </div>
             
-            <button id="btn-biometria-login" type="button" onclick="loginComBiometria()" class="btn-pill" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: bold; background: #0a1931; border: 1px solid #d4af37; color: #d4af37; margin-top: 15px; font-size: 15px;">
-                <i class="fas fa-fingerprint" style="font-size: 20px;"></i> Entrar com Impressão Digital
+            <button type="submit" class="btn-pill-premium btn-login">
+                ENTRAR NA PLATAFORMA <i class="fas fa-arrow-right"></i>
+            </button>
+            
+            <button id="btn-biometria-login" type="button" onclick="loginComBiometria()" class="btn-pill-premium btn-bio">
+                <i class="fas fa-fingerprint" style="font-size: 20px;"></i> Acesso Biométrico
             </button>
 
-            <div id="client-links" class="links-inferiores">
-                <button type="button" id="btn-cadastro" onclick="showRegister()">Criar Conta Agora</button>
-                <button type="button" class="btn-esqueci" onclick="openRecoverModal()">Esqueci minha senha</button>
+            <div id="client-links">
+                <button type="button" class="btn-pill-premium btn-register" onclick="showRegister()">
+                    <i class="fas fa-user-plus"></i> CRIAR CONTA GRÁTIS
+                </button>
+                <button type="button" class="btn-link" onclick="openRecoverModal()">Esqueci minha senha</button>
             </div>
         </form>
 
         <form id="register-form" class="hidden">
-            <h3 style="text-align:center;">Novo Cliente</h3>
+            <h3>Novo Cliente</h3>
             
-            <div class="form-group">
-               <select id="reg-country" class="form-control" onchange="updateMasks()" required>
-                    <option value="" disabled selected>Selecione um país...</option>
+            <div class="input-icon-wrapper">
+                <i class="fas fa-globe"></i>
+                <select id="reg-country" class="form-control-glass" onchange="updateMasks()" required>
+                    <option value="" disabled selected>Selecione seu país...</option>
                     <option value="GW">Guiné-Bissau</option>
                     <option value="BR">Brasil</option>
                     <option value="PT">Portugal</option>
@@ -409,41 +330,51 @@
                 </select>
             </div>
 
-            <div class="form-group">
-                <input type="text" id="reg-name" class="form-control" placeholder="Nome Completo" required autocomplete="name">
+            <div class="input-icon-wrapper">
+                <i class="fas fa-id-card"></i>
+                <input type="text" id="reg-name" class="form-control-glass" placeholder="Nome Completo" required autocomplete="name">
             </div>
-            <div class="form-group">
-                <input type="email" id="reg-email" class="form-control" placeholder="Gmail ou Hotmail" required autocomplete="email">
+            <div class="input-icon-wrapper">
+                <i class="fas fa-envelope"></i>
+                <input type="email" id="reg-email" class="form-control-glass" placeholder="E-mail (Gmail ou Hotmail)" required autocomplete="email">
             </div>
-            <div class="form-group">
-                <input type="text" id="reg-phone" class="form-control" placeholder="Celular" required autocomplete="tel">
+            <div class="input-icon-wrapper">
+                <i class="fas fa-phone"></i>
+                <input type="text" id="reg-phone" class="form-control-glass" placeholder="Celular / WhatsApp" required autocomplete="tel">
             </div>
-            <div class="form-group">
-                <input type="text" id="reg-doc" class="form-control" placeholder="Documento (ID/CPF)" required autocomplete="off">
+            <div class="input-icon-wrapper">
+                <i class="fas fa-passport"></i>
+                <input type="text" id="reg-doc" class="form-control-glass" placeholder="Documento (ID/CPF)" required autocomplete="off">
             </div>
-            <div class="form-group">
-                <input type="password" id="reg-pass" class="form-control" placeholder="Senha" required autocomplete="new-password">
+            <div class="input-icon-wrapper">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="reg-pass" class="form-control-glass" placeholder="Crie uma Senha" required autocomplete="new-password">
+                <i class="fas fa-eye" onclick="togglePassword('reg-pass', this)" style="left: auto; right: 16px; color: #888; cursor: pointer;"></i>
             </div>
-            <div class="form-group">
-                <input type="password" id="reg-pass2" class="form-control" placeholder="Confirmar Senha" required autocomplete="new-password">
+            <div class="input-icon-wrapper">
+                <i class="fas fa-check-circle"></i>
+                <input type="password" id="reg-pass2" class="form-control-glass" placeholder="Confirme a Senha" required autocomplete="new-password">
             </div>
 
-            <button type="submit" class="btn-pill" style="width: 100%; background: #28a745; color: white; font-weight: bold; font-size: 16px; margin-top: 10px; animation: pulse-verde 2s infinite;">CADASTRAR</button>
-            <p onclick="showLogin()" style="text-align:center; margin-top:20px; font-size:14px; cursor:pointer;"><i class="fa-solid fa-arrow-left"></i> Voltar para Login</p>
+            <button type="submit" class="btn-pill-premium" style="background: #28a745; color: white; box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);">
+                FINALIZAR CADASTRO
+            </button>
+            <button type="button" class="btn-link" onclick="showLogin()">
+                <i class="fa-solid fa-arrow-left"></i> Já tenho conta. Voltar
+            </button>
         </form>
     </div>
 </div>
 
-<div id="modal-recover" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center;">
-    <div style="background: white; padding: 30px; border-radius: 30px; max-width: 350px; width: 90%; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-        <h3 style="color: #009ee3; margin-bottom: 10px;">Recuperar Senha</h3>
-        <p style="color: #555; font-size: 14px; margin-bottom: 20px;">Digite seu Email ou Celular cadastrado. Enviaremos as instruções.</p>
+<div id="modal-recover" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 9999; display: flex; justify-content: center; align-items: center;">
+    <div class="modal-card-input" style="background: #1a0f00; padding: 30px; border-radius: 24px; max-width: 350px; width: 90%; text-align: center; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
+        <h3 style="margin-bottom: 10px; font-weight: 800;"><i class="fas fa-unlock-alt"></i> Recuperar Senha</h3>
+        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 25px;">Digite seu Email ou Celular cadastrado. Enviaremos um link seguro.</p>
         
-        <input type="text" id="recover-input" class="form-control" placeholder="ex: lelo@gmail.com" style="border: 2px solid #ccc; background: #f9f9f9;">
+        <input type="text" id="recover-input" class="form-control-glass" placeholder="ex: seuemail@gmail.com" style="margin-bottom: 20px; text-align: center; padding-left: 15px;">
         
-        <button id="btn-send-recover" class="btn-pill" onclick="sendRecoveryRequest()" style="width: 100%; background: #009ee3; color: white; font-weight: bold; margin-bottom: 10px; animation: pulse-azul 2s infinite;">ENVIAR</button>
-        
-        <button type="button" class="btn-pill" onclick="closeRecoverModal()" style="width: 100%; background: #eee; color: #333; font-weight: bold;">Cancelar</button>
+        <button id="btn-send-recover" class="btn-pill-premium btn-login" onclick="sendRecoveryRequest()" style="margin-bottom: 10px;">ENVIAR LINK</button>
+        <button type="button" class="btn-pill-premium" onclick="closeRecoverModal()" style="background: transparent; color: #94a3b8; border: 1px solid #475569;">CANCELAR</button>
     </div>
 </div>
 
@@ -451,12 +382,42 @@
     <i class="fas fa-download" style="font-size: 20px;"></i> Instalar App
 </button>
 
-<div id="modal-ios-install" style="display: none; position: fixed; bottom: 110px; right: 30px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 9998; width: 260px; text-align: center; border: 2px solid #009ee3;">
+<div id="modal-ios-install" style="display: none; position: fixed; bottom: 110px; right: 30px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 9998; width: 260px; text-align: center; border: 2px solid var(--primary-orange);">
     <h4 style="color: #0a1931; margin-top: 0; margin-bottom: 10px; font-size: 16px; font-weight: 800;">Instalar no iPhone 🍎</h4>
     <p style="font-size: 14px; color: #333; margin-bottom: 15px; line-height: 1.4;">Para instalar, toque no ícone de <strong>Compartilhar</strong> <i class="fa-solid fa-arrow-up-from-bracket"></i> na barra do Safari e depois escolha:<br><br><strong>"Adicionar à Tela de Início"</strong> <i class="fa-solid fa-square-plus"></i></p>
-    <button onclick="document.getElementById('modal-ios-install').style.display='none'" class="btn-pill" style="background: #eee; color: #333; padding: 8px 15px; font-size: 13px; width: 100%; font-weight: bold;">Entendi</button>
+    <button onclick="document.getElementById('modal-ios-install').style.display='none'" class="btn-pill-premium" style="background: #eee; color: #333; padding: 10px; font-size: 13px; font-weight: bold;">Entendi</button>
 </div>
+
 <script src="cici.js"></script>
 <script src="script.js?v=2.0"></script>
+
+<script>
+    /* 👇 FUNÇÕES EXTRAS VISUAIS INSERIDAS PARA O NOVO TEMA 👇 */
+
+    // 1. Função Visual: Troca o estado 'active-role' nos botões de perfil
+    function mudarVisualRole(btnClicado) {
+        // Tira a classe active-role (e o neon) de todos os botões do seletor
+        document.querySelectorAll('#role-selector .btn').forEach(b => b.classList.remove('active-role'));
+        // Adiciona a classe (e o neon) apenas no que o usuário clicou
+        btnClicado.classList.add('active-role');
+    }
+
+    // 2. Função Visual: Olhinho da Senha (Muda ícone e brilha dourado)
+    function togglePassword(inputId, iconElement) {
+        const input = document.getElementById(inputId);
+        if (input.type === "password") {
+            input.type = "text";
+            iconElement.classList.remove('fa-eye');
+            iconElement.classList.add('fa-eye-slash');
+            iconElement.style.color = '#d4af37'; // Brilha dourado ao mostrar
+        } else {
+            input.type = "password";
+            iconElement.classList.remove('fa-eye-slash');
+            iconElement.classList.add('fa-eye');
+            iconElement.style.color = '#888'; // Volta pro cinza ao esconder
+        }
+    }
+</script>
+
 </body>
 </html>
