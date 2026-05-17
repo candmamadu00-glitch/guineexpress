@@ -301,19 +301,46 @@
                 </div>
             </div>
 
-            <div style="background: white; padding: 15px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-wrap: wrap; gap: 15px; justify-content: space-between; align-items: center;">
-                <div style="position: relative; flex-grow: 1; min-width: 280px;">
-                    <input type="text" id="admin-search-order" oninput="filtrarPedidosAdminPainel()" placeholder="🔍 Buscar por Nº do Pedido ou Nome do Cliente..." style="width: 100%; padding: 14px 15px 14px 45px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 14px; outline: none; transition: 0.3s;" onfocus="this.style.borderColor='#dfaf12'">
-                    <i class="fas fa-search" style="position: absolute; left: 18px; top: 16px; color: #94a3b8; font-size: 16px;"></i>
-                </div>
-                
-                <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none;">
-                    <button class="btn-filtro-admin active" onclick="mudarFiltroAdmin('Todos', this)" style="background: #0a1931; color: white; border: none; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">Todos</button>
-                    <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Aguardando Pagamento', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">⏳ Pendentes</button>
-                    <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Pago', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">✅ Pagos</button>
-                    <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Enviado', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;">✈️ Enviados</button>
-                </div>
-            </div>
+            <div style="background: white; padding: 15px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+    
+    <div style="position: relative; flex: 1; min-width: 250px;">
+        <input type="text" id="admin-search-order" oninput="filtrarPedidosAdminPainel()" placeholder="🔍 Buscar por Nº ou Nome..." style="width: 100%; padding: 12px 15px 12px 40px; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 14px; outline: none; transition: 0.3s;" onfocus="this.style.borderColor='#dfaf12'">
+        <i class="fas fa-search" style="position: absolute; left: 15px; top: 14px; color: #94a3b8; font-size: 14px;"></i>
+    </div>
+
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <select id="filtro-mes-loja" onchange="filtrarPedidosAdminPainel()" style="padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: bold; font-size: 13px; cursor: pointer; outline: none;">
+            <option value="Todos">📅 Todos os Meses</option>
+            <option value="01">01 - Janeiro</option>
+            <option value="02">02 - Fevereiro</option>
+            <option value="03">03 - Março</option>
+            <option value="04">04 - Abril</option>
+            <option value="05">05 - Maio</option>
+            <option value="06">06 - Junho</option>
+            <option value="07">07 - Julho</option>
+            <option value="08">08 - Agosto</option>
+            <option value="09">09 - Setembro</option>
+            <option value="10">10 - Outubro</option>
+            <option value="11">11 - Novembro</option>
+            <option value="12">12 - Dezembro</option>
+        </select>
+
+        <select id="filtro-ano-loja" onchange="filtrarPedidosAdminPainel()" style="padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: bold; font-size: 13px; cursor: pointer; outline: none;">
+            <option value="Todos">Ano Todo</option>
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
+        </select>
+    </div>
+
+    <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; width: 100%;">
+        <button class="btn-filtro-admin active" onclick="mudarFiltroAdmin('Todos', this)" style="background: var(--primary-orange, #ea580c); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap;">Todos</button>
+        <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Aguardando Pagamento', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap;">⏳ Pendentes</button>
+        <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Pago', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap;">✅ Pagos</button>
+        <button class="btn-filtro-admin" onclick="mudarFiltroAdmin('Enviado', this)" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap;">✈️ Enviados</button>
+    </div>
+</div>
 
             <div id="admin-orders-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;"></div>
         </div>
@@ -548,12 +575,16 @@
     <option value="Em Trânsito Lisboa">Em Transito Lisboa 🛬</option>
     <option value="Chegou a Bissau">Chegou a Bissau 📍</option>
     <option value="Entregue">Entregue ✅</option>
-</select>
-                        <button onclick="applyBulkStatus()" style="background: #0d6efd; color: white; border: none; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+      </select>
+            <button onclick="applyBulkStatus()" style="background: #0d6efd; color: white; border: none; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
                             Aplicar
                         </button>
                     </div>
                 </div>
+
+                <button class="btn" onclick="alternarSelecaoEncomendas()" style="background-color: #3b82f6; color: white; font-weight: bold; flex-grow: 1; text-align: center; justify-content: center; min-width: 150px; border: none;">
+                    <i class="fas fa-check-square"></i> Selecionar Todas
+                </button>
 
                 <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white; flex-grow: 1; text-align: center; justify-content: center; min-width: 140px;">
                     <i class="fas fa-file-excel"></i> Baixar Excel
@@ -1040,45 +1071,55 @@
             
             <button onclick="loadInvoices()" class="btn-secondary" style="flex-shrink: 0; margin: 0; white-space: nowrap;">🔄 Atualizar</button>
             <button onclick="downloadInvoicesPDF()" class="btn-primary" style="background-color: #d32f2f; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; flex-shrink: 0; white-space: nowrap;">📄 Baixar PDF</button>
+            
+            <button onclick="alternarSelecaoFaturas()" class="btn" style="background-color: #3b82f6; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; white-space: nowrap;">
+                <i class="fas fa-check-square"></i> Selecionar Todas
+            </button>
+            <button onclick="apagarFaturasSelecionadas()" class="btn" style="background-color: #ef4444; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; white-space: nowrap;">
+                <i class="fas fa-trash-alt"></i> Apagar Selecionadas
+            </button>
         </div>
     </div>
 
-        <div style="margin-top: 20px; background: rgba(0, 0, 255, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid blue;">
-            <h4 style="color: blue; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-eye"></i> 👀 Em Análise (Aguardando sua conferência)</h4>
-            <table class="data-table" style="width: 100%;">
-                <thead>
-                    <tr>
-                        <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Status</th> <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="invoices-review-list"></tbody>
-            </table>
-        </div>
+    <div style="margin-top: 20px; background: rgba(0, 0, 255, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid blue;">
+        <h4 style="color: blue; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-eye"></i> 👀 Em Análise (Aguardando sua conferência)</h4>
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" onclick="alternarSelecaoFaturas(this)"></th>
+                    <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Status</th> <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="invoices-review-list"></tbody>
+        </table>
+    </div>
 
-        <div style="margin-top: 20px; background: rgba(255, 165, 0, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid orange;">
-            <h4 style="color: orange; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-hourglass-half"></i> ⏳ Pendentes (Não Pagos)</h4>
-            <table class="data-table" style="width: 100%;">
-                <thead>
-                    <tr>
-                        <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Status</th> <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="invoices-pending-list"></tbody>
-            </table>
-        </div>
+    <div style="margin-top: 20px; background: rgba(255, 165, 0, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid orange;">
+        <h4 style="color: orange; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-hourglass-half"></i> ⏳ Pendentes (Não Pagos)</h4>
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" onclick="alternarSelecaoFaturas(this)"></th>
+                    <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Status</th> <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="invoices-pending-list"></tbody>
+        </table>
+    </div>
 
-        <div style="margin-top: 20px; background: rgba(0, 128, 0, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid green;">
-    <h4 style="color: green; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-check-circle"></i> ✅ Pagos (Finalizados)</h4>
-    <table class="data-table" style="width: 100%;">
-        <thead>
-            <tr>
-                <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Data</th> <th>Status</th> <th>Ações</th>
-            </tr>
-        </thead>
-        <tbody id="invoices-paid-list"></tbody>
-    </table>
+    <div style="margin-top: 20px; background: rgba(0, 128, 0, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid green;">
+        <h4 style="color: green; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-check-circle"></i> ✅ Pagos (Finalizados)</h4>
+        <table class="data-table" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" onclick="alternarSelecaoFaturas(this)"></th>
+                    <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Data</th> <th>Status</th> <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="invoices-paid-list"></tbody>
+        </table>
+    </div>
 </div>
-    </div>
 </section>
 
         <section id="expenses-view" class="hidden">
@@ -1235,14 +1276,23 @@
         </section>
 
         <section id="labels-view" class="hidden">
-            <div class="header-flex">
-                <h2>🏷️ Gerador de Etiquetas</h2>
-                <div>
-                    <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold;">
-                        <i class="fas fa-print"></i> Imprimir Selecionadas
-                    </button>
-                </div>
-            </div>
+    <div class="header-flex" style="flex-wrap: wrap; gap: 10px;">
+        <h2 style="margin: 0;">🏷️ Gerador de Etiquetas</h2>
+        
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; width: 100%;">
+            <button onclick="alternarSelecaoTodas()" class="btn" style="background: #3b82f6; color: white; font-weight: bold; border: none; flex-grow: 1;">
+                <i class="fas fa-check-square"></i> Selecionar Todas
+            </button>
+
+            <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold; border: none; flex-grow: 1;">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+            
+            <button onclick="apagarEtiquetasSelecionadas()" class="btn" style="background: #ef4444; color: white; font-weight: bold; border: none; flex-grow: 1;">
+                <i class="fas fa-trash-alt"></i> Apagar
+            </button>
+        </div>
+    </div>
 
             <div class="card" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
                 <select id="label-lot-filter" onchange="loadLabels()" class="form-control" style="flex: 1; min-width: 200px; font-weight: bold; cursor: pointer;">

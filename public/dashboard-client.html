@@ -24,6 +24,89 @@
     #store-admin-view .sub-aba-btn[style*="background: #0a1931"] { background: #ee4d2d !important; color: white !important; border-color: #ee4d2d !important;}
     #store-admin-view button[type="submit"] { background: #ee4d2d !important; color: white !important; }
     #store-admin-view i.fa-store { color: #ee4d2d !important; }
+    /* ==========================================
+       ✨ VITRINE VIP 3D (Cores, Fundo e Animações)
+       ========================================== */
+    
+    /* 1. Aurora Gradient Animation (O Fundo que muda de cor a cada 5s) */
+    .aurora-bg {
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        z-index: 9000; /* Fica acima de tudo quando ativado */
+        background: linear-gradient(45deg, #0a1931, #8e44ad, #d4af37, #ee4d2d, #009ee3);
+        background-size: 500% 500%;
+        animation: gradientAurora 20s ease infinite; /* 20s total, muda a cada 4/5s */
+        display: none;
+        overflow-y: auto;
+        padding-bottom: 50px;
+    }
+    
+    @keyframes gradientAurora {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    /* 2. Efeito de Vidro (Glassmorphism) para o Conteúdo VIP */
+    .vip-glass-container {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 20px;
+        margin: 20px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+
+    /* 3. Bandeiras 3D Giratórias */
+    .flag-3d-container {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin-bottom: 20px;
+        perspective: 1000px;
+    }
+    .flag-3d {
+        width: 40px; height: 30px;
+        border-radius: 4px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+        animation: rotateFlag 6s infinite linear;
+        transform-style: preserve-3d;
+    }
+    .flag-br { background: url('https://upload.wikimedia.org/wikipedia/commons/0/05/Flag_of_Brazil.svg') center/cover; }
+    .flag-gw { background: url('https://upload.wikimedia.org/wikipedia/commons/0/01/Flag_of_Guinea-Bissau.svg') center/cover; }
+    
+    @keyframes rotateFlag {
+        0% { transform: rotateY(0deg) rotateX(5deg); }
+        50% { transform: rotateY(180deg) rotateX(-5deg); }
+        100% { transform: rotateY(360deg) rotateX(5deg); }
+    }
+
+    /* 4. O Botão Mágico para entrar na Vitrine VIP */
+    .btn-enter-vip {
+        background: linear-gradient(135deg, #d4af37, #f1db8a);
+        color: #0a1931;
+        border: none;
+        padding: 15px;
+        border-radius: 12px;
+        font-weight: 900;
+        font-size: 16px;
+        cursor: pointer;
+        width: 100%;
+        box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+        animation: pulseVip 2s infinite;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        text-transform: uppercase;
+    }
+    @keyframes pulseVip {
+        0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
+        70% { box-shadow: 0 0 0 15px rgba(212, 175, 55, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+    }
 </style>
     <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
     <link rel="stylesheet" href="cici.css">
@@ -36,11 +119,14 @@
         <i class="fas fa-paint-brush" style="font-size: 20px;"></i>
     </button>
 </div> 
-<div style="text-align: right; margin-bottom: 15px; padding: 0 20px;">
-    <button id="btnToggleHistory" onclick="alternarHistorico()" style="background: #6c757d; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-        <i class="fas fa-history"></i> Mostrar Histórico (Entregues)
+<div style="display: flex; gap: 10px; margin-bottom: 20px; padding: 0 20px;">
+    <button id="tab-andamento" onclick="mudarAbaPedidosCliente('andamento')" style="flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: bold; font-size: 14px; background: var(--primary-orange, #ea580c); color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(234, 88, 12, 0.3); transition: 0.3s;">
+        <i class="fas fa-truck-fast"></i> Em Andamento
     </button>
-</div>       
+    <button id="tab-historico" onclick="mudarAbaPedidosCliente('historico')" style="flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: bold; font-size: 14px; background: #f1f5f9; color: #64748b; cursor: pointer; border: 1px solid #cbd5e1; transition: 0.3s;">
+        <i class="fas fa-history"></i> Histórico (Entregues)
+    </button>
+</div>   
 <link rel="icon" type="image/png" href="/logo.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -385,7 +471,7 @@
                             <i class="fas fa-check"></i>
                         </div>
                     </div>
-
+                      
                     <div>
                         <p style="color: #a0aec0; font-size: 14px; margin: 0; margin-bottom: 2px;">Bem-vindo de volta,</p>
                         <h2 style="color: white; margin: 0; font-size: 22px; font-weight: bold;">
@@ -401,7 +487,8 @@
                     <i class="fas fa-cog" style="font-size: 20px;"></i>
                 </button>
             </div>
-                           <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin: 20px 0; border: 2px dashed #009ee3; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin: 20px 0; border: 2px dashed #009ee3; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
     <div style="font-size: 30px; color: #0a1931; margin-bottom: 10px;">
         <i class="fas fa-fingerprint"></i>
     </div>
@@ -413,12 +500,18 @@
         <i class="fas fa-plus-circle"></i> Ativar Impressão Digital Agora
     </button>
 </div>
+<div style="margin: 25px 0;">
+    <button type="button" onclick="abrirVitrineVip()" class="btn-enter-vip">
+        <i class="fas fa-gem"></i> Explorar Catálogo VIP 3D
+    </button>
+</div>
             <div class="stats-grid">
                 <div class="stat-card" style="border-bottom-color: #007bff;" onclick="showSection('orders-view')">
                     <div class="stat-icon" style="color: #007bff;"><i class="fas fa-box-open"></i></div>
                     <div class="stat-number" id="dash-orders-count">-</div>
                     <div class="stat-label">Minhas Encomendas</div>
                 </div>
+                
                 <div class="chart-container">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
         <h3 style="color:#0a1931; margin:0;">📊 Resumo de Importações</h3>
@@ -1808,6 +1901,47 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
             }
         });
     });
+</script>
+<section id="store-vip-view" class="aurora-bg">
+    
+    <div class="vip-glass-container" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-radius: 0 0 25px 25px; margin: 0 0 20px 0;">
+        <button onclick="fecharVitrineVip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; backdrop-filter: blur(5px); cursor: pointer;">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        <div style="text-align: center;">
+            <h2 style="color: white; margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 2px;">GUINEEXPRESS</h2>
+            <span style="color: #d4af37; font-size: 10px; font-weight: bold; letter-spacing: 3px;">PREMIUM COLLECTION</span>
+        </div>
+        <div style="width: 40px;"></div> </div>
+
+    <div class="flag-3d-container">
+        <div class="flag-3d flag-br"></div>
+        <i class="fas fa-plane" style="color: white; font-size: 18px; align-self: center; opacity: 0.8; animation: flyRight 3s infinite linear;"></i>
+        <div class="flag-3d flag-gw"></div>
+    </div>
+    
+    <style>
+        @keyframes flyRight { 0% { transform: translateX(-10px); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateX(10px); opacity: 0; } }
+    </style>
+
+    <div style="padding: 0 20px;">
+        <h3 style="color: white; text-align: center; margin-bottom: 20px; font-weight: 300; letter-spacing: 1px;">Toque num produto para a magia acontecer.</h3>
+        
+        <div id="vip-products-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px;">
+            </div>
+    </div>
+
+</section>
+
+<script>
+    function abrirVitrineVip() {
+        document.getElementById('store-vip-view').style.display = 'block';
+        carregarLojaVip(); // <--- Isto é o gatilho da magia!
+    }
+    
+    function fecharVitrineVip() {
+        document.getElementById('store-vip-view').style.display = 'none';
+    }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>

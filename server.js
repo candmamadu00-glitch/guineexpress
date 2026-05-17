@@ -2082,6 +2082,7 @@ app.get('/api/boxes', (req, res) => {
     
     db.all(sql, params, (err, rows) => res.json(rows));
 });
+
 // ROTA DO PAINEL FINANCEIRO (Junta Encomendas e Faturas com Lotes)
 app.get('/api/finances/all', async (req, res) => {
     const isAdminOrEmployee = req.session.role === 'admin' || req.session.role === 'employee';
@@ -2137,6 +2138,43 @@ app.get('/api/finances/all', async (req, res) => {
         console.error("Erro na rota /api/finances/all:", err);
         res.status(500).json({ error: "Erro ao gerar relatório financeiro" });
     }
+});
+// =======================================================
+// 🗑️ LIXEIRA: APAGAR ETIQUETAS (CAIXAS E ENCOMENDAS) EM MASSA
+// =======================================================
+app.post('/api/labels/bulk-delete', (req, res) => {
+    // Proteção de segurança: apenas admin pode apagar
+    if (!req.session || req.session.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Acesso negado. Apenas administradores.' });
+    }
+
+    const { items } = req.body;
+    if (!items || items.length === 0) return res.json({ success: true });
+
+    let concluidos = 0;
+    let houveErro = false;
+
+    items.forEach(item => {
+        const tabela = item.type === 'box' ? 'boxes' : 'orders';
+        
+        // Faz o "Soft Delete" (arquiva) para limpar a tela sem estragar o financeiro
+        db.run(`UPDATE ${tabela} SET deleted = 1 WHERE id = ?`, [item.id], (err) => {
+            if (err) {
+                console.error(`Erro ao apagar da tabela ${tabela}:`, err);
+                houveErro = true;
+            }
+            
+            concluidos++;
+            // Quando terminar de processar o último item, avisa o frontend
+            if (concluidos === items.length) {
+                if (houveErro) {
+                    res.json({ success: false, message: 'Erro ao apagar alguns itens no banco de dados.' });
+                } else {
+                    res.json({ success: true });
+                }
+            }
+        });
+    });
 });
 // --- ROTA CORRIGIDA: CRIAR ENCOMENDA (COM CAÇA-FANTASMAS DA LIXEIRA ANTIGA) ---
 app.post('/api/orders/create', (req, res) => {
@@ -3719,6 +3757,38 @@ app.post('/api/boxes/set-receiver', (req, res) => {
             res.json({success: true});
         }
     );
+});
+// ==========================================
+// 🗑️ ROTA: APAGAR FATURAS EM MASSA
+// ==========================================
+app.post('/api/invoices/bulk-delete', (req, res) => {
+    if (!req.session || req.session.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Acesso negado. Apenas administradores.' });
+    }
+
+    const { ids } = req.body;
+    if (!ids || ids.length === 0) return res.json({ success: true });
+
+    let concluidos = 0;
+    let houveErro = false;
+
+    ids.forEach(id => {
+        db.run(`DELETE FROM invoices WHERE id = ?`, [id], (err) => {
+            if (err) {
+                console.error(`Erro ao apagar fatura ${id}:`, err);
+                houveErro = true;
+            }
+            
+            concluidos++;
+            if (concluidos === ids.length) {
+                if (houveErro) {
+                    res.json({ success: false, message: 'Erro ao apagar algumas faturas.' });
+                } else {
+                    res.json({ success: true });
+                }
+            }
+        });
+    });
 });
 // ==========================================
 // SISTEMA DE BACKUP AUTOMÁTICO
