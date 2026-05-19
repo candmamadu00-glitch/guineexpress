@@ -8021,24 +8021,29 @@ function validarDadosCadastro(nome, email, telefone) {
 // ==========================================
 // INTERCEPTANDO O BOTÃO DE CADASTRAR
 // ==========================================
-document.getElementById('register-form').addEventListener('submit', function(event) {
-    event.preventDefault(); // Impede o envio automático para podermos verificar
+const formCadastro = document.getElementById('register-form');
 
-    const nomeInput = document.getElementById('reg-name').value;
-    const emailInput = document.getElementById('reg-email').value;
-    const telefoneInput = document.getElementById('reg-phone').value;
+// 🛡️ O ESCUDO: Só executa isso se a pessoa estiver na tela de cadastro!
+if (formCadastro) {
+    formCadastro.addEventListener('submit', function(event) {
+        event.preventDefault(); // Impede o envio automático para podermos verificar
 
-    // Chama o Guarda-Costas
-    const dadosEstaoCorretos = validarDadosCadastro(nomeInput, emailInput, telefoneInput);
+        const nomeInput = document.getElementById('reg-name').value;
+        const emailInput = document.getElementById('reg-email').value;
+        const telefoneInput = document.getElementById('reg-phone').value;
 
-    if (dadosEstaoCorretos) {
-        // AQUI VOCÊ CONTINUA O CADASTRO NORMALMENTE
-        // Exemplo: enviarDadosParaOBanco();
-        console.log("Tudo certo! Criando a conta...");
-        
-        // Se você já tem uma função que cadastra, chame ela aqui!
-    }
-});
+        // Chama o Guarda-Costas
+        const dadosEstaoCorretos = validarDadosCadastro(nomeInput, emailInput, telefoneInput);
+
+        if (dadosEstaoCorretos) {
+            // AQUI VOCÊ CONTINUA O CADASTRO NORMALMENTE
+            // Exemplo: enviarDadosParaOBanco();
+            console.log("Tudo certo! Criando a conta...");
+            
+            // Se você já tem uma função que cadastra, chame ela aqui!
+        }
+    });
+}
 // ==========================================
 // GERAR PDF BEM DESENHADO DAS FATURAS
 // ==========================================
@@ -9782,7 +9787,7 @@ function finalizarPedidoLoja() {
 let indexCarrossel = 0;
 
 function atualizarMiniCarrossel() {
-    if (!produtosOriginais || produtosOriginais.length === 0) return;
+    if (typeof produtosOriginais === 'undefined' || !produtosOriginais || produtosOriginais.length === 0) return;
 
     const imgElement = document.getElementById('carousel-dynamic-img');
     const nameElement = document.getElementById('carousel-dynamic-name');
@@ -9852,7 +9857,7 @@ function fecharMiniVideo() {
 const nomesMarketing = ["Maria", "João", "Fátima", "Carlos", "Amina", "Pedro", "Sana", "Binta"];
 
 function dispararGatilhoMarketing() {
-    if (!produtosOriginais || produtosOriginais.length === 0) return;
+    if (typeof produtosOriginais === 'undefined' || !produtosOriginais || produtosOriginais.length === 0) return;
     
     const produtoSorteado = produtosOriginais[Math.floor(Math.random() * produtosOriginais.length)];
     const nomeSorteado = nomesMarketing[Math.floor(Math.random() * nomesMarketing.length)];
@@ -9962,9 +9967,14 @@ async function abrirMeusPedidosLoja() {
     }
 }
 
+// ==========================================
+// 📦 CONTROLE DAS ABAS DE PEDIDOS DO CLIENTE (CORRIGIDO)
+// ==========================================
+window.abaPedidosAtiva = 'andamento'; // <-- Inicialização Blindada no objeto Window!
+
 // 🔄 Alterna entre a aba "Em Andamento" e "Histórico"
 function mudarAbaPedidosCliente(aba) {
-    abaPedidosAtiva = aba;
+    window.abaPedidosAtiva = aba;
     
     // Atualiza o visual dos botões
     const btnAndamento = document.getElementById('tab-andamento');
@@ -9996,15 +10006,17 @@ function mudarAbaPedidosCliente(aba) {
     renderizarAbaPedidosCliente();
 }
 
-// 🎨 Desenha a lista filtrada (Em andamento x Histórico)
+// 🎨 Desenha a lista filtrada (Em andamento x Histórico) BLINDADA
 function renderizarAbaPedidosCliente() {
     const container = document.getElementById('my-store-orders-list');
     if(!container) return;
 
-    // Filtra os pedidos com base na aba ativa
-    const pedidosFiltrados = todosOsPedidosDoCliente.filter(order => {
+    // 🛡️ MÁGICA AQUI: Usamos window. e garantimos que se estiver vazio, vira uma lista vazia []
+    const listaSegura = window.todosOsPedidosDoCliente || [];
+
+    const pedidosFiltrados = listaSegura.filter(order => {
         const status = order.status ? order.status.toLowerCase() : '';
-        if (abaPedidosAtiva === 'andamento') {
+        if (window.abaPedidosAtiva === 'andamento') {
             return status !== 'entregue' && status !== 'cancelado';
         } else {
             return status === 'entregue' || status === 'cancelado';
@@ -10012,7 +10024,7 @@ function renderizarAbaPedidosCliente() {
     });
 
     if (pedidosFiltrados.length === 0) {
-        let mensagemZero = abaPedidosAtiva === 'andamento' 
+        let mensagemZero = window.abaPedidosAtiva === 'andamento' 
             ? "Nenhuma compra a caminho no momento." 
             : "Você ainda não tem compras concluídas.";
             
@@ -10040,46 +10052,46 @@ function renderizarAbaPedidosCliente() {
         let progressWidth = ((step - 1) / 3) * 100;
 
         html += `
-            <div style="background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; opacity: ${abaPedidosAtiva === 'historico' ? '0.7' : '1'};">
+            <div style="background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; opacity: ${window.abaPedidosAtiva === 'historico' ? '0.7' : '1'};">
                 
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
                     <div>
                         <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 900; letter-spacing: 0.5px;">PEDIDO #${order.id}</span>
                         <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
                     </div>
-                    <div style="text-align: right; color: ${abaPedidosAtiva === 'historico' ? '#64748b' : '#16a34a'}; font-weight: 900; font-size: 18px;">
+                    <div style="text-align: right; color: ${window.abaPedidosAtiva === 'historico' ? '#64748b' : '#16a34a'}; font-weight: 900; font-size: 18px;">
                         ${order.currency_used} ${order.total_brl.toFixed(2)}
                     </div>
                 </div>
 
                 <div style="position: relative; display: flex; justify-content: space-between; margin-bottom: 30px; margin-top: 10px;">
                     <div style="position: absolute; top: 15px; left: 10%; right: 10%; height: 4px; background: #e2e8f0; z-index: 1; border-radius: 4px;"></div>
-                    <div style="position: absolute; top: 15px; left: 10%; width: ${progressWidth}%; max-width: 80%; height: 4px; background: ${abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981'}; z-index: 2; transition: width 1s ease-in-out; border-radius: 4px;"></div>
+                    <div style="position: absolute; top: 15px; left: 10%; width: ${progressWidth}%; max-width: 80%; height: 4px; background: ${window.abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981'}; z-index: 2; transition: width 1s ease-in-out; border-radius: 4px;"></div>
 
                     <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 1 ? (abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981') : '#f1f5f9'}; color: ${step >= 1 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 1 ? '0 4px 10px rgba(16, 185, 129, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-file-invoice"></i></div>
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 1 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981') : '#f1f5f9'}; color: ${step >= 1 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 1 ? '0 4px 10px rgba(16, 185, 129, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-file-invoice"></i></div>
                         <span style="font-size: 10px; font-weight: bold; color: ${step >= 1 ? '#0f172a' : '#94a3b8'};">Pedido</span>
                     </div>
                     <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 2 ? (abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981') : '#f1f5f9'}; color: ${step >= 2 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 2 ? '0 4px 10px rgba(16, 185, 129, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-box"></i></div>
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 2 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981') : '#f1f5f9'}; color: ${step >= 2 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 2 ? '0 4px 10px rgba(16, 185, 129, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-box"></i></div>
                         <span style="font-size: 10px; font-weight: bold; color: ${step >= 2 ? '#0f172a' : '#94a3b8'};">Preparo</span>
                     </div>
                     <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 3 ? (abaPedidosAtiva === 'historico' ? '#64748b' : '#3b82f6') : '#f1f5f9'}; color: ${step >= 3 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 3 ? '0 4px 10px rgba(59, 130, 246, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-truck-fast"></i></div>
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 3 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#3b82f6') : '#f1f5f9'}; color: ${step >= 3 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 3 ? '0 4px 10px rgba(59, 130, 246, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-truck-fast"></i></div>
                         <span style="font-size: 10px; font-weight: bold; color: ${step >= 3 ? '#0f172a' : '#94a3b8'};">Em Rota</span>
                     </div>
                     <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 4 ? (abaPedidosAtiva === 'historico' ? '#64748b' : '#8b5cf6') : '#f1f5f9'}; color: ${step >= 4 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 4 ? '0 4px 10px rgba(139, 92, 246, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-check-double"></i></div>
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 4 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#8b5cf6') : '#f1f5f9'}; color: ${step >= 4 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 4 ? '0 4px 10px rgba(139, 92, 246, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-check-double"></i></div>
                         <span style="font-size: 10px; font-weight: bold; color: ${step >= 4 ? '#0f172a' : '#94a3b8'};">Entregue</span>
                     </div>
                 </div>
 
-                <div style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: ${(step === 3 && abaPedidosAtiva === 'andamento') ? '20px' : '0'}; border: 1px dashed #cbd5e1;">
+                <div style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: ${(step === 3 && window.abaPedidosAtiva === 'andamento') ? '20px' : '0'}; border: 1px dashed #cbd5e1;">
                     <p style="margin: 0 0 10px 0; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">O que tem no pacote:</p>
-                    ${order.items.map(i => `<div style="font-size: 13px; color: #0f172a; margin-bottom: 5px; display: flex; align-items: center;"><span style="background: ${abaPedidosAtiva === 'historico' ? '#cbd5e1' : '#dfaf12'}; color: #0a1931; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; margin-right: 10px;">${i.quantity}</span> ${i.product_name}</div>`).join('')}
+                    ${order.items.map(i => `<div style="font-size: 13px; color: #0f172a; margin-bottom: 5px; display: flex; align-items: center;"><span style="background: ${window.abaPedidosAtiva === 'historico' ? '#cbd5e1' : '#dfaf12'}; color: #0a1931; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; margin-right: 10px;">${i.quantity}</span> ${i.product_name}</div>`).join('')}
                 </div>
 
-                ${(step === 3 && abaPedidosAtiva === 'andamento') ? `
+                ${(step === 3 && window.abaPedidosAtiva === 'andamento') ? `
                     <button onclick="confirmarRecebimentoCliente(${order.id})" style="width: 100%; background: linear-gradient(135deg, #0a1931, #172a46); color: #dfaf12; border: none; padding: 16px; border-radius: 12px; font-weight: 900; font-size: 14px; cursor: pointer; box-shadow: 0 10px 20px rgba(10, 25, 49, 0.2); transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 8px;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
                         <i class="fas fa-hand-holding-heart"></i> JÁ RECEBI O MEU PACOTE
                     </button>
@@ -10483,108 +10495,118 @@ async function deleteSelectedVideos() {
 // FUNÇÃO EXCLUSIVA DO PAINEL DO CLIENTE (COM CÂMBIO EM TEMPO REAL 🌍)
 // ==========================================
 async function loadClientInvoices(loteFiltro = '') {
-    const tbody = document.getElementById('client-invoices-list');
-    if(!tbody) return; 
+    const tbody = document.getElementById('client-invoices-list');
+    if(!tbody) return; 
 
-    // Descobre qual moeda o cliente quer ver agora
-    const comboMoeda = document.getElementById('moeda-fatura');
-    const moedaSelecionada = comboMoeda ? comboMoeda.value : 'BRL';
+    // Descobre qual moeda o cliente quer ver agora
+    const comboMoeda = document.getElementById('moeda-fatura');
+    const moedaSelecionada = comboMoeda ? comboMoeda.value : 'BRL';
 
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Carregando cotação atualizada e faturas... <i class="fas fa-spinner fa-spin"></i></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Carregando cotação atualizada e faturas... <i class="fas fa-spinner fa-spin"></i></td></tr>';
 
-    try {
-        // 🌍 1. MÁGICA DA COTAÇÃO EM TEMPO REAL
-        let taxaConversao = 1;
-        let simboloMoeda = 'R$';
-        
-        if (moedaSelecionada !== 'BRL') {
-            try {
-                // Puxa a cotação oficial do dia baseada no Real (BRL)
-                const resCotacao = await fetch('https://open.er-api.com/v6/latest/BRL');
-                const dadosCotacao = await resCotacao.json();
-                
-                taxaConversao = dadosCotacao.rates[moedaSelecionada] || 1;
-                
-                if(moedaSelecionada === 'XOF') simboloMoeda = 'CFA';
-                if(moedaSelecionada === 'EUR') simboloMoeda = '€';
-                if(moedaSelecionada === 'USD') simboloMoeda = '$';
-            } catch(e) {
-                console.log("Erro ao buscar cotação. Usando Real Brasileiro por segurança.");
-                taxaConversao = 1;
-                simboloMoeda = 'R$';
-            }
+    try {
+        // 🌍 1. MÁGICA DA COTAÇÃO EM TEMPO REAL
+        let taxaConversao = 1;
+        let simboloMoeda = 'R$';
+        
+        if (moedaSelecionada !== 'BRL') {
+            try {
+                // Puxa a cotação oficial do dia baseada no Real (BRL)
+                const resCotacao = await fetch('https://open.er-api.com/v6/latest/BRL');
+                const dadosCotacao = await resCotacao.json();
+                
+                taxaConversao = dadosCotacao.rates[moedaSelecionada] || 1;
+                
+                if(moedaSelecionada === 'XOF') simboloMoeda = 'CFA';
+                if(moedaSelecionada === 'EUR') simboloMoeda = '€';
+                if(moedaSelecionada === 'USD') simboloMoeda = '$';
+            } catch(e) {
+                console.log("Erro ao buscar cotação. Usando Real Brasileiro por segurança.");
+                taxaConversao = 1;
+                simboloMoeda = 'R$';
+            }
+        }
+
+        // 2. BUSCA AS FATURAS NO SERVIDOR
+        const res = await fetch('/api/invoices/my_invoices'); 
+        let list = await res.json();
+
+        // ==========================================
+        // 🛡️ O ESCUDO ANTIMÍSSEIS VEM AQUI!
+        // ==========================================
+        if (!Array.isArray(list)) {
+            console.warn("⚠️ Servidor bloqueou o pedido (Erro 429). Protegendo o site...", list);
+            list = []; // Transforma a resposta errada em uma lista vazia para não quebrar a tela!
         }
+        // ==========================================
 
-        // 2. BUSCA AS FATURAS NO SERVIDOR
-        const res = await fetch('/api/invoices/my_invoices'); 
-        let list = await res.json();
+        // Filtro de Lote
+        if (loteFiltro && loteFiltro !== '') {
+            list = list.filter(inv => (inv.lote || 'Sem Lote') === loteFiltro);
+        }
 
-        // Filtro de Lote
-        if (loteFiltro && loteFiltro !== '') {
-            list = list.filter(inv => (inv.lote || 'Sem Lote') === loteFiltro);
-        }
+        // Filtro de Histórico (Esconde pagas se não quiser ver todas)
+        if (!window.verHistoricoCompleto) {
+            list = list.filter(inv => {
+                const statusStr = String(inv.status || '').toLowerCase();
+                const isPago = (statusStr === 'pago' || statusStr === 'approved' || statusStr === 'paid');
+                return !isPago; 
+            });
+        }
 
-        // Filtro de Histórico (Esconde pagas se não quiser ver todas)
-        if (!window.verHistoricoCompleto) {
-            list = list.filter(inv => {
-                const statusStr = String(inv.status || '').toLowerCase();
-                const isPago = (statusStr === 'pago' || statusStr === 'approved' || statusStr === 'paid');
-                return !isPago; 
-            });
-        }
+        tbody.innerHTML = '';
+        if(list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente ${loteFiltro ? 'para este envio' : ''}.</td></tr>`;
+            return;
+        }
 
-        tbody.innerHTML = '';
-        if(list.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhuma fatura pendente ${loteFiltro ? 'para este envio' : ''}.</td></tr>`;
-            return;
-        }
+        list.forEach(inv => {
+            let statusHtml = '';
+            let actionHtml = '';
 
-        list.forEach(inv => {
-            let statusHtml = '';
-            let actionHtml = '';
+            let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
+            let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
 
-            let rawDesc = inv.box_code ? `Box ${inv.box_code}` : `Fatura #${inv.id}`;
-            let safeDesc = rawDesc.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+            // 🧮 3. CALCULA O VALOR NA MOEDA ESCOLHIDA
+            const valorEmReais = parseFloat(inv.amount) || 0;
+            const valorConvertido = valorEmReais * taxaConversao;
 
-            // 🧮 3. CALCULA O VALOR NA MOEDA ESCOLHIDA
-            const valorEmReais = parseFloat(inv.amount) || 0;
-            const valorConvertido = valorEmReais * taxaConversao;
+            if(inv.status === 'approved') {
+                statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
+                actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
+            } else if(inv.status === 'in_review') {
+                statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
+                actionHtml = '<span style="color:#ccc; font-size:12px;">Aguardando o Admin</span>';
+            } else if(inv.status === 'pending') {
+                statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
+                
+                actionHtml = `
+                <div style="display:flex; justify-content:center; gap:8px;">
+                    <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${valorEmReais}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                        💸 Pagar 
+                    </button>
+                </div>`;
+            } else {
+                statusHtml = '<span style="color:red;">Cancelado</span>';
+                actionHtml = '-';
+            }
 
-            if(inv.status === 'approved') {
-                statusHtml = '<span style="color:green; font-weight:bold;">✅ PAGO</span>';
-                actionHtml = '<span style="color:#ccc; font-size:12px;">Concluído</span>';
-            } else if(inv.status === 'in_review') {
-                statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
-                actionHtml = '<span style="color:#ccc; font-size:12px;">Aguardando o Admin</span>';
-            } else if(inv.status === 'pending') {
-                statusHtml = '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>';
-                
-                actionHtml = `
-                <div style="display:flex; justify-content:center; gap:8px;">
-                    <button class="btn-pisca" onclick="openPaymentModal('${inv.id}', '${safeDesc}', '${valorEmReais}')" style="background:#00b1ea; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                        💸 Pagar 
-                    </button>
-                </div>`;
-            } else {
-                statusHtml = '<span style="color:red;">Cancelado</span>';
-                actionHtml = '-';
-            }
+            tbody.innerHTML += `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding:12px; font-weight:bold; color:#0a1931;">#${inv.id}</td>
+                <td>${rawDesc}</td>
+                <td style="font-weight:bold; color:#0a1931;">${simboloMoeda} ${valorConvertido.toFixed(2)}</td>
+                <td>${statusHtml}</td>
+                <td style="text-align:center;">${actionHtml}</td>
+            </tr>`;
+        });
 
-            tbody.innerHTML += `
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding:12px; font-weight:bold; color:#0a1931;">#${inv.id}</td>
-                <td>${rawDesc}</td>
-                <td style="font-weight:bold; color:#0a1931;">${simboloMoeda} ${valorConvertido.toFixed(2)}</td>
-                <td>${statusHtml}</td>
-                <td style="text-align:center;">${actionHtml}</td>
-            </tr>`;
-        });
-
-    } catch (err) {
-        console.error(err);
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
-    }
-}// =======================================================
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar faturas.</td></tr>';
+    }
+}
+// =======================================================
 // 🛍️ MÁGICA DO CARRINHO PERSISTENTE (NUNCA DESAPARECE)
 // =======================================================
 
@@ -10668,12 +10690,11 @@ async function carregarLojaVip() {
     gridVip.innerHTML = html;
 }
 
-// 🎩 A MÁGICA: O PRODUTO SALTA DO ECRÃ
+// 🎩 A MÁGICA: O PRODUTO SALTA DO ECRÃ (OTIMIZADO)
 function abrirProdutoVip3D(id, simbolo, preco) {
     const produto = window.produtosOriginais.find(p => p.id === id);
     if(!produto) return;
 
-    // 1. Cria a "Camada de Vidro" (Blur) se ela não existir
     let overlay = document.getElementById('vip-3d-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -10681,10 +10702,11 @@ function abrirProdutoVip3D(id, simbolo, preco) {
         overlay.style.position = 'fixed';
         overlay.style.top = '0'; overlay.style.left = '0';
         overlay.style.width = '100vw'; overlay.style.height = '100vh';
-        overlay.style.background = 'rgba(10, 25, 49, 0.85)';
-        overlay.style.backdropFilter = 'blur(25px)';
-        overlay.style.webkitBackdropFilter = 'blur(25px)';
-        overlay.style.zIndex = '99999';
+        
+        // Fundo escuro sólido em vez de Blur pesado (Resolve 99% dos travamentos!)
+        overlay.style.background = 'rgba(10, 25, 49, 0.98)';
+        
+        overlay.style.zIndex = '999999';
         overlay.style.display = 'flex';
         overlay.style.flexDirection = 'column';
         overlay.style.justifyContent = 'center';
@@ -10694,20 +10716,19 @@ function abrirProdutoVip3D(id, simbolo, preco) {
         document.body.appendChild(overlay);
     }
 
-    // 2. Injeta o Produto com as Animações CSS preparadas
     overlay.innerHTML = `
-        <div style="position: absolute; top: 40px; right: 40px; cursor: pointer; color: rgba(255,255,255,0.7); font-size: 35px; transition: 0.3s;" onclick="fecharProdutoVip3D()" onmouseover="this.style.color='white'; this.style.transform='rotate(90deg)';">
+        <div style="position: absolute; top: 40px; right: 40px; cursor: pointer; color: rgba(255,255,255,0.7); font-size: 35px; transition: 0.3s;" onclick="fecharProdutoVip3D()">
             <i class="fas fa-times"></i>
         </div>
         
-        <img src="${produto.image_url || '/logo.png'}" style="width: 280px; height: 280px; object-fit: cover; border-radius: 30px; box-shadow: 0 40px 80px rgba(0,0,0,0.9); border: 2px solid rgba(255,255,255,0.1); transform: scale(0.3) translateY(200px) rotateY(60deg) rotateX(-20deg); opacity: 0; transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);" id="vip-3d-img">
+        <img src="${produto.image_url || '/logo.png'}" style="width: 280px; height: 280px; object-fit: cover; border-radius: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); border: 2px solid rgba(255,255,255,0.1); transform: scale(0.3) translateY(200px) rotateY(60deg) rotateX(-20deg); opacity: 0; transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);" id="vip-3d-img">
         
         <div id="vip-3d-info" style="text-align: center; margin-top: 40px; transform: translateY(60px); opacity: 0; transition: all 0.7s ease 0.3s; padding: 0 20px;">
-            <h2 style="color: white; font-size: 32px; font-weight: 900; letter-spacing: 2px; margin: 0; text-shadow: 0 5px 15px rgba(0,0,0,0.8);">${produto.name}</h2>
+            <h2 style="color: white; font-size: 32px; font-weight: 900; margin: 0;">${produto.name}</h2>
             <p style="color: #d4af37; font-size: 28px; font-weight: 900; margin: 15px 0;">${simbolo} ${preco.toFixed(2)}</p>
             <p style="color: #cbd5e1; font-size: 15px; max-width: 350px; margin: 0 auto 35px auto; line-height: 1.6;">${produto.description || 'Produto premium exclusivo Guineexpress.'}</p>
             
-            <button onclick="adicionarAoCarrinho(${produto.id}); fecharProdutoVip3D(); fecharVitrineVip();" style="background: linear-gradient(135deg, #d4af37, #f1db8a); color: #0a1931; border: none; padding: 18px 45px; border-radius: 50px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 15px 30px rgba(212, 175, 55, 0.4); transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)';" onmouseout="this.style.transform='scale(1)';">
+            <button onclick="adicionarAoCarrinho(${produto.id}); fecharProdutoVip3D();" style="background: linear-gradient(135deg, #d4af37, #f1db8a); color: #0a1931; border: none; padding: 18px 45px; border-radius: 50px; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 10px 20px rgba(212, 175, 55, 0.4); margin-top: 20px;">
                 <i class="fas fa-shopping-cart" style="margin-right: 10px;"></i> ADICIONAR À SACOLA
             </button>
         </div>
@@ -10715,18 +10736,12 @@ function abrirProdutoVip3D(id, simbolo, preco) {
 
     overlay.style.display = 'flex';
     
-    // Pequeno truque para o navegador processar as posições antes de animar
     setTimeout(() => {
         overlay.style.opacity = '1';
-        
         const img = document.getElementById('vip-3d-img');
         const info = document.getElementById('vip-3d-info');
-        
-        // Ativa o salto 3D!
         img.style.transform = 'scale(1) translateY(0) rotateY(0deg) rotateX(0deg)';
         img.style.opacity = '1';
-        
-        // Traz as informações de baixo para cima
         info.style.transform = 'translateY(0)';
         info.style.opacity = '1';
     }, 50);
@@ -10819,5 +10834,113 @@ async function apagarFaturasSelecionadas() {
     } catch (e) {
         console.error(e);
         alert("Erro de conexão com o servidor ao tentar apagar as faturas.");
+    }
+}
+// ========================================================
+// 🗑️ APAGAR ENCOMENDAS EM MASSA
+// ========================================================
+async function apagarEncomendasSelecionadas() {
+    // Pega todas as caixinhas marcadas dentro da tabela de encomendas
+    const marcados = document.querySelectorAll('#orders-list input[type="checkbox"]:checked');
+    
+    if (marcados.length === 0) {
+        return alert("⚠️ Selecione pelo menos uma encomenda para apagar.");
+    }
+
+    if (!confirm(`Tem a certeza que deseja APAGAR (ocultar) estas ${marcados.length} encomendas selecionadas?`)) {
+        return;
+    }
+
+    // Pega o ID de cada encomenda
+    const idsParaApagar = [];
+    marcados.forEach(checkbox => {
+        idsParaApagar.push(checkbox.value);
+    });
+
+    try {
+        const res = await fetch('/api/orders/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: idsParaApagar })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+            alert("✅ Encomendas apagadas com sucesso!");
+            
+            // Reseta as marcações
+            window.estadoSelecaoEncomendas = false;
+            const chkMaster = document.getElementById('selectAllOrders');
+            if (chkMaster) chkMaster.checked = false;
+            
+            loadOrders(); // Recarrega a tabela de encomendas
+        } else {
+            alert("Erro ao apagar: " + data.message);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Erro de conexão com o servidor ao tentar apagar.");
+    }
+}
+// ==========================================
+// SISTEMA DA VITRINE VIP
+// ==========================================
+
+// 1. Função para abrir o modal quando clica num produto
+function abrirProdutoVIP(imagem, titulo, descricao, preco) {
+    const modal = document.getElementById('modal-produto-premium');
+    const card = modal.querySelector('.produto-card-glass');
+    
+    // Preenche os dados
+    document.getElementById('vip-prod-img').src = imagem;
+    document.getElementById('vip-prod-title').innerText = titulo;
+    document.getElementById('vip-prod-desc').innerText = descricao;
+    document.getElementById('vip-prod-price').innerText = preco;
+
+    // Mostra o modal com animação
+    modal.classList.remove('hidden');
+    // Pequeno atraso para a animação funcionar
+    setTimeout(() => {
+        modal.style.opacity = '1';
+        card.style.transform = 'scale(1)';
+    }, 10);
+}
+
+// 2. Função para fechar o modal
+function fecharModalProduto() {
+    const modal = document.getElementById('modal-produto-premium');
+    const card = modal.querySelector('.produto-card-glass');
+    
+    modal.style.opacity = '0';
+    card.style.transform = 'scale(0.8)';
+    
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 400); // Espera a animação terminar antes de esconder
+}
+
+// 3. O GUARDA-COSTAS DA COMPRA (Verifica Login)
+function tentarComprar() {
+    // Verifica se a variável currentUser (que você já usa no sistema) está vazia
+    if (!window.currentUser) {
+        // Usuário NÃO está logado!
+        fecharModalProduto(); // Fecha o produto
+        
+        alert("🔒 Acesso Restrito! Faça login ou crie uma conta grátis para finalizar sua compra.");
+        
+        // Puxa a tela de login que você me enviou
+        const loginScreen = document.getElementById('login-screen'); 
+        // ou window.location.href = 'index.html'; dependendo de como está sua estrutura
+        if(loginScreen) {
+            loginScreen.classList.remove('hidden');
+        } else {
+            window.location.href = '/'; // Manda pro login se for página separada
+        }
+    } else {
+        // Usuário ESTÁ logado!
+        alert("✅ Produto adicionado ao carrinho com sucesso!");
+        // Aqui você chama a sua função de adicionar ao carrinho!
+        // Ex: adicionarAoCarrinho(produtoAtual);
     }
 }

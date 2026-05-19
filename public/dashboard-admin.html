@@ -91,7 +91,7 @@
         GUINEEXPRESS 
         <span id="user-role-display" style="font-size:12px; font-weight:normal; opacity:0.8;"></span>
     </div>
-
+  
     <div class="nav-wrapper">
         
         <button class="scroll-btn left" onclick="scrollNav(-250)">
@@ -585,7 +585,9 @@
                 <button class="btn" onclick="alternarSelecaoEncomendas()" style="background-color: #3b82f6; color: white; font-weight: bold; flex-grow: 1; text-align: center; justify-content: center; min-width: 150px; border: none;">
                     <i class="fas fa-check-square"></i> Selecionar Todas
                 </button>
-
+                     <button class="btn" onclick="apagarEncomendasSelecionadas()" style="background-color: #ef4444; color: white; font-weight: bold; flex-grow: 1; text-align: center; justify-content: center; min-width: 150px; border: none;">
+                    <i class="fas fa-trash-alt"></i> Apagar Selecionadas
+                </button>
                 <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white; flex-grow: 1; text-align: center; justify-content: center; min-width: 140px;">
                     <i class="fas fa-file-excel"></i> Baixar Excel
                 </button>
@@ -685,6 +687,7 @@
         </div>
     </div>
 </section>
+
 <section id="delivery-view" class="hidden">
     <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>🚚 Central de Entrega de Cargas</h2>

@@ -3791,6 +3791,41 @@ app.post('/api/invoices/bulk-delete', (req, res) => {
     });
 });
 // ==========================================
+// 🗑️ ROTA: APAGAR ENCOMENDAS EM MASSA
+// ==========================================
+app.post('/api/orders/bulk-delete', (req, res) => {
+    // Segurança: só o admin pode apagar
+    if (!req.session || req.session.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Acesso negado.' });
+    }
+
+    const { ids } = req.body;
+    if (!ids || ids.length === 0) return res.json({ success: true });
+
+    let concluidos = 0;
+    let houveErro = false;
+
+    ids.forEach(id => {
+        // Usa o "deleted = 1" que já tínhamos configurado para proteger o banco!
+        db.run(`UPDATE orders SET deleted = 1 WHERE id = ?`, [id], (err) => {
+            if (err) {
+                console.error(`Erro ao apagar encomenda ${id}:`, err);
+                houveErro = true;
+            }
+            
+            concluidos++;
+            // Avisa quando terminar a última
+            if (concluidos === ids.length) {
+                if (houveErro) {
+                    res.json({ success: false, message: 'Erro ao apagar algumas encomendas.' });
+                } else {
+                    res.json({ success: true });
+                }
+            }
+        });
+    });
+});
+// ==========================================
 // SISTEMA DE BACKUP AUTOMÁTICO
 // ==========================================
 

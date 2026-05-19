@@ -24,33 +24,30 @@
            1. VARIÁVEIS DE COR E FUNDO (AGORA LARANJA)
            ========================================= */
         :root {
-            /* 👇 NOVAS CORES DO TEMA ORANGE PREMIUm 👇 */
-            --primary-orange: #ff5e00; /* Laranja Vibrante GE */
-            --dark-orange: #e05200;    /* Laranja para Hover */
-            --bg-dark-glass: rgba(20, 10, 0, 0.75); /* Fundo vidro escurecido laranja */
-            --accent-gold: #d4af37;    /* Mantemos o dourado como detalhe secondary */
+            --primary-orange: #ff5e00; 
+            --dark-orange: #e05200;    
+            --bg-dark-glass: rgba(20, 10, 0, 0.75); 
+            --accent-gold: #d4af37;    
         }
 
         body, html {
             height: 100%; margin: 0; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0c0600; /* Quase preto laranja */
+            background-color: #0c0600; 
         }
 
         .login-wrapper {
             display: flex; justify-content: center; align-items: center; min-height: 100vh;
-            /* 👇 FUNDO ESCURO COM DEGRADÊ LARANJA PROFUNDO 👇 */
             background-image: linear-gradient(rgba(15, 8, 0, 0.88), rgba(30, 10, 0, 0.95)), url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=2070&auto=format&fit=crop');
             background-size: cover; background-position: center; background-attachment: fixed;
             padding: 20px;
         }
 
-        /* Efeito Glassmorphism escurecido laranja */
         .login-card {
             background: var(--bg-dark-glass);
             backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.08); 
-            border-top: 1px solid rgba(255, 255, 255, 0.15); /* Brilho de vidro no topo */
+            border-top: 1px solid rgba(255, 255, 255, 0.15); 
             border-radius: 30px; 
             padding: 40px 30px;
             width: 100%; max-width: 420px;
@@ -60,7 +57,7 @@
         }
 
         /* =========================================
-           2. CABEÇALHO (TEXTO BRANCO NO LARANJA)
+           2. CABEÇALHO 
            ========================================= */
         .login-logo {
             width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
@@ -79,14 +76,41 @@
         }
 
         .login-card h3 {
-            color: var(--primary-orange); /* Destaque em Laranja */
+            color: var(--primary-orange); 
             text-align: center; margin-bottom: 25px; margin-top: 10px;
             font-weight: 800; font-size: 18px; letter-spacing: 1px;
             text-transform: uppercase;
         }
 
         /* =========================================
-           3. INPUTS ESTILO VIDRO (FOCuS LARANJA)
+           ESTILO DO NOVO BOTÃO VIP (LARANJA E NEON)
+           ========================================= */
+        .btn-enter-vip {
+            background: linear-gradient(135deg, var(--primary-orange), #ff9100);
+            color: white;
+            border: none;
+            padding: 16px;
+            width: 100%;
+            border-radius: 16px;
+            font-weight: 900;
+            font-size: 15px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 8px 20px rgba(255, 94, 0, 0.4);
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            animation: pulse-laranja 2s infinite;
+        }
+        .btn-enter-vip:hover {
+            transform: scale(1.03);
+            background: linear-gradient(135deg, #e05200, var(--primary-orange));
+        }
+
+        /* =========================================
+           3. INPUTS ESTILO VIDRO 
            ========================================= */
         .input-icon-wrapper { position: relative; margin-bottom: 15px; }
         .input-icon-wrapper i { position: absolute; left: 16px; top: 16px; color: var(--accent-gold); font-size: 15px; }
@@ -100,15 +124,13 @@
         .form-control-glass::placeholder { color: rgba(255, 255, 255, 0.4); }
         .form-control-glass:focus {
             background: rgba(0, 0, 0, 0.6); 
-            /* 👇 Foco agora é Laranja 👇 */
             border-color: var(--primary-orange);
             box-shadow: 0 0 0 3px rgba(255, 94, 0, 0.2); outline: none;
         }
-
         select.form-control-glass option { background: #120800; color: white; }
 
         /* =========================================
-           4. BOTÕES E ANIMAÇÕES (SISTEMA PULSAR ATUALIZADO)
+           4. BOTÕES E ANIMAÇÕES 
            ========================================= */
         @keyframes pulse-dourado {
             0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.5); }
@@ -116,7 +138,6 @@
             100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
         }
         
-        /* 👇 NOVA ANIMAÇÃO LARANJA 👇 */
         @keyframes pulse-laranja {
             0% { box-shadow: 0 0 0 0 rgba(255, 94, 0, 0.5); }
             70% { box-shadow: 0 0 0 10px rgba(255, 94, 0, 0); }
@@ -131,13 +152,12 @@
         }
         .btn-pill-premium:active { transform: scale(0.96); }
 
-        /* 👇 BOTÃO ENTRAR AGORA É LARANJA 👇 */
         .btn-login { 
             background: var(--primary-orange); 
             color: white; 
             box-shadow: 0 8px 20px rgba(255, 94, 0, 0.3); 
             margin-top: 10px; 
-            animation: pulse-laranja 2.5s infinite; /* Pulsar laranja no botão principal */
+            animation: pulse-laranja 2.5s infinite; 
         }
         .btn-login:hover { background: var(--dark-orange); }
         
@@ -150,27 +170,12 @@
         .btn-link:hover { color: #fff; text-decoration: underline; }
 
         /* =========================================
-           5. 👇 SELETOR DE PERFIL - O GRANDE EFEITO TCL TV 👇
+           5. SELETOR DE PERFIL 
            ========================================= */
-        
-        /* 👇 NOVA ANIMAÇÃO DE LUZ NEON ESTILO GOOGLE TV PArA TV TCL (MUITO MAIS BONITA) 👇 */
         @keyframes pulse-neon-google {
-            0% {
-                box-shadow: 0 0 5px rgba(255, 94, 0, 0.5),
-                            0 0 10px rgba(255, 94, 0, 0.3),
-                            inset 0 0 10px rgba(255, 255, 255, 0.2);
-            }
-            50% {
-                box-shadow: 0 0 20px rgba(255, 94, 0, 0.8),
-                            0 0 30px rgba(255, 165, 0, 0.5),
-                            0 0 40px rgba(255, 94, 0, 0.3),
-                            inset 0 0 15px rgba(255, 255, 255, 0.4);
-            }
-            100% {
-                box-shadow: 0 0 5px rgba(255, 94, 0, 0.5),
-                            0 0 10px rgba(255, 94, 0, 0.3),
-                            inset 0 0 10px rgba(255, 255, 255, 0.2);
-            }
+            0% { box-shadow: 0 0 5px rgba(255, 94, 0, 0.5), 0 0 10px rgba(255, 94, 0, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(255, 94, 0, 0.8), 0 0 30px rgba(255, 165, 0, 0.5), 0 0 40px rgba(255, 94, 0, 0.3), inset 0 0 15px rgba(255, 255, 255, 0.4); }
+            100% { box-shadow: 0 0 5px rgba(255, 94, 0, 0.5), 0 0 10px rgba(255, 94, 0, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.2); }
         }
 
         #role-selector {
@@ -184,59 +189,45 @@
             cursor: pointer;
         }
 
-        /* 👇 O EFEITO DE LUZ NEON ATIVA (ESTILO GOOGLE EM TV) 👇 */
         #role-selector .btn.active-role {
             background: var(--primary-orange); 
             color: #fff; 
-            /* 👇 Aplica a luz neon pulsante 👇 */
             animation: pulse-neon-google 1.5s infinite ease-in-out;
-            z-index: 1; /* Garante que a luz fique por cima */
+            z-index: 1; 
             font-weight: 900;
         }
 
         /* =========================================
-           6. RASTREIO (ADAPTADO AO TEMA LARANJA)
+           6. RASTREIO 
            ========================================= */
         .active-package-info {
             background: rgba(0, 0, 0, 0.4); border-radius: 15px; padding: 15px;
             margin-bottom: 20px; 
-            border: 1px solid rgba(255, 94, 0, 0.2); /* Borda laranja translúcida */
+            border: 1px solid rgba(255, 94, 0, 0.2); 
             animation: fadeIn 0.5s ease;
         }
         .package-status-header { display: flex; justify-content: space-between; margin-bottom: 12px; color: #fff; font-size: 14px; font-weight: bold; }
-        
-        /* 👇 Status agora é Dourado ou Laranja? Laranja para combinar 👇 */
         .pkg-status { color: var(--primary-orange); }
-
         .progress-container { width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
-        
-        /* 👇 Barra de progresso agora é Degradê Laranja 👇 */
-        .progress-bar { 
-            height: 100%; 
-            background: linear-gradient(90deg, var(--primary-orange), #ffae00); /* Degradê Laranja-Amarelo */
-            border-radius: 10px; transition: width 1s ease; 
-        }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary-orange), #ffae00); border-radius: 10px; transition: width 1s ease; }
         .package-route { display: flex; justify-content: space-between; align-items: center; color: #ccc; font-size: 13px; font-weight: 600; }
-        
-        /* Seta do rastreio laranja */
         .package-route i { color: var(--primary-orange) !important; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .hidden { display: none !important; }
 
         /* =========================================
-           7. MODAL RECUPERAÇÃO (TEMA LARANJA)
+           7. MODAL RECUPERAÇÃO 
            ========================================= */
         #modal-recover .modal-card-input {
-            background: #1a0f00; /* Fundo escuro laranja */
+            background: #1a0f00; 
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
         #modal-recover h3 { color: var(--primary-orange); }
-        #modal-recover .btn-login { animation: none; } /* Tira pulsar do modal */
+        #modal-recover .btn-login { animation: none; } 
     </style>
 
     <script>
-        // PWA Setup original (mantido intacto)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
@@ -257,6 +248,11 @@
             <p>Logística Internacional Premium</p>
         </div>
 
+        <div style="margin: 25px 0;">
+            <button type="button" onclick="window.location.href='dashboard-client.html'" class="btn-enter-vip">
+                <i class="fas fa-gem"></i> Explorar Catálogo VIP 3D
+            </button>
+        </div>
         <div id="active-package" class="active-package-info" style="display: none;">
             <div class="package-status-header">
                 <span class="pkg-code" id="resultado-codigo">GX-1024</span>
@@ -392,29 +388,23 @@
 <script src="script.js?v=2.0"></script>
 
 <script>
-    /* 👇 FUNÇÕES EXTRAS VISUAIS INSERIDAS PARA O NOVO TEMA 👇 */
-
-    // 1. Função Visual: Troca o estado 'active-role' nos botões de perfil
     function mudarVisualRole(btnClicado) {
-        // Tira a classe active-role (e o neon) de todos os botões do seletor
         document.querySelectorAll('#role-selector .btn').forEach(b => b.classList.remove('active-role'));
-        // Adiciona a classe (e o neon) apenas no que o usuário clicou
         btnClicado.classList.add('active-role');
     }
 
-    // 2. Função Visual: Olhinho da Senha (Muda ícone e brilha dourado)
     function togglePassword(inputId, iconElement) {
         const input = document.getElementById(inputId);
         if (input.type === "password") {
             input.type = "text";
             iconElement.classList.remove('fa-eye');
             iconElement.classList.add('fa-eye-slash');
-            iconElement.style.color = '#d4af37'; // Brilha dourado ao mostrar
+            iconElement.style.color = '#d4af37'; 
         } else {
             input.type = "password";
             iconElement.classList.remove('fa-eye-slash');
             iconElement.classList.add('fa-eye');
-            iconElement.style.color = '#888'; // Volta pro cinza ao esconder
+            iconElement.style.color = '#888'; 
         }
     }
 </script>

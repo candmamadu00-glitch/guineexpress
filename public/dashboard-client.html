@@ -112,21 +112,6 @@
     <link rel="stylesheet" href="cici.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; margin-bottom: 15px;">
-    <h2 id="smart-greeting" style="margin: 0; font-size: 20px; transition: all 0.5s ease;">Carregando...</h2>
-    
-    <button onclick="openThemeModal()" style="background: rgb(36, 199, 3); border: none; width: 45px; height: 45px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; color: #0a1931; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
-        <i class="fas fa-paint-brush" style="font-size: 20px;"></i>
-    </button>
-</div> 
-<div style="display: flex; gap: 10px; margin-bottom: 20px; padding: 0 20px;">
-    <button id="tab-andamento" onclick="mudarAbaPedidosCliente('andamento')" style="flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: bold; font-size: 14px; background: var(--primary-orange, #ea580c); color: white; cursor: pointer; box-shadow: 0 4px 10px rgba(234, 88, 12, 0.3); transition: 0.3s;">
-        <i class="fas fa-truck-fast"></i> Em Andamento
-    </button>
-    <button id="tab-historico" onclick="mudarAbaPedidosCliente('historico')" style="flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: bold; font-size: 14px; background: #f1f5f9; color: #64748b; cursor: pointer; border: 1px solid #cbd5e1; transition: 0.3s;">
-        <i class="fas fa-history"></i> Histórico (Entregues)
-    </button>
-</div>   
 <link rel="icon" type="image/png" href="/logo.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -450,7 +435,11 @@
     </button>
 </div>
     </nav>
-
+<div style="margin: 25px 0;">
+    <button type="button" onclick="abrirVitrineVip()" class="btn-enter-vip">
+        <i class="fas fa-gem"></i> Explorar Catálogo VIP 3D
+    </button>
+</div>
     <div class="container">
 
         <section id="home-view">
@@ -500,11 +489,7 @@
         <i class="fas fa-plus-circle"></i> Ativar Impressão Digital Agora
     </button>
 </div>
-<div style="margin: 25px 0;">
-    <button type="button" onclick="abrirVitrineVip()" class="btn-enter-vip">
-        <i class="fas fa-gem"></i> Explorar Catálogo VIP 3D
-    </button>
-</div>
+
             <div class="stats-grid">
                 <div class="stat-card" style="border-bottom-color: #007bff;" onclick="showSection('orders-view')">
                     <div class="stat-icon" style="color: #007bff;"><i class="fas fa-box-open"></i></div>
@@ -1888,7 +1873,35 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         <span>Perfil</span>
     </button>
 </div>
+<div id="modal-produto-premium" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(12, 6, 0, 0.85); backdrop-filter: blur(10px); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.4s ease;">
+    
+    <div class="produto-card-glass" style="background: rgba(20, 10, 0, 0.8); border: 1px solid rgba(255, 94, 0, 0.3); border-radius: 25px; width: 90%; max-width: 400px; padding: 20px; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(255, 94, 0, 0.1); position: relative; transform: scale(0.8); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+        
+        <button onclick="fecharModalProduto()" style="position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 16px; border: 1px solid rgba(255,255,255,0.1);"><i class="fas fa-times"></i></button>
 
+        <div style="width: 100%; height: 250px; border-radius: 15px; overflow: hidden; margin-bottom: 20px; position: relative;">
+            <img id="vip-prod-img" src="" alt="Produto" style="width: 100%; height: 100%; object-fit: cover;">
+            <div style="position: absolute; bottom: 10px; left: 10px; background: var(--primary-orange); color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 10px rgba(255,94,0,0.5);">
+                VIP EXCLUSIVO
+            </div>
+        </div>
+
+        <h2 id="vip-prod-title" style="color: #fff; margin: 0 0 10px 0; font-size: 22px; font-weight: 800;">Nome do Produto</h2>
+        <p id="vip-prod-desc" style="color: #ccc; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">Descrição detalhada do produto vai aparecer aqui com todos os detalhes impressionantes.</p>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+            <div>
+                <span style="color: #888; font-size: 12px; display: block;">Preço Atual</span>
+                <span id="vip-prod-price" style="color: var(--primary-orange); font-size: 26px; font-weight: 900;">R$ 0,00</span>
+            </div>
+        </div>
+
+        <button id="btn-comprar-vip" onclick="tentarComprar()" style="width: 100%; background: var(--primary-orange); color: white; border: none; padding: 18px; border-radius: 15px; font-size: 16px; font-weight: 900; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: center; align-items: center; gap: 10px; box-shadow: 0 10px 25px rgba(255, 94, 0, 0.4); transition: 0.3s;">
+            <i class="fas fa-shopping-bag"></i> QUERO COMPRAR
+        </button>
+
+    </div>
+</div>
 <script>
     // Faz a cor e a animação pularem para o botão que o cliente acabou de clicar!
     const navItemsBottom = document.querySelectorAll('.bottom-nav-item');
@@ -1931,8 +1944,7 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
             </div>
     </div>
 
-</section>
-
+</section>   
 <script>
     function abrirVitrineVip() {
         document.getElementById('store-vip-view').style.display = 'block';
