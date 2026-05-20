@@ -2587,7 +2587,7 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                 // 🔔 COLE A NOTIFICAÇÃO DE VÍDEO AQUI:
                 enviarNotificacaoNaTela(client_id, "🎥 Novo Vídeo Disponível!", "Acabamos de subir um vídeo mostrando os detalhes da sua encomenda.", "/dashboard-client.html");
                 
-                // 4. Fluxo do WhatsApp
+                // 4. Fluxo do WhatsApp (Com suporte a Fila de Espera)
                 db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
                     if (err || !user || !user.phone) {
                         return res.json({success: true, msg: "Vídeo salvo, mas cliente sem telefone."});
@@ -2596,27 +2596,28 @@ app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
                     if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                         try {
                             let cleanPhone = user.phone.replace(/\D/g, '');
-                            const numberId = await clientZap.getNumberId(cleanPhone);
                             
-                            if (numberId) {
-                                try {
-                                    const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
-                                    await clientZap.sendMessage(numberId._serialized, message);
+                            const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
+                            
+                            // 1. Envia o texto (Vai pra fila se offline)
+                            await clientZap.sendMessage(cleanPhone, message);
 
-                                    if (fs.existsSync(videoConvertidoMp4)) {
-                                        const media = MessageMedia.fromFilePath(videoConvertidoMp4);
-                                        
-                                        // 🔥 A MÁGICA ACONTECE AQUI: Tiramos o 'sendMediaAsDocument'
-                                        // Agora ele vai como vídeo nativo para tocar na hora!
-                                        await clientZap.sendMessage(numberId._serialized, media, { 
-                                            caption: `Vídeo: ${description || 'Sua encomenda'}` 
-                                        });
-                                        console.log(`✅ Vídeo nativo enviado com sucesso para ${cleanPhone}`);
-                                    }
-                                } catch (err) {
-                                    console.error("❌ Erro interno no envio da mídia:", err.message);
-                                }
+                            // 2. Envia o vídeo (Vai pra fila se offline)
+                            if (fs.existsSync(videoConvertidoMp4)) {
+                                // Lê o arquivo e prepara para a Fila de Espera funcionar perfeito
+                                const videoBuffer = fs.readFileSync(videoConvertidoMp4);
+                                const mediaObject = {
+                                    mimetype: 'video/mp4',
+                                    data: videoBuffer.toString('base64'),
+                                    filename: nomeArquivoMp4
+                                };
+                                
+                                await clientZap.sendMessage(cleanPhone, mediaObject, { 
+                                    caption: `Vídeo: ${description || 'Sua encomenda'}` 
+                                });
+                                console.log(`✅ Vídeo nativo processado para ${cleanPhone}`);
                             }
+                            
                         } catch (zapErr) {
                             console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
                         }
@@ -2822,27 +2823,24 @@ app.post('/api/invoices/create', async (req, res) => {
                             sendEmailHtml(email, subject, title, msg);
                         }
 
-                        // 2. ENVIA O WHATSAPP COM SEGURANÇA (Para não travar se o zap cair)
-if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-    try {
-        let cleanPhone = phone.replace(/\D/g, '');
-        // A TÁTICA: O bloco try/catch e o await evitam que a falha feche o servidor
-        const numberId = await clientZap.getNumberId(cleanPhone).catch(()=>null); 
-        
-        if (numberId) {
-            const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-            await clientZap.sendMessage(numberId._serialized, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar a msg."));
-            console.log(`✅ [ZAP] Fatura enviada por Zap para o cliente ${cleanPhone}`);
-        } else {
-            // Tentativa cega caso não ache o ID
-            await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg).catch((e) => console.log("Zap offline: não conseguiu enviar tentativa cega."));
-        }
-    } catch (zapErr) {
-        // Se der qualquer erro fatal de conexão, apenas mostra no log e segue a vida
-        console.error("❌ Erro ao enviar Zap da fatura (Zap pode estar offline):", zapErr.message);
-    }
-} else {
-                            console.log("⚠️ [ZAP] Cliente não notificado: Sem telefone cadastrado ou Robô do WhatsApp desconectado.");
+                        // 2. ENVIA O WHATSAPP COM SEGURANÇA E FILA DE ESPERA!
+                        if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                            try {
+                                let cleanPhone = phone.replace(/\D/g, '');
+                                
+                                // A MENSAGEM FICA AQUI FORA!
+                                const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+
+                                // Mandamos direto! O nosso motor inteligente da fila resolve o resto.
+                                await clientZap.sendMessage(cleanPhone, zapMsg);
+                                
+                                console.log(`✅ [ZAP] Fatura processada para o cliente ${cleanPhone}`);
+                                
+                            } catch (zapErr) {
+                                console.error("❌ Erro ao enviar Zap da fatura:", zapErr.message);
+                            }
+                        } else {
+                            console.log("⚠️ [ZAP] Cliente não notificado: Sem telefone ou Robô desconectado.");
                         }
                     });
 
@@ -3074,17 +3072,19 @@ app.post('/receber-comprovante', upload.single('comprovante_banco'), async (req,
                     global.ciciAvisos.push(mensagemCici);
 
                     // ==========================================
-                    // --- Manda a notificação no Zap do Admin ---
+                    // --- Manda a notificação no Zap do Admin (Com Fila!) ---
                     // ==========================================
                     if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                         try {
                             const msgAdmin = `🚀 *PAGAMENTO EXPRESSO*\n\nComprovante direto do banco vinculado à *Fatura #${invoiceId}*. A Cicí já analisou no painel!`;
-                            const idOficial = await clientZap.getNumberId("5585998239207"); // Seu número
-                            if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgAdmin);
-                            else await clientZap.sendMessage(`5585998239207@c.us`, msgAdmin);
-                        } catch (zapErr) { console.error("Erro zap:", zapErr.message); }
+                            
+                            // Manda direto para o seu número! A fila de espera assume se cair a internet.
+                            await clientZap.sendMessage("5585998239207", msgAdmin);
+                            
+                        } catch (zapErr) { 
+                            console.error("❌ Erro zap admin:", zapErr.message); 
+                        }
                     }
-
                     // Redireciona o cliente para o painel com aviso de SUCESSO!
                     return res.redirect('/dashboard-client.html?sucesso_share=auto_match');
                 });
