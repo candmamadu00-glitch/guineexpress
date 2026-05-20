@@ -1439,7 +1439,7 @@ async function ligarMotorDoZap(res = null) {
         return; 
     }
 
-    console.log("📞 [ZAP] Iniciando motor: Conexão Ultra-Estável...");
+    console.log("📞 [ZAP] Iniciando motor com Sistema de Fila (Sala de Espera)...");
     
     const authPath = path.join(discoPermanente, 'sessao_zap_nova');
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
@@ -1449,28 +1449,53 @@ async function ligarMotorDoZap(res = null) {
         printQRInTerminal: true,
         logger: pino({ level: 'silent' }), 
         browser: ['Guineexpress V2', 'Chrome', '2.0.0'],
-        
-        // 🛠️ CONFIGURAÇÕES DE ESTABILIDADE (O SEGREDO)
-        connectTimeoutMs: 120000,      // 2 minutos para não dar timeout no Render
-        keepAliveIntervalMs: 30000,    // "Ping" pro Zap a cada 30 seg para não cair
-        defaultQueryTimeoutMs: 60000,  // Espera mais tempo por respostas do servidor
-        retryRequestDelayMs: 5000,     // Se falhar o envio, tenta de novo em 5 seg
-        
-        // 🚀 CONEXÃO LEVE
-        shouldSyncHistoryMessage: () => false, // NÃO baixa conversas antigas (evita travar o servidor)
-        markOnlineOnConnect: true,             // Se mantém online para evitar desconexão por ociosidade
+        connectTimeoutMs: 120000,
+        keepAliveIntervalMs: 30000,
+        defaultQueryTimeoutMs: 60000,
+        retryRequestDelayMs: 5000,
+        shouldSyncHistoryMessage: () => false,
+        markOnlineOnConnect: true,
     });
 
-    // 🎭 MANTÉM O CLIENTZAP FUNCIONANDO
+    // 🎭 NOSSO CLIENTE ZAP AGORA TEM INTELIGÊNCIA DE FILA
     clientZap = {
         info: true,
         sendMessage: async (numero, conteudo, options = {}) => {
-            if (!sock) return;
-            const jid = numero.includes('@') ? numero : `${numero.replace(/\D/g, '')}@s.whatsapp.net`;
+            const numLimpo = numero.replace(/\D/g, '');
+            const jid = numero.includes('@') ? numero : `${numLimpo}@s.whatsapp.net`;
+            
+            // 🛑 SE O ZAP ESTIVER OFFLINE, GUARDA NA SALA DE ESPERA!
+            if (!sock || !sock.user) {
+                console.log(`⚠️ [ZAP OFFLINE] Guardando mensagem para ${numLimpo} na Fila de Espera...`);
+                
+                let tipo = 'text';
+                let dadoConteudo = conteudo;
+                
+                if (typeof conteudo === 'object' && conteudo.mimetype) {
+                    if (options.sendAudioAsVoice || conteudo.mimetype.startsWith('audio/')) tipo = 'audio';
+                    else if (conteudo.mimetype.startsWith('video/')) tipo = 'video';
+                    else if (conteudo.mimetype.startsWith('image/')) tipo = 'image';
+                    else tipo = 'document';
+                    
+                    // Salvamos a string base64 inteira e os detalhes dela
+                    dadoConteudo = JSON.stringify({ data: conteudo.data, mimetype: conteudo.mimetype, filename: conteudo.filename });
+                }
+                
+                db.run(`INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, ?, ?, ?)`, 
+                    [jid, tipo, dadoConteudo, JSON.stringify(options)], 
+                    function(err) {
+                        if (err) console.error("Erro ao salvar na fila do Zap:", err);
+                    }
+                );
+                return { status: "queued" }; // Retorna avisando que foi pra fila
+            }
+
+            // ✅ SE ESTIVER ONLINE, ENVIA NA HORA!
             try {
                 if (typeof conteudo === 'string') {
                     return await sock.sendMessage(jid, { text: conteudo });
                 }
+                
                 if (conteudo && typeof conteudo === 'object' && conteudo.mimetype) {
                     const buffer = Buffer.from(conteudo.data, 'base64');
                     const mime = conteudo.mimetype;
@@ -1489,7 +1514,7 @@ async function ligarMotorDoZap(res = null) {
             }
         },
         getNumberId: async (numero) => {
-            if (!sock) return null;
+            if (!sock || !sock.user) return null; // Se offline, não acha ID (o sendMessage lida com isso depois)
             try {
                 const numLimpo = numero.replace(/\D/g, '');
                 const [resultado] = await sock.onWhatsApp(numLimpo);
@@ -1518,17 +1543,87 @@ async function ligarMotorDoZap(res = null) {
             console.log(`⚠️ [ZAP] Conexão fechada. Motivo: ${status}. Reconectando? ${deveReconectar}`);
 
             if (deveReconectar) {
-                // Tenta reconectar mais rápido (3 segundos)
                 setTimeout(() => ligarMotorDoZap(), 3000);
             } else {
                 console.log("❌ [ZAP] Sessão encerrada. Apagando pasta de sessão...");
                 sock = null;
-                // Opcional: fs.rmSync(authPath, { recursive: true, force: true });
             }
         } else if (connection === 'open') {
             console.log('✅ [ZAP] CONEXÃO ESTABELECIDA! Sistema online.');
             if (res && !res.headersSent) res.json({ success: true, msg: "Conectado!" });
             if (typeof configurarEventosDoZap === 'function') configurarEventosDoZap(sock);
+            
+            // 🚀 A MÁGICA: ASSIM QUE CONECTA, PROCESSA A SALA DE ESPERA!
+            processarFilaDoZap();
+        }
+    });
+}
+
+// =========================================================================
+// 🚀 FUNÇÃO PARA ESVAZIAR A SALA DE ESPERA (DISPARAR MENSAGENS ATRASADAS)
+// =========================================================================
+function processarFilaDoZap() {
+    console.log("🚦 [FILA DO ZAP] Verificando se há mensagens pendentes...");
+    
+    db.all("SELECT * FROM zap_queue ORDER BY id ASC", async (err, rows) => {
+        if (err) {
+            console.error("Erro ao ler a fila do Zap:", err);
+            return;
+        }
+        if (!rows || rows.length === 0) {
+            console.log("✅ [FILA DO ZAP] Sala de espera está vazia. Tudo limpo!");
+            return;
+        }
+        
+        console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens! Disparando...`);
+        
+        for (const msg of rows) {
+            // Se cair a internet no meio do disparo, para o loop e a fila recomeça da próxima vez.
+            if (!sock || !sock.user) {
+                console.log("⚠️ [FILA DO ZAP] Zap caiu enquanto esvaziava a fila. Pausando...");
+                break; 
+            }
+            
+            try {
+                let conteudoPronto = msg.conteudo;
+                let opcoesProntas = {};
+                
+                if (msg.opcoes) opcoesProntas = JSON.parse(msg.opcoes);
+                
+                if (msg.tipo !== 'text') {
+                    // Reconstroi o objeto do arquivo
+                    conteudoPronto = JSON.parse(msg.conteudo); 
+                }
+                
+                // Envia a mensagem (usamos a lógica base do bailey aqui para garantir, já que o getNumberId falharia se confiasse no clientZap offline antes)
+                if (msg.tipo === 'text') {
+                    await sock.sendMessage(msg.numero, { text: conteudoPronto });
+                } else {
+                     const buffer = Buffer.from(conteudoPronto.data, 'base64');
+                     const mime = conteudoPronto.mimetype;
+                     if (msg.tipo === 'audio') {
+                         await sock.sendMessage(msg.numero, { audio: buffer, mimetype: 'audio/mp4', ptt: opcoesProntas.sendAudioAsVoice || false });
+                     } else if (msg.tipo === 'video') {
+                         await sock.sendMessage(msg.numero, { video: buffer, caption: opcoesProntas.caption || '', mimetype: 'video/mp4' });
+                     } else if (msg.tipo === 'image') {
+                         await sock.sendMessage(msg.numero, { image: buffer, caption: opcoesProntas.caption || '' });
+                     } else {
+                         await sock.sendMessage(msg.numero, { document: buffer, mimetype: mime, fileName: conteudoPronto.filename || 'Arquivo.pdf', caption: opcoesProntas.caption || '' });
+                     }
+                }
+                
+                console.log(`🚀 [FILA DO ZAP] Mensagem atrasada enviada para ${msg.numero}!`);
+                
+                // Apaga do banco após enviar com sucesso
+                db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
+                
+                // Pequena pausa para o WhatsApp não achar que somos spam (3 segundos entre mensagens)
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+            } catch (erroEnvio) {
+                console.error(`❌ [FILA DO ZAP] Falha ao enviar msg ${msg.id}:`, erroEnvio.message);
+                // Não apaga do banco. Tenta de novo na próxima vez.
+            }
         }
     });
 }
@@ -2840,123 +2935,6 @@ app.get('/api/cici/avisos', (req, res) => {
     const avisos = [...global.ciciAvisos];
     global.ciciAvisos = []; // A Cicí já leu, então esvaziamos a caixinha
     res.json(avisos);
-});
-
-// ==========================================
-// ROTA: UPLOAD DE COMPROVANTE (IMAGEM OU PDF) COM ANÁLISE DA CICÍ 🤖 E ANTI-FRAUDE 🛡️
-// ==========================================
-app.post('/api/invoices/:id/upload-receipt', upload.single('receipt'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ success: false, message: 'Nenhum arquivo foi enviado.' });
-    }
-
-    const invoiceId = req.params.id;
-    const receiptPath = '/uploads/' + req.file.filename; 
-    const fullFilePath = req.file.path; 
-
-    // 1. Atualiza o status preliminar no banco
-    db.run("UPDATE invoices SET status = 'in_review', receipt_url = ? WHERE id = ?", [receiptPath, invoiceId], (err) => {
-        if (err) return res.json({ success: false, message: 'Erro ao salvar no banco.' });
-
-        // 2. Busca os dados da fatura
-        db.get("SELECT invoices.amount, users.name FROM invoices JOIN users ON invoices.client_id = users.id WHERE invoices.id = ?", [invoiceId], async (err, row) => {
-            const clientName = row ? row.name : "um cliente";
-            const expectedAmount = row ? parseFloat(row.amount) : 0;
-
-            let mensagemCici = "";
-
-            try {
-                // 3. 🤖 A CICÍ LÊ O ARQUIVO
-                const arquivoPart = fileToGenerativePart(fullFilePath, req.file.mimetype);
-                const dataHoje = new Date().toLocaleDateString('pt-BR');
-                
-                const prompt = `
-                Você é um auditor financeiro rigoroso. Analise este arquivo.
-                Hoje é dia ${dataHoje}. O valor exato cobrado é R$ ${expectedAmount}.
-                
-                Responda APENAS em formato JSON:
-                {"eh_comprovante": true, "agendado": false, "valor_bate": true, "data_pagamento": "DD/MM/AAAA", "id_transacao": "codigo", "alerta_data": false, "motivo": "..."}
-                
-                Regras:
-                1. "eh_comprovante": É um comprovante bancário real (Pix/Transferência/Ecobank)?
-                2. "agendado": É um agendamento futuro?
-                3. "valor_bate": O valor pago é EXATAMENTE R$ ${expectedAmount}?
-                4. "data_pagamento": Extraia a data do pagamento.
-                5. "id_transacao": Extraia o Código de Autenticação/Transação/End-to-End. Se não achar, escreva "Nao_Encontrado".
-                6. "alerta_data": Marque true SE a data for MAIS VELHA que 10 dias de hoje (${dataHoje}).
-                7. "motivo": Explique brevemente.
-                `;
-
-                const result = await model.generateContent([prompt, arquivoPart]);
-                const iaRespostaText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
-                const analise = JSON.parse(iaRespostaText);
-
-                // 4. 🛡️ VERIFICAÇÃO ANTI-FRAUDE NO BANCO DE DADOS
-                let comprovanteReciclado = false;
-                let idFaturaAntiga = null;
-
-                // Só checa fraude se ela achou um código válido
-                if (analise.id_transacao && analise.id_transacao !== "Nao_Encontrado" && analise.id_transacao.length > 5) {
-                    
-                    // Salva esse ID nesta fatura
-                    db.run("UPDATE invoices SET transaction_id = ? WHERE id = ?", [analise.id_transacao, invoiceId]);
-
-                    // Procura se o mesmo ID já existe em OUTRA fatura
-                    const checkFraude = await new Promise((resolve, reject) => {
-                        db.get("SELECT id FROM invoices WHERE transaction_id = ? AND id != ? AND status != 'canceled'", [analise.id_transacao, invoiceId], (err, row_fraude) => {
-                            resolve(row_fraude);
-                        });
-                    });
-
-                    if (checkFraude) {
-                        comprovanteReciclado = true;
-                        idFaturaAntiga = checkFraude.id;
-                    }
-                }
-
-                // 5. A CICÍ DECIDE O QUE FALAR PARA O LELO (Agora com a trava de fraude)
-                if (comprovanteReciclado) {
-                    mensagemCici = `🚨 **GOLPE DETECTADO!** Lelo, o cliente **${clientName}** tentou usar um comprovante na Fatura #${invoiceId} que **JÁ FOI USADO** antes na Fatura #${idFaturaAntiga}! Não aprove! <br>💳 *ID Reciclado:* ${analise.id_transacao} <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Prova do Golpe</button>`;
-                
-                } else if (!analise.eh_comprovante) {
-                    mensagemCici = `❌ **ARQUIVO INVÁLIDO!** Lelo, o cliente **${clientName}** enviou a Fatura #${invoiceId}, mas a foto **não é um recibo bancário**. Motivo da IA: ${analise.motivo}. <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Foto</button>`;
-                
-                } else if (analise.agendado) {
-                    mensagemCici = `🚨 **ALERTA!** Lelo, o cliente **${clientName}** enviou um comprovante (Fatura #${invoiceId}), mas a IA detectou que é um **AGENDAMENTO**. Cuidado! <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Arquivo Suspeito</button>`;
-                
-                } else if (!analise.valor_bate) {
-                    mensagemCici = `⚠️ **VALOR INCORRETO!** Lelo, o cliente **${clientName}** enviou o comprovante (Fatura #${invoiceId}), mas o **valor não bate** com os R$ ${expectedAmount}. Motivo: ${analise.motivo}. <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#f39c12; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Analisar Manualmente</button>`;
-                
-                } else if (analise.alerta_data) {
-                    mensagemCici = `⏳ **COMPROVANTE ANTIGO!** Lelo, o cliente **${clientName}** mandou o valor certo na Fatura #${invoiceId}, mas a data é de **${analise.data_pagamento}** (mais de 10 dias atrás). Verifique! <br>💳 *ID:* ${analise.id_transacao} <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#e67e22; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Analisar Manualmente</button>`;
-
-                } else {
-                    mensagemCici = `✅ **TUDO CERTO!** Lelo, chequei o comprovante de **${clientName}** (Fatura #${invoiceId}). O valor de R$ ${expectedAmount} está correto e o pagamento é novo (${analise.data_pagamento})! Nenhuma fraude detectada. Posso dar baixa? <br>💳 *ID:* ${analise.id_transacao} <br><br> <button onclick="approveInvoice(${invoiceId})" style="background:#28a745; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold;">👍 Sim, Aprovar Agora</button> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#6c757d; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; margin-left:5px;">Ver Arquivo</button>`;
-                }
-
-            } catch (iaErr) {
-                console.error("Erro na leitura da Cicí:", iaErr);
-                mensagemCici = `Olá Lelo! O cliente **${clientName}** anexou um arquivo (Fatura #${invoiceId}). Tive um probleminha para ler o formato, por favor verifique manualmente. <br><br> <button onclick="viewReceipt(${invoiceId}, '${receiptPath}')" style="background:#17a2b8; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">Ver Comprovante</button>`;
-            }
-
-            // Envia a notificação
-            if (!global.ciciAvisos) global.ciciAvisos = [];
-            global.ciciAvisos.push(mensagemCici);
-            
-            // --- NOTIFICAÇÃO ZAP (MANTIDA) ---
-            if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                try {
-                    const meuNumeroAdmin = "5585998239207"; 
-                    const msgAdmin = `🔔 *NOVO PAGAMENTO*\n\nComprovante da Fatura #${invoiceId} de ${clientName} chegou. A Cicí já analisou no painel!`;
-                    const idOficial = await clientZap.getNumberId(meuNumeroAdmin);
-                    if (idOficial) await clientZap.sendMessage(idOficial._serialized, msgAdmin);
-                    else await clientZap.sendMessage(`${meuNumeroAdmin}@c.us`, msgAdmin);
-                } catch (zapErr) { console.error("Erro zap:", zapErr.message); }
-            }
-
-            res.json({ success: true, message: 'Comprovativo recebido e enviado para análise!' });
-        });
-    });
 });
 
 // 3. Rota para o ADMIN aprovar o comprovante
@@ -5223,36 +5201,35 @@ cron.schedule('0 8 * * *', async () => {
             return console.log('🤖 Cicí: Bom dia! Nenhuma fatura pendente hoje. Pode relaxar, chefe!');
         }
 
-        console.log(`🤖 Cicí encontrou ${faturasPendentes.length} faturas pendentes. Iniciando envios...`);
+        console.log(`🤖 Cicí encontrou ${faturasPendentes.length} faturas pendentes. Iniciando processamento...`);
 
-        const roboZap = typeof clientZap !== 'undefined' ? clientZap : null;
-        if (!roboZap || !roboZap.info) {
-             return console.log('⚠️ Cicí: O WhatsApp não está conectado. Não vou conseguir mandar as cobranças agora.');
+        if (typeof clientZap === 'undefined' || !clientZap) {
+             return console.log('⚠️ Cicí: O sistema do WhatsApp não foi inicializado no servidor.');
         }
 
         for (const fatura of faturasPendentes) {
-            let cleanPhone = fatura.phone.replace(/\D/g, ''); 
-            
-            const msg = `Olá, *${fatura.name}*! Bom dia! ☀️\n\nAqui é a Cicí da Guineexpress!\nEstou passando para lembrar que sua fatura (*${fatura.description}*) no valor de *R$ ${fatura.amount.toFixed(2)}* está pendente no nosso sistema.\n\nAcesse o seu painel rapidinho para pagar e liberar sua encomenda:\n🔗 https://guineexpress-f6ab.onrender.com/\n\nQualquer dúvida, é só me chamar aqui! 📦✈️`;
-
             try {
-                const numberId = await roboZap.getNumberId(cleanPhone);
-                if (numberId) {
-                    await roboZap.sendMessage(numberId._serialized, msg);
-                    console.log(`✅ [Cicí Cobrança] Mensagem enviada para ${fatura.name}.`);
-                } else {
-                    await roboZap.sendMessage(`${cleanPhone}@c.us`, msg);
-                    console.log(`✅ [Cicí Cobrança] Mensagem enviada para ${fatura.name} (Modo direto).`);
-                }
-            } catch (zapErr) {
-                 console.error(`❌ [Cicí Cobrança] Erro ao enviar para ${fatura.name}:`, zapErr.message);
-            }
+                let cleanPhone = fatura.phone.replace(/\D/g, ''); 
+                if (!cleanPhone) continue;
 
-            // Pausa de 5 segundos para evitar banimento do WhatsApp
-            await new Promise(r => setTimeout(r, 5000));
+                // 📝 MENSAGEM CORRETA DE LEMBRETE MATINAL
+                const lembreteMsg = `Olá, *${fatura.name}*! Bom dia! ☀️\n\nAqui é a Cicí da Guineexpress!\nEstou passando para lembrar que sua fatura (*${fatura.description}*) no valor de *R$ ${fatura.amount.toFixed(2)}* está pendente no nosso sistema.\n\nAcesse o seu painel rapidinho para pagar e liberar sua encomenda:\n🔗 https://guineexpress-f6ab.onrender.com/\n\nQualquer dúvida, é só me chamar aqui! 📦✈️`;
+
+                console.log(`🤖 Cicí processando cobrança para: ${fatura.name} (${cleanPhone})`);
+
+                // 🔥 Graças ao novo motor, se o Zap estiver offline, isto vai AUTOMATICAMENTE para a Fila do Banco!
+                // Se estiver online, envia na hora.
+                await clientZap.sendMessage(cleanPhone, lembreteMsg);
+
+                // Pausa de 4 segundos entre as faturas para não sobrecarregar o banco ou a fila
+                await new Promise(r => setTimeout(r, 4000));
+
+            } catch (errorLoop) {
+                console.error(`❌ Erro ao processar fatura ID ${fatura.invoice_id}:`, errorLoop.message);
+            }
         }
         
-        console.log('🤖 Cicí: Terminei as cobranças de hoje! Voltando a dormir...');
+        console.log('🤖 Cicí: Terminei as cobranças de hoje! Se alguma ficou na fila por falta de internet, ela sairá assim que o Zap reconectar.');
     });
 });
 // =======================================================

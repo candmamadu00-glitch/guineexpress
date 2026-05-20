@@ -41,7 +41,17 @@ db.serialize(() => {
         active INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
-
+// =======================================================
+    // 🚦 TABELA DA FILA DO WHATSAPP (SALA DE ESPERA)
+    // =======================================================
+    db.run(`CREATE TABLE IF NOT EXISTS zap_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero TEXT,
+        tipo TEXT,       -- 'text', 'image', 'video', 'document', 'audio'
+        conteudo TEXT,   -- O texto da msg ou a string base64 do arquivo
+        opcoes TEXT,     -- JSON stringificado com legendas, nome do arquivo, etc
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
     // --- TABELA DE HISTÓRICO DE LOGINS ---
     db.run(`CREATE TABLE IF NOT EXISTS access_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
