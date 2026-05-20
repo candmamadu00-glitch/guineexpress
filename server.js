@@ -97,6 +97,7 @@ db.run("ALTER TABLE orders ADD COLUMN volumes INTEGER DEFAULT 1", (err) => {
 });
 const PDFDocument = require('pdfkit');
 // --- FUNÇÃO MÁGICA QUE GERA E ENVIA O RECIBO VIP (DESIGN PREMIUM IDÊNTICO AO HTML) ---
+// --- FUNÇÃO MÁGICA QUE GERA E ENVIA O RECIBO VIP (DESIGN PREMIUM IDÊNTICO AO HTML) ---
 async function enviarReciboPDF(invoiceId) {
     const sql = `
         SELECT i.*, u.name as client_name, u.phone, u.document, u.email, 
@@ -120,27 +121,42 @@ async function enviarReciboPDF(invoiceId) {
         doc.on('end', async () => {
             const pdfData = Buffer.concat(buffers);
             
-            // 🔥 CORREÇÃO: Adeus whatsapp-web.js! Criando o arquivo direto para o Baileys
+            // 🔥 Criando o arquivo direto estruturado
             const media = {
                 mimetype: 'application/pdf',
                 data: pdfData.toString('base64'),
                 filename: `Recibo_Guineexpress_${fatura.box_code || fatura.id}.pdf`
             };
 
-            const roboZap = (typeof clientZap !== 'undefined' ? clientZap : null);
-            if (roboZap && fatura.phone) {
-                try {
-                    const cleanPhone = fatura.phone.replace(/\D/g, '');
-                    // 🔥 Adicionado o .catch para não quebrar se o zap piscar
-                    const chatId = await roboZap.getNumberId(cleanPhone).catch(() => null);
-                    const destino = chatId ? chatId._serialized : `${cleanPhone}@c.us`;
-                    
-                    await roboZap.sendMessage(destino, media, { 
-                        caption: `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅` 
-                    }).catch(e => console.log("Erro ao enviar Zap do PDF (Pode estar offline)"));
-                    
-                    console.log(`📄 Recibo VIP enviado com sucesso para ${fatura.client_name}`);
-                } catch (err) { console.error("❌ Erro ao mandar PDF no Zap:", err.message); }
+            // ==========================================
+            // 🚀 DISPARO DO RECIBO (COM SALA DE ESPERA E BAILEYS!)
+            // ==========================================
+            if (fatura.phone) {
+                const cleanPhone = fatura.phone.replace(/\D/g, '');
+                const destino = `${cleanPhone}@s.whatsapp.net`; // Formato correto do Baileys
+                const captionText = `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅`;
+
+                // Verifica se a conexão com o Baileys (sock) está ativa e logada
+                if (typeof sock !== 'undefined' && sock && sock.user) {
+                    try {
+                        const buffer = Buffer.from(media.data, 'base64');
+                        await sock.sendMessage(destino, { 
+                            document: buffer, 
+                            mimetype: media.mimetype, 
+                            fileName: media.filename, 
+                            caption: captionText 
+                        });
+                        console.log(`📄 Recibo VIP enviado com sucesso para ${fatura.client_name}`);
+                    } catch (err) {
+                        console.log("⚠️ Zap falhou ao enviar PDF. Mandando Recibo para a fila!");
+                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, 'document', ?, ?)", 
+                            [destino, JSON.stringify(media), JSON.stringify({ caption: captionText })]);
+                    }
+                } else {
+                    console.log("⚠️ Zap desconectado. Guardando Recibo na Sala de Espera...");
+                    db.run("INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, 'document', ?, ?)", 
+                        [destino, JSON.stringify(media), JSON.stringify({ caption: captionText })]);
+                }
             }
         });
 
@@ -158,9 +174,8 @@ async function enviarReciboPDF(invoiceId) {
         const freteVal = parseFloat(fatura.freight_amount) || parseFloat(fatura.amount) || 0;
         const totalVal = (freteVal + nfVal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        // 1. CABEÇALHO E LOGO (CORREÇÃO DE CAMINHO PARA O RENDER)
+        // 1. CABEÇALHO E LOGO
         try {
-            // 👇 Caminhos atualizados para achar a logo dentro da pasta public! 👇
             const possiblePaths = [
                 path.join(__dirname, 'public', 'logo.png'),
                 path.join(process.cwd(), 'public', 'logo.png'),
@@ -221,7 +236,6 @@ async function enviarReciboPDF(invoiceId) {
                 } else {
                     doc.fillColor('#666').fontSize(8).font('Helvetica-Bold').text(r.label, x + 10, cy);
                     doc.fillColor(textoEscuro).font('Helvetica-Bold').text(r.value, x + 10, cy, { align: 'right', width: cardW - 20 });
-                    // Linha tracejada do HTML
                     doc.moveTo(x + 10, cy + 12).lineTo(x + cardW - 10, cy + 12).lineWidth(0.5).dash(2, {space: 2}).strokeColor('#e1e8ed').stroke();
                     doc.undash(); 
                     cy += 18;
@@ -291,34 +305,24 @@ async function enviarReciboPDF(invoiceId) {
            .text('GUINEEXPRESS LOGÍSTICA', 80, yTab + 5, { width: 180, align: 'center' })
            .text('ASSINATURA DO CLIENTE', 335, yTab + 5, { width: 180, align: 'center' });
 
-        // =========================================================
-        // 7. CARIMBO DE "PAGO" (MÁGICA CORRIGIDA)
-        // =========================================================
-        // Agora ele identifica "pago", "Pago", "paid" ou is_paid ativo do banco de dados!
-       // =========================================================
-        // 7. CARIMBO DE "PAGO" (MÁGICA CORRIGIDA)
-        // =========================================================
+        // 7. CARIMBO DE "PAGO"
         const statusStr = String(fatura.status || '').toLowerCase();
-        // 👇 ADICIONEI O 'approved' AQUI NA LISTA 👇
         const isPaid = (statusStr === 'pago' || statusStr === 'paid' || statusStr === 'approved' || fatura.is_paid == 1 || fatura.is_paid === true);
         
         const stampText = isPaid ? 'PAGO' : 'PENDENTE';
         const stampColor = isPaid ? '#28a745' : '#dc3545';
 
         doc.save();
-        doc.fillOpacity(0.3); // Define a transparência (leve)
-        doc.strokeOpacity(0.3); // Define a transparência da borda
+        doc.fillOpacity(0.3); 
+        doc.strokeOpacity(0.3); 
         
-        // Vai para o centro da página e inclina o carimbo
         doc.translate(doc.page.width / 2, doc.page.height / 2);
         doc.rotate(-35);
         
-        // Escreve a palavra gigante bem no meio
         doc.fontSize(130).fillColor(stampColor).font('Helvetica-Bold').text(stampText, -300, -70, { align: 'center', width: 600 });
         
-        // Desenha a borda do carimbo igual ao HTML
         doc.lineWidth(10).strokeColor(stampColor);
-        doc.rect(-190, -85, 380, 155).stroke(); // Uma caixa estilosa ao redor do texto
+        doc.rect(-190, -85, 380, 155).stroke(); 
         
         doc.restore();
 
