@@ -140,7 +140,7 @@ async function enviarReciboPDF(invoiceId) {
         doc.on('end', async () => {
             const pdfData = Buffer.concat(buffers);
             
-            // 🔥 Criando o arquivo direto estruturado
+            // 🔥 Criando o arquivo estruturado
             const media = {
                 mimetype: 'application/pdf',
                 data: pdfData.toString('base64'),
@@ -148,34 +148,22 @@ async function enviarReciboPDF(invoiceId) {
             };
 
             // ==========================================
-            // 🚀 DISPARO DO RECIBO (COM SALA DE ESPERA E BAILEYS!)
+            // 🚀 DISPARO DO RECIBO USANDO O NOSSO MOTOR SUPER INTELIGENTE
+            // (Ele já tem o Radar do 9º dígito e a Sala de Espera embutidos!)
             // ==========================================
-            if (fatura.phone) {
+            if (fatura.phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
                 const cleanPhone = fatura.phone.replace(/\D/g, '');
-                const destino = `${cleanPhone}@s.whatsapp.net`; // Formato correto do Baileys
                 const captionText = `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅`;
 
-                // Verifica se a conexão com o Baileys (sock) está ativa e logada
-                if (typeof sock !== 'undefined' && sock && sock.user) {
-                    try {
-                        const buffer = Buffer.from(media.data, 'base64');
-                        await sock.sendMessage(destino, { 
-                            document: buffer, 
-                            mimetype: media.mimetype, 
-                            fileName: media.filename, 
-                            caption: captionText 
-                        });
-                        console.log(`📄 Recibo VIP enviado com sucesso para ${fatura.client_name}`);
-                    } catch (err) {
-                        console.log("⚠️ Zap falhou ao enviar PDF. Mandando Recibo para a fila!");
-                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, 'document', ?, ?)", 
-                            [destino, JSON.stringify(media), JSON.stringify({ caption: captionText })]);
-                    }
-                } else {
-                    console.log("⚠️ Zap desconectado. Guardando Recibo na Sala de Espera...");
-                    db.run("INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, 'document', ?, ?)", 
-                        [destino, JSON.stringify(media), JSON.stringify({ caption: captionText })]);
+                try {
+                    // Manda direto para o motor! Ele descobre o número real e se envia ou vai pra fila.
+                    await clientZap.sendMessage(cleanPhone, media, { caption: captionText });
+                    console.log(`📄 Recibo VIP processado com sucesso para ${fatura.client_name}`);
+                } catch (err) {
+                    console.error("❌ Erro ao processar envio do Recibo VIP:", err.message);
                 }
+            } else {
+                console.log(`⚠️ Cliente ${fatura.client_name} não tem telefone ou motor Zap desligado.`);
             }
         });
 
