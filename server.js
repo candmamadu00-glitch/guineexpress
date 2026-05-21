@@ -1475,10 +1475,9 @@ async function ligarMotorDoZap(res = null) {
             const numLimpo = numero.replace(/\D/g, '');
             let jid = numero.includes('@') ? numero : `${numLimpo}@s.whatsapp.net`;
             
-            // 🛑 SE O ZAP ESTIVER OFFLINE, GUARDA NA SALA DE ESPERA!
-            if (!sock || !sock.user) {
-                console.log(`⚠️ [ZAP OFFLINE] Guardando mensagem para ${numLimpo} na Fila de Espera...`);
-                
+            // 📦 Função interna para mandar pra fila de espera
+            const mandarPraFila = () => {
+                console.log(`⚠️ [SALA DE ESPERA] Guardando mensagem para ${numLimpo}...`);
                 let tipo = 'text';
                 let dadoConteudo = conteudo;
                 
@@ -1494,14 +1493,19 @@ async function ligarMotorDoZap(res = null) {
                 db.run(`INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, ?, ?, ?)`, 
                     [jid, tipo, dadoConteudo, JSON.stringify(options)]
                 );
+            };
+
+            // 🛑 SE O ZAP ESTIVER LOGICAMENTE OFFLINE, VAI PRA FILA!
+            if (!sock || !sock.user) {
+                mandarPraFila();
                 return { status: "queued" };
             }
 
-            // ✅ SE ESTIVER ONLINE, LIGA O RADAR E ENVIA!
+            // ✅ SE ESTIVER ONLINE, TENTA ENVIAR
             try {
                 // 🔥 O RADAR: Descobre o número verdadeiro (com ou sem o 9)
                 if (!numero.includes('@')) {
-                    const [resultado] = await sock.onWhatsApp(numLimpo);
+                    const [resultado] = await sock.onWhatsApp(numLimpo).catch(()=>[]);
                     if (resultado && resultado.exists) jid = resultado.jid;
                 }
 
@@ -1523,7 +1527,11 @@ async function ligarMotorDoZap(res = null) {
                     }
                 }
             } catch (e) {
-                console.error("❌ Erro ao enviar mensagem Zap:", e.message);
+                // 🚨 O GRANDE SEGREDO ESTÁ AQUI:
+                // Se tentou enviar e a internet falhou (Connection Closed), ELE SALVA NA FILA!
+                console.error("❌ Erro ao enviar mensagem Zap (Caiu na hora de enviar):", e.message);
+                mandarPraFila();
+                return { status: "queued_after_error" };
             }
         },
         getNumberId: async (numero) => {
