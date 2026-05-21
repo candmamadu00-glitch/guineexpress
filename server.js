@@ -18,13 +18,32 @@ const cron = require('node-cron');
 const path = require('path');      
 const SQLiteStore = require('connect-sqlite3')(session);
 const db = require('./database'); 
+const fs = require('fs');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode');
-const fs = require('fs');
-const discoPermanente = fs.existsSync('/data') ? '/data' : '.';
-const webpush = require('web-push');
+
+
+// ==============================================================
+// 💾 CONFIGURAÇÃO DO DISCO PERMANENTE (RENDER E LOCAL)
+// ==============================================================
+// Garante que TODOS os ficheiros importantes vão para o disco seguro no Render
+const isRender = process.env.RENDER || fs.existsSync('/data');
+const discoPermanente = isRender ? '/data' : __dirname;
+
+const dbPath = path.join(discoPermanente, 'guineexpress_v4.db');
+const authPath = path.join(discoPermanente, 'sessao_zap_nova');
+const backupsPath = path.join(discoPermanente, 'backups');
+
+// Garante que a pasta de backups existe
+if (!fs.existsSync(backupsPath)) {
+    fs.mkdirSync(backupsPath, { recursive: true });
+}
+// ==============================================================
+
 const app = express(); // <-- O App é criado aqui
+app.use(express.static(path.join(__dirname, 'public')));
+const webpush = require('web-push');
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
 const ExcelJS = require('exceljs');
@@ -1461,12 +1480,12 @@ async function ligarMotorDoZap(res = null) {
         markOnlineOnConnect: true,
     });
 
-    // 🎭 NOSSO CLIENTE ZAP AGORA TEM INTELIGÊNCIA DE FILA
+    // 🎭 NOSSO CLIENTE ZAP AGORA TEM INTELIGÊNCIA DE FILA E RADAR DE 9º DÍGITO
     clientZap = {
         info: true,
         sendMessage: async (numero, conteudo, options = {}) => {
             const numLimpo = numero.replace(/\D/g, '');
-            const jid = numero.includes('@') ? numero : `${numLimpo}@s.whatsapp.net`;
+            let jid = numero.includes('@') ? numero : `${numLimpo}@s.whatsapp.net`;
             
             // 🛑 SE O ZAP ESTIVER OFFLINE, GUARDA NA SALA DE ESPERA!
             if (!sock || !sock.user) {
@@ -1481,21 +1500,23 @@ async function ligarMotorDoZap(res = null) {
                     else if (conteudo.mimetype.startsWith('image/')) tipo = 'image';
                     else tipo = 'document';
                     
-                    // Salvamos a string base64 inteira e os detalhes dela
                     dadoConteudo = JSON.stringify({ data: conteudo.data, mimetype: conteudo.mimetype, filename: conteudo.filename });
                 }
                 
                 db.run(`INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, ?, ?, ?)`, 
-                    [jid, tipo, dadoConteudo, JSON.stringify(options)], 
-                    function(err) {
-                        if (err) console.error("Erro ao salvar na fila do Zap:", err);
-                    }
+                    [jid, tipo, dadoConteudo, JSON.stringify(options)]
                 );
-                return { status: "queued" }; // Retorna avisando que foi pra fila
+                return { status: "queued" };
             }
 
-            // ✅ SE ESTIVER ONLINE, ENVIA NA HORA!
+            // ✅ SE ESTIVER ONLINE, LIGA O RADAR E ENVIA!
             try {
+                // 🔥 O RADAR: Descobre o número verdadeiro (com ou sem o 9)
+                if (!numero.includes('@')) {
+                    const [resultado] = await sock.onWhatsApp(numLimpo);
+                    if (resultado && resultado.exists) jid = resultado.jid;
+                }
+
                 if (typeof conteudo === 'string') {
                     return await sock.sendMessage(jid, { text: conteudo });
                 }
@@ -1518,7 +1539,7 @@ async function ligarMotorDoZap(res = null) {
             }
         },
         getNumberId: async (numero) => {
-            if (!sock || !sock.user) return null; // Se offline, não acha ID (o sendMessage lida com isso depois)
+            if (!sock || !sock.user) return null; 
             try {
                 const numLimpo = numero.replace(/\D/g, '');
                 const [resultado] = await sock.onWhatsApp(numLimpo);
@@ -1570,19 +1591,11 @@ function processarFilaDoZap() {
     console.log("🚦 [FILA DO ZAP] Verificando se há mensagens pendentes...");
     
     db.all("SELECT * FROM zap_queue ORDER BY id ASC", async (err, rows) => {
-        if (err) {
-            console.error("Erro ao ler a fila do Zap:", err);
-            return;
-        }
-        if (!rows || rows.length === 0) {
-            console.log("✅ [FILA DO ZAP] Sala de espera está vazia. Tudo limpo!");
-            return;
-        }
+        if (err || !rows || rows.length === 0) return;
         
         console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens! Disparando...`);
         
         for (const msg of rows) {
-            // Se cair a internet no meio do disparo, para o loop e a fila recomeça da próxima vez.
             if (!sock || !sock.user) {
                 console.log("⚠️ [FILA DO ZAP] Zap caiu enquanto esvaziava a fila. Pausando...");
                 break; 
@@ -1590,43 +1603,43 @@ function processarFilaDoZap() {
             
             try {
                 let conteudoPronto = msg.conteudo;
-                let opcoesProntas = {};
-                
-                if (msg.opcoes) opcoesProntas = JSON.parse(msg.opcoes);
+                let opcoesProntas = msg.opcoes ? JSON.parse(msg.opcoes) : {};
                 
                 if (msg.tipo !== 'text') {
-                    // Reconstroi o objeto do arquivo
                     conteudoPronto = JSON.parse(msg.conteudo); 
                 }
                 
-                // Envia a mensagem (usamos a lógica base do bailey aqui para garantir, já que o getNumberId falharia se confiasse no clientZap offline antes)
+                // 🔥 O RADAR DO 9º DÍGITO NA FILA!
+                let jidDestino = msg.numero;
+                if (!jidDestino.includes('@g.us')) {
+                    const numLimpo = jidDestino.split('@')[0];
+                    const [resultado] = await sock.onWhatsApp(numLimpo).catch(()=>[]);
+                    if (resultado && resultado.exists) jidDestino = resultado.jid;
+                }
+                
+                // Dispara para o destino correto
                 if (msg.tipo === 'text') {
-                    await sock.sendMessage(msg.numero, { text: conteudoPronto });
+                    await sock.sendMessage(jidDestino, { text: conteudoPronto });
                 } else {
                      const buffer = Buffer.from(conteudoPronto.data, 'base64');
                      const mime = conteudoPronto.mimetype;
                      if (msg.tipo === 'audio') {
-                         await sock.sendMessage(msg.numero, { audio: buffer, mimetype: 'audio/mp4', ptt: opcoesProntas.sendAudioAsVoice || false });
+                         await sock.sendMessage(jidDestino, { audio: buffer, mimetype: 'audio/mp4', ptt: opcoesProntas.sendAudioAsVoice || false });
                      } else if (msg.tipo === 'video') {
-                         await sock.sendMessage(msg.numero, { video: buffer, caption: opcoesProntas.caption || '', mimetype: 'video/mp4' });
+                         await sock.sendMessage(jidDestino, { video: buffer, caption: opcoesProntas.caption || '', mimetype: 'video/mp4' });
                      } else if (msg.tipo === 'image') {
-                         await sock.sendMessage(msg.numero, { image: buffer, caption: opcoesProntas.caption || '' });
+                         await sock.sendMessage(jidDestino, { image: buffer, caption: opcoesProntas.caption || '' });
                      } else {
-                         await sock.sendMessage(msg.numero, { document: buffer, mimetype: mime, fileName: conteudoPronto.filename || 'Arquivo.pdf', caption: opcoesProntas.caption || '' });
+                         await sock.sendMessage(jidDestino, { document: buffer, mimetype: mime, fileName: conteudoPronto.filename || 'Arquivo.pdf', caption: opcoesProntas.caption || '' });
                      }
                 }
                 
-                console.log(`🚀 [FILA DO ZAP] Mensagem atrasada enviada para ${msg.numero}!`);
-                
-                // Apaga do banco após enviar com sucesso
+                console.log(`🚀 [FILA DO ZAP] Mensagem atrasada enviada para o destino correto!`);
                 db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
-                
-                // Pequena pausa para o WhatsApp não achar que somos spam (3 segundos entre mensagens)
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 
             } catch (erroEnvio) {
                 console.error(`❌ [FILA DO ZAP] Falha ao enviar msg ${msg.id}:`, erroEnvio.message);
-                // Não apaga do banco. Tenta de novo na próxima vez.
             }
         }
     });
