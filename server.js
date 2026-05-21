@@ -1559,22 +1559,26 @@ async function ligarMotorDoZap(res = null) {
 
         if (connection === 'close') {
             const status = lastDisconnect?.error?.output?.statusCode;
+            // Se não foi um "Log Out" voluntário, ele DEVE reconectar
             const deveReconectar = status !== DisconnectReason.loggedOut;
 
-            console.log(`⚠️ [ZAP] Conexão fechada. Motivo: ${status}. Reconectando? ${deveReconectar}`);
+            console.log(`⚠️ [ZAP] Conexão perdida no Render (Status: ${status}). Reiniciando motor em 2 segundos...`);
 
             if (deveReconectar) {
-                setTimeout(() => ligarMotorDoZap(), 3000);
+                // Fechando a instância antiga para não vazar memória no Render
+                sock = null; 
+                // 🔄 Tenta reconectar a cada 2 segundos exatos!
+                setTimeout(() => ligarMotorDoZap(), 2000);
             } else {
-                console.log("❌ [ZAP] Sessão encerrada. Apagando pasta de sessão...");
+                console.log("❌ [ZAP] Você desconectou pelo celular. Apagando sessão...");
                 sock = null;
             }
         } else if (connection === 'open') {
-            console.log('✅ [ZAP] CONEXÃO ESTABELECIDA! Sistema online.');
+            console.log('✅ [ZAP] CONEXÃO ESTABELECIDA AUTOMATICAMENTE! Sistema online.');
             if (res && !res.headersSent) res.json({ success: true, msg: "Conectado!" });
             if (typeof configurarEventosDoZap === 'function') configurarEventosDoZap(sock);
             
-            // 🚀 A MÁGICA: ASSIM QUE CONECTA, PROCESSA A SALA DE ESPERA!
+            // 🚀 Esvazia a Sala de Espera imediatamente ao voltar!
             processarFilaDoZap();
         }
     });
