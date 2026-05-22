@@ -560,34 +560,25 @@ if (!db || typeof db.get !== 'function') {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
-// ==================================================================
-// SESSÃO BLINDADA (SOBREVIVE A DEPLOYS NO RENDER)
-// ==================================================================
-
 // =================================================================
-// 🛡️ CONFIGURAÇÃO DE SESSÃO DEFINITIVA (SUBSTITUA A SUA POR ESTA)
+// 🛡️ CONFIGURAÇÃO DE SESSÃO DEFINITIVA PARA O RENDER
 // =================================================================
-app.set('trust proxy', 1); // Confia no balanceador de carga do Render (Obrigatório)
+app.set('trust proxy', 1); // Obrigatório para o Render não bloquear cookies!
 
 app.use(session({
     store: new SQLiteStore({ 
         db: 'sessions.db', 
-        dir: discoPermanente // Garante que o ficheiro salva no disco permanente do Render
+        dir: discoPermanente 
     }),
     secret: process.env.SESSION_SECRET || 'chave_super_secreta_guineexpress_2024',
     resave: false,
     saveUninitialized: false,
-    name: 'guineexpress.sid', // Nome exclusivo para o cookie não misturar com caches antigos
+    name: 'guineexpress.sid',
     cookie: { 
         maxAge: 1000 * 60 * 60 * 24 * 30, // 30 dias logado
-        
-        // Se a variável RENDER existir no servidor, ativa o HTTPS automático (true), senão fica false (local)
         secure: process.env.RENDER ? true : false, 
-        
-        // 🔥 A CORREÇÃO DE OURO: 'lax' impede que o Chrome delete o seu cookie no Render!
-        sameSite: 'lax', 
-        
-        httpOnly: true // Proteção extra contra roubo de sessões por scripts maliciosos
+        sameSite: 'lax', // ESTA É A PALAVRA MÁGICA QUE SALVA OS COOKIES!
+        httpOnly: true 
     } 
 }));
 // 🛡️ Middleware: Só deixa passar se for ADMIN
@@ -5277,39 +5268,41 @@ app.get('/api/store/products', (req, res) => {
     });
 });
 // =======================================================
-// 🛍️ ROTA PARA O CLIENTE VER SEUS PRÓPRIOS PEDIDOS
+// 🛍️ ROTA PARA O CLIENTE VER SEUS PRÓPRIOS PEDIDOS (COM ESPIÃO)
 // =======================================================
 app.get('/api/store/my-orders', (req, res) => {
+    console.log("=== 🛰️ INICIANDO RASTREIO DE PEDIDOS ===");
+    console.log("ID do Usuário logado:", req.session ? req.session.userId : "NENHUM");
+
     if (!req.session || !req.session.userId) {
+        console.log("❌ FALHA: O cliente tentou rastrear, mas o servidor achou que ele não está logado.");
         return res.json({ success: true, orders: [] });
     }
 
     const clientId = req.session.userId;
 
-    // 🔥 CORREÇÃO: Mudamos de "clients" para "users" (que é a sua tabela real)
     db.get(`SELECT phone, name FROM users WHERE id = ?`, [clientId], (err, clientData) => {
         if (err) {
-            console.error("Erro ao buscar usuário na loja:", err);
-            // Se der erro, manda sucesso com lista vazia para a bolinha amarela não travar!
+            console.error("❌ Erro ao buscar usuário na loja:", err);
             return res.json({ success: true, orders: [] }); 
         }
 
         const phone = clientData ? clientData.phone : '';
         const name = clientData ? clientData.name : '';
 
-        // Busca pedidos pelo ID, Telefone ou Nome (À prova de falhas!)
+        console.log(`🔎 Buscando no Banco de Dados: ID [${clientId}] ou Tel [${phone}] ou Nome [${name}]`);
+
         db.all(`SELECT * FROM store_orders WHERE client_id = ? OR client_phone = ? OR client_name = ? ORDER BY created_at DESC`, 
         [clientId, phone, name], (err, orders) => {
             if (err) {
-                console.error("Erro ao buscar pedidos da loja:", err);
+                console.error("❌ Erro ao buscar pedidos da loja:", err);
                 return res.json({ success: true, orders: [] });
             }
 
+            console.log(`✅ Sucesso! O banco encontrou ${orders.length} pedido(s) para este cliente.`);
+
             db.all(`SELECT * FROM store_order_items`, [], (err2, allItems) => {
-                if (err2) {
-                    console.error("Erro ao buscar itens do pedido:", err2);
-                    return res.json({ success: true, orders: [] });
-                }
+                if (err2) return res.json({ success: true, orders: [] });
 
                 const meusPedidos = orders.map(order => {
                     return {
