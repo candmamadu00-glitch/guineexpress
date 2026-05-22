@@ -452,7 +452,7 @@
         <div class="btn-electric-wrapper"><div class="electric-ring"></div>
             <button onclick="showSection('profile-view')" class="nav-btn premium-btn profile-btn"><i class="fas fa-user"></i> Perfil</button>
         </div>
-
+   
         <div class="btn-electric-wrapper"><div class="electric-ring" style="background: conic-gradient(from 0deg, transparent, #ff4d4d, transparent 50%);"></div>
             <button onclick="logout()" class="nav-btn premium-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Sair</button>
         </div>
@@ -460,6 +460,7 @@
     
     <button class="scroll-btn right" onclick="scrollNav(250)"><i class="fas fa-chevron-right"></i></button>
 </div>
+
 </nav>
 
 <div style="margin: 35px 15px; text-align: center; display: flex; justify-content: center;">
@@ -1363,7 +1364,12 @@ async function copiarPixExato(idFatura, banco, eventoClique) {
         <p style="font-size: 11px; color: #666; margin-bottom: 15px; text-align: center;">
             <i class="fas fa-info-circle"></i> O valor final será confirmado pela Cicí no WhatsApp.
         </p>
-
+          <div style="margin-bottom: 15px; text-align: left; background: #f8fafc; padding: 10px; border-radius: 10px; border: 1px dashed #cbd5e1;">
+            <label style="font-size: 12px; font-weight: bold; color: #475569; display: block; margin-bottom: 5px;">📍 Entregar em qual Morada?</label>
+            <select id="checkout-seletor-morada" onchange="autofillMoradaSelecionada(this)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13px; font-weight: 600; outline: none; background: white;">
+                <option value="">-- Selecione uma morada guardada --</option>
+            </select>
+        </div>
         <button onclick="finalizarCompraComCici()" style="width:100%; background:#0a1931; color:#dfaf12; border:none; padding: 15px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
             <i class="fab fa-whatsapp"></i> FECHAR PEDIDO COM A CICÍ
         </button>

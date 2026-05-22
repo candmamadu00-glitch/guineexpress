@@ -11011,3 +11011,163 @@ function tentarComprar() {
                 statusText.style.color = "#ff4d4d";
             }
         }
+        // =======================================================
+// INTERAÇÕES DA GESTÃO DE MORADAS (FRONTEND)
+// =======================================================
+
+// Carrega as moradas sempre que abrir o perfil ou o carrinho
+async function carregarMoradasCliente() {
+    const container = document.getElementById('lista-moradas-cliente');
+    if(!container) return;
+
+    try {
+        const res = await fetch('/api/store/my-addresses');
+        const data = await res.json();
+
+        if(data.success && data.addresses.length > 0) {
+            container.innerHTML = data.addresses.map(adr => `
+                <div style="border: 1px solid #e2e8f0; padding: 12px 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; background: #fff;">
+                    <div>
+                        <span style="background: #ee4d2d; color: white; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 5px; text-transform: uppercase;">${adr.label}</span>
+                        <strong style="display:block; font-size:14px; margin-top:5px; color:#0f172a;">${adr.recipient_name}</strong>
+                        <p style="margin:2px 0 0 0; font-size:13px; color:#64748b;">${adr.street}, ${adr.city} - ${adr.country}</p>
+                        <span style="font-size:11px; color:#94a3b8;"><i class="fas fa-phone"></i> ${adr.phone || 'Sem tlf'}</span>
+                    </div>
+                    <button onclick="eliminarMorada(${adr.id})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:16px;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            `).join('');
+            
+            // Se houver um seletor de moradas no modal de fechar carrinho, atualiza-o também!
+            atualizarSeletorMoradasCarrinho(data.addresses);
+        } else {
+            container.innerHTML = `<p style="text-align:center; color:#94a3b8; font-size:13px; padding:10px;">Nenhuma morada guardada ainda.</p>`;
+        }
+    } catch (e) {
+        console.log("Erro ao processar moradas:", e);
+    }
+}
+
+// Envia a nova morada preenchida para o Servidor
+async function salvarNovaMorada() {
+    const payload = {
+        label: document.getElementById('adr-label').value,
+        recipient_name: document.getElementById('adr-name').value,
+        phone: document.getElementById('adr-phone').value,
+        street: document.getElementById('adr-street').value,
+        city: document.getElementById('adr-city').value,
+        country: document.getElementById('adr-country').value,
+        zip_code: ''
+    };
+
+    if(!payload.label || !payload.recipient_name || !payload.street) {
+        alert("Por favor, dê um título (Ex: Casa) e preencha o Nome e Rua.");
+        return;
+    }
+
+    const res = await fetch('/api/store/save-address', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    
+    const data = await res.json();
+    if(data.success) {
+        // Limpa campos
+        ['adr-label','adr-name','adr-phone','adr-street','adr-city','adr-country'].forEach(id => document.getElementById(id).value = '');
+        carregarMoradasCliente(); // Recarrega a lista
+    } else {
+        alert("Erro ao salvar: " + data.message);
+    }
+}
+
+// Eliminar morada
+async function eliminarMorada(id) {
+    if(!confirm("Deseja eliminar esta morada?")) return;
+    const res = await fetch(`/api/store/delete-address/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if(data.success) carregarMoradasCliente();
+}
+function atualizarSeletorMoradasCarrinho(addresses) {
+    const select = document.getElementById('checkout-seletor-morada');
+    if(!select) return;
+    
+    // Mantém apenas a primeira opção padrão
+    select.innerHTML = '<option value="">-- Selecione uma morada guardada --</option>';
+    
+    addresses.forEach(adr => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify(adr);
+        opt.innerText = `📍 [${adr.label.toUpperCase()}] - ${adr.street}, ${adr.city}`;
+        select.appendChild(opt);
+    });
+}
+
+// Quando o cliente escolhe a morada na caixinha, ela preenche os dados do envio automaticamente!
+function autofillMoradaSelecionada(elemento) {
+    if(!elemento.value) return;
+    const adr = JSON.parse(elemento.value);
+    
+    // Se tu tiveres campos de texto para morada no formulário final do carrinho, preenche-os:
+    const campoDestinoCompleto = document.getElementById('input-entrega-carrinho');
+    if(campoDestinoCompleto) {
+        campoDestinoCompleto.value = `${adr.recipient_name} | Tel: ${adr.phone} | ${adr.street}, ${adr.city} - ${adr.country}`;
+    }
+}
+// =======================================================
+// 🛍️ FINALIZAR COMPRA COM A CICÍ (COM MORADA INTELIGENTE)
+// =======================================================
+function finalizarCompraComCici() {
+    // 1. Verifica se o carrinho tem produtos
+    if (!itensNoCarrinho || itensNoCarrinho.length === 0) {
+        alert("O seu carrinho está vazio! Adicione algumas mercadorias primeiro.");
+        return;
+    }
+
+    // 2. Lê a morada que o cliente selecionou na caixinha
+    const seletorMorada = document.getElementById('checkout-seletor-morada');
+    let textoMorada = "📍 *Entrega:* A combinar no chat com a Cicí"; // Texto padrão caso ele não selecione nada
+    
+    if (seletorMorada && seletorMorada.value) {
+        try {
+            // Transforma o texto escondido de volta num objeto de morada
+            const adr = JSON.parse(seletorMorada.value);
+            textoMorada = `📍 *ENTREGAR EM:* [${adr.label.toUpperCase()}]\n👤 *Recebedor:* ${adr.recipient_name}\n📞 *Contacto:* ${adr.phone}\n🏠 *Endereço:* ${adr.street}, ${adr.city} - ${adr.country}`;
+        } catch (e) {
+            console.error("Erro ao ler a morada:", e);
+        }
+    } else {
+        // Se a caixinha existe mas ele não escolheu nenhuma morada
+        alert("⚠️ Por favor, selecione uma Morada de Entrega antes de fechar o pedido!");
+        return; // Pára a função para ele ir escolher a morada
+    }
+
+    // 3. Monta a mensagem mágica para o WhatsApp
+    let texto = "🛍️ *NOVO PEDIDO - GUINEEXPRESS* 🛍️\n\nOlá Cicí! Gostaria de fechar o meu carrinho de compras:\n\n";
+    
+    let total = 0;
+    itensNoCarrinho.forEach(item => {
+        const preco = parseFloat(item.price_brl || item.price || 0);
+        total += preco;
+        texto += `📦 1x *${item.name}* - R$ ${preco.toFixed(2)}\n`;
+    });
+
+    texto += `\n💰 *TOTAL DO CARRINHO:* R$ ${total.toFixed(2)}\n`;
+    texto += `\n========================\n`;
+    texto += `${textoMorada}\n`;
+    texto += `========================\n`;
+    texto += `\nAguardando confirmação de pagamento e preparação para o voo! ✈️`;
+
+    // 4. Manda tudo para o WhatsApp!
+    // ⚠️ ATENÇÃO: COLOQUE AQUI O SEU NÚMERO VERDADEIRO (COM DDI e DDD, ex: 5511999999999)
+    const numeroWhatsAppCici = "5585998239207"; 
+    
+    const url = `https://wa.me/${numeroWhatsAppCici}?text=${encodeURIComponent(texto)}`;
+    window.open(url, '_blank');
+    
+    // (Opcional) Fecha a janela do carrinho após enviar
+    if (typeof fecharModalCarrinho === "function") {
+        fecharModalCarrinho();
+    }
+}

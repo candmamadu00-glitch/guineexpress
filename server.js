@@ -5351,7 +5351,63 @@ app.post('/api/store/products/delete', (req, res) => {
         res.json({ success: true });
     });
 });
+// =======================================================
+// 📍 ROTAS PARA GESTÃO INTELIGENTE DE MORADAS
+// =======================================================
 
+// Buscar todas as moradas salvas do cliente logado
+app.get('/api/store/my-addresses', (req, res) => {
+    if (!req.session || !req.session.userId) {
+        return res.json({ success: false, message: "Não logado" });
+    }
+    const clientId = req.session.userId;
+    db.all(`SELECT * FROM user_addresses WHERE user_id = ? ORDER BY id DESC`, [clientId], (err, rows) => {
+        if (err) {
+            console.error("Erro ao buscar moradas:", err);
+            return res.json({ success: false, addresses: [] });
+        }
+        res.json({ success: true, addresses: rows });
+    });
+});
+
+// Salvar ou atualizar uma morada
+app.post('/api/store/save-address', (req, res) => {
+    if (!req.session || !req.session.userId) {
+        return res.json({ success: false, message: "Acesso negado" });
+    }
+    const clientId = req.session.userId;
+    const { label, recipient_name, phone, street, city, country, zip_code } = req.body;
+
+    if (!label || !recipient_name || !street || !city || !country) {
+        return res.json({ success: false, message: "Preencha os campos obrigatórios" });
+    }
+
+    db.run(`INSERT INTO user_addresses (user_id, label, recipient_name, phone, street, city, country, zip_code) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [clientId, label, recipient_name, phone, street, city, country, zip_code], function(err) {
+        if (err) {
+            console.error("Erro ao salvar morada:", err);
+            return res.json({ success: false, message: "Erro no banco de dados" });
+        }
+        res.json({ success: true, message: "Morada salva com sucesso!", addressId: this.lastID });
+    });
+});
+
+// Eliminar uma morada
+app.delete('/api/store/delete-address/:id', (req, res) => {
+    if (!req.session || !req.session.userId) {
+        return res.json({ success: false, message: "Não autorizado" });
+    }
+    const clientId = req.session.userId;
+    const addressId = req.params.id;
+
+    db.run(`DELETE FROM user_addresses WHERE id = ? AND user_id = ?`, [addressId, clientId], (err) => {
+        if (err) {
+            return res.json({ success: false, message: "Erro ao eliminar" });
+        }
+        res.json({ success: true, message: "Morada eliminada!" });
+    });
+});
 // Tornar a pasta "uploads" pública para os clientes conseguirem ver as fotos
 app.use('/uploads', express.static(path.join(discoPermanente, 'uploads')));
 // ==============================================================
