@@ -45,7 +45,6 @@ const app = express(); // <-- O App é criado aqui
 app.use(express.static(path.join(__dirname, 'public')));
 const webpush = require('web-push');
 app.use(express.static(path.join(__dirname, 'public')));
-app.set('trust proxy', 1); // Avisa ao sistema que estamos rodando atrás do proxy do Render
 const ExcelJS = require('exceljs');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
@@ -565,30 +564,30 @@ app.use(express.static('public'));
 // SESSÃO BLINDADA (SOBREVIVE A DEPLOYS NO RENDER)
 // ==================================================================
 
-// Verifica se o site está rodando no Render ou localmente
-const noRender = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
-
-if (noRender) {
-    app.set('trust proxy', 1); // Confia no proxy do Render
-}
+// =================================================================
+// 🛡️ CONFIGURAÇÃO DE SESSÃO DEFINITIVA (SUBSTITUA A SUA POR ESTA)
+// =================================================================
+app.set('trust proxy', 1); // Confia no balanceador de carga do Render (Obrigatório)
 
 app.use(session({
     store: new SQLiteStore({ 
         db: 'sessions.db', 
-        dir: discoPermanente 
+        dir: discoPermanente // Garante que o ficheiro salva no disco permanente do Render
     }),
     secret: process.env.SESSION_SECRET || 'chave_super_secreta_guineexpress_2024',
     resave: false,
     saveUninitialized: false,
+    name: 'guineexpress.sid', // Nome exclusivo para o cookie não misturar com caches antigos
     cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 30, // 30 dias
+        maxAge: 1000 * 60 * 60 * 24 * 30, // 30 dias logado
         
-        // 🔥 A CORREÇÃO MÁGICA AQUI:
-        // Se estiver no Render, DEVE ser true (HTTPS). Se for local, fica false (HTTP).
-        secure: noRender, 
+        // Se a variável RENDER existir no servidor, ativa o HTTPS automático (true), senão fica false (local)
+        secure: process.env.RENDER ? true : false, 
         
-        // Se secure for true no Render, 'lax' ou 'none' funcionarão perfeitamente sem sumir com a sessão!
-        sameSite: noRender ? 'none' : 'lax' 
+        // 🔥 A CORREÇÃO DE OURO: 'lax' impede que o Chrome delete o seu cookie no Render!
+        sameSite: 'lax', 
+        
+        httpOnly: true // Proteção extra contra roubo de sessões por scripts maliciosos
     } 
 }));
 // 🛡️ Middleware: Só deixa passar se for ADMIN
