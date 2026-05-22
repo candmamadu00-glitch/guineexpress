@@ -8701,18 +8701,48 @@ function fazerProdutoVoar(imgUrl, elementoOrigem) {
     }, 800); // Tempo exato do voo (igual ao CSS transition)
 }
 
+// =======================================================
+// 🛒 ATUALIZAR CONTADORES DA SACOLA (TOTALMENTE BLINDADO)
+// =======================================================
 function atualizarContadorCarrinho() {
-    const contador = document.getElementById('cart-counter');
-    const qtd = itensNoCarrinho.length;
-    
-    if (qtd > 0) {
-        contador.innerText = qtd;
-        contador.classList.remove('hidden');
-        // Efeito de "pulsar" no número novo
-        contador.style.animation = 'cart-bump 0.3s ease-out';
-        setTimeout(() => contador.style.animation = '', 300);
-    } else {
-        contador.classList.add('hidden');
+    // 1. Garante que a variável existe
+    const qtd = (typeof itensNoCarrinho !== 'undefined' && itensNoCarrinho) ? itensNoCarrinho.length : 0;
+
+    // 2. Blinda o contador flutuante
+    const contadorPrincipal = document.getElementById('cart-counter');
+    if (contadorPrincipal) {
+        contadorPrincipal.innerText = qtd;
+        if (qtd > 0) {
+            contadorPrincipal.classList.remove('hidden');
+            contadorPrincipal.style.display = 'flex';
+        } else {
+            contadorPrincipal.classList.add('hidden');
+            contadorPrincipal.style.display = 'none';
+        }
+    }
+
+    // 3. Blinda o contador de baixo
+    const contadorBaixo = document.getElementById('bottom-cart-counter');
+    if (contadorBaixo) {
+        contadorBaixo.innerText = qtd;
+        if (qtd > 0) {
+            contadorBaixo.classList.remove('hidden');
+            contadorBaixo.style.display = 'flex';
+        } else {
+            contadorBaixo.classList.add('hidden');
+            contadorBaixo.style.display = 'none';
+        }
+    }
+
+    // 4. Blinda o contador VIP
+    const contadorVip = document.getElementById('cart-counter-vip');
+    if (contadorVip) {
+        contadorVip.innerText = qtd;
+        if (qtd > 0) {
+            contadorVip.style.display = 'flex';
+        } else {
+            contadorVip.style.display = 'none';
+        }
     }
 }
 // =======================================================
