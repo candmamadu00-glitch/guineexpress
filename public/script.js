@@ -10650,16 +10650,18 @@ async function carregarLojaVip() {
         gridVip.innerHTML = '<div style="text-align:center; padding:50px;"><i class="fas fa-spinner fa-spin fa-2x" style="color:#d4af37;"></i><p style="color:white; margin-top:10px;">A importar coleção premium...</p></div>';
         
         try {
-            const response = await fetch('/api/store/products');
+            // 🔄 CORREÇÃO AQUI: Mudamos para a rota exclusiva de clientes que entrega o formato { success: true }
+            const response = await fetch('/api/loja/produtos-clientes');
             const data = await response.json();
             
             if (data.success) {
-                window.produtosOriginais = data.products; // Guarda na memória
+                window.produtosOriginais = data.products; // Guarda na memória com sucesso!
             } else {
                 gridVip.innerHTML = '<p style="color:#ff4c4c; text-align:center;">Erro ao carregar a coleção. Tente novamente.</p>';
                 return;
             }
         } catch (erro) {
+            console.error("Erro na rota da loja:", erro);
             gridVip.innerHTML = '<p style="color:#ff4c4c; text-align:center;">Erro de conexão com a loja.</p>';
             return;
         }
@@ -10668,13 +10670,14 @@ async function carregarLojaVip() {
     // Agora que temos certeza que os produtos existem, desenhamos a vitrine!
     let html = '';
     window.produtosOriginais.forEach(p => {
-        const moedaElement = document.getElementById('currency-selector');
+        // Blindagem de moedas: Aceita tanto o seletor da loja quanto o das faturas
+        const moedaElement = document.getElementById('currency-selector') || document.getElementById('moeda-fatura');
         const moeda = moedaElement ? moedaElement.value : 'BRL';
         let precoFinal = p.price_brl;
         let simbolo = 'R$';
         const cotacoes = window.COTACAO || { XOF: 120, EUR: 0.18, USD: 0.20 };
         
-        if (moeda === 'CFA') { precoFinal = p.price_brl * cotacoes.XOF; simbolo = 'XOF'; }
+        if (moeda === 'CFA' || moeda === 'XOF') { precoFinal = p.price_brl * cotacoes.XOF; simbolo = 'CFA'; }
         else if (moeda === 'EUR') { precoFinal = p.price_brl * cotacoes.EUR; simbolo = '€'; }
         else if (moeda === 'USD') { precoFinal = p.price_brl * cotacoes.USD; simbolo = '$'; }
 

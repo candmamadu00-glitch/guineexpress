@@ -247,12 +247,6 @@
             <h1>Guineexpress</h1>
             <p>Logística Internacional Premium</p>
         </div>
-
-        <div style="margin: 25px 0;">
-            <button type="button" onclick="window.location.href='dashboard-client.html'" class="btn-enter-vip">
-                <i class="fas fa-gem"></i> Explorar Catálogo VIP 3D
-            </button>
-        </div>
         <div id="active-package" class="active-package-info" style="display: none;">
             <div class="package-status-header">
                 <span class="pkg-code" id="resultado-codigo">GX-1024</span>
@@ -292,7 +286,19 @@
             <button type="submit" class="btn-pill-premium btn-login">
                 ENTRAR NA PLATAFORMA <i class="fas fa-arrow-right"></i>
             </button>
-            
+            <div style="margin: 25px 15px; text-align: center;">
+    <div style="position: relative; width: 100%; max-width: 350px; height: 60px; margin: 0 auto; border-radius: 20px; overflow: hidden; padding: 2px; display: flex; justify-content: center; align-items: center; box-shadow: 0 10px 25px rgba(0, 242, 254, 0.2);">
+        <div style="position: absolute; width: 200%; height: 200%; background: conic-gradient(transparent, #00f2fe, #d4af37, transparent 40%); animation: electricSpin 3s linear infinite; z-index: 1;"></div>
+        <button onclick="window.location.href='dashboard-vip.html'" style="position: relative; width: 100%; height: 100%; background: #050a15; border: none; border-radius: 18px; color: #fff; font-size: 15px; font-weight: 900; letter-spacing: 1px; cursor: pointer; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 10px; text-transform: uppercase;">
+            <i class="fas fa-plane-departure" style="color: #00f2fe; font-size: 18px; animation: bounce 2s infinite;"></i>
+            Acessar SITE
+        </button>
+    </div>
+</div>
+
+<style>
+@keyframes electricSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
             <button id="btn-biometria-login" type="button" onclick="loginComBiometria()" class="btn-pill-premium btn-bio">
                 <i class="fas fa-fingerprint" style="font-size: 20px;"></i> Acesso Biométrico
             </button>

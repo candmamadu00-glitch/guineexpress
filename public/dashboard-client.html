@@ -416,7 +416,7 @@
     
     <div class="nav-links" id="client-nav-links">
         <button onclick="showSection('home-view')" class="nav-btn premium-btn home-btn"><i class="fas fa-home"></i> Início</button>
-<button onclick="showSection('store-view'); carregarLojaCliente();" class="nav-btn premium-btn store-btn" style="background: #dfaf12; color: #0a1931; font-weight: 900; box-shadow: 0 4px 15px rgba(223, 175, 18, 0.4);">
+<button onclick="showSection('store-view');" class="nav-btn premium-btn store-btn" style="background: #dfaf12; color: #0a1931; font-weight: 900; box-shadow: 0 4px 15px rgba(223, 175, 18, 0.4);">
         <i class="fas fa-store"></i> Loja Guineexpress
     </button>
         <button onclick="showSection('orders-view')" class="nav-btn premium-btn orders-btn"><i class="fas fa-box"></i> Encomendas</button>
@@ -435,11 +435,22 @@
     </button>
 </div>
     </nav>
-<div style="margin: 25px 0;">
-    <button type="button" onclick="abrirVitrineVip()" class="btn-enter-vip">
-        <i class="fas fa-gem"></i> Explorar Catálogo VIP 3D
-    </button>
+<div style="margin: 35px 15px; text-align: center; display: flex; justify-content: center;">
+    <div class="electric-wrapper" style="position: relative; width: 100%; max-width: 350px; height: 60px; padding: 2px; border-radius: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 242, 254, 0.2);">
+        <div style="position: absolute; width: 200%; height: 200%; background: conic-gradient(from 0deg, transparent, #00f2fe, #d4af37, transparent 50%); animation: spinElectric 2.5s linear infinite; z-index: 1;"></div>
+        <button onclick="window.location.href='dashboard-vip.html'" style="position: absolute; inset: 2px; background: #050a15; border: none; border-radius: 18px; color: #fff; font-size: 15px; font-weight: 900; letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 2; text-transform: uppercase;">
+            <i class="fas fa-plane-departure" style="color: #d4af37; font-size: 18px; animation: bounce 2s infinite;"></i>
+            Acessar SITE
+        </button>
+    </div>
 </div>
+
+<style>
+@keyframes spinElectric {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
     <div class="container">
 
         <section id="home-view">
@@ -1850,7 +1861,7 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         <span>Início</span>
     </button>
     
-    <button onclick="showSection('store-view'); carregarLojaCliente();" class="bottom-nav-item" id="nav-store">
+    <button onclick="showSection('store-view');" class="bottom-nav-item" id="nav-store">
         <i class="fas fa-store-alt"></i> 
         <span>Loja</span>
     </button>
@@ -1874,7 +1885,6 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
     </button>
 </div>
 <div id="modal-produto-premium" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(12, 6, 0, 0.85); backdrop-filter: blur(10px); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.4s ease;">
-    
     <div class="produto-card-glass" style="background: rgba(20, 10, 0, 0.8); border: 1px solid rgba(255, 94, 0, 0.3); border-radius: 25px; width: 90%; max-width: 400px; padding: 20px; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(255, 94, 0, 0.1); position: relative; transform: scale(0.8); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
         
         <button onclick="fecharModalProduto()" style="position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.5); border: none; color: #fff; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; font-size: 16px; border: 1px solid rgba(255,255,255,0.1);"><i class="fas fa-times"></i></button>
@@ -1887,7 +1897,7 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         </div>
 
         <h2 id="vip-prod-title" style="color: #fff; margin: 0 0 10px 0; font-size: 22px; font-weight: 800;">Nome do Produto</h2>
-        <p id="vip-prod-desc" style="color: #ccc; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">Descrição detalhada do produto vai aparecer aqui com todos os detalhes impressionantes.</p>
+        <p id="vip-prod-desc" style="color: #ccc; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">Descrição detalhada do produto vai aparecer aqui.</p>
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
             <div>
@@ -1899,24 +1909,10 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         <button id="btn-comprar-vip" onclick="tentarComprar()" style="width: 100%; background: var(--primary-orange); color: white; border: none; padding: 18px; border-radius: 15px; font-size: 16px; font-weight: 900; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: center; align-items: center; gap: 10px; box-shadow: 0 10px 25px rgba(255, 94, 0, 0.4); transition: 0.3s;">
             <i class="fas fa-shopping-bag"></i> QUERO COMPRAR
         </button>
-
     </div>
 </div>
-<script>
-    // Faz a cor e a animação pularem para o botão que o cliente acabou de clicar!
-    const navItemsBottom = document.querySelectorAll('.bottom-nav-item');
-    navItemsBottom.forEach(item => {
-        item.addEventListener('click', () => {
-            // Não muda a cor se for só abrir o carrinho ou pedidos
-            if(!item.getAttribute('onclick').includes('Carrinho') && !item.getAttribute('onclick').includes('Pedidos')) {
-                navItemsBottom.forEach(nav => nav.classList.remove('active'));
-                item.classList.add('active');
-            }
-        });
-    });
-</script>
-<section id="store-vip-view" class="aurora-bg">
-    
+
+<section id="store-vip-view" class="aurora-bg" style="display: none;">
     <div class="vip-glass-container" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-radius: 0 0 25px 25px; margin: 0 0 20px 0;">
         <button onclick="fecharVitrineVip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; backdrop-filter: blur(5px); cursor: pointer;">
             <i class="fas fa-arrow-left"></i>
@@ -1925,7 +1921,8 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
             <h2 style="color: white; margin: 0; font-size: 20px; font-weight: 900; letter-spacing: 2px;">GUINEEXPRESS</h2>
             <span style="color: #d4af37; font-size: 10px; font-weight: bold; letter-spacing: 3px;">PREMIUM COLLECTION</span>
         </div>
-        <div style="width: 40px;"></div> </div>
+        <div style="width: 40px;"></div> 
+    </div>
 
     <div class="flag-3d-container">
         <div class="flag-3d flag-br"></div>
@@ -1941,22 +1938,57 @@ fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu man
         <h3 style="color: white; text-align: center; margin-bottom: 20px; font-weight: 300; letter-spacing: 1px;">Toque num produto para a magia acontecer.</h3>
         
         <div id="vip-products-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px;">
-            </div>
+        </div>
     </div>
-
 </section>   
+
 <script>
+    // 3. O GUARDA-COSTAS DA COMPRA (Verifica Login)
+    function tentarComprar() {
+        if (!window.currentUser) {
+            fecharModalProduto(); // Fecha o produto
+            alert("🔒 Acesso Restrito! Faça login ou crie uma conta grátis para finalizar sua compra.");
+            
+            const loginScreen = document.getElementById('login-screen'); 
+            if(loginScreen) {
+                loginScreen.classList.remove('hidden');
+            } else {
+                window.location.href = '/'; 
+            }
+        } else {
+            alert("✅ Produto adicionado ao carrinho com sucesso!");
+        }
+    }
+
+    // Faz a cor e a animação pularem para o botão que o cliente acabou de clicar!
+    const navItemsBottom = document.querySelectorAll('.bottom-nav-item');
+    navItemsBottom.forEach(item => {
+        item.addEventListener('click', () => {
+            if(!item.getAttribute('onclick').includes('Carrinho') && !item.getAttribute('onclick').includes('Pedidos')) {
+                navItemsBottom.forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+            }
+        });
+    });
+
+    // 2. CONTROLES DE ABRIR E FECHAR A VITRINE VIP 3D (CORRIGIDO)
     function abrirVitrineVip() {
-        document.getElementById('store-vip-view').style.display = 'block';
-        carregarLojaVip(); // <--- Isto é o gatilho da magia!
+        event.preventDefault(); // Impede a página de piscar/recarregar!
+        const vitrine = document.getElementById('store-vip-view');
+        if (vitrine) {
+            vitrine.style.display = 'block';
+            vitrine.style.opacity = '1';
+            try { carregarLojaVip(); } catch(e) { console.log("A carregar loja..."); }
+        }
     }
     
     function fecharVitrineVip() {
         document.getElementById('store-vip-view').style.display = 'none';
     }
 </script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script src="cici.js"></script>
+<script src="cici.js"></script>
 </body>
 </html>
