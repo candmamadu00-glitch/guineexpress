@@ -409,48 +409,143 @@
         </div>
     </div>
 </div>
-<div class="nav-wrapper">
-    <button class="scroll-btn left" onclick="scrollNav(-250)">
-        <i class="fas fa-chevron-left"></i>
-    </button>
+<div class="nav-wrapper" style="padding: 10px 0; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;">
+    <button class="scroll-btn left" onclick="scrollNav(-250)"><i class="fas fa-chevron-left"></i></button>
     
-    <div class="nav-links" id="client-nav-links">
-        <button onclick="showSection('home-view')" class="nav-btn premium-btn home-btn"><i class="fas fa-home"></i> Início</button>
-<button onclick="showSection('store-view');" class="nav-btn premium-btn store-btn" style="background: #dfaf12; color: #0a1931; font-weight: 900; box-shadow: 0 4px 15px rgba(223, 175, 18, 0.4);">
-        <i class="fas fa-store"></i> Loja Guineexpress
-    </button>
-        <button onclick="showSection('orders-view')" class="nav-btn premium-btn orders-btn"><i class="fas fa-box"></i> Encomendas</button>
-        <button onclick="showSection('box-view')" class="nav-btn premium-btn box-btn">📦 Box</button>
-        <button onclick="showSection('billing-view')" class="nav-btn premium-btn billing-btn">💲 Faturas</button>
-        <button onclick="showSection('receipts-view')" class="nav-btn premium-btn receipts-btn"><i class="fas fa-file-invoice"></i> Recibos</button>
-        <button onclick="showSection('schedule-view')" class="nav-btn premium-btn schedule-btn">📅 Agendamentos</button>
-        <button onclick="showSection('videos-section')" class="nav-btn premium-btn videos-btn">🎥 Vídeos</button>
-        <button onclick="showSection('history-view')" class="nav-btn premium-btn history-btn"><i class="fas fa-history"></i> Histórico</button>
-        <button onclick="showSection('profile-view')" class="nav-btn premium-btn profile-btn"><i class="fas fa-user"></i> Perfil</button>
-        <button onclick="logout()" class="nav-btn premium-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Sair</button>
+    <div class="nav-links" id="client-nav-links" style="display: flex; gap: 15px; padding: 0 10px;">
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('home-view')" class="nav-btn premium-btn home-btn"><i class="fas fa-home"></i> Início</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring" style="background: conic-gradient(from 0deg, transparent, #dfaf12, #00f2fe, transparent 50%);"></div>
+            <button onclick="showSection('store-view'); carregarLojaCliente();" class="nav-btn premium-btn store-btn" style="background: #dfaf12; color: #0a1931; font-weight: 900;"><i class="fas fa-store"></i> Loja</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('orders-view')" class="nav-btn premium-btn orders-btn"><i class="fas fa-box"></i> Encomendas</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('box-view')" class="nav-btn premium-btn box-btn">📦 Box</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('billing-view')" class="nav-btn premium-btn billing-btn">💲 Faturas</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('receipts-view')" class="nav-btn premium-btn receipts-btn"><i class="fas fa-file-invoice"></i> Recibos</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('schedule-view')" class="nav-btn premium-btn schedule-btn">📅 Agendamentos</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('videos-section')" class="nav-btn premium-btn videos-btn">🎥 Vídeos</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('history-view')" class="nav-btn premium-btn history-btn"><i class="fas fa-history"></i> Histórico</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('profile-view')" class="nav-btn premium-btn profile-btn"><i class="fas fa-user"></i> Perfil</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring" style="background: conic-gradient(from 0deg, transparent, #ff4d4d, transparent 50%);"></div>
+            <button onclick="logout()" class="nav-btn premium-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Sair</button>
+        </div>
     </div>
     
-    <button class="scroll-btn right" onclick="scrollNav(250)">
-        <i class="fas fa-chevron-right"></i>
-    </button>
+    <button class="scroll-btn right" onclick="scrollNav(250)"><i class="fas fa-chevron-right"></i></button>
 </div>
-    </nav>
+</nav>
+
 <div style="margin: 35px 15px; text-align: center; display: flex; justify-content: center;">
-    <div class="electric-wrapper" style="position: relative; width: 100%; max-width: 350px; height: 60px; padding: 2px; border-radius: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 242, 254, 0.2);">
+    <div style="position: relative; width: 100%; max-width: 350px; height: 60px; padding: 2px; border-radius: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0, 242, 254, 0.2);">
         <div style="position: absolute; width: 200%; height: 200%; background: conic-gradient(from 0deg, transparent, #00f2fe, #d4af37, transparent 50%); animation: spinElectric 2.5s linear infinite; z-index: 1;"></div>
         <button onclick="window.location.href='dashboard-vip.html'" style="position: absolute; inset: 2px; background: #050a15; border: none; border-radius: 18px; color: #fff; font-size: 15px; font-weight: 900; letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 2; text-transform: uppercase;">
-            <i class="fas fa-plane-departure" style="color: #d4af37; font-size: 18px; animation: bounce 2s infinite;"></i>
-            Acessar SITE
+            <i class="fas fa-plane-departure" style="color: #00f2fe; font-size: 18px; animation: bounce 2s infinite;"></i>
+            Acessar SITE VIP
         </button>
     </div>
 </div>
 
 <style>
-@keyframes spinElectric {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+/* CSS DA MÁGICA ELÉTRICA NOS BOTÕES */
+.btn-electric-wrapper {
+    position: relative;
+    padding: 2px;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0; /* 🚀 IMPEDE QUE O BOTÃO SEJA ESMAGADO */
 }
+.electric-ring {
+    position: absolute;
+    width: 250%;
+    height: 250%;
+    background: conic-gradient(from 0deg, transparent, #009ee3, #0a1931, transparent 40%);
+    animation: spinElectric 3s linear infinite;
+    z-index: 1;
+}
+.btn-electric-wrapper .nav-btn {
+    position: relative;
+    z-index: 2;
+    margin: 0 !important;
+    border: none;
+    border-radius: 10px;
+    background: white;
+    color: #0a1931;
+    font-weight: bold;
+    padding: 10px 20px; /* 🚀 Aumentei um pouco o preenchimento para respirar mais */
+    height: 100%;
+    white-space: nowrap; /* 🚀 IMPEDE QUE O TEXTO QUEBRE DE LINHA */
+}
+.btn-electric-wrapper .nav-btn:hover { background: #f0f4f8; }
+
+@keyframes spinElectric { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 </style>
+
+<script>
+    // Sobrescrevendo a função carregarLojaCliente para puxar do lugar certo
+    async function carregarLojaCliente() {
+        const grid = document.getElementById('store-products-grid');
+        if (!grid) return;
+
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px;">
+                <i class="fas fa-circle-notch fa-spin" style="font-size: 50px; color: #dfaf12; margin-bottom: 20px;"></i>
+                <h3 style="color: #0a1931; margin-bottom: 5px;">Aguarde um momento...</h3>
+                <p style="color: #666; font-size: 14px;">A Guineexpress está buscando as novidades!</p>
+            </div>
+        `;
+
+        try {
+            // A ROTA MILAGROSA QUE VOCÊ PEDIU
+            const response = await fetch('/api/loja/produtos-clientes');
+            const data = await response.json();
+
+            if (data.success) {
+                // Guarda os produtos globais na loja antiga
+                produtosOriginais = data.products;
+                if(typeof filtrarLoja === 'function') {
+                    filtrarLoja('Todos'); 
+                } else {
+                    grid.innerHTML = '<p>Erro: Função de desenhar vitrine sumiu do sistema.</p>';
+                }
+            } else {
+                grid.innerHTML = '<p style="text-align:center; color: red;">A loja está vazia.</p>';
+            }
+        } catch (error) {
+            grid.innerHTML = '<p style="text-align:center; color: #666;">Sem conexão com o servidor da loja.</p>';
+        }
+    }
+</script>
     <div class="container">
 
         <section id="home-view">

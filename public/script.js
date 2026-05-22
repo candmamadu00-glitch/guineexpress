@@ -9942,13 +9942,17 @@ function limparNotificacoes() {
 // 🚚 RASTREIO DE PEDIDOS (CLIENTE - LINHA DO TEMPO VISUAL)
 // =======================================================
 
-// Variáveis para gerir o estado da tela de pedidos
-let todosOsPedidosDoCliente = [];
-let abaPedidosAtiva = 'andamento'; // 'andamento' ou 'historico'
+// Inicialização segura no objeto Window
+window.todosOsPedidosDoCliente = [];
+window.abaPedidosAtiva = 'andamento'; 
 
 async function abrirMeusPedidosLoja() {
-    document.getElementById('modal-my-store-orders').style.display = 'flex';
+    // Abre o modal de pedidos
+    const modal = document.getElementById('modal-my-store-orders');
+    if(modal) modal.style.display = 'flex';
+    
     const container = document.getElementById('my-store-orders-list');
+    if(!container) return;
     
     container.innerHTML = '<div style="text-align:center; padding: 50px;"><i class="fas fa-spinner fa-spin fa-3x" style="color:#dfaf12;"></i></div>';
 
@@ -9957,8 +9961,9 @@ async function abrirMeusPedidosLoja() {
         const data = await res.json();
 
         if (data.success) {
-            todosOsPedidosDoCliente = data.orders; // Guarda todos os pedidos
-            renderizarAbaPedidosCliente(); // Chama a função que desenha na tela
+            // ✅ CORREÇÃO AQUI: Salva diretamente na window para o renderizador enxergar!
+            window.todosOsPedidosDoCliente = data.orders; 
+            renderizarAbaPedidosCliente(); 
         } else {
             container.innerHTML = '<p style="text-align:center; color: red;">Erro ao carregar seus pedidos.</p>';
         }
@@ -9967,51 +9972,46 @@ async function abrirMeusPedidosLoja() {
     }
 }
 
-// ==========================================
-// 📦 CONTROLE DAS ABAS DE PEDIDOS DO CLIENTE (CORRIGIDO)
-// ==========================================
-window.abaPedidosAtiva = 'andamento'; // <-- Inicialização Blindada no objeto Window!
-
 // 🔄 Alterna entre a aba "Em Andamento" e "Histórico"
 function mudarAbaPedidosCliente(aba) {
     window.abaPedidosAtiva = aba;
     
-    // Atualiza o visual dos botões
     const btnAndamento = document.getElementById('tab-andamento');
     const btnHistorico = document.getElementById('tab-historico');
     
-    if (aba === 'andamento') {
-        btnAndamento.style.background = 'var(--primary-orange, #ea580c)';
-        btnAndamento.style.color = 'white';
-        btnAndamento.style.boxShadow = '0 4px 10px rgba(234, 88, 12, 0.3)';
-        btnAndamento.style.border = 'none';
-        
-        btnHistorico.style.background = '#f1f5f9';
-        btnHistorico.style.color = '#64748b';
-        btnHistorico.style.boxShadow = 'none';
-        btnHistorico.style.border = '1px solid #cbd5e1';
-    } else {
-        btnHistorico.style.background = '#64748b';
-        btnHistorico.style.color = 'white';
-        btnHistorico.style.boxShadow = '0 4px 10px rgba(100, 116, 139, 0.3)';
-        btnHistorico.style.border = 'none';
-        
-        btnAndamento.style.background = '#f1f5f9';
-        btnAndamento.style.color = '#64748b';
-        btnAndamento.style.boxShadow = 'none';
-        btnAndamento.style.border = '1px solid #cbd5e1';
+    if (btnAndamento && btnHistorico) {
+        if (aba === 'andamento') {
+            btnAndamento.style.background = 'var(--primary-orange, #ea580c)';
+            btnAndamento.style.color = 'white';
+            btnAndamento.style.boxShadow = '0 4px 10px rgba(234, 88, 12, 0.3)';
+            btnAndamento.style.border = 'none';
+            
+            btnHistorico.style.background = '#f1f5f9';
+            btnHistorico.style.color = '#64748b';
+            btnHistorico.style.boxShadow = 'none';
+            btnHistorico.style.border = '1px solid #cbd5e1';
+        } else {
+            btnHistorico.style.background = '#64748b';
+            btnHistorico.style.color = 'white';
+            btnHistorico.style.boxShadow = '0 4px 10px rgba(100, 116, 139, 0.3)';
+            btnHistorico.style.border = 'none';
+            
+            btnAndamento.style.background = '#f1f5f9';
+            btnAndamento.style.color = '#64748b';
+            btnAndamento.style.boxShadow = 'none';
+            btnAndamento.style.border = '1px solid #cbd5e1';
+        }
     }
     
-    // Redesenha a lista
     renderizarAbaPedidosCliente();
 }
 
-// 🎨 Desenha a lista filtrada (Em andamento x Histórico) BLINDADA
+// 🎨 Desenha a lista filtrada na tela
 function renderizarAbaPedidosCliente() {
     const container = document.getElementById('my-store-orders-list');
     if(!container) return;
 
-    // 🛡️ MÁGICA AQUI: Usamos window. e garantimos que se estiver vazio, vira uma lista vazia []
+    // Pega a lista salva de forma segura
     const listaSegura = window.todosOsPedidosDoCliente || [];
 
     const pedidosFiltrados = listaSegura.filter(order => {
@@ -10039,8 +10039,6 @@ function renderizarAbaPedidosCliente() {
 
     let html = '';
     pedidosFiltrados.forEach(order => {
-        
-        // --- MATEMÁTICA DA LINHA DO TEMPO ---
         let statusDisplay = order.status || 'Pendente';
         if(statusDisplay.toLowerCase() === 'pending') statusDisplay = 'Aguardando Pagamento';
         
@@ -10052,56 +10050,55 @@ function renderizarAbaPedidosCliente() {
         let progressWidth = ((step - 1) / 3) * 100;
 
         html += `
-            <div style="background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; opacity: ${window.abaPedidosAtiva === 'historico' ? '0.7' : '1'};">
-                
+            <div style="background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
                     <div>
-                        <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 900; letter-spacing: 0.5px;">PEDIDO #${order.id}</span>
+                        <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 900;">PEDIDO #${order.id}</span>
                         <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
                     </div>
-                    <div style="text-align: right; color: ${window.abaPedidosAtiva === 'historico' ? '#64748b' : '#16a34a'}; font-weight: 900; font-size: 18px;">
-                        ${order.currency_used} ${order.total_brl.toFixed(2)}
+                    <div style="text-align: right; color: #16a34a; font-weight: 900; font-size: 18px;">
+                        ${order.currency_used || 'R$'} ${(order.total_brl || 0).toFixed(2)}
                     </div>
                 </div>
 
                 <div style="position: relative; display: flex; justify-content: space-between; margin-bottom: 30px; margin-top: 10px;">
                     <div style="position: absolute; top: 15px; left: 10%; right: 10%; height: 4px; background: #e2e8f0; z-index: 1; border-radius: 4px;"></div>
-                    <div style="position: absolute; top: 15px; left: 10%; width: ${progressWidth}%; max-width: 80%; height: 4px; background: ${window.abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981'}; z-index: 2; transition: width 1s ease-in-out; border-radius: 4px;"></div>
+                    <div style="position: absolute; top: 15px; left: 10%; width: ${progressWidth}%; max-width: 80%; height: 4px; background: #10b981; z-index: 2; transition: width 1s ease-in-out; border-radius: 4px;"></div>
 
-                    <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 1 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981') : '#f1f5f9'}; color: ${step >= 1 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 1 ? '0 4px 10px rgba(16, 185, 129, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-file-invoice"></i></div>
-                        <span style="font-size: 10px; font-weight: bold; color: ${step >= 1 ? '#0f172a' : '#94a3b8'};">Pedido</span>
+                    <div style="text-align: center; width: 50px; position: relative; z-index: 3;">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 1 ? '#10b981' : '#f1f5f9'}; color: ${step >= 1 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; border: 2px solid white;"><i class="fas fa-file-invoice"></i></div>
+                        <span style="font-size: 10px; font-weight: bold;">Pedido</span>
                     </div>
-                    <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 2 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#10b981') : '#f1f5f9'}; color: ${step >= 2 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 2 ? '0 4px 10px rgba(16, 185, 129, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-box"></i></div>
-                        <span style="font-size: 10px; font-weight: bold; color: ${step >= 2 ? '#0f172a' : '#94a3b8'};">Preparo</span>
+                    <div style="text-align: center; width: 50px; position: relative; z-index: 3;">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 2 ? '#10b981' : '#f1f5f9'}; color: ${step >= 2 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; border: 2px solid white;"><i class="fas fa-box"></i></div>
+                        <span style="font-size: 10px; font-weight: bold;">Preparo</span>
                     </div>
-                    <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 3 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#3b82f6') : '#f1f5f9'}; color: ${step >= 3 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 3 ? '0 4px 10px rgba(59, 130, 246, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-truck-fast"></i></div>
-                        <span style="font-size: 10px; font-weight: bold; color: ${step >= 3 ? '#0f172a' : '#94a3b8'};">Em Rota</span>
+                    <div style="text-align: center; width: 50px; position: relative; z-index: 3;">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 3 ? '#3b82f6' : '#f1f5f9'}; color: ${step >= 3 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; border: 2px solid white;"><i class="fas fa-truck-fast"></i></div>
+                        <span style="font-size: 10px; font-weight: bold;">Em Rota</span>
                     </div>
-                    <div style="position: relative; z-index: 3; text-align: center; width: 50px;">
-                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 4 ? (window.abaPedidosAtiva === 'historico' ? '#64748b' : '#8b5cf6') : '#f1f5f9'}; color: ${step >= 4 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; font-size: 14px; box-shadow: ${step >= 4 ? '0 4px 10px rgba(139, 92, 246, 0.2)' : 'none'}; border: 2px solid white;"><i class="fas fa-check-double"></i></div>
-                        <span style="font-size: 10px; font-weight: bold; color: ${step >= 4 ? '#0f172a' : '#94a3b8'};">Entregue</span>
+                    <div style="text-align: center; width: 50px; position: relative; z-index: 3;">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${step >= 4 ? '#8b5cf6' : '#f1f5f9'}; color: ${step >= 4 ? 'white' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px auto; border: 2px solid white;"><i class="fas fa-check-double"></i></div>
+                        <span style="font-size: 10px; font-weight: bold;">Entregue</span>
                     </div>
                 </div>
 
-                <div style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: ${(step === 3 && window.abaPedidosAtiva === 'andamento') ? '20px' : '0'}; border: 1px dashed #cbd5e1;">
+                <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px dashed #cbd5e1;">
                     <p style="margin: 0 0 10px 0; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">O que tem no pacote:</p>
-                    ${order.items.map(i => `<div style="font-size: 13px; color: #0f172a; margin-bottom: 5px; display: flex; align-items: center;"><span style="background: ${window.abaPedidosAtiva === 'historico' ? '#cbd5e1' : '#dfaf12'}; color: #0a1931; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; margin-right: 10px;">${i.quantity}</span> ${i.product_name}</div>`).join('')}
+                    ${(order.items || []).map(i => `
+                        <div style="font-size: 13px; color: #0f172a; margin-bottom: 5px; display: flex; align-items: center;">
+                            <span style="background: #dfaf12; color: #0a1931; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; margin-right: 10px;">${i.quantity}</span> 
+                            ${i.product_name}
+                        </div>
+                    `).join('')}
                 </div>
-
-                ${(step === 3 && window.abaPedidosAtiva === 'andamento') ? `
-                    <button onclick="confirmarRecebimentoCliente(${order.id})" style="width: 100%; background: linear-gradient(135deg, #0a1931, #172a46); color: #dfaf12; border: none; padding: 16px; border-radius: 12px; font-weight: 900; font-size: 14px; cursor: pointer; box-shadow: 0 10px 20px rgba(10, 25, 49, 0.2); transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 8px;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <i class="fas fa-hand-holding-heart"></i> JÁ RECEBI O MEU PACOTE
-                    </button>
-                ` : ''}
             </div>
         `;
     });
     
     container.innerHTML = html;
 }
+
 // =======================================================
 // 🛒 FINALIZAR COMPRA (CHECKOUT DA LOJA)
 // =======================================================
@@ -10947,3 +10944,70 @@ function tentarComprar() {
         // Ex: adicionarAoCarrinho(produtoAtual);
     }
 }
+// --- 🌍 SISTEMA DO RADAR DE RASTREAMENTO REAL (CONECTADO AO BD) ---
+        async function iniciarRastreamento() {
+            // Pega o código digitado (ex: 15 ou GX-15) e limpa para deixar só o número
+            let codigoDigitado = document.getElementById('track-code').value.trim();
+            let idPedido = codigoDigitado.replace(/\D/g, ''); // Extrai apenas os números
+
+            if(!idPedido) return alert("Por favor, digite o número do seu pedido (Ex: 15).");
+
+            document.getElementById('radar-progress-container').style.display = 'flex';
+            const statusBar = document.getElementById('radar-bar');
+            const plane = document.getElementById('radar-plane');
+            const statusText = document.getElementById('radar-status');
+            
+            statusText.innerText = "Buscando nos servidores da Guineexpress... 🛰️";
+            statusText.style.color = "var(--gold)";
+            statusText.style.opacity = '1';
+            
+            // Reseta a barra para o início enquanto busca
+            statusBar.style.width = '0%';
+            plane.style.left = '0%';
+
+            try {
+                // 🚀 PUXA OS PEDIDOS REAIS DO BANCO DE DADOS
+                const res = await fetch('/api/store/my-orders');
+                const data = await res.json();
+
+                if (data.success) {
+                    // Tenta achar o pedido com o ID correspondente
+                    const pedidoReal = data.orders.find(o => o.id.toString() === idPedido);
+
+                    if (pedidoReal) {
+                        const status = pedidoReal.status ? pedidoReal.status.toLowerCase() : 'pendente';
+                        
+                        setTimeout(() => {
+                            if (status.includes('entregue')) {
+                                statusBar.style.width = '100%';
+                                plane.style.left = '100%';
+                                statusText.innerText = "✅ Aterrissou e Entregue em Bissau!";
+                                statusText.style.color = "#00ff66";
+                            } 
+                            else if (status.includes('enviado') || status.includes('rota')) {
+                                statusBar.style.width = '60%';
+                                plane.style.left = '60%';
+                                statusText.innerText = "✈️ Carga sobrevoando o Atlântico (Em Voo)";
+                                statusText.style.color = "var(--gold)";
+                            } 
+                            else {
+                                // Pago, Pendente, etc. Fica no Brasil (Início)
+                                statusBar.style.width = '15%';
+                                plane.style.left = '15%';
+                                statusText.innerText = "📦 Preparando no Armazém Seguro (Brasil)";
+                                statusText.style.color = "var(--gold)";
+                            }
+                        }, 1000); // Dá 1 segundo de suspense cinematográfico
+                    } else {
+                        statusText.innerText = "❌ Pedido não encontrado ou não pertence a você.";
+                        statusText.style.color = "#ff4d4d";
+                    }
+                } else {
+                    statusText.innerText = "🔒 Faça login no painel principal para rastrear.";
+                    statusText.style.color = "#ff4d4d";
+                }
+            } catch (err) {
+                statusText.innerText = "❌ Erro ao conectar com o satélite. Tente de novo.";
+                statusText.style.color = "#ff4d4d";
+            }
+        }
