@@ -9426,7 +9426,8 @@ function filtrarPedidosAdminPainel() {
                 
                 <div style="flex-grow: 1;">
                     <p style="margin: 0 0 4px 0; font-size: 12px; color: #1e293b; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class="fas fa-user" style="color:#dfaf12; width: 14px;"></i> ${order.client_name || 'Anônimo'}</p>
-                    <p style="margin: 0; font-size: 10px; color: #64748b;"><i class="fas fa-clock" style="width: 14px;"></i> ${new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                    <p style="margin: 0; font-size: 10px; color: #64748b;"><i class="fas fa-clock" style="width: 14px;"></i> // Substitua a linha da data por esta:
+${order.created_at ? new Date(order.created_at).toLocaleDateString('pt-BR') : 'Sem data'}</p>
                 </div>
                 
                 <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
@@ -10054,7 +10055,8 @@ function renderizarAbaPedidosCliente() {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
                     <div>
                         <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 900;">PEDIDO #${order.id}</span>
-                        <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
+                        <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">// Substitua a linha da data por esta:
+${order.created_at ? new Date(order.created_at).toLocaleDateString('pt-BR') : 'Sem data'}</div>
                     </div>
                     <div style="text-align: right; color: #16a34a; font-weight: 900; font-size: 18px;">
                         ${order.currency_used || 'R$'} ${(order.total_brl || 0).toFixed(2)}

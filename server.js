@@ -565,27 +565,30 @@ app.use(express.static('public'));
 // SESSÃO BLINDADA (SOBREVIVE A DEPLOYS NO RENDER)
 // ==================================================================
 
-// 1. Avisar ao servidor que ele está no Render (para não bloquear os cookies do proxy)
-app.set('trust proxy', 1);
+// Verifica se o site está rodando no Render ou localmente
+const noRender = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+
+if (noRender) {
+    app.set('trust proxy', 1); // Confia no proxy do Render
+}
 
 app.use(session({
-    // 2. Salva o arquivo no disco permanente corretamente!
     store: new SQLiteStore({ 
         db: 'sessions.db', 
-        // 👇 CORREÇÃO: Usamos a variável exata que você criou lá no topo!
         dir: discoPermanente 
     }),
     secret: process.env.SESSION_SECRET || 'chave_super_secreta_guineexpress_2024',
     resave: false,
     saveUninitialized: false,
     cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 30, // ⏳ 30 DIAS LOGADO (Estilo Gmail)
+        maxAge: 1000 * 60 * 60 * 24 * 30, // 30 dias
         
-        // 👇 CORREÇÃO: Deixamos secure falso. O Render já blinda o site com HTTPS 
-        // externamente, forçar aqui no Express é o que estava destruindo seu cookie.
-        secure: false, 
+        // 🔥 A CORREÇÃO MÁGICA AQUI:
+        // Se estiver no Render, DEVE ser true (HTTPS). Se for local, fica false (HTTP).
+        secure: noRender, 
         
-        sameSite: 'lax' // Proteção moderna que permite redirecionamentos normais
+        // Se secure for true no Render, 'lax' ou 'none' funcionarão perfeitamente sem sumir com a sessão!
+        sameSite: noRender ? 'none' : 'lax' 
     } 
 }));
 // 🛡️ Middleware: Só deixa passar se for ADMIN
