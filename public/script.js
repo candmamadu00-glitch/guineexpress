@@ -6927,12 +6927,15 @@ async function applyBulkStatus() {
         if(btnAplicar) btnAplicar.innerText = "Aplicar";
     }
 }
-// Alternar entre CNPJ e E-mail
+// Alternar entre CNPJ e E-mail (BLINDADA 🛡️)
 function togglePixKey(tipo) {
     const txt = document.getElementById('txt-chave');
     const label = document.getElementById('tipo-chave');
     const tabCnpj = document.getElementById('tab-cnpj');
     const tabEmail = document.getElementById('tab-email');
+
+    // 🛡️ A BLINDAGEM: Se algum destes itens não existir na tela, a função aborta em silêncio sem dar erro!
+    if (!txt || !label || !tabCnpj || !tabEmail) return;
 
     if(tipo === 'cnpj') {
         txt.innerText = '49356085000134';
@@ -6945,6 +6948,17 @@ function togglePixKey(tipo) {
         tabEmail.style.background = '#0a1931'; tabEmail.style.color = 'white';
         tabCnpj.style.background = '#eee'; tabCnpj.style.color = '#333';
     }
+}
+// =======================================================
+// 📦 FILTRO DE LOTES (PREVINE ERRO DE REFERÊNCIA)
+// =======================================================
+function syncAllTabsByLot() {
+    const filtro = document.getElementById('main-shipment-filter');
+    if (!filtro) return;
+    
+    // Apenas regista no console por agora, sem dar erro vermelho na tela.
+    // Futuramente, podemos colocar aqui a lógica para filtrar a tabela.
+    console.log("Filtro de envio alterado para: " + filtro.value);
 }
 // Copiar chave manual
 function copyManualPix() {
@@ -8574,177 +8588,7 @@ async function deletarProdutoLoja(id) {
         else alert("Erro ao apagar: " + json.msg);
     } catch(err) { alert("Erro de conexão."); }
 }
-function renderizarProdutos() {
-    const grid = document.getElementById('store-products-grid');
-    if (!grid) return;
-    
-    // Fallback caso não encontre o seletor na hora
-    const moedaElement = document.getElementById('currency-selector');
-    const moeda = moedaElement ? moedaElement.value : 'BRL';
-    let html = '';
 
-    produtosOriginais.forEach(p => {
-        let precoFinal = p.price_brl;
-        let simbolo = 'R$';
-
-        // Lógica da cotação usando a variável global window.COTACAO que criámos mais cedo
-        const cotacoes = window.COTACAO || { XOF: 120, EUR: 0.18, USD: 0.20 };
-        
-        if (moeda === 'CFA') { precoFinal = p.price_brl * cotacoes.XOF; simbolo = 'XOF'; }
-        else if (moeda === 'EUR') { precoFinal = p.price_brl * cotacoes.EUR; simbolo = '€'; }
-        else if (moeda === 'USD') { precoFinal = p.price_brl * cotacoes.USD; simbolo = '$'; }
-
-        // Verifica se este produto está nos favoritos do cliente
-        let favs = JSON.parse(localStorage.getItem('loja_favoritos')) || [];
-        let isFav = favs.includes(p.id);
-        let corCoracao = isFav ? '#ee4d2d' : '#ccc';
-
-        html += `
-    <div class="product-card-premium" style="position: relative; cursor: pointer; display: flex; flex-direction: column;" onclick="abrirDetalhesProduto(${p.id}, '${simbolo}', ${precoFinal})">
-        <div class="promo-badge">Oferta</div>
-        
-        <div id="fav-${p.id}" class="fav-btn" onclick="toggleFavorito(${p.id}); event.stopPropagation();" style="color: ${corCoracao};">
-            <i class="fas fa-heart"></i>
-        </div>
-        
-        <div class="img-container">
-            <img src="${p.image_url || '/logo.png'}" alt="${p.name}" style="width: 100%; height: 160px; object-fit: cover;">
-        </div>
-
-        <div class="product-details" style="display: flex; flex-direction: column; flex-grow: 1;">
-            <span class="product-cat">${p.category}</span>
-            <h3 class="product-title" style="margin-bottom: 5px; height: 36px; overflow: hidden;">${p.name}</h3>
-            
-            <div class="product-stars" style="margin-bottom: 10px;">
-                <i class="fas fa-star" style="color: #f59e0b;"></i>
-                <i class="fas fa-star" style="color: #f59e0b;"></i>
-                <i class="fas fa-star" style="color: #f59e0b;"></i>
-                <i class="fas fa-star" style="color: #f59e0b;"></i>
-                <i class="fas fa-star-half-alt" style="color: #f59e0b;"></i>
-                <span style="font-size: 11px; color: #94a3b8;">(99+)</span>
-            </div>
-
-            <div style="margin-top: auto;">
-                <div class="price-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span class="price-amount" style="color: #ee4d2d; font-weight: 900; font-size: 16px;">${simbolo} ${precoFinal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                </div>
-                
-                <div style="display: flex; gap: 6px; width: 100%;">
-                    <button class="add-btn-premium" onclick="adicionarAoCarrinho(${p.id}, event); event.stopPropagation();" style="flex: 1; border-radius: 8px; font-size: 13px; font-weight: bold; padding: 10px 0; display: flex; justify-content: center; align-items: center; gap: 5px;">
-                        <i class="fas fa-cart-plus"></i> Adicionar
-                    </button>
-                    
-                    <button onclick="enviarDuvidaWhatsApp('${p.name.replace(/'/g, "\\'")}'); event.stopPropagation();" style="background: #25d366; color: white; border: none; width: 42px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.3);">
-                        <i class="fab fa-whatsapp" style="font-size: 18px;"></i>
-                    </button>
-                </div>
-            </div>
-
-        </div>
-    </div>
-    `;
-    });
-    grid.innerHTML = html;
-}
-
-// A Lógica do Voo Nível NASA
-function fazerProdutoVoar(imgUrl, elementoOrigem) {
-    // A foto que vai voar (padrão é logo se não tiver foto)
-    const fotoUrl = imgUrl || '/logo.png';
-    
-    // Cria o elemento da imagem voadora no HTML
-    const voadora = document.createElement('img');
-    voadora.src = fotoUrl;
-    voadora.classList.add('flying-product');
-    document.body.appendChild(voadora);
-
-    // Posição do botão clicado (Origem)
-    const rectOrigem = elementoOrigem.getBoundingClientRect();
-    // Posição do Carrinho da Cicí (Destino)
-    const rectDestino = document.getElementById('floating-cici-cart').getBoundingClientRect();
-
-    // Define a posição inicial exata da imagem voadora (em cima do botão)
-    voadora.style.left = `${rectOrigem.left + rectOrigem.width/2 - 25}px`;
-    voadora.style.top = `${rectOrigem.top + rectOrigem.height/2 - 25}px`;
-    voadora.style.transform = 'scale(0.5)'; // Começa pequena
-
-    // 🚀 O VOO: Usa um timeout bem curto para o navegador registrar a posição inicial antes de animar
-    setTimeout(() => {
-        // Define o destino final e transformações durante o voo (roda e cresce)
-        voadora.style.left = `${rectDestino.left + rectDestino.width/2 - 25}px`;
-        voadora.style.top = `${rectDestino.top + rectDestino.height/2 - 25}px`;
-        voadora.style.transform = 'scale(1) rotate(360deg)';
-        voadora.style.opacity = '0.5'; // Vai sumindo
-    }, 10);
-
-    // 🏁 A CHEGADA: O que acontece quando o produto "pousa" no carrinho
-    setTimeout(() => {
-        // 1. Remove a imagem voadora
-        voadora.remove();
-
-        // 2. MÁGICA DA SACOLA: O botão inteiro dá um "pulo" quando o item cai
-        const carrinhoFlutuante = document.getElementById('floating-cici-cart');
-        
-        if (carrinhoFlutuante) {
-            // Vamos usar a mesma classe que você já tinha, mas agora no botão principal
-            carrinhoFlutuante.classList.add('cart-eat');
-
-            // Remove a animação para poder tocar de novo no próximo produto
-            setTimeout(() => {
-                carrinhoFlutuante.classList.remove('cart-eat');
-            }, 600);
-        }
-
-        // 3. Atualiza o contador
-        atualizarContadorCarrinho();
-        
-    }, 800); // Tempo exato do voo (igual ao CSS transition)
-}
-
-// =======================================================
-// 🛒 ATUALIZAR CONTADORES DA SACOLA (TOTALMENTE BLINDADO)
-// =======================================================
-function atualizarContadorCarrinho() {
-    // 1. Garante que a variável existe
-    const qtd = (typeof itensNoCarrinho !== 'undefined' && itensNoCarrinho) ? itensNoCarrinho.length : 0;
-
-    // 2. Blinda o contador flutuante
-    const contadorPrincipal = document.getElementById('cart-counter');
-    if (contadorPrincipal) {
-        contadorPrincipal.innerText = qtd;
-        if (qtd > 0) {
-            contadorPrincipal.classList.remove('hidden');
-            contadorPrincipal.style.display = 'flex';
-        } else {
-            contadorPrincipal.classList.add('hidden');
-            contadorPrincipal.style.display = 'none';
-        }
-    }
-
-    // 3. Blinda o contador de baixo
-    const contadorBaixo = document.getElementById('bottom-cart-counter');
-    if (contadorBaixo) {
-        contadorBaixo.innerText = qtd;
-        if (qtd > 0) {
-            contadorBaixo.classList.remove('hidden');
-            contadorBaixo.style.display = 'flex';
-        } else {
-            contadorBaixo.classList.add('hidden');
-            contadorBaixo.style.display = 'none';
-        }
-    }
-
-    // 4. Blinda o contador VIP
-    const contadorVip = document.getElementById('cart-counter-vip');
-    if (contadorVip) {
-        contadorVip.innerText = qtd;
-        if (qtd > 0) {
-            contadorVip.style.display = 'flex';
-        } else {
-            contadorVip.style.display = 'none';
-        }
-    }
-}
 // =======================================================
 // 🛠️ FUNÇÕES CORRIGIDAS (FILTROS E GATILHO DE ESCASSEZ)
 // =======================================================
@@ -8847,64 +8691,7 @@ function carregarCarrinhoDaMemoria() {
 window.addEventListener('DOMContentLoaded', carregarCarrinhoDaMemoria);
 
 
-function adicionarAoCarrinho(productId, event) {
-    const produtoOriginal = produtosOriginais.find(p => p.id === productId);
-    if (!produtoOriginal) return;
 
-    if (produtoOriginal.stock <= 0) {
-        const querEncomendar = confirm("⏳ A Cicí informa: Este produto esgotou e está a ser produzido!\n\nDeseja solicitar uma reserva para garantir o seu na próxima remessa?");
-        if (!querEncomendar) return; 
-    } else {
-        const qtdNoCarrinho = itensNoCarrinho.filter(item => item.id === productId).length;
-        if (qtdNoCarrinho >= produtoOriginal.stock) {
-            alert(`Você já colocou todas as ${produtoOriginal.stock} unidades disponíveis na sacola! 🛍️`);
-            return;
-        }
-    }
-
-    // 👕 VARIAÇÕES DE PRODUTO
-    let nomeComVariacao = produtoOriginal.name;
-    if (produtoOriginal.category === 'Roupas' || produtoOriginal.category === 'Cabelos/Perucas') {
-        const escolha = prompt(`Você está comprando: ${produtoOriginal.name}\n\nDigite a Cor ou Tamanho desejado (Ex: P, M, Loiro, Preto):`);
-        if (escolha === null) return; 
-        if (escolha.trim() !== '') {
-            nomeComVariacao = `${produtoOriginal.name} (${escolha})`;
-        }
-    }
-
-    const produtoParaSacola = { ...produtoOriginal, name: nomeComVariacao };
-    itensNoCarrinho.push(produtoParaSacola);
-    
-    atualizarContadorCarrinho();
-    
-    // 👇 MÁGICA 1: SALVA O CARRINHO NO CELULAR DO CLIENTE
-    salvarCarrinhoNaMemoriaDoCelular(); 
-
-    if (event && event.currentTarget) {
-        fazerProdutoVoar(produtoParaSacola.image_url, event.currentTarget);
-    }
-
-    setTimeout(() => {
-        const cart = document.getElementById('side-cart');
-        if (cart && cart.style.right !== '0px') {
-            toggleCarrinho();
-        } else {
-            renderizarCarrinhoLateral();
-        }
-    }, 800);
-}
-
-function removerDoCarrinho(productId) {
-    const index = itensNoCarrinho.findIndex(item => item.id === productId);
-    if (index > -1) {
-        itensNoCarrinho.splice(index, 1);
-        renderizarCarrinhoLateral();
-        atualizarContadorCarrinho();
-        
-        // 👇 MÁGICA 2: ATUALIZA O CELULAR DO CLIENTE APÓS REMOVER
-        salvarCarrinhoNaMemoriaDoCelular(); 
-    }
-}
 
 function limparCarrinho() {
     itensNoCarrinho = [];
@@ -9581,86 +9368,7 @@ function enviarReciboCicizaNoZap() {
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
-function renderizarModalPedidosLoja(orders) {
-    // Verifica se o modal já existe, se não, cria um novo
-    let modal = document.getElementById('modal-meus-pedidos');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'modal-meus-pedidos';
-        modal.style.cssText = "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 30000; display: flex; justify-content: center; align-items: center;";
-        document.body.appendChild(modal);
-    }
 
-    let html = `
-    <div style="background: white; width: 90%; max-width: 500px; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; max-height: 80vh;">
-        <div style="background: #0a1931; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; color: #dfaf12;"><i class="fas fa-receipt"></i> Minhas Compras</h3>
-            <button onclick="document.getElementById('modal-meus-pedidos').style.display='none'" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
-        </div>
-        <div style="padding: 20px; overflow-y: auto; flex-grow: 1; background: #f4f7f6;">`;
-
-    if (orders.length === 0) {
-        html += `<div style="text-align: center; padding: 30px; color: #666;"><i class="fas fa-box-open" style="font-size: 40px; margin-bottom: 10px; color: #ccc;"></i><p>Você ainda não tem compras na loja.</p></div>`;
-    } else {
-        orders.forEach(o => {
-            html += `
-            <div style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid #dfaf12;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <strong>Pedido #${o.id}</strong>
-                    <span style="color: #d32f2f; font-weight: bold;">${o.currency_used} ${o.total_brl.toFixed(2)}</span>
-                </div>
-                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Método: <strong>${o.payment_method.toUpperCase()}</strong></div>
-                <div style="font-size: 13px;">`;
-            
-            o.items.forEach(item => {
-                html += `<div style="display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 4px 0;">
-                            <span>${item.quantity}x ${item.product_name}</span>
-                         </div>`;
-            });
-            html += `</div></div>`;
-        });
-    }
-
-    html += `</div></div>`;
-    modal.innerHTML = html;
-    modal.style.display = 'flex';
-}
-
-// 2. Abre o Pop-up de Detalhes do Produto
-function abrirDetalhesProduto(idProduto, simboloMoeda, precoConvertido) {
-    const produto = produtosOriginais.find(p => p.id === idProduto);
-    if (!produto) return;
-
-    // Preenche as informações na tela
-    document.getElementById('detail-image').src = produto.image_url || '/logo.png';
-    document.getElementById('detail-category').innerText = produto.category;
-    document.getElementById('detail-name').innerText = produto.name;
-    document.getElementById('detail-price').innerText = `${simboloMoeda} ${precoConvertido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-    document.getElementById('detail-desc').innerText = produto.description || "Sem descrição detalhada disponível.";
-    
-    const stockEl = document.getElementById('detail-stock');
-    if (produto.stock > 0) {
-        stockEl.innerHTML = `<i class="fas fa-box"></i> Restam ${produto.stock} unid.`;
-        stockEl.style.color = '#28a745'; // Verde
-    } else {
-        stockEl.innerHTML = `<i class="fas fa-times-circle"></i> Esgotado`;
-        stockEl.style.color = '#dc3545'; // Vermelho
-    }
-
-    // Configura o botão de comprar
-    const btnAdd = document.getElementById('btn-add-detail');
-    btnAdd.onclick = (e) => {
-        adicionarAoCarrinho(produto.id, e);
-        fecharDetalhesProduto();
-    };
-
-    // Mostra a tela
-    document.getElementById('modal-product-details').style.display = 'block';
-}
-
-function fecharDetalhesProduto() {
-    document.getElementById('modal-product-details').style.display = 'none';
-}
 // =======================================================
 // 🗂️ NAVEGAÇÃO INTERNA DA LOJA ADMIN
 // =======================================================
@@ -9710,85 +9418,7 @@ function toggleCarrinho() {
     }
 }
 
-// =======================================================
-// 🛒 DESENHAR SACOLA E CALCULAR TOTAL (PASSO 1 E 2)
-// =======================================================
-function renderizarCarrinhoLateral() {
-    const container = document.getElementById('cart-items-container');
-    const totalStep1 = document.getElementById('cart-side-total'); // Total da tela 1
-    const totalStep2 = document.getElementById('checkout-side-total'); // Total da tela de pagamento
-    
-    if (!container) return;
 
-    // Pega a moeda que o cliente escolheu lá no topo
-    const moeda = document.getElementById('currency-selector') ? document.getElementById('currency-selector').value : 'BRL';
-    const cotacoes = window.COTACAO || { XOF: 120, EUR: 0.18, USD: 0.20 };
-    
-    let totalBRL = 0;
-    let html = '';
-
-    // Agrupa os itens para não repetir o mesmo produto várias vezes (mostra a quantidade)
-    let itensAgrupados = {};
-    itensNoCarrinho.forEach(p => {
-        if(itensAgrupados[p.id]) {
-            itensAgrupados[p.id].qtd += 1;
-        } else {
-            itensAgrupados[p.id] = { ...p, qtd: 1 };
-        }
-        totalBRL += parseFloat(p.price_brl);
-    });
-
-    // Se a sacola estiver vazia
-    if (itensNoCarrinho.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding: 50px 20px; color: #94a3b8;"><i class="fas fa-shopping-bag fa-4x" style="margin-bottom: 15px; opacity: 0.3;"></i><p>A sua sacola está vazia.</p></div>';
-        if(totalStep1) totalStep1.innerText = 'R$ 0,00';
-        if(totalStep2) totalStep2.innerText = 'R$ 0,00';
-        return;
-    }
-
-    // Desenha os produtos agrupados
-    Object.values(itensAgrupados).forEach(item => {
-        let precoFinal = item.price_brl;
-        let simbolo = 'R$';
-
-        if (moeda === 'CFA') { precoFinal = item.price_brl * cotacoes.XOF; simbolo = 'XOF'; }
-        else if (moeda === 'EUR') { precoFinal = item.price_brl * cotacoes.EUR; simbolo = '€'; }
-        else if (moeda === 'USD') { precoFinal = item.price_brl * cotacoes.USD; simbolo = '$'; }
-
-        html += `
-        <div style="display: flex; align-items: center; background: white; padding: 15px; margin-bottom: 12px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 10px rgba(0,0,0,0.02);">
-            <img src="${item.image_url || '/logo.png'}" style="width: 65px; height: 65px; border-radius: 8px; object-fit: cover; margin-right: 15px;">
-            <div style="flex-grow: 1;">
-                <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #0a1931; line-height: 1.2;">${item.name}</h4>
-                <div style="color: #ee4d2d; font-weight: 900; font-size: 15px;">${simbolo} ${(precoFinal * item.qtd).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-            </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-                <button onclick="removerDoCarrinho(${item.id})" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 16px;"><i class="fas fa-trash-alt"></i></button>
-                <div style="display: flex; align-items: center; background: #f8fafc; border-radius: 6px; overflow: hidden; border: 1px solid #cbd5e1;">
-                    <button onclick="alterarQuantidadeCarrinho(${item.id}, 'diminuir')" style="background: none; border: none; padding: 4px 10px; cursor: pointer; color: #0f172a; font-weight: bold;">-</button>
-                    <span style="font-weight: 900; font-size: 12px; width: 22px; text-align: center; color: #0f172a;">${item.qtd}</span>
-                    <button onclick="alterarQuantidadeCarrinho(${item.id}, 'aumentar')" style="background: none; border: none; padding: 4px 10px; cursor: pointer; color: #0f172a; font-weight: bold;">+</button>
-                </div>
-            </div>
-        </div>
-        `;
-    });
-
-    container.innerHTML = html;
-
-    // Converte o Total Final para a moeda certa
-    let totalMoeda = totalBRL;
-    let simboloTotal = 'R$';
-    if (moeda === 'CFA') { totalMoeda = totalBRL * cotacoes.XOF; simboloTotal = 'XOF'; }
-    else if (moeda === 'EUR') { totalMoeda = totalBRL * cotacoes.EUR; simboloTotal = '€'; }
-    else if (moeda === 'USD') { totalMoeda = totalBRL * cotacoes.USD; simboloTotal = '$'; }
-
-    const textoFinal = `${simboloTotal} ${totalMoeda.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-    
-    // Atualiza a tela 1 (Sacola) E a tela 2 (Pagamento)
-    if(totalStep1) totalStep1.innerText = textoFinal;
-    if(totalStep2) totalStep2.innerText = textoFinal; 
-}
 // ==========================================
 // 💳 MOTOR DE PAGAMENTO (CHECKOUT LATERAL)
 // ==========================================
