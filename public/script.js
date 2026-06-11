@@ -3463,7 +3463,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================================
-// LÓGICA DE ETIQUETAS (LABELS) COM FILTRO DE LOTE DINÂMICO
+// LÓGICA DE ETIQUETAS (LABELS) COM FILTRO DE LOTE DINÂMICO E OCULTAÇÃO DE IMPRESSAS
 // ============================================================
 
 async function loadLabels() {
@@ -3521,8 +3521,11 @@ async function loadLabels() {
         for (let i = 0; i < boxes.length; i++) {
             const loteDaCaixa = boxes[i].lote || 'Sem Lote';
             
-            // FREIO: Se tiver um lote selecionado e a caixa não for dele, pula ela!
+            // 🛑 FREIO 1: Filtro de Lotes
             if (loteSelecionado !== '' && loteDaCaixa !== loteSelecionado) continue;
+
+            // 🛑 FREIO 2 (O NOVO): Esconde a etiqueta se ela já foi arquivada/impressa!
+            if (boxes[i].label_printed === 1) continue;
 
             totalValidos++;
             if (renderizados >= labelsLimit) continue;
@@ -3563,8 +3566,11 @@ async function loadLabels() {
         for (let i = 0; i < ordersWithoutBox.length; i++) {
             const loteDaOrder = ordersWithoutBox[i].lote || 'Sem Lote';
 
-            // FREIO: Se um lote estiver selecionado e a encomenda não for dele, pula ela!
+            // 🛑 FREIO 1: Filtro de Lotes
             if (loteSelecionado !== '' && loteDaOrder !== loteSelecionado) continue;
+
+            // 🛑 FREIO 2 (O NOVO): Esconde a etiqueta se ela já foi arquivada/impressa!
+            if (ordersWithoutBox[i].label_printed === 1) continue;
 
             totalValidos++;
             if (renderizados >= labelsLimit) continue;

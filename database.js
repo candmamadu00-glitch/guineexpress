@@ -208,6 +208,8 @@ db.serialize(() => {
     
     db.run("ALTER TABLE store_order_items ADD COLUMN product_name TEXT", () => {});
     db.run("ALTER TABLE store_order_items ADD COLUMN image_url TEXT", () => {});
+    db.run("ALTER TABLE boxes ADD COLUMN label_printed INTEGER DEFAULT 0", () => {});
+    db.run("ALTER TABLE orders ADD COLUMN label_printed INTEGER DEFAULT 0", () => {});
     // Agendamento - Vagas
     db.run(`CREATE TABLE IF NOT EXISTS availability (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,7 +219,7 @@ db.serialize(() => {
         max_slots INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
-
+     
     // Configurações Globais
     db.run("CREATE TABLE IF NOT EXISTS settings (key TEXT UNIQUE, value REAL)");
     db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('price_per_kg', 0.00)");

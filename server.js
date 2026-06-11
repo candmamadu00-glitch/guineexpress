@@ -2245,12 +2245,12 @@ app.get('/api/finances/all', async (req, res) => {
     }
 });
 // =======================================================
-// 🗑️ LIXEIRA: APAGAR ETIQUETAS (CAIXAS E ENCOMENDAS) EM MASSA
+// 🏷️ ARQUIVAR ETIQUETAS (LIMPAR A TELA COM SEGURANÇA)
 // =======================================================
 app.post('/api/labels/bulk-delete', (req, res) => {
-    // Proteção de segurança: apenas admin pode apagar
+    // Proteção de segurança
     if (!req.session || req.session.role !== 'admin') {
-        return res.status(403).json({ success: false, message: 'Acesso negado. Apenas administradores.' });
+        return res.status(403).json({ success: false, message: 'Acesso negado.' });
     }
 
     const { items } = req.body;
@@ -2262,18 +2262,17 @@ app.post('/api/labels/bulk-delete', (req, res) => {
     items.forEach(item => {
         const tabela = item.type === 'box' ? 'boxes' : 'orders';
         
-        // Faz o "Soft Delete" (arquiva) para limpar a tela sem estragar o financeiro
-        db.run(`UPDATE ${tabela} SET deleted = 1 WHERE id = ?`, [item.id], (err) => {
+        // 🛡️ A MÁGICA: Apenas carimba como impressa em vez de apagar do sistema
+        db.run(`UPDATE ${tabela} SET label_printed = 1 WHERE id = ?`, [item.id], (err) => {
             if (err) {
-                console.error(`Erro ao apagar da tabela ${tabela}:`, err);
+                console.error(`Erro ao arquivar etiqueta na tabela ${tabela}:`, err);
                 houveErro = true;
             }
             
             concluidos++;
-            // Quando terminar de processar o último item, avisa o frontend
             if (concluidos === items.length) {
                 if (houveErro) {
-                    res.json({ success: false, message: 'Erro ao apagar alguns itens no banco de dados.' });
+                    res.json({ success: false, message: 'Erro ao arquivar algumas etiquetas.' });
                 } else {
                     res.json({ success: true });
                 }
@@ -3185,17 +3184,15 @@ app.post('/api/invoices/check-status', async (req, res) => {
         res.json({ success: false });
     }
 });
-// --- ROTA: PEGAR FATURAS DO CLIENTE LOGADO (CORRIGIDA) ---
+// --- ROTA: PEGAR FATURAS DO CLIENTE LOGADO (BLINDADA) ---
 app.get('/api/invoices/my_invoices', (req, res) => {
-    // 1. Verifica se o ID do usuário está na sessão (Correção aqui)
-    if (!req.session.userId) {
+    // 🛡️ Procura o ID nos dois lugares possíveis para não falhar
+    const clientId = req.session.userId || (req.session.user ? req.session.user.id : null);
+
+    if (!clientId) {
         return res.status(401).json({ msg: 'Usuário não autenticado' });
     }
 
-    const clientId = req.session.userId; // Correção: usa userId direto
-
-    // 2. Busca as faturas
-    // Nota: Se der erro de 'no such column: mp_payment_link', remova essa coluna do SELECT abaixo
     const sql = `
         SELECT i.id, i.amount, i.status, i.payment_link, b.box_code
         FROM invoices i
