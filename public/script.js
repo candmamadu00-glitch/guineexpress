@@ -553,61 +553,70 @@ document.getElementById('register-form')?.addEventListener('submit', async (e) =
 function showSection(sectionId) {
     console.log("Navegando para:", sectionId);
 
-    // 1. Esconde TODAS as seções
-    const allSections = document.querySelectorAll('section');
+    // 1. Oculta todos os painéis e seções de forma cirúrgica (sem quebrar sub-elementos internos)
+    const allSections = document.querySelectorAll('.container > section, section, .painel-view');
     allSections.forEach(sec => {
         sec.classList.add('hidden');
         sec.style.display = 'none'; 
     });
 
-    // 2. Mostra a seção desejada
+    // 2. Mostra a seção desejada e salva no navegador para não sumir no F5
     const target = document.getElementById(sectionId);
     if (target) {
         target.classList.remove('hidden');
         target.style.display = 'block'; 
         localStorage.setItem('activeTab', sectionId);
+    } else {
+        console.warn("⚠️ A aba", sectionId, "não foi encontrada no HTML!");
     }
 
-    // 3. CARREGAMENTO DE DADOS (Aqui estava o erro: faltavam funções)
+    // 3. MÁGICA VISUAL: Atualiza os botões do menu (deixa o botão clicado aceso com a classe 'active')
+    const navButtons = document.querySelectorAll('.nav-links button, .bottom-nav-item, .nav-item');
+    navButtons.forEach(btn => {
+        btn.classList.remove('active');
+        // Se o clique do botão faz menção a essa tela, ele ganha o destaque visual
+        if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(sectionId)) {
+            btn.classList.add('active');
+        }
+    });
+
+    // 4. CARREGAMENTO SEGURO DE DADOS (Une todas as abas antigas e novas com trava antiquebra)
     switch(sectionId) {
-        // --- AS QUE JÁ EXISTIAM ---
-        case 'orders-view':     if(typeof loadOrders === 'function') loadOrders(); break;
-        case 'schedule-view':   if(typeof loadSchedules === 'function') loadSchedules(); break;
-        case 'box-view':        if(typeof loadBoxes === 'function') loadBoxes(); break;
-        case 'price-section':   if(typeof loadPrice === 'function') loadPrice(); break;
-        case 'billing-view':    if(typeof loadClientInvoices === 'function') loadClientInvoices(); break; // Admin ou Cliente
-        case 'history-view':    if(typeof loadHistory === 'function') loadHistory(); break;
-        case 'labels-view':     if(typeof loadLabels === 'function') loadLabels(); break;
-        case 'expenses-view':   if(typeof loadExpenses === 'function') loadExpenses(); break;
-        case 'logs-view':       if(typeof loadSystemLogs === 'function') loadSystemLogs(); break;
-        case 'shipments-view':  if(typeof loadShipments === 'function') loadShipments(); break;
-        case 'receipts-view':   if(typeof loadReceipts === 'function') loadReceipts(); break;
-
-        // --- AS QUE ESTAVAM FALTANDO (AQUI ESTÁ A CORREÇÃO) ---
-        case 'employees-view':  if(typeof loadEmployees === 'function') loadEmployees(); break; 
-        case 'clients-view':    if(typeof loadClients === 'function') loadClients(); break;
+        case 'delivery-view':    if(typeof loadDeliveryList === 'function') loadDeliveryList(); break;
+        case 'orders-view':      if(typeof loadOrders === 'function') loadOrders(); break;
+        case 'schedule-view':    if(typeof loadSchedules === 'function') loadSchedules(); break;
+        case 'box-view':         if(typeof loadBoxes === 'function') loadBoxes(); break;
+        case 'price-section':    if(typeof loadPrice === 'function') loadPrice(); break;
+        case 'billing-view':     if(typeof loadClientInvoices === 'function') loadClientInvoices(); break; 
+        case 'history-view':     if(typeof loadHistory === 'function') loadHistory(); break;
+        case 'labels-view':      if(typeof loadLabels === 'function') loadLabels(); break;
+        case 'expenses-view':    if(typeof loadExpenses === 'function') loadExpenses(); break;
+        case 'logs-view':        if(typeof loadSystemLogs === 'function') loadSystemLogs(); break;
+        case 'shipments-view':   if(typeof loadShipments === 'function') loadShipments(); break;
+        case 'receipts-view':    if(typeof loadReceipts === 'function') loadReceipts(); break;
+        case 'finances-view':    if(typeof loadFinances === 'function') loadFinances(); break;
+        case 'employees-view':   if(typeof loadEmployees === 'function') loadEmployees(); break; 
+        case 'clients-view':     if(typeof loadClients === 'function') loadClients(); break;
     }
-// ==========================================
-    // 🪄 MÁGICA: MOSTRAR/ESCONDER ITENS DA LOJA
-    // ==========================================
+
+    // 5. REGRA DA LOJA: Mostrar/Esconder componentes flutuantes
     const btnSacola = document.getElementById('nav-sacola');
     const btnPedidos = document.getElementById('nav-pedidos');
-    const videoFlutuante = document.getElementById('floating-carousel-container'); // <-- AGORA COM O ID REAL!
+    const videoFlutuante = document.getElementById('floating-carousel-container');
 
     if (sectionId === 'store-view') {
-        // Se abriu a loja, MOSTRA tudo
         if (btnSacola) btnSacola.style.display = 'flex';
         if (btnPedidos) btnPedidos.style.display = 'flex';
         if (videoFlutuante) videoFlutuante.style.display = 'block'; 
     } else {
-        // Se abriu qualquer outra tela, ESCONDE tudo
         if (btnSacola) btnSacola.style.display = 'none';
         if (btnPedidos) btnPedidos.style.display = 'none';
         if (videoFlutuante) videoFlutuante.style.display = 'none';
     }
-    // Lógica especial de vídeo
+
+    // 6. REGRA ESPECIAL DE VÍDEOS (Diferencia Admin/Funcionário de Cliente)
     if(sectionId === 'videos-section') {
-        if(currentUser && currentUser.role !== 'client') {
+        if(typeof currentUser !== 'undefined' && currentUser && currentUser.role !== 'client') {
             if(typeof loadOrdersForVideo === 'function') loadOrdersForVideo();
             if(typeof loadAdminVideos === 'function') loadAdminVideos();
         } else {
