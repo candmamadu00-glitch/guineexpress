@@ -1648,6 +1648,10 @@ app.get('/api/admin/zap-qr', (req, res) => {
 // 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (BAILEYS)
 // ==============================================================
 
+// ==============================================================
+// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (BAILEYS)
+// ==============================================================
+
 const conversasEmPausa = new Map();
 const cronometrosCici = new Map();
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
@@ -1661,13 +1665,13 @@ function configurarEventosDoZap(socket) {
         const chatID = msg.key.remoteJid;
         if (chatID === 'status@broadcast' || chatID.endsWith('@g.us')) return;
 
+        // 🛑 SE O LELO RESPONDER, A CICÍ FICA CALADA POR 1 HORA
         if (msg.key.fromMe) {
             conversasEmPausa.set(chatID, Date.now() + 3600000);
             console.log(`👤 [CICÍ] Lelo assumiu o chat com ${chatID.split('@')[0]}. Ficarei calada por 1 hora aqui.`);
             if (cronometrosCici.has(chatID)) {
                 clearTimeout(cronometrosCici.get(chatID));
                 cronometrosCici.delete(chatID);
-                console.log(`⏳ [CICÍ] Cancelei a resposta que estava agendada para ${chatID.split('@')[0]}.`);
             }
             return;
         }
@@ -1679,6 +1683,7 @@ function configurarEventosDoZap(socket) {
         let mensagemFoiDeAudio = false;
         let audioData = null;
 
+        // 🎙️ TRATAMENTO DE ÁUDIO
         const temAudio = msg.message.audioMessage;
         if (temAudio) {
             console.log("🎙️ [CICÍ] Áudio recebido! Vou analisar...");
@@ -1688,38 +1693,42 @@ function configurarEventosDoZap(socket) {
                 const buffer = await downloadMediaMessage(msg, 'buffer', {}, { reuploadRequest: socket.updateMediaMessage });
                 audioData = { inlineData: { data: buffer.toString('base64'), mimeType: temAudio.mimetype } };
             } catch (err) { return; }
-        } else if (msg.message.imageMessage || msg.message.videoMessage) {
-            return;
+        } else if (msg.message.imageMessage || msg.message.videoMessage || msg.message.documentMessage) {
+            return; // Ignora imagens/vídeos soltos por enquanto
         }
 
         if (!textoUsuario && !mensagemFoiDeAudio) return;
 
-        const assuntoLogistica = /encomenda|pacote|frete|caixa|entrega|rastreio|valor|preço|kg|quilo|guiné|enviar|receber|etiqueta|pagamento|fatura|pix/i;
-        if (!mensagemFoiDeAudio && !assuntoLogistica.test(textoUsuario)) {
-            console.log(`🤫 [CICÍ] Assunto fora da logística. Deixando pro Lelo.`);
-            return; 
-        }
+        // 👇 REMOVEMOS O BLOQUEIO DE PALAVRAS! Agora ela lê até os "Bom dia" e "Oi"!
 
-        console.log(`⏳ [CICÍ] Mensagem sobre logística. Esperando 10 MINUTOS pelo Lelo...`);
+        console.log(`⏳ [CICÍ] Lendo mensagem de ${chatID.split('@')[0]}... Respondendo em 3 segundos.`);
 
         if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
 
+        // ⏱️ TEMPO REDUZIDO PARA 3 SEGUNDOS PARA UMA CONVERSA IMEDIATA
         const timer = setTimeout(async () => {
             try {
                 let checkFinal = conversasEmPausa.get(chatID);
                 if (checkFinal && checkFinal > Date.now()) return; 
 
-                console.log(`🤖 [CICÍ] 10 minutos se passaram. Assumindo o atendimento para ${chatID.split('@')[0]}...`);
-                await socket.sendPresenceUpdate('composing', chatID);
+                console.log(`🤖 [CICÍ] Respondendo agora para ${chatID.split('@')[0]}...`);
+                await socket.sendPresenceUpdate('composing', chatID); // Mostra "Digitando..." no celular do cliente
 
-                // TEXTO 100% ORIGINAL DA SUA VERSÃO
-                const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress.
+                // 🧠 CÉREBRO DA CICÍ NO WHATSAPP (COM CRIOULO E CONVERSA IMEDIATA!)
+                const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress no WhatsApp.
                 Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
 
-                REGRAS DE OURO:
-                1. Se o cliente perguntar algo fora do tema, responda educadamente que só trata de envios e logística.
-                2. Seja carinhosa e educada.
-                3. Se o cliente terminar uma dúvida, pergunte o que mais você pode ajudar.`;
+                🏢 INFORMAÇÕES DA EMPRESA (Use se perguntarem):
+                - Somos a Guineexpress, especialista em envios do Brasil para Guiné-Bissau.
+                - Nossos envios podem ser aéreos ou marítimos.
+
+                🗣️ REGRAS DE IDIOMA E CONVERSA:
+                - DETECÇÃO AUTOMÁTICA: Se o cliente falar em Crioulo da Guiné-Bissau (Kriol), responda 100% em Crioulo. Se falar em Português, responda em Português.
+                - CONVERSE NATURALMENTE: Se o cliente disser apenas "Oi", "Bom dia", "Tudo bem?", seja educada, cumprimente de volta e pergunte como pode ajudar com as encomendas hoje.
+                - Mantenha sempre a sua personalidade: carinhosa, educada, prestativa e muito profissional.
+
+                🛑 LIMITES DE ASSUNTO:
+                - Se o cliente perguntar algo completamente fora do tema (ex: futebol, política, assuntos pessoais), responda educadamente (no idioma dele) que você é uma IA de logística e peça para ele aguardar o Lelo.`;
 
                 let modelChat = model.startChat({ history: [ { role: "user", parts: [{ text: systemPrompt }] } ] });
 
@@ -1727,20 +1736,20 @@ function configurarEventosDoZap(socket) {
                     ? await modelChat.sendMessage([textoUsuario, audioData]) 
                     : await modelChat.sendMessage(textoUsuario);
 
-                await socket.sendPresenceUpdate('paused', chatID);
+                await socket.sendPresenceUpdate('paused', chatID); // Tira o "Digitando..."
                 await socket.sendMessage(chatID, { text: iaResult.response.text() }, { quoted: msg });
 
             } catch (erroIA) {
                 console.error("❌ Erro GRAVE na IA (Cicí):", erroIA.message);
-                const msgQueda = `🤖 *Aviso Automático:*\n\nDesculpe, meu sistema de inteligência artificial está passando por uma manutenção técnica no momento.\n\nPor favor, aguarde que o Lelo responderá sua mensagem assim que possível!`;
-                await socket.sendMessage(chatID, { text: msgQueda });
+                await socket.sendMessage(chatID, { text: "Puxa, estou com um pequeno soluço no meu sistema agora. 😅 O Lelo já vai te responder!" });
             } finally {
                 cronometrosCici.delete(chatID);
             }
-        }, 10 * 60 * 1000); 
+        }, 3000); // 3000 = 3 segundos exatos de espera
 
         cronometrosCici.set(chatID, timer);
     });
+}
 
     // CÓDIGO DA CHAMADA EXATAMENTE IGUAL AO SEU ORIGINAL
     socket.ev.on('call', async (chamadas) => {
@@ -1770,7 +1779,6 @@ function configurarEventosDoZap(socket) {
             }
         }
     });
-}
 
 
 // ==============================================================
@@ -4245,11 +4253,15 @@ app.post('/api/cici/chat', async (req, res) => {
             }];
         }
 
-        // 🧠 O CÉREBRO DA CICÍ REFORMULADO - VERSÃO SUPER INTELIGENTE
+        // 🧠 O CÉREBRO DA CICÍ REFORMULADO - VERSÃO SUPER INTELIGENTE (COM CRIOULO!)
         const systemPrompt = `Você é a Cicí 18.0, a IA suprema e Agente Autônoma da Guineexpress. 
         Usuário atual: ${userContext.name || 'Desconhecido'} (Nível: ${userRole}). Tela: ${userContext.currentPage}.
         ${dadosExtras}
         Idioma: ${lang || 'pt-BR'}
+
+        🗣️ REGRAS DE IDIOMA (CRIOULO DA GUINÉ-BISSAU E PORTUGUÊS):
+        - DETECÇÃO AUTOMÁTICA: Se o usuário enviar uma mensagem falando em Crioulo da Guiné-Bissau (Kriol), você DEVE responder 100% em Crioulo da Guiné-Bissau.
+        - Se o usuário falar em Português, responda em Português.
 
         🛑 MODO ANTI-FALHAS (À PROVA DE ERROS E IMPREVISTOS):
         - NUNCA ADIVINHE DADOS: Se o usuário pedir para criar um box, encomenda ou fatura e NÃO informar detalhes obrigatórios (como Peso, Valor, Produtos ou Número do Box), PARE E PERGUNTE. Exemplo: "Claro! Mas qual é o peso da encomenda?" ou "Qual o número desse box?".

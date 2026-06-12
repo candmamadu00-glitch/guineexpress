@@ -3466,6 +3466,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // LÓGICA DE ETIQUETAS (LABELS) COM FILTRO DE LOTE DINÂMICO E OCULTAÇÃO DE IMPRESSAS
 // ============================================================
 
+// ============================================================
+// LÓGICA DE ETIQUETAS (LABELS) COM FILTRO DE LOTE E OCULTAÇÃO DE IMPRESSAS
+// ============================================================
+
 async function loadLabels() {
     const tbody = document.getElementById('labels-list');
     if (!tbody) return; 
@@ -3483,17 +3487,15 @@ async function loadLabels() {
         const orders = resOrders.ok ? await resOrders.json() : [];
 
         // ==========================================
-        // 🧠 CÉREBRO DO FILTRO DE LOTES (IGUAL DA ABA BOX)
+        // 🧠 CÉREBRO DO FILTRO DE LOTES 
         // ==========================================
         const filterSelect = document.getElementById('label-lot-filter');
         const loteSelecionado = filterSelect ? filterSelect.value : '';
 
-        // Aprende quais lotes existem olhando para as caixas e encomendas
         if (filterSelect) {
             const lotesCaixas = boxes.map(b => b.lote || 'Sem Lote');
             const lotesOrders = orders.map(o => o.lote || 'Sem Lote');
             
-            // Junta tudo e tira os nomes repetidos
             const lotesUnicos = [...new Set([...lotesCaixas, ...lotesOrders])];
 
             let htmlFiltro = '<option value="">📦 Todos os Envios/Lotes</option>';
@@ -3503,14 +3505,12 @@ async function loadLabels() {
             
             filterSelect.innerHTML = htmlFiltro;
             
-            // Mantém selecionado o lote que você clicou
             if (lotesUnicos.includes(loteSelecionado) || loteSelecionado === '') {
                 filterSelect.value = loteSelecionado;
             }
         }
         // ==========================================
 
-        // Inverte a ordem das caixas para as mais novas ficarem no topo
         boxes.sort((a, b) => b.id - a.id);
 
         let htmlBuffer = '';
@@ -3521,10 +3521,10 @@ async function loadLabels() {
         for (let i = 0; i < boxes.length; i++) {
             const loteDaCaixa = boxes[i].lote || 'Sem Lote';
             
-            // 🛑 FREIO 1: Filtro de Lotes
+            // FREIO 1: Lote
             if (loteSelecionado !== '' && loteDaCaixa !== loteSelecionado) continue;
 
-            // 🛑 FREIO 2 (O NOVO): Esconde a etiqueta se ela já foi arquivada/impressa!
+            // 🛑 FREIO 2: Se a etiqueta já foi "apagada/impressa", não mostra na tela!
             if (boxes[i].label_printed === 1) continue;
 
             totalValidos++;
@@ -3566,10 +3566,10 @@ async function loadLabels() {
         for (let i = 0; i < ordersWithoutBox.length; i++) {
             const loteDaOrder = ordersWithoutBox[i].lote || 'Sem Lote';
 
-            // 🛑 FREIO 1: Filtro de Lotes
+            // FREIO 1: Lote
             if (loteSelecionado !== '' && loteDaOrder !== loteSelecionado) continue;
 
-            // 🛑 FREIO 2 (O NOVO): Esconde a etiqueta se ela já foi arquivada/impressa!
+            // 🛑 FREIO 2: Se a etiqueta já foi "apagada/impressa", não mostra na tela!
             if (ordersWithoutBox[i].label_printed === 1) continue;
 
             totalValidos++;
