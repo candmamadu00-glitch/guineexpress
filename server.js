@@ -1751,35 +1751,6 @@ function configurarEventosDoZap(socket) {
     });
 }
 
-    // CÓDIGO DA CHAMADA EXATAMENTE IGUAL AO SEU ORIGINAL
-    socket.ev.on('call', async (chamadas) => {
-        for (const chamada of chamadas) {
-            if (chamada.status === 'offer') {
-                const callerId = chamada.from;
-                console.log(`📞 [CICÍ] Chamada recebida de: ${callerId.split('@')[0]}. Deixando tocar...`);
-                
-                setTimeout(async () => {
-                    try {
-                        console.log(`🎙️ [CICÍ] Respondendo chamada perdida de: ${callerId.split('@')[0]}`);
-                        const msgTexto = `🤖 *Mensagem da Cicí:*\n\nOi! Vi que você ligou, mas o Lelo está ocupado no momento e não pôde atender. Por favor, tente ligar mais tarde.\n\n🚨 *Se for urgente:* deixe um áudio ou uma mensagem escrita aqui embaixo que eu aviso ele depois!`;
-                        await clientZap.sendMessage(callerId, msgTexto);
-
-                        const caminhoAudio = path.join(__dirname, 'cici-recado.mp3');
-                        if (fs.existsSync(caminhoAudio)) {
-                            // Envia o áudio simulando a lógica original do MessageMedia
-                            const mediaAudio = MessageMedia.fromFilePath(caminhoAudio);
-                            await clientZap.sendMessage(callerId, mediaAudio, { sendAudioAsVoice: true });
-                        } else {
-                            console.log("⚠️ Arquivo 'cici-recado.mp3' não encontrado na pasta.");
-                        }
-                    } catch (error) {
-                        console.error("❌ Erro ao enviar recado pós-chamada:", error);
-                    }
-                }, 45000); 
-            }
-        }
-    });
-
 
 // ==============================================================
 // 📢 ROTA DE ENVIO EM MASSA (ATUALIZADA PARA BAILEYS)
