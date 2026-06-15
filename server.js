@@ -1745,7 +1745,7 @@ function configurarEventosDoZap(socket) {
             } finally {
                 cronometrosCici.delete(chatID);
             }
-        }, 3000); // 3000 = 3 segundos exatos de espera
+        }, 8000); // 3000 = 3 segundos exatos de espera
 
         cronometrosCici.set(chatID, timer);
     });
@@ -5159,6 +5159,27 @@ app.delete('/api/videos/:id', (req, res) => {
             res.json({ success: true, message: "Vídeo excluído com sucesso!" });
         });
     });
+});
+// Agendamento: Roda às 14h16 a cada 5 dias
+cron.schedule('16 14 */5 * *', async () => {
+    console.log("⏰ [CICÍ] Iniciando rotina de cobrança automática!");
+    
+    try {
+        // ATENÇÃO: Aqui você vai precisar puxar a sua lista de clientes (do seu banco de dados ou array)
+        // Este é apenas um exemplo de envio para um número:
+        const numeroDoCliente = "5585999999999@s.whatsapp.net"; // Sempre com @s.whatsapp.net no final
+        const mensagemCobranca = "🤖 *Cicí:* Olá! Passando para te lembrar do seu vencimento. Como posso te ajudar hoje?";
+        
+        // Envia a mensagem pelo WhatsApp (substitua 'socket' pelo nome da sua variável do Baileys, pode ser 'sock' ou 'conn')
+        await socket.sendMessage(numeroDoCliente, { text: mensagemCobranca });
+        
+        console.log("✅ Cobrança enviada com sucesso!");
+    } catch (erro) {
+        console.error("❌ Erro ao enviar a cobrança automática:", erro);
+    }
+}, {
+    scheduled: true,
+    timezone: "America/Fortaleza" // Garante que a Cicí vai usar o fuso horário correto!
 });
 // ==============================================================
 // 🧠 VARIÁVEIS GLOBAIS DE MEMÓRIA DA CICÍ
