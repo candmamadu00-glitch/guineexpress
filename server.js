@@ -5160,26 +5160,61 @@ app.delete('/api/videos/:id', (req, res) => {
         });
     });
 });
-// Agendamento: Roda às 14h16 a cada 5 dias
-cron.schedule('16 14 */5 * *', async () => {
-    console.log("⏰ [CICÍ] Iniciando rotina de cobrança automática!");
-    
-    try {
-        // ATENÇÃO: Aqui você vai precisar puxar a sua lista de clientes (do seu banco de dados ou array)
-        // Este é apenas um exemplo de envio para um número:
-        const numeroDoCliente = "5585999999999@s.whatsapp.net"; // Sempre com @s.whatsapp.net no final
-        const mensagemCobranca = "🤖 *Cicí:* Olá! Passando para te lembrar do seu vencimento. Como posso te ajudar hoje?";
+// ==============================================================
+// ⏰ 🤖 CICI: DESPERTADOR PROATIVO (COBRANÇA E AVISOS)
+// ==============================================================
+// O cron roda todo dia às 14:25
+cron.schedule('25 14 * * *', async () => {
+    console.log('⏰ Cicí acordou! Verificando faturas pendentes para avisar os clientes...');
+
+    const sql = `
+        SELECT i.id as invoice_id, i.amount, i.description, 
+               u.name, u.phone 
+        FROM invoices i
+        JOIN users u ON i.client_id = u.id
+        WHERE i.status = 'pending' 
+        AND u.phone IS NOT NULL AND u.phone != ''
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) % 5 = 0
+        AND CAST(julianday('now', 'localtime') - julianday(i.created_at, 'localtime') AS INTEGER) > 0
+    `;
+
+    db.all(sql, [], async (err, faturasPendentes) => {
+        if (err) return console.error('❌ Erro ao buscar faturas para a Cicí:', err);
+
+        if (faturasPendentes.length === 0) {
+            return console.log('🤖 Cicí: Boa tarde! Nenhuma fatura pendente hoje. Pode relaxar, chefe!');
+        }
+
+        console.log(`🤖 Cicí encontrou ${faturasPendentes.length} faturas pendentes. Iniciando processamento...`);
+
+        if (typeof clientZap === 'undefined' || !clientZap) {
+             return console.log('⚠️ Cicí: O sistema do WhatsApp não foi inicializado no servidor.');
+        }
+
+        for (const fatura of faturasPendentes) {
+            try {
+                let cleanPhone = fatura.phone.replace(/\D/g, ''); 
+                if (!cleanPhone) continue;
+
+                // 📝 MENSAGEM CORRETA DE LEMBRETE (Adaptei para Boa tarde!)
+                const lembreteMsg = `Olá, *${fatura.name}*! Boa tarde! ☀️\n\nAqui é a Cicí da Guineexpress!\nEstou passando para lembrar que sua fatura (*${fatura.description}*) no valor de *R$ ${fatura.amount.toFixed(2)}* está pendente no nosso sistema.\n\nAcesse o seu painel rapidinho para pagar e liberar sua encomenda:\n🔗 https://guineexpress-f6ab.onrender.com/\n\nQualquer dúvida, é só me chamar aqui! 📦✈️`;
+
+                console.log(`🤖 Cicí processando cobrança para: ${fatura.name} (${cleanPhone})`);
+
+                // 🔥 Graças ao novo motor, se o Zap estiver offline, isto vai AUTOMATICAMENTE para a Fila do Banco!
+                // Se estiver online, envia na hora.
+                await clientZap.sendMessage(cleanPhone, lembreteMsg);
+
+                // Pausa de 4 segundos entre as faturas para não sobrecarregar o banco ou a fila
+                await new Promise(r => setTimeout(r, 4000));
+
+            } catch (errorLoop) {
+                console.error(`❌ Erro ao processar fatura ID ${fatura.invoice_id}:`, errorLoop.message);
+            }
+        }
         
-        // Envia a mensagem pelo WhatsApp (substitua 'socket' pelo nome da sua variável do Baileys, pode ser 'sock' ou 'conn')
-        await socket.sendMessage(numeroDoCliente, { text: mensagemCobranca });
-        
-        console.log("✅ Cobrança enviada com sucesso!");
-    } catch (erro) {
-        console.error("❌ Erro ao enviar a cobrança automática:", erro);
-    }
-}, {
-    scheduled: true,
-    timezone: "America/Fortaleza" // Garante que a Cicí vai usar o fuso horário correto!
+        console.log('🤖 Cicí: Terminei as cobranças de hoje! Se alguma ficou na fila por falta de internet, ela sairá assim que o Zap reconectar.');
+    });
 });
 // ==============================================================
 // 🧠 VARIÁVEIS GLOBAIS DE MEMÓRIA DA CICÍ
