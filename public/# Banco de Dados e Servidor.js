@@ -1107,3 +1107,109 @@ function atualizarContadorCarrinho() {
         }
     }
 }
+// ==============================================================
+// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (BAILEYS)
+// ==============================================================
+
+// ==============================================================
+// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (BAILEYS)
+// ==============================================================
+
+const conversasEmPausa = new Map();
+const cronometrosCici = new Map();
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+
+function configurarEventosDoZap(socket) {
+    socket.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return;
+        const msg = messages[0];
+        if (!msg.message) return;
+
+        const chatID = msg.key.remoteJid;
+        if (chatID === 'status@broadcast' || chatID.endsWith('@g.us')) return;
+
+        // 🛑 SE O LELO RESPONDER, A CICÍ FICA CALADA POR 1 HORA
+        if (msg.key.fromMe) {
+            conversasEmPausa.set(chatID, Date.now() + 3600000);
+            console.log(`👤 [CICÍ] Lelo assumiu o chat com ${chatID.split('@')[0]}. Ficarei calada por 1 hora aqui.`);
+            if (cronometrosCici.has(chatID)) {
+                clearTimeout(cronometrosCici.get(chatID));
+                cronometrosCici.delete(chatID);
+            }
+            return;
+        }
+
+        let tempoPausa = conversasEmPausa.get(chatID);
+        if (tempoPausa && tempoPausa > Date.now()) return; 
+
+        let textoUsuario = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
+        let mensagemFoiDeAudio = false;
+        let audioData = null;
+
+        // 🎙️ TRATAMENTO DE ÁUDIO
+        const temAudio = msg.message.audioMessage;
+        if (temAudio) {
+            console.log("🎙️ [CICÍ] Áudio recebido! Vou analisar...");
+            mensagemFoiDeAudio = true;
+            textoUsuario = "O usuário enviou um áudio no WhatsApp. Eis o conteúdo desse áudio:";
+            try {
+                const buffer = await downloadMediaMessage(msg, 'buffer', {}, { reuploadRequest: socket.updateMediaMessage });
+                audioData = { inlineData: { data: buffer.toString('base64'), mimeType: temAudio.mimetype } };
+            } catch (err) { return; }
+        } else if (msg.message.imageMessage || msg.message.videoMessage || msg.message.documentMessage) {
+            return; // Ignora imagens/vídeos soltos por enquanto
+        }
+
+        if (!textoUsuario && !mensagemFoiDeAudio) return;
+
+        // 👇 REMOVEMOS O BLOQUEIO DE PALAVRAS! Agora ela lê até os "Bom dia" e "Oi"!
+
+        console.log(`⏳ [CICÍ] Lendo mensagem de ${chatID.split('@')[0]}... Respondendo em 3 segundos.`);
+
+        if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
+
+        // ⏱️ TEMPO REDUZIDO PARA 3 SEGUNDOS PARA UMA CONVERSA IMEDIATA
+        const timer = setTimeout(async () => {
+            try {
+                let checkFinal = conversasEmPausa.get(chatID);
+                if (checkFinal && checkFinal > Date.now()) return; 
+
+                console.log(`🤖 [CICÍ] Respondendo agora para ${chatID.split('@')[0]}...`);
+                await socket.sendPresenceUpdate('composing', chatID); // Mostra "Digitando..." no celular do cliente
+
+                // 🧠 CÉREBRO DA CICÍ NO WHATSAPP (COM CRIOULO E CONVERSA IMEDIATA!)
+                const systemPrompt = `Você é a Cicí 18.0, assistente virtual EXCLUSIVA da Guineexpress no WhatsApp.
+                Sua única função é ajudar com: envio de encomendas, faturas, rastreio e uso do sistema Guineexpress.
+
+                🏢 INFORMAÇÕES DA EMPRESA (Use se perguntarem):
+                - Somos a Guineexpress, especialista em envios do Brasil para Guiné-Bissau.
+                - Nossos envios podem ser aéreos ou marítimos.
+
+                🗣️ REGRAS DE IDIOMA E CONVERSA:
+                - DETECÇÃO AUTOMÁTICA: Se o cliente falar em Crioulo da Guiné-Bissau (Kriol), responda 100% em Crioulo. Se falar em Português, responda em Português.
+                - CONVERSE NATURALMENTE: Se o cliente disser apenas "Oi", "Bom dia", "Tudo bem?", seja educada, cumprimente de volta e pergunte como pode ajudar com as encomendas hoje.
+                - Mantenha sempre a sua personalidade: carinhosa, educada, prestativa e muito profissional.
+
+                🛑 LIMITES DE ASSUNTO:
+                - Se o cliente perguntar algo completamente fora do tema (ex: futebol, política, assuntos pessoais), responda educadamente (no idioma dele) que você é uma IA de logística e peça para ele aguardar o Lelo.`;
+
+                let modelChat = model.startChat({ history: [ { role: "user", parts: [{ text: systemPrompt }] } ] });
+
+                let iaResult = (mensagemFoiDeAudio && audioData) 
+                    ? await modelChat.sendMessage([textoUsuario, audioData]) 
+                    : await modelChat.sendMessage(textoUsuario);
+
+                await socket.sendPresenceUpdate('paused', chatID); // Tira o "Digitando..."
+                await socket.sendMessage(chatID, { text: iaResult.response.text() }, { quoted: msg });
+
+            } catch (erroIA) {
+                console.error("❌ Erro GRAVE na IA (Cicí):", erroIA.message);
+                await socket.sendMessage(chatID, { text: "Puxa, estou com um pequeno soluço no meu sistema agora. 😅 O Lelo já vai te responder!" });
+            } finally {
+                cronometrosCici.delete(chatID);
+            }
+        }, 8000); // 3000 = 3 segundos exatos de espera
+
+        cronometrosCici.set(chatID, timer);
+    });
+}

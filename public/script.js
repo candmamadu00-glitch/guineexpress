@@ -2283,13 +2283,6 @@ function retakeVideo() {
     document.getElementById('record-ui').classList.remove('hidden');
     document.getElementById('upload-ui').classList.add('hidden');
 }
-// ==========================================
-// FUNÇÕES DA ABA DE VÍDEO (COM BUSCA BLINDADA)
-// ==========================================
-
-// Variável global para guardar a lista original de encomendas
-let allVideoOrders = [];
-
 // --- FUNÇÃO CORRIGIDA: CARREGAR ENCOMENDAS NA ABA DE VÍDEO ---
 async function loadOrdersForVideo() {
     const select = document.getElementById('video-client-select');
@@ -2307,8 +2300,19 @@ async function loadOrdersForVideo() {
     }
 
     try {
-        // Busca todas as encomendas
-        const res = await fetch('/api/orders');
+        // 🔥 CORREÇÃO: Pegando o token salvo no login
+        const token = localStorage.getItem('token');
+        
+        // 🔥 CORREÇÃO: Enviando o cabeçalho de autorização para o servidor não bloquear
+        const res = await fetch('/api/orders', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!res.ok) throw new Error('Falha na autorização ao buscar encomendas');
+        
         const orders = await res.json();
 
         // Filtra para não mostrar encomendas já entregues
