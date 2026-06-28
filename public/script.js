@@ -2431,14 +2431,33 @@ function checkVideoPermission() {
 }
 
 async function loadClientsForVideoSelect() {
-    const res = await fetch('/api/clients');
-    const clients = await res.json();
     const sel = document.getElementById('video-client-select');
     if(!sel) return;
-    sel.innerHTML = '<option value="">Selecione para vincular...</option>';
-    clients.forEach(c => {
-        sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-    });
+
+    try {
+        // 🔥 Pegando o token salvo no login (O Crachá)
+        const token = localStorage.getItem('token');
+        
+        // 🔥 Mostrando o crachá para o servidor liberar a lista
+        const res = await fetch('/api/clients', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!res.ok) throw new Error('Falha na autorização ao buscar clientes');
+        
+        const clients = await res.json();
+        
+        sel.innerHTML = '<option value="">Selecione para vincular...</option>';
+        clients.forEach(c => {
+            sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+    } catch (error) {
+        console.error("Erro ao carregar clientes para vídeo:", error);
+        sel.innerHTML = '<option value="">Erro ao carregar lista</option>';
+    }
 }
 async function confirmUpload() {
     // 1. Validações Iniciais
