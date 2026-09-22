@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funcionário - Guineexpress</title>
+    
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a1931">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-status-bar-style" content="black-translucent">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="cici.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script>
+        // Registro do Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('PWA: Ativo'))
+                    .catch(err => console.error('PWA: Erro', err));
+            });
+        }
+
+        function requestNotificationPermission() {
+            if ("Notification" in window && Notification.permission !== "granted") {
+                Notification.requestPermission();
+            }
+        }
+    </script>
+</head>
+<body onload="requestNotificationPermission()">
+
+    <nav class="dashboard-nav" style="background: #052f58;">
+        <div style="font-weight:bold; font-size:18px;">
+            GUINEEXPRESS 
+            <span style="font-size:12px; font-weight:normal; opacity:0.8;">| FUNCIONÁRIO</span>
+        </div>
+        <div class="nav-wrapper">
+    
+    <button class="scroll-btn left" onclick="scrollNav(-250)">
+        <i class="fas fa-chevron-left"></i>
+    </button>
+        <div class="nav-links">    
+    <button onclick="showSection('finances-view'); loadFinances();" class="nav-btn" style="background: #010203; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        <i class="fas fa-file-invoice-dollar"></i> 💸 Faturas
+    </button>
+    <button onclick="showSection('delivery-view'); loadDeliveryList();">
+    <i class="fas fa-shipping-fast"></i> Entregas
+</button>
+    <button onclick="showSection('orders-view')" style="background: #007bff; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        <i class="fas fa-box"></i> Encomendas
+    </button>
+    
+    <button onclick="showSection('box-view')" style="background: #6610f2; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        📦 Box
+    </button>
+    
+    <button onclick="showSection('videos-section')" style="background: #e83e8c; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        🎥 Vídeos
+    </button>
+    
+    <button onclick="showSection('billing-view'); loadClientsForBilling(); loadInvoices();" style="background: #28a745; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+    💲 Status Pagto
+</button>
+        <button onclick="showSection('receipts-view')" style="background: #17a2b8; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;"><i class="fas fa-file-invoice"></i> Recibos</button>
+
+    <button onclick="showSection('schedule-view')" style="background: #8e44ad; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        📅 Agendamentos
+    </button>
+    
+    <button onclick="openBroadcastModal()" class="btn" style="background: #6f42c1; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        📢 Novo Comunicado
+    </button>
+    
+    <button onclick="showSection('labels-view')" id="btn-labels" class="nav-btn" style="background: #fd7e14; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        <i class="fas fa-tags"></i> Etiquetas
+    </button>
+    
+    <button onclick="startScanner()" class="btn" style="background: #f1c40f; color: #000; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        <i class="fas fa-qrcode"></i> Escanear
+    </button>
+    
+    <button onclick="showSection('history-view')" class="nav-btn" style="background: #7f8c8d; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        <i class="fas fa-history"></i> Histórico
+    </button> 
+    
+    <button onclick="showSection('clients-view')" style="background: #d81b60; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        <i class="fas fa-users"></i> Clientes
+    </button>
+    
+    <button onclick="logout()" style="background: #dc3545; color: white; padding: 8px 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        <i class="fas fa-sign-out-alt"></i> Sair
+    </button>
+
+</div>
+<button class="scroll-btn right" onclick="scrollNav(250)">
+        <i class="fas fa-chevron-right"></i>
+    </button>
+
+</div>
+</nav>
+
+    <div class="container">
+        <section id="schedule-view" class="hidden">
+    <div class="card" style="margin-bottom: 20px;">
+        <h3>Criar Vagas de Atendimento</h3>
+        <form onsubmit="createAvailability(event)" style="display:flex; gap:10px; flex-wrap:wrap; align-items: center;">
+            <select id="sched-lote" onclick="if(this.options.length <= 1) loadScheduleLots()" class="form-control" style="min-width: 150px;" required>
+                <option value="">📦 Clique para carregar Envios...</option>
+            </select>
+            
+            <input type="date" id="sched-start-date" class="form-control" title="Data de Início" required>
+            <span style="font-weight:bold; color:#0a1931;">até</span>
+            <input type="date" id="sched-end-date" class="form-control" title="Data Final" required>
+            
+            <input type="time" id="sched-start" class="form-control" title="Hora Inicial" required>
+            <input type="time" id="sched-end" class="form-control" title="Hora Final" required>
+            <input type="number" id="sched-slots" class="form-control" placeholder="Vagas" style="width:80px;" required>
+            <button type="submit" class="btn" style="background-color: #0a1931; color: white; width:auto;">Abrir Vagas</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Solicitações de Agendamento</h3>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px;">
+            
+            <input type="text" id="search-schedule" onkeyup="filterSchedule()" placeholder="🔍 Pesquisar por cliente, telefone, data ou status..." style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box;">
+            
+            <button onclick="baixarPDFAgendamentos()" class="btn" style="background-color: #d4af37; color: #0a1931; width: fit-content; align-self: flex-end; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-file-pdf"></i> Baixar PDF de Agendamentos
+            </button>
+            
+        </div>
+        
+        <table class="data-table">
+            <thead>
+                <tr><th>Data</th><th>Horário</th><th>Cliente</th><th>Tel</th><th>Status</th></tr>
+            </thead>
+            <tbody id="admin-schedule-list"></tbody>
+        </table>
+    </div>
+</section>
+
+<section id="orders-view">
+    <div class="card">
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Gestão de Encomendas</h3>
+            
+            <div style="display:flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: flex-end;">
+                <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-orders" onclick="loadOrders()"> 
+    👀 Mostrar encomendas já entregues
+</label>
+                <div id="bulk-action-container" style="display: none; background: #fff3cd; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffe69c; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: space-between;">
+                    <span style="font-size: 13px; font-weight: bold; color: #664d03; white-space: nowrap;">
+                        <i class="fas fa-check-square"></i> <span id="bulk-count">0</span> selecionados
+                    </span>
+                    <div style="display:flex; gap: 5px; flex-grow: 1;">
+                        <select id="bulk-status-select" style="padding: 6px; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; flex-grow: 1; min-width: 140px;">
+                            <option value="">Alterar status para...</option>
+                            <option value="Processando">Processo de Embalagem</option>
+                            <option value="Recebido">Recebido na Agencia</option>
+                            <option value="Em Trânsito">Em Trânsito Lisboa ✈️</option>
+                            <option value="Chegou ao Destino">Chegou ao Destino Bissau 🏢</option>
+                            <option value="Entregue">Entregue ✅</option>
+                        </select>
+                        <button onclick="applyBulkStatus()" style="background: #0d6efd; color: white; border: none; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+                            Aplicar
+                        </button>
+                    </div>
+                </div>
+
+                <button class="btn" onclick="exportOrdersToExcel()" style="background-color: #217346; color: white; flex-grow: 1; text-align: center; justify-content: center; min-width: 140px;">
+                    <i class="fas fa-file-excel"></i> Baixar Excel
+                </button>
+
+                <button class="btn btn-accent" onclick="prepareNewOrder()" style="flex-grow: 1; text-align: center; justify-content: center; min-width: 160px;">
+                    <i class="fas fa-plus"></i> Nova Encomenda
+                </button>
+            </div>
+        </div>
+
+        <div style="margin: 15px 0; display: flex; gap: 10px;">
+            <select id="filter-envio" onchange="renderizarTabelaEncomendas()" style="padding: 10px; border-radius: 4px; border: 1px solid #ddd; font-size: 14px; min-width: 150px; background-color: #f8f9fa; font-weight: bold;">
+                <option value="Todos">📦 Todos os Envios</option>
+                </select>
+
+            <div style="position: relative; flex-grow: 1;">
+                <i class="fas fa-search" style="position: absolute; left: 12px; top: 12px; color: #888;"></i>
+                <input type="text" id="search-orders" onkeyup="searchTable('search-orders', 'orders-list')" 
+                       placeholder="Buscar por código, cliente ou status..." 
+                       style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px;">
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align: center;">
+                            <input type="checkbox" id="selectAllOrders" onclick="toggleAllOrderCheckboxes(this)">
+                        </th>
+                        <th>Código</th>
+                        <th>Cliente</th>
+                        <th>Descrição</th>
+                        <th>Peso</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="orders-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal-order" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-order-title">📦 Nova Encomenda</h3>
+                <button class="btn-close" onclick="closeModal('modal-order')">&times;</button>
+            </div>
+            
+            <form id="new-order-form" onsubmit="handleOrderSubmit(event)">
+                <input type="hidden" id="editing-order-id">
+            <div class="form-group">
+                    <label>Lote / Qual Envio?</label>
+                    <input type="text" id="order-lote" class="form-control" list="lista-lotes" placeholder="Ex: 1º Envio, 5º Envio, Navio..." required style="font-weight: bold; color: #0a1931;">
+                    <datalist id="lista-lotes">
+                        <option value="1º Envio">
+                        <option value="2º Envio">
+                        <option value="3º Envio">
+                        <option value="Sem Lote">
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <input type="text" id="order-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesDropdown()" style="margin-bottom: 8px;">
+                    
+                    <select id="order-client-select" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Código</label>
+                    <input type="text" id="order-code" class="form-control" placeholder="Ex: ENC-1234" required>
+                </div>
+                <div class="form-group">
+                    <label>Descrição</label>
+                    <input type="text" id="order-desc" class="form-control" placeholder="Ex: Roupas">
+                </div>
+                <div class="form-group">
+                    <label>Peso (Kg)</label>
+                    <input type="number" id="order-weight" class="form-control" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="order-status" class="form-control">
+                        <option value="Processando">Processando</option>
+                        <option value="Pendente Pagamento">Pendente Pagamento</option>
+                        <option value="Pago">Pago</option>
+                        <option value="Enviado">Enviado</option>
+                        <option value="Entregue">Entregue</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick="closeModal('modal-order')" style="background:#ccc; width:auto;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" style="width:auto;">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<section id="delivery-view" class="hidden">
+    <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>🚚 Central de Entrega de Cargas</h2>
+    </div>
+<label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-deliveries" onclick="loadDeliveryList()"> 
+    👀 Mostrar encomendas já entregues
+</label>
+    <div class="card">
+        <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="delivery-lot-filter" onchange="loadDeliveryList()" class="form-control" style="flex: 1; min-width: 200px; padding: 12px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; color: #0a1931;">
+                <option value="">📦 Todos os Envios/Lotes</option>
+            </select>
+
+            <div style="position: relative; flex: 2; min-width: 250px;">
+                <i class="fas fa-search" style="position: absolute; left: 12px; top: 16px; color: #888;"></i>
+                <input type="text" id="search-delivery" onkeyup="searchTable('search-delivery', 'delivery-list')" 
+                       placeholder="Digite o código ou cliente..." 
+                       style="width: 100%; height: 100%; padding: 12px 12px 12px 40px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px;">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th>Código</th>
+                        <th>Cliente</th>
+                        <th>Volumes</th>
+                        <th>Status Atual</th>
+                        <th style="text-align: center;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="delivery-list">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+<section id="deliveries-section" class="tab-content"> 
+    <h2>📦 Lista de Entregas</h2>
+    
+    <table class="table">
+        <tbody id="delivery-list">
+            </tbody>
+    </table>
+</section> <div id="delivery-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center;">
+        <h3 style="margin-top:0;">📸 Tirar Comprovante</h3>
+        <p style="font-size:14px; color:#666;">Tire uma foto do recibo assinado ou da caixa no local.</p>
+        
+        <input type="file" accept="image/*" capture="environment" id="camera-input" style="display:none;" onchange="previewDeliveryImage(event)">
+        
+        <button onclick="document.getElementById('camera-input').click()" style="background:#0a1931; color:white; border:none; padding:12px 20px; border-radius:5px; width:100%; font-size:16px; margin-bottom:15px; cursor:pointer;">
+            <i class="fas fa-camera"></i> Abrir Câmera
+        </button>
+
+        <div id="preview-container" style="display:none; margin-bottom:15px;">
+            <img id="image-preview" src="" style="width:100%; max-height:200px; object-fit:cover; border-radius:5px; border:1px solid #ddd;">
+            <button onclick="discardDeliveryImage()" style="margin-top:10px; background:#dc3545; color:white; border:none; padding:10px; border-radius:5px; width:100%; cursor:pointer; font-weight:bold;">
+                <i class="fas fa-trash"></i> Descartar Foto
+            </button>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button onclick="closeDeliveryModal()" style="flex:1; background:#ccc; border:none; padding:10px; border-radius:5px; cursor:pointer;">Cancelar</button>
+            <button id="btn-submit-delivery" onclick="submitDelivery()" style="flex:1; background:#27ae60; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;" disabled>Confirmar Entrega</button>
+        </div>
+    </div>
+</div>
+</section> 
+        <section id="clients-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+            <h3 style="margin:0;">Base de Clientes</h3>
+            <button onclick="openModal('modal-new-client-admin')" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px;">
+                <i class="fas fa-user-plus"></i> Novo Cliente
+            </button>
+        </div>
+
+        <div style="margin-bottom: 15px; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+            <input type="text" id="search-client-admin" onkeyup="searchTable('search-client-admin', 'clients-list')" 
+                   placeholder="Buscar cliente por Nome, Email ou Documento..." 
+                   style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+    <tr>
+        <th>Foto</th>
+        <th>Nome</th>
+        <th>Email</th>
+        <th>Telefone</th>
+        <th>País</th>
+        <th>Data de Cadastro</th> <th>Status</th>
+        <th>Ações</th>
+    </tr>
+</thead>
+                <tbody id="clients-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal-new-client-admin" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>👤 Cadastrar Novo Cliente</h3>
+                <button class="btn-close" onclick="closeModal('modal-new-client-admin')">&times;</button>
+            </div>
+            
+            <form id="admin-register-client-form" onsubmit="adminRegisterClient(event)">
+                <div class="form-group">
+                    <label>País de Origem do Documento</label>
+                    <select id="admin-reg-country" class="form-control" onchange="updateAdminMasks()" required>
+                        <option value="" disabled selected>Selecione um país...</option>
+                        <option value="GW">Guiné-Bissau</option>
+                        <option value="BR">Brasil</option>
+                        <option value="PT">Portugal</option>
+                        <option value="SN">Senegal</option>
+                        <option value="MA">Marrocos</option>
+                        <option value="US">Estados Unidos</option>
+                        <option value="FR">França</option>
+                        <option value="ES">Espanha</option>
+                        <option value="UK">Inglaterra</option>
+                        <option value="BE">Bélgica</option>
+                        <option value="CV">Cabo Verde</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" id="admin-reg-name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>E-mail (Login)</label>
+                    <input type="email" id="admin-reg-email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Telefone / WhatsApp</label>
+                    <input type="text" id="admin-reg-phone" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Documento (ID/CPF/NIF)</label>
+                    <input type="text" id="admin-reg-doc" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Senha Inicial para o Cliente</label>
+                    <input type="text" id="admin-reg-pass" class="form-control" placeholder="Mínimo 6 caracteres" required minlength="6">
+                    <small style="color:#666; display:block; margin-top:3px;">O cliente poderá alterar essa senha depois.</small>
+                </div>
+
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button type="button" class="btn" onclick="closeModal('modal-new-client-admin')" style="background:#ccc;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btn-admin-save-client">Salvar Cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+<section id="receipts-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3><i class="fas fa-file-invoice"></i> Recibos e Comprovantes</h3>
+        </div>
+        <p style="color:#666; font-size:13px; margin-bottom:15px;">
+            Recibos gerados automaticamente a partir das Boxes cadastradas.
+        </p>
+
+        <div style="margin-bottom: 15px;">
+            <select id="receipts-lot-filter" onchange="loadReceipts()" class="form-control" style="width: 100%; max-width: 400px; padding: 10px; border: 2px solid #0a1931; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; color: #0a1931;">
+                <option value="">📦 Todos os Envios/Lotes</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <div style="position: relative; width: 100%;">
+                <i class="fas fa-search" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #6c757d;"></i>
+                <input type="text" id="inputPesquisaRecibo" oninput="filtrarRecibos()" placeholder="Pesquisar número do Box, descrição ou lote..." 
+                       style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 25px; border: 1px solid #e1e8ed; font-size: 14px; outline: none; box-shadow: 0 2px 5px rgba(0,0,0,0.05); box-sizing: border-box;">
+            </div>
+        </div>
+
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>N° Box</th>
+                                <th id="rec-col-client">Cliente</th> 
+                                <th>Conteúdo</th>
+                                <th>Peso</th>
+                                <th>Valor</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="receipts-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+       <section id="box-view" class="hidden">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+            <h3 style="margin:0;">Gestão de Box</h3>
+            
+            <label style="cursor: pointer; color: #555; font-size: 14px; display: flex; align-items: center; margin: 0;">
+                    <input type="checkbox" id="toggle-boxes" onclick="loadBoxes()" style="margin-right: 8px;"> 
+                    👀 Mostrar boxes já enviadas/entregues
+                </label>
+
+                <select id="filter-box-lote" onchange="loadBoxes()" style="padding: 10px; border-radius: 4px; border: 1px solid #ddd; font-size: 14px; min-width: 150px; background-color: #f8f9fa; font-weight: bold;">
+                    <option value="Todos">📦 Todos os Envios</option>
+                </select>
+
+                <div style="display:flex; gap: 10px;">
+                    <button onclick="exportBoxPDF()" class="btn" style="background:#dc3545; color:white; border:none; display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-file-pdf"></i>Baixar PDF
+                    </button>
+                    <button onclick="exportBoxExcel()" class="btn" style="background:#28a745; color:white; border:none; display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-file-excel"></i>Baixar Excel
+                    </button>
+                    <button onclick="openModal('modal-box')" class="btn btn-primary" style="display: flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-box-open"></i> Cria Novo Box
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin: 15px 0; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+            <input type="text" id="search-box" onkeyup="searchTable('search-box', 'box-table-body')" 
+                   placeholder="Buscar Box..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+        </div>
+
+        <div id="box-summary-container" style="display: flex; gap: 15px; overflow-x: auto; margin-bottom: 20px; padding-bottom: 10px;"></div>
+
+        <div style="overflow-x:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr><th>N° Box</th><th>Cliente</th><th>Ref. Encomenda</th><th>Peso</th><th>Valor Estimado</th><th>Produtos</th><th>Ações</th></tr>
+                </thead>
+                <tbody id="box-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div id="modal-box" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📦 Criar Novo Box</h3>
+                <button class="btn-close" onclick="closeModal('modal-box')">&times;</button>
+            </div>
+            <form id="new-box-form" onsubmit="createBox(event)">
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <input type="text" id="box-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesBoxDropdown()" style="margin-bottom: 8px;">
+                    <select id="box-client-select" class="form-control" required onchange="loadClientOrdersInBox(this.value)"></select>
+                </div>
+                <div class="form-group">
+                    <label>Vincular Encomenda</label>
+                    <select id="box-order-select" class="form-control" disabled onchange="autoFillBoxData(this)">
+                        <option value="">Selecione o Cliente Primeiro...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Número Box</label>
+                    <input type="text" id="box-code" class="form-control" required placeholder="Ex: BOX-001">
+                </div>
+                <div class="form-group">
+                    <label>Lote / Qual Envio?</label>
+                    <input type="text" id="box-lote" class="form-control" list="lista-lotes-box" placeholder="Ex: 1º Envio, 5º Envio, Navio..." required style="font-weight: bold; color: #0a1931;">
+                    <datalist id="lista-lotes-box">
+                        <option value="1º Envio">
+                        <option value="2º Envio">
+                        <option value="3º Envio">
+                        <option value="Sem Lote">
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>Produtos</label>
+                    <textarea id="box-products" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Valor (opcional)</label>
+                    <input type="number" id="box-amount" class="form-control" step="0.01">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn" onclick="closeModal('modal-box')" style="background:#ccc; width:auto;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" style="width:auto;">Criar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+        
+        <section id="billing-view" class="hidden">
+    <div class="card" id="admin-billing-panel" style="background: #e8f0fe; border-left: 5px solid #0a1931;">
+        <h3><i class="fas fa-file-invoice-dollar"></i> Gerar Nova Cobrança</h3>
+        <p style="font-size:13px; color:#666; margin-bottom:15px;">Selecione um cliente e um box para gerar o QR Code Pix e link de pagamento.</p>
+        
+        <form onsubmit="verificarConflitoDeValor(event)" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+            <div class="form-group" style="flex: 1 1 250px; min-width: 250px;">
+                <label>1. Selecione o Cliente</label>
+                <input type="text" id="bill-client-search" class="form-control" placeholder="🔍 Digite para buscar cliente..." onkeyup="filtrarClientesFinanceiroDropdown()" style="margin-bottom: 8px;">
+                <select id="bill-client-select" class="form-control" onchange="loadClientBoxesForBilling(this.value)" required>
+                    <option value="">Carregando...</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="flex: 1 1 200px; min-width: 200px;">
+                <label>2. Selecione o Box</label>
+                <select id="bill-box-select" class="form-control" onchange="calculateBillAmount(this)" required disabled>
+                    <option value="">Selecione Cliente...</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="flex: 1 1 150px; min-width: 150px;">
+                <label>Frete</label>
+                <input type="number" id="bill-freight-amount" class="form-control" step="0.01" readonly style="background: #f8f9fa;">
+            </div>
+            
+            <div class="form-group" style="flex: 1 1 150px; min-width: 150px;">
+                <label>Nota Fiscal</label>
+                <input type="number" id="bill-nf-amount" class="form-control" step="0.01" value="0.00" oninput="updateTotalAmount()" required>
+            </div>
+            
+            <div class="form-group" style="flex: 1 1 150px; min-width: 150px;">
+                <label style="font-weight: bold; color: #d32f2f;">Valor Total </label>
+                <input type="number" id="bill-amount" class="form-control" step="0.01" readonly style="font-weight: bold; color: #d32f2f;">
+            </div>
+            
+            <div style="flex: 1 1 100%; margin-top: 5px;">
+                <button type="submit" class="btn btn-primary" style="width: 100%; height: 45px; font-weight:bold; font-size: 16px;">
+                    <i class="fas fa-qrcode"></i> Gerar Fatura
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+        <h3 style="margin: 0;">Status de Pagamentos</h3>
+        
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; width: 100%;">
+            
+            <select id="invoice-lot-filter" onchange="loadInvoices()" class="form-control" style="flex: 1; min-width: 180px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold; cursor: pointer; background-color: #fff;">
+                <option value="">📦 Todos os Envios/Lotes</option>
+            </select>
+
+            <input type="text" id="search-invoices" placeholder="🔍 Buscar cliente, ref ou box..." onkeyup="filterInvoices()" style="flex: 2; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
+            
+            <button onclick="loadInvoices()" class="btn-secondary" style="flex-shrink: 0; margin: 0; white-space: nowrap;">🔄 Atualizar</button>
+            <button onclick="downloadInvoicesPDF()" class="btn-primary" style="background-color: #d32f2f; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; flex-shrink: 0; white-space: nowrap;">📄 Baixar PDF</button>
+        </div>
+    </div>
+
+        <div style="margin-top: 20px; background: rgba(0, 0, 255, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid blue;">
+            <h4 style="color: blue; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-eye"></i> 👀 Em Análise (Aguardando sua conferência)</h4>
+            <table class="data-table" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Status</th> <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="invoices-review-list"></tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; background: rgba(255, 165, 0, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid orange;">
+            <h4 style="color: orange; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-hourglass-half"></i> ⏳ Pendentes (Não Pagos)</h4>
+            <table class="data-table" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Status</th> <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="invoices-pending-list"></tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; background: rgba(0, 128, 0, 0.05); padding: 15px; border-radius: 10px; border-left: 5px solid green;">
+    <h4 style="color: green; margin-top: 0; margin-bottom: 10px;"><i class="fas fa-check-circle"></i> ✅ Pagos (Finalizados)</h4>
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>Ref. Encomenda</th> <th>Cliente</th> <th>Box Ref</th> <th>Valor</th> <th>Data</th> <th>Status</th> <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="invoices-paid-list"></tbody>
+    </table>
+</div>
+    </div>
+</section>
+        <section id="labels-view" class="hidden">
+            <div class="header-flex">
+                <h2>🏷️ Gerador de Etiquetas</h2>
+                <div>
+                    <button onclick="printSelectedLabels()" class="btn btn-primary" style="background: #d4af37; color: #000; font-weight: bold;">
+                        <i class="fas fa-print"></i> Imprimir Selecionadas
+                    </button>
+                </div>
+            </div>
+            <div class="card" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <select id="label-lot-filter" onchange="loadLabels()" class="form-control" style="flex: 1; min-width: 200px; font-weight: bold; cursor: pointer;">
+                    <option value="">📦 Todos os Envios/Lotes</option>
+                </select>
+
+                <input type="text" id="label-search" onkeyup="filterLabels()" placeholder="Pesquisar por cliente ou código..." class="form-control" style="flex: 2; min-width: 200px;">
+            </div>
+            <div class="card">
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;"><input type="checkbox" onclick="toggleAllLabels(this)"></th>
+                                <th>Data</th><th>Código</th><th>Cliente</th><th>Descrição</th><th>Peso</th>
+                            </tr>
+                        </thead>
+                        <tbody id="labels-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="videos-section" class="hidden">
+    <div class="card">
+        <h3>🎥 Nova Gravação</h3>
+        
+        <div class="form-group">
+            <label>🔍 Buscar Encomenda/Cliente:</label>
+            <input type="text" id="video-client-search" class="form-control" placeholder="Digite nome, ref ou box..." onkeyup="filterVideoClients()" style="margin-bottom: 10px; border: 1px solid #0a1931; border-radius: 5px;">
+        </div>
+
+        <div class="form-group">
+            <label>1. Selecione a Encomenda para vincular:</label>
+            <select id="video-client-select" class="form-control" onchange="checkVideoPermission()">
+                <option value="">Carregando lista...</option>
+            </select>
+        </div>
+
+        <div id="video-order-info" style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+            <small>Resumo: <span id="info-desc" style="font-weight:bold;">-</span></small>
+        </div>
+
+        <button id="btn-open-fullscreen" onclick="openFullscreenCamera()" class="btn-primary" style="width: 100%; padding: 15px; font-size: 18px; background: #2c3e50;" disabled>
+            <i class="fas fa-camera"></i> ABRIR CÂMERA
+        </button>
+    </div>
+
+            <div id="fullscreen-camera-overlay" class="hidden">
+                <button onclick="closeFullscreenCamera()" style="position: absolute; top: 20px; right: 20px; z-index: 10001; background: none; border: none; color: white; font-size: 30px;">&times;</button>
+                <video id="camera-feed" autoplay playsinline muted></video>
+                <video id="video-preview" controls style="display: none;"></video>
+                <div class="camera-floating-controls">
+                    <div id="record-ui">
+                        <p id="recording-timer" class="hidden">00:00</p>
+                        <div style="display: flex; align-items: center; gap: 30px;">
+                            <button onclick="switchCamera()" class="btn-icon"><i class="fas fa-sync-alt"></i></button>
+                            <button id="btn-start-rec" onclick="startRecording()" class="btn-record-circle"></button>
+                            <button id="btn-stop-rec" onclick="stopRecording()" class="btn-stop-square hidden"></button>
+                            <div style="width: 40px;"></div> 
+                        </div>
+                    </div>
+                    <div id="upload-ui" class="hidden" style="width: 100%; padding: 20px;">
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button onclick="retakeVideo()" class="btn-secondary" style="background: white; color: black; border: none;">Descartar</button>
+                            <button onclick="confirmUpload()" class="btn-primary" style="background: #28a745; border: none; flex: 1;">Enviar Vídeo 🚀</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card" style="margin-top: 20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+        <h3 style="margin: 0;">Histórico de Vídeos Enviados</h3>
+        
+        <select id="video-lot-filter" onchange="loadAdminVideos()" class="form-control" style="flex: 1; min-width: 180px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold; cursor: pointer; background-color: #fff;">
+            <option value="">📦 Todos os Envios/Lotes</option>
+        </select>
+
+        <input type="text" id="search-video-history" placeholder="🔍 Buscar ID, cliente ou data..." onkeyup="filterVideoHistory()" style="flex: 2; min-width: 200px; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none;">
+    </div>
+
+    <table class="data-table" style="width: 100%;">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Data</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody id="admin-video-list"></tbody>
+    </table>
+</div>
+        </section>
+
+        <section id="history-view" class="hidden">
+            <div class="header-flex">
+                <h2>📜 Histórico de Envios</h2>
+                <input type="text" id="history-search" onkeyup="filterHistory()" placeholder="Filtrar por código ou nome..." class="form-control" style="max-width: 300px; display: none;"> 
+            </div>
+            <div class="card-table">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Data</th><th>Código</th><th id="hist-col-client">Cliente</th><th>Descrição</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="history-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <div id="scanner-modal" class="modal-overlay hidden">
+            <div class="modal-content" style="max-width: 500px; text-align: center;">
+                <h3>📱 Leitor de Encomendas</h3>
+                <div id="reader" class="qr-scanner-container" style="width: 100%; border-radius: 8px; overflow: hidden; position: relative;">
+                    <div class="scanner-laser"></div>
+                </div>
+                <div class="modal-actions" style="justify-content: center; margin-top: 15px;">
+                    <button class="btn btn-secondary" onclick="stopScanner()">Fechar Leitor</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="broadcast-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>📢 Enviar Comunicado em Massa</h3>
+                    <button class="btn-close" onclick="closeModal('broadcast-modal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="qr-container" style="text-align: center; display: none; margin-bottom: 15px;">
+                        <img id="zap-qr-img" style="width: 200px; border: 1px solid #ddd; border-radius: 8px;">
+                    </div>
+                    <div class="form-group" style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                        <button onclick="getZapQR()" class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;">🔗 Conectar WhatsApp</button>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 14px;">
+                            <input type="checkbox" id="check-send-zap"> Enviar também pelo Zap
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Assunto</label>
+                        <input type="text" id="broadcast-subject" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Mensagem</label>
+                        <textarea id="broadcast-message" class="form-control" rows="5"></textarea>
+                    </div>
+                    <button onclick="sendBroadcast()" class="btn btn-primary" style="width: 100%;">ENVIAR AGORA 🚀</button>
+                </div>
+            </div>
+        </div>
+
+        <section id="finances-view" class="hidden">
+            <div class="header-flex" style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>💰 Faturas Pagas e Pendentes</h2>
+                <div style="display: flex; gap: 10px;">
+                    <label style="cursor: pointer; color: #555; font-size: 14px; margin-bottom: 15px; display: inline-block;">
+    <input type="checkbox" id="toggle-finances" onclick="loadFinances()"> 
+    👀 Mostrar faturas já pagas
+</label>
+                    <button onclick="exportFinancesPDF()" class="btn btn-primary" style="background: #e74c3c;"><i class="fas fa-file-pdf"></i> Baixar PDF</button>
+                    <button onclick="exportFinancesExcel()" class="btn btn-primary" style="background: #27ae60;"><i class="fas fa-file-excel"></i> Abrir no Excel</button>
+                </div>
+            </div>
+            <div class="card">
+                <div style="margin: 15px 0; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <select id="finances-lot-filter" onchange="loadFinances()" class="form-control" style="flex: 1; min-width: 200px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-weight: bold; cursor: pointer; color: #0a1931;">
+                        <option value="">📦 Todos os Envios/Lotes</option>
+                    </select>
+
+                    <div style="position: relative; flex: 2; min-width: 250px;">
+                        <i class="fas fa-search" style="position: absolute; left: 10px; top: 10px; color: #888;"></i>
+                        <input type="text" id="search-finances" onkeyup="searchTable('search-finances', 'finances-list')" placeholder="Buscar faturas..." style="width: 100%; padding: 8px 10px 8px 35px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                </div>
+                <div class="table-responsive">
+            <table class="data-table" id="finances-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Tipo</th>
+                        <th>Cliente</th>
+                        <th>Descrição</th>
+                        <th style="text-align: center;">Peso</th>
+                        <th style="text-align: center;">Volumes</th>
+                        <th style="text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="finances-list"></tbody>
+            </table>
+        </div>
+        </section>
+
+        <div id="delivery-photo-modal" class="modal-overlay hidden">
+            <div class="modal-content" style="text-align:center; max-width: 400px;">
+                <h3>📸 Comprovante de Entrega</h3>
+                <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
+                    <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+                </div>
+                <div id="signature-area" style="display: none; margin-bottom: 15px;">
+                    <canvas id="signature-pad" width="300" height="150" style="background: #f8f9fa; border: 2px dashed #ccc; width: 100%;"></canvas>
+                    <button class="btn btn-secondary" onclick="clearSignature()">Limpar</button>
+                </div>
+                <div class="modal-actions" style="justify-content: center; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
+                    <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
+                    <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div> <div id="print-area"></div>
+    <script>
+    function aplicarFiltroLimpeza() {
+        // IDs dos botões de 'olho' e as respetivas tabelas que eles limpam
+        const sessoes = [
+            { checkboxId: 'toggle-orders', tabelaId: 'orders-list' },
+            { checkboxId: 'toggle-boxes', tabelaId: 'box-table-body' },
+            { checkboxId: 'toggle-deliveries', tabelaId: 'delivery-list' }
+        ];
+
+        // PALAVRAS MÁGICAS: 
+        // Oculta tudo o que tiver esta palavra. 
+        // Se no futuro quiser ocultar também as que estão em viagem, 
+        // basta mudar para: ['entregue', 'enviado', 'em trânsito']
+        const palavrasParaOcultar = ['entregue'];
+
+        sessoes.forEach(sessao => {
+            const checkbox = document.getElementById(sessao.checkboxId);
+            const tabela = document.getElementById(sessao.tabelaId);
+            
+            if (checkbox && tabela) {
+                const mostrarTudo = checkbox.checked; // Verifica se o utilizador clicou no "👀"
+                const linhas = tabela.getElementsByTagName('tr');
+
+                for (let i = 0; i < linhas.length; i++) {
+                    // Pega em todo o texto da linha (Nome, Status, Código) e transforma em minúsculas
+                    const textoDaLinha = linhas[i].innerText.toLowerCase();
+                    
+                    // Verifica se a linha tem a palavra "entregue"
+                    const linhaFinalizada = palavrasParaOcultar.some(palavra => textoDaLinha.includes(palavra));
+                    
+                    // Se a encomenda está concluída e o botão de mostrar NÃO está marcado -> Esconde a linha!
+                    if (linhaFinalizada && !mostrarTudo) {
+                        linhas[i].style.display = 'none';
+                    } else {
+                        linhas[i].style.display = ''; // Mostra a linha normalmente
+                    }
+                }
+            }
+        });
+    }
+
+    // O VIGILANTE: Fica a monitorizar as tabelas. 
+    // Assim que o seu código antigo puxar os dados do servidor, ele aplica a limpeza na mesma hora!
+    window.addEventListener('load', () => {
+        const tabelasParaVigiar = ['orders-list', 'box-table-body', 'delivery-list'];
+        
+        tabelasParaVigiar.forEach(idTabela => {
+            const tabela = document.getElementById(idTabela);
+            if (tabela) {
+                const observer = new MutationObserver(() => {
+                    aplicarFiltroLimpeza();
+                });
+                observer.observe(tabela, { childList: true, subtree: true }); // Vigia qualquer nova linha adicionada
+            }
+        });
+    });
+</script>
+<script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister().then(function() {
+                        console.log("Service Worker antigo destruído com sucesso!");
+                    });
+                }
+            });
+            // Opcional: Limpa também o armazenamento local para garantir
+            localStorage.removeItem('cici_cache'); 
+        }
+    </script>
+<script>
+// Função que trava a geração da fatura se o valor for repetido
+async function verificarConflitoDeValor(event) {
+    event.preventDefault(); // Impede o envio imediato
+
+    // Pega o valor total que foi calculado na tela
+    const valorTotal = document.getElementById('bill-amount').value;
+
+    if (!valorTotal || valorTotal <= 0) return;
+
+    // Muda o botão para mostrar que está pensando...
+    const btnSubmit = event.target.querySelector('button[type="submit"]');
+    const textoOriginal = btnSubmit.innerHTML;
+    btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+    btnSubmit.disabled = true;
+
+    try {
+        // Pergunta ao servidor (Render) se já tem alguém devendo esse valor
+        const resposta = await fetch(`/api/invoices/check_amount?amount=${valorTotal}`);
+        const dados = await resposta.json();
+
+        if (dados.conflito) {
+            // 🚨 ALERTA VERMELHO DISPARADO! 🚨
+            alert(`⚠️ ALERTA DA CICÍ!\n\nJá existe uma fatura PENDENTE com o valor exato de R$ ${valorTotal}.\n\nPara a baixa automática do Pix funcionar, adicione ou remova alguns centavos na Nota Fiscal (Exemplo: altere para R$ ${valorTotal}1).`);
+            
+            // Pinta as caixas de vermelho para chamar a atenção
+            document.getElementById('bill-amount').style.color = "red";
+            document.getElementById('bill-nf-amount').style.borderColor = "red";
+            document.getElementById('bill-nf-amount').focus();
+            
+            // Devolve o botão ao normal
+            btnSubmit.innerHTML = textoOriginal;
+            btnSubmit.disabled = false;
+        } else {
+            // ✅ TUDO LIMPO! Restaura o layout e chama a sua função original para criar a fatura
+            document.getElementById('bill-amount').style.color = "#d32f2f";
+            document.getElementById('bill-nf-amount').style.borderColor = "#ccc";
+            
+            // Chama a função que você já tinha no sistema para salvar no banco!
+            createInvoice(event);
+            
+            // Devolve o botão ao normal após um tempinho
+            setTimeout(() => {
+                btnSubmit.innerHTML = textoOriginal;
+                btnSubmit.disabled = false;
+            }, 2000);
+        }
+    } catch (erro) {
+        console.error("Erro ao verificar valor com a Cicí:", erro);
+        // Se a internet falhar, ele cria a fatura mesmo assim para não travar o trabalho
+        createInvoice(event);
+        btnSubmit.innerHTML = textoOriginal;
+        btnSubmit.disabled = false;
+    }
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="script.js?v=2.0"></script>
+    <script src="cici.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => { 
+            initDashboard(); 
+            // Inicia os contadores do Dashboard (Item 1)
+            if(typeof updateDashboardCounters === 'function') updateDashboardCounters();
+        });
+    </script>
+</body>
+</html>

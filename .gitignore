@@ -1,0 +1,33 @@
+# Dependências e caches
+node_modules/
+.cache/
+motor-zap/
+dist/
+
+# Variáveis de ambiente e chaves de segurança
+.env
+*.key
+*.pem
+
+# Bancos de dados locais (SQLite e backups)
+*.db
+*.db-journal
+/data/
+backups/
+/backups/
+
+# Sessões do WhatsApp e Autenticações
+.wwebjs_auth/
+.wwebjs_cache/
+session/
+session-admin/
+sessao_zap_nova/
+
+# Arquivos temporários e PDFs gerados
+uploads/
+public/uploads/
+*.pdf
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <style>
+    /* ==========================================
+       🛍️ TEMA SHOPEE (APLICA-SE APENAS À LOJA)
+       ========================================== */
+    /* Para a Loja do Cliente */
+    #store-view h2, 
+    #store-view h2 i { color: #ee4d2d !important; text-shadow: none !important; }
+    #store-view button[onclick="abrirMeusPedidosLoja()"] { background: #ee4d2d !important; color: white !important; }
+    #store-view .add-btn-premium { background: #ee4d2d !important; color: white !important; }
+    #store-view .add-btn-premium:hover { background: #d73211 !important; }
+    #store-view .promo-badge { background: #ee4d2d !important; }
+    #store-view .cat-icon i { color: #ee4d2d !important; }
+    #store-view .cat-item.active { border-bottom: 3px solid #ee4d2d !important; color: #ee4d2d !important; }
+    #store-view .price-amount { color: #ee4d2d !important; }
+    
+    /* Carrinho Flutuante da Loja */
+    #floating-cici-cart { background: #ee4d2d !important; }
+    #cart-counter { background: #0a1931 !important; } /* Contador escuro para contrastar */
+
+    /* Para a Loja do Admin (Opcional, para combinar) */
+    #store-admin-view .sub-aba-btn[style*="background: #0a1931"] { background: #ee4d2d !important; color: white !important; border-color: #ee4d2d !important;}
+    #store-admin-view button[type="submit"] { background: #ee4d2d !important; color: white !important; }
+    #store-admin-view i.fa-store { color: #ee4d2d !important; }
+    /* ==========================================
+       ✨ VITRINE VIP 3D (Cores, Fundo e Animações)
+       ========================================== */
+    
+    /* 1. Aurora Gradient Animation (O Fundo que muda de cor a cada 5s) */
+    .aurora-bg {
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        z-index: 9000; /* Fica acima de tudo quando ativado */
+        background: linear-gradient(45deg, #0a1931, #8e44ad, #d4af37, #ee4d2d, #009ee3);
+        background-size: 500% 500%;
+        animation: gradientAurora 20s ease infinite; /* 20s total, muda a cada 4/5s */
+        display: none;
+        overflow-y: auto;
+        padding-bottom: 50px;
+    }
+    
+    @keyframes gradientAurora {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    /* 2. Efeito de Vidro (Glassmorphism) para o Conteúdo VIP */
+    .vip-glass-container {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 20px;
+        margin: 20px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+
+    /* 3. Bandeiras 3D Giratórias */
+    .flag-3d-container {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin-bottom: 20px;
+        perspective: 1000px;
+    }
+    .flag-3d {
+        width: 40px; height: 30px;
+        border-radius: 4px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+        animation: rotateFlag 6s infinite linear;
+        transform-style: preserve-3d;
+    }
+    .flag-br { background: url('https://upload.wikimedia.org/wikipedia/commons/0/05/Flag_of_Brazil.svg') center/cover; }
+    .flag-gw { background: url('https://upload.wikimedia.org/wikipedia/commons/0/01/Flag_of_Guinea-Bissau.svg') center/cover; }
+    
+    @keyframes rotateFlag {
+        0% { transform: rotateY(0deg) rotateX(5deg); }
+        50% { transform: rotateY(180deg) rotateX(-5deg); }
+        100% { transform: rotateY(360deg) rotateX(5deg); }
+    }
+
+    /* 4. O Botão Mágico para entrar na Vitrine VIP */
+    .btn-enter-vip {
+        background: linear-gradient(135deg, #d4af37, #f1db8a);
+        color: #0a1931;
+        border: none;
+        padding: 15px;
+        border-radius: 12px;
+        font-weight: 900;
+        font-size: 16px;
+        cursor: pointer;
+        width: 100%;
+        box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+        animation: pulseVip 2s infinite;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        text-transform: uppercase;
+    }
+    @keyframes pulseVip {
+        0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
+        70% { box-shadow: 0 0 0 15px rgba(212, 175, 55, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+    }
+</style>
+    <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+    <link rel="stylesheet" href="cici.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="/logo.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0a1931">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Guineexpress">
+<meta property="og:title" content="Guineexpress - Seu Painel VIP">
+<meta property="og:description" content="Acesse seu painel para acompanhar suas encomendas, faturas e atualizações em tempo real!">
+<meta property="og:image" itemprop="image" content="https://guineexpress-f6ab.onrender.com/logo.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://guineexpress-f6ab.onrender.com/">
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="apple-touch-icon" href="/logo.png">
+
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('App registrado'))
+                .catch(err => console.log('Erro PWA', err));
+        });
+    }
+</script>
+
+    <style>
+    html {
+    overflow-y: scroll; /* A barra de rolagem fica sempre visível, evitando pulos laterais */
+}
+        /* --- 1. ESTILOS GERAIS E LAYOUT --- */
+        /* Usa as variáveis do style.css para manter a identidade visual */
+        
+        /* BANNER OCEAN FLOW (Unificado e Animado) */
+        .welcome-banner {
+            background: linear-gradient(-45deg, var(--primary, #0a1931), #1a3c6e, #2c3e50, #132b50);
+            background-size: 400% 400%;
+            animation: oceanFlow 15s ease infinite;
+            color: rgb(83, 73, 73);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        /* Animação do brilho passando */
+        .welcome-banner::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+            transform: skewX(-25deg);
+            animation: shine 6s infinite;
+            pointer-events: none;
+        }
+
+        /* GRID DE CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        /* CARD INDIVIDUAL (Com Efeito 3D Tilt) */
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-bottom: 4px solid transparent;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            
+            /* Prepara para o 3D */
+            transform-style: preserve-3d;
+            transform: perspective(1000px);
+            
+            /* Animação de Entrada */
+            opacity: 0;
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        /* Delays para efeito dominó na entrada */
+        .stat-grid .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-grid .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-grid .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-grid .stat-card:nth-child(4) { animation-delay: 0.4s; }
+
+        .stat-card:hover { 
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            /* Usa a variável de acento (dourado) se disponível, senão usa o fixo */
+            border-left: 5px solid var(--accent, #d4af37); 
+        }
+
+        .stat-icon { font-size: 24px; margin-bottom: 10px; }
+        .stat-number { font-size: 28px; font-weight: bold; color: #333; }
+        .stat-label { color: #666; font-size: 14px; }
+
+        /* --- 2. GRÁFICO E ELEMENTOS VISUAIS --- */
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            border-left: 5px solid var(--accent, #d4af37);
+            
+            opacity: 0;
+            animation: fadeInUp 0.8s ease-out forwards;
+            animation-delay: 0.5s;
+        }
+
+        /* BADGES (Etiquetas de Status) */
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-flex; /* Melhor alinhamento para o Radar */
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* Cores dos Badges */
+        .status-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-pending { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .status-danger  { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-info    { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        /* --- 3. ANIMAÇÕES (Keyframes) --- */
+        @keyframes oceanFlow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes shine {
+            0% { left: -100%; }
+            20% { left: 200%; }
+            100% { left: 200%; }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes ripple {
+            to { transform: scale(4); opacity: 0; }
+        }
+        
+        /* Radar GPS */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.33); opacity: 1; }
+            80%, 100% { opacity: 0; transform: scale(2.5); }
+        }
+        @keyframes pulse-dot {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1); }
+            100% { transform: scale(0.8); }
+        }
+
+        /* --- 4. COMPONENTES MENORES --- */
+        
+        /* Efeito de Onda nos Botões */
+        button {
+            position: relative;
+            overflow: hidden;
+        }
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            transform: scale(0);
+            animation: ripple 0.6s linear;
+            background-color: rgba(255, 255, 255, 0.4);
+            pointer-events: none;
+        }
+
+        /* Radar Elements */
+        .radar-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 10px; height: 10px;
+            margin-right: 8px;
+        }
+        .radar-dot {
+            display: block; width: 100%; height: 100%;
+            background-color: #f1c40f;
+            border-radius: 50%;
+            animation: pulse-dot 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -0.4s infinite;
+        }
+        .radar-ring {
+            display: block; position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 50%;
+            background-color: rgba(241, 196, 15, 0.4);
+            animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        /* Botão WhatsApp */
+        .float-wa {
+            position: fixed; width: 60px; height: 60px;
+            bottom: 20px; right: 20px;
+            background-color: #25d366; color: #FFF;
+            border-radius: 50px; text-align: center;
+            font-size: 30px; box-shadow: 2px 2px 3px #999;
+            z-index: 1000; display: flex;
+            align-items: center; justify-content: center;
+            text-decoration: none; transition: all 0.3s;
+        }
+        .float-wa:hover { background-color: #1ebe57; transform: scale(1.1); }
+
+        /* Modal de Pagamento */
+        .modal {
+            display: none; position: fixed; z-index: 2000; 
+            left: 0; top: 0; width: 100%; height: 100%; 
+            overflow: auto; background-color: rgba(0,0,0,0.7);
+            animation: fadeIn 0.3s;
+        }
+        .modal-content {
+            background-color: #fff; margin: 10% auto; padding: 25px; 
+            border-radius: 8px; width: 90%; max-width: 450px; 
+            text-align: center; position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s;
+        }
+        @keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
+        @keyframes slideIn { from {transform: translateY(-20px);} to {transform: translateY(0);} }
+
+        .btn-tab {
+            flex: 1; padding: 12px; border: none; border-radius: 6px; 
+            cursor: pointer; font-weight: bold; transition: 0.2s;
+        }
+        .btn-tab:hover { opacity: 0.9; }
+
+        /* Garante que os cards e linhas comecem invisíveis */
+.stat-card, 
+.chart-container, 
+#orders-list tr {
+    opacity: 0; /* O segredo está aqui */
+    /* A animação fadeInUp vai mudar isso para 1 suavemente */
+}
+        
+    </style>
+</head>
+<body>
+<script>
+    function fecharAvisoApp() {
+        // Esconde o aviso apenas naquele momento. 
+        // Como tiramos o localStorage, ele voltará ao recarregar a página!
+        document.getElementById('aviso-atualizacao-app').style.display = 'none';
+    }
+</script>
+    <nav class="dashboard-nav">
+        <div style="font-weight:bold; font-size:18px;">
+            GUINEEXPRESS <span style="font-size:12px; font-weight:normal;">| Cliente</span>
+        </div>
+        <div class="global-shipment-selector" style="padding: 15px; background: #f8f525; margin: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+    <label for="main-shipment-filter" style="display: block; font-weight: bold; color: #0a1931; margin-bottom: 8px;">
+        <i class="fas fa-box-open"></i> Selecione o seu Envio:
+    </label>
+    <select id="main-shipment-filter" onchange="syncAllTabsByLot()" style="width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #d4af37; font-size: 16px; background: #fafafa; color: #0a1931;">
+        <option value="">🌟 Ver Tudo (Geral)</option>
+        </select>
+</div>
+        <div class="notification-container" style="position: relative; cursor: pointer; margin-left: auto; margin-right: 20px;">
+    
+    <div onclick="toggleNotifications()" style="position: relative; display: inline-block;">
+        <i class="fas fa-bell" style="font-size: 22px; color: rgb(214, 157, 211);"></i>
+        
+        <span id="notif-badge" class="notification-badge hidden">0</span>
+    </div>
+
+    <div id="notif-dropdown" class="hidden" 
+         style="position: absolute; top: 35px; right: 0; width: 300px; background: rgb(155, 147, 112); color: #333; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 1000; overflow: hidden;">
+        <div style="background: #f8f9fa; padding: 10px; font-weight: bold; border-bottom: 1px solid #eee;">
+            Notificações Recentes
+        </div>
+        <div id="notif-list" style="max-height: 300px; overflow-y: auto;">
+            <div style="padding: 15px; text-align: center; color: #ad4343; font-size: 12px;">Nenhuma notificação nova.</div>
+        </div>
+    </div>
+</div>
+<div class="nav-wrapper" style="padding: 10px 0; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;">
+    <button class="scroll-btn left" onclick="scrollNav(-250)"><i class="fas fa-chevron-left"></i></button>
+    
+    <div class="nav-links" id="client-nav-links" style="display: flex; gap: 15px; padding: 0 10px;">
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('home-view')" class="nav-btn premium-btn home-btn"><i class="fas fa-home"></i> Início</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('orders-view')" class="nav-btn premium-btn orders-btn"><i class="fas fa-box"></i> Encomendas</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('box-view')" class="nav-btn premium-btn box-btn">📦 Box</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('billing-view')" class="nav-btn premium-btn billing-btn">💲 Faturas</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('receipts-view')" class="nav-btn premium-btn receipts-btn"><i class="fas fa-file-invoice"></i> Recibos</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('schedule-view')" class="nav-btn premium-btn schedule-btn">📅 Agendamentos</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('videos-section')" class="nav-btn premium-btn videos-btn">🎥 Vídeos</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('history-view')" class="nav-btn premium-btn history-btn"><i class="fas fa-history"></i> Histórico</button>
+        </div>
+
+        <div class="btn-electric-wrapper"><div class="electric-ring"></div>
+            <button onclick="showSection('profile-view')" class="nav-btn premium-btn profile-btn"><i class="fas fa-user"></i> Perfil</button>
+        </div>
+   
+        <div class="btn-electric-wrapper"><div class="electric-ring" style="background: conic-gradient(from 0deg, transparent, #ff4d4d, transparent 50%);"></div>
+            <button onclick="logout()" class="nav-btn premium-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Sair</button>
+        </div>
+    </div>
+    
+    <button class="scroll-btn right" onclick="scrollNav(250)"><i class="fas fa-chevron-right"></i></button>
+</div>
+
+</nav>
+
+<style>
+/* CSS DA MÁGICA ELÉTRICA NOS BOTÕES */
+.btn-electric-wrapper {
+    position: relative;
+    padding: 2px;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0; /* 🚀 IMPEDE QUE O BOTÃO SEJA ESMAGADO */
+}
+.electric-ring {
+    position: absolute;
+    width: 250%;
+    height: 250%;
+    background: conic-gradient(from 0deg, transparent, #009ee3, #0a1931, transparent 40%);
+    animation: spinElectric 3s linear infinite;
+    z-index: 1;
+}
+.btn-electric-wrapper .nav-btn {
+    position: relative;
+    z-index: 2;
+    margin: 0 !important;
+    border: none;
+    border-radius: 10px;
+    background: white;
+    color: #0a1931;
+    font-weight: bold;
+    padding: 10px 20px; /* 🚀 Aumentei um pouco o preenchimento para respirar mais */
+    height: 100%;
+    white-space: nowrap; /* 🚀 IMPEDE QUE O TEXTO QUEBRE DE LINHA */
+}
+.btn-electric-wrapper .nav-btn:hover { background: #f0f4f8; }
+
+@keyframes spinElectric { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+</style>
+
+<script>
+    // Sobrescrevendo a função carregarLojaCliente para puxar do lugar certo
+    async function carregarLojaCliente() {
+        const grid = document.getElementById('store-products-grid');
+        if (!grid) return;
+
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px;">
+                <i class="fas fa-circle-notch fa-spin" style="font-size: 50px; color: #dfaf12; margin-bottom: 20px;"></i>
+                <h3 style="color: #0a1931; margin-bottom: 5px;">Aguarde um momento...</h3>
+                <p style="color: #666; font-size: 14px;">A Guineexpress está buscando as novidades!</p>
+            </div>
+        `;
+
+        try {
+            // A ROTA MILAGROSA QUE VOCÊ PEDIU
+            const response = await fetch('/api/loja/produtos-clientes');
+            const data = await response.json();
+
+            if (data.success) {
+                // Guarda os produtos globais na loja antiga
+                produtosOriginais = data.products;
+                if(typeof filtrarLoja === 'function') {
+                    filtrarLoja('Todos'); 
+                } else {
+                    grid.innerHTML = '<p>Erro: Função de desenhar vitrine sumiu do sistema.</p>';
+                }
+            } else {
+                grid.innerHTML = '<p style="text-align:center; color: red;">A loja está vazia.</p>';
+            }
+        } catch (error) {
+            grid.innerHTML = '<p style="text-align:center; color: #666;">Sem conexão com o servidor da loja.</p>';
+        }
+    }
+</script>
+    <div class="container">
+
+        <section id="home-view">
+            <div class="vip-header" style="background: linear-gradient(135deg, #0a1931, #1a365d); padding: 25px 20px; border-radius: 15px; margin-bottom: 25px; box-shadow: 0 8px 20px rgba(10, 25, 49, 0.15); display: flex; align-items: center; justify-content: space-between; position: relative; overflow: hidden;">
+                
+                <div style="position: absolute; right: -20px; top: -20px; width: 150px; height: 150px; background: rgba(255,255,255,0.05); border-radius: 50%;"></div>
+                <div style="position: absolute; right: 80px; bottom: -30px; width: 100px; height: 100px; background: rgba(255,255,255,0.05); border-radius: 50%;"></div>
+
+                <div style="display: flex; align-items: center; gap: 15px; z-index: 1;">
+                    <div style="position: relative;">
+                        <img id="vip-profile-img" 
+                             src="https://cdn-icons-png.flaticon.com/512/149/149071.png" 
+                             onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'"
+                             alt="Foto de Perfil" 
+                             style="width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #d4af37; background-color: #f8f9fa; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+                        
+                        <div style="position: absolute; bottom: 0; right: 0; background: #28a745; color: rgb(160, 131, 131); width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; border: 2px solid #0a1931;" title="Conta Ativa">
+                            <i class="fas fa-check"></i>
+                        </div>
+                    </div>
+                      
+                    <div>
+                        <p style="color: #a0aec0; font-size: 14px; margin: 0; margin-bottom: 2px;">Bem-vindo de volta,</p>
+                        <h2 style="color: white; margin: 0; font-size: 22px; font-weight: bold;">
+                            <span id="user-name-display">Cliente</span> 👋
+                        </h2>
+                        <p style="color: #e2e8f0; font-size: 12px; margin: 0; margin-top: 4px; opacity: 0.9;">
+                            <i class="fas fa-globe-africa"></i> Suas importações em tempo real
+                        </p>
+                    </div>
+                </div>
+
+                <button onclick="showSection('profile-view')" style="background: rgba(255,255,255,0.1); border: none; color: white; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; z-index: 1;">
+                    <i class="fas fa-cog" style="font-size: 20px;"></i>
+                </button>
+            </div>
+            
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin: 20px 0; border: 2px dashed #009ee3; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+    <div style="font-size: 30px; color: #0a1931; margin-bottom: 10px;">
+        <i class="fas fa-fingerprint"></i>
+    </div>
+    <h3 style="color: #0a1931; margin-bottom: 8px; font-size: 18px;">Login Ultra Seguro</h3>
+    <p style="color: #555; font-size: 14px; margin-bottom: 15px; line-height: 1.5;">
+        Cansado de digitar senhas? Ative a entrada por <b>Impressão Digital</b> ou <b>FaceID</b> e acesse a sua conta num piscar de olhos na próxima vez!
+    </p>
+    <button onclick="registarBiometria()" style="background: #0a1931; color: #d4af37; border: 1px solid #d4af37; padding: 12px 25px; border-radius: 25px; font-weight: bold; font-size: 15px; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 10px;">
+        <i class="fas fa-plus-circle"></i> Ativar Impressão Digital Agora
+    </button>
+</div>
+
+            <div class="stats-grid">
+                <div class="stat-card" style="border-bottom-color: #007bff;" onclick="showSection('orders-view')">
+                    <div class="stat-icon" style="color: #007bff;"><i class="fas fa-box-open"></i></div>
+                    <div class="stat-number" id="dash-orders-count">-</div>
+                    <div class="stat-label">Minhas Encomendas</div>
+                </div>
+                
+                <div class="chart-container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h3 style="color:#0a1931; margin:0;">📊 Resumo de Importações</h3>
+        <span style="font-size:12px; color:#666; background:#eee; padding:5px 10px; border-radius:15px;">Últimos 6 meses</span>
+    </div>
+
+    <div style="height: 300px; width: 100%;">
+        <canvas id="shipmentChart"></canvas>
+    </div>
+</div>
+                 
+                <div class="stat-card" style="border-bottom-color: #d4af37;" onclick="showSection('box-view')">
+                    <div class="stat-icon" style="color: #d4af37;"><i class="fas fa-cubes"></i></div>
+                    <div class="stat-number" id="dash-boxes-count">-</div>
+                    <div class="stat-label">Boxes Criados</div>
+                </div>
+
+                <div class="stat-card" style="border-bottom-color: #dc3545;" onclick="showSection('billing-view')">
+                    <div class="stat-icon" style="color: #dc3545;"><i class="fas fa-file-invoice-dollar"></i></div>
+                    <div class="stat-number" id="dash-invoices-count">-</div>
+                    <div class="stat-label">Faturas Pendentes</div>
+                </div>
+                     
+                <div class="stat-card" style="border-bottom-color: #28a745;" onclick="showSection('videos-section')">
+                    <div class="stat-icon" style="color: #28a745;"><i class="fas fa-video"></i></div>
+                    <div class="stat-number">Ver</div>
+                    <div class="stat-label">Vídeos de Pesagem</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🚀 Ações Rápidas</h3>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                    <button onclick="showSection('schedule-view')" class="btn-primary" style="width: auto;">
+                        <i class="far fa-calendar-alt"></i> Agendar Atendimento
+                    </button>
+                    <button onclick="window.open('https://wa.me/558598239207', '_blank')" class="btn" style="width: auto; background: #25d366; color: white;">
+                        <i class="fab fa-whatsapp"></i> Falar com Suporte
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="orders-view" class="hidden">
+            <div class="card">
+                <h3>📦 Minhas Encomendas</h3>
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th style="display:none;">Cliente</th>
+                                <th>Descrição</th>
+                                <th>Peso</th>
+                                <th>Valor</th> 
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="history-view" class="hidden">
+            <div class="header-flex">
+                <h2>📜 Histórico de Envios</h2>
+                <input type="text" id="history-search" onkeyup="filterHistory()" placeholder="Filtrar..." class="form-control" style="max-width: 300px; display: none;"> 
+            </div>
+            <div class="card-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Código</th>
+                            <th id="hist-col-client">Cliente</th> <th>Descrição</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="box-view" class="hidden">
+            <div class="card">
+                <h3>📦 Meus Box</h3>
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                             <tr>
+                                <th>N° Box</th>
+                                <th style="display:none;">Cliente</th>
+                                <th>Ref. Encomenda</th>
+                                <th>Peso</th>
+                                <th>Valor Estimado</th>
+                                <th>Produtos</th>
+                                <th>Ações</th> </tr>
+                        </thead>
+                        <tbody id="box-table-body"></tbody>
+                    </table>
+                    </div> </div> </section>
+                
+
+        <section id="receipts-view" class="hidden">
+            <div class="card">
+                <h3><i class="fas fa-file-invoice"></i> Recibos e Comprovantes</h3>
+                <p style="color:#666; font-size:13px; margin-bottom:15px;">
+                    Recibos gerados automaticamente.
+                </p>
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>N° Box</th>
+                                <th id="rec-col-client">Cliente</th> 
+                                <th>Conteúdo</th>
+                                <th>Peso</th>
+                                <th>Valor</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="receipts-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="billing-view" class="hidden">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 10px;">
+                    <h3>💲 Minhas Faturas</h3>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="moeda-fatura" onchange="loadClientInvoices()" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; color: #0a1931; background: #f8f9fa;">
+                            <option value="BRL">🇧🇷 Real (R$)</option>
+                            <option value="XOF">🌍 Franco (CFA)</option>
+                            <option value="EUR">🇪🇺 Euro (€)</option>
+                            <option value="USD">🇺🇸 Dólar ($)</option>
+                        </select>
+                        <button onclick="loadClientInvoices()" class="btn-secondary" style="font-size:12px;">🔄 Atualizar</button>
+                    </div>
+                </div>
+                <div style="overflow-x:auto; margin-top:15px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Codigo</th>
+                                <th>Referência (Box)</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="client-invoices-list"></tbody>
+                    </table>
+                </div>
+            </div>
+            </section>
+    
+
+<section id="schedule-view" class="hidden">
+            <div class="card" style="margin-bottom: 20px;">
+                <h3>📅 Agendar Horário</h3>
+                <p>Selecione um horário disponível para atendimento.</p>
+                <div id="available-slots-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-top:10px;">
+                </div>
+            </div>
+            <div class="card">
+                <h3>Meu Histórico</h3>
+                <table class="data-table">
+                    <thead><tr><th>Data</th><th>Horário</th><th>Status</th><th>Ações</th></tr></thead>
+                    <tbody id="client-schedule-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="videos-section" class="hidden">
+            <div class="card">
+                <h3>🎥 Vídeos das Encomendas</h3>
+                <p>Acompanhe o preparo e pesagem das suas encomendas.</p>
+                <div id="client-video-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; margin-top: 20px;">
+                </div>
+            </div>
+        </section>
+
+       <section id="profile-view" class="hidden">
+            <div class="card" style="max-width: 500px; margin: 0 auto;">
+                <h3>👤 Meus Dados</h3>
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="position: relative; display: inline-block;">
+                        <img id="profile-img-display" 
+                             src="https://cdn-icons-png.flaticon.com/512/149/149071.png" 
+                             onerror="this.src='https://cdn-icons-png.flaticon.com/512/149/149071.png'"
+                             alt="Foto" 
+                             style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:4px solid #0a1931; background-color: #ccc;">
+                        <label for="profile-upload" style="position:absolute; bottom:5px; right:5px; background:#d4af37; color:white; width:35px; height:35px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                            <i class="fas fa-camera"></i>
+                        </label>
+                        <input type="file" id="profile-upload" accept="image/*" style="display:none;" onchange="previewImage(event)">
+                    </div>
+                </div>    
+              
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                <input type="text" id="profile-name" class="form-control"> 
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="profile-email" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Telefone</label>
+                    <input type="text" id="profile-phone" class="form-control">
+                </div>
+                <button onclick="updateProfile()" class="btn btn-primary" style="width:100%;">Salvar Alterações</button>
+            </div>
+
+            <div class="card" style="max-width: 500px; margin: 25px auto; border-left: 5px solid #d4af37;">
+                <h3>🔐 Alterar Senha</h3>
+                <p style="margin-bottom: 15px; font-size: 13px; color: #666;">
+                    Preencha abaixo para definir uma nova senha de acesso.
+                </p>
+                
+                <div class="form-group">
+                    <label>Senha Atual</label>
+                    <input type="password" id="profile-current-pass" class="form-control" placeholder="Digite sua senha atual">
+                </div>
+
+                <div class="form-group">
+                    <label>Nova Senha</label>
+                    <input type="password" id="profile-new-pass" class="form-control" placeholder="Mínimo 6 caracteres">
+                </div>
+
+                <div class="form-group">
+                    <label>Confirmar Nova Senha</label>
+                    <input type="password" id="profile-confirm-pass" class="form-control" placeholder="Repita a nova senha">
+                </div>
+                
+                <button onclick="changePassword()" class="btn" style="width:100%; background-color: #2c3e50; color: white;">
+                    Atualizar Senha
+                </button>
+            </div>
+        </section>
+        <!-- ZONA DE PERIGO: EXCLUIR CONTA -->
+            <div class="card" style="max-width: 500px; margin: 25px auto; border-left: 5px solid #dc3545; background: #fff5f5;">
+                <h3 style="color: #dc3545;"><i class="fas fa-exclamation-triangle"></i> Zona de Perigo</h3>
+                <p style="margin-bottom: 15px; font-size: 13px; color: #666;">
+                    A exclusão da conta é permanente e irreversível. Todos os seus dados pessoais e histórico de acesso serão removidos do aplicativo.
+                </p>
+                <button onclick="excluirMinhaConta()" class="btn" style="width:100%; background-color: #dc3545; color: white; font-weight: bold; border: none;">
+                    <i class="fas fa-trash-alt"></i> Excluir Minha Conta Definitivamente
+                </button>
+            </div>
+<div id="modal-payment" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
+    <div class="modal-content" style="background:#fff; margin:10% auto; padding:25px; border-radius:8px; width:90%; max-width:450px; text-align:center; position:relative;">
+        <span onclick="closePaymentModal()" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px; color:#999;">&times;</span>
+        
+        <h3 style="color:#0a1931; margin-bottom:10px;">Pagamento via PIX </h3>
+        <p id="pay-desc" style="margin-bottom:20px; font-weight:bold; color:#0f0f0f;"></p>
+        
+       
+        <div style="margin-bottom: 20px; background: #e6f9f6; padding: 15px; border-radius: 8px; border: 1px solid #39dac4c7;">
+            <p style="font-size:14px; color:#013f35; margin-bottom:10px; font-weight:bold;">✨Aprovação na hora!</p>
+            <p style="font-size:12px; color:#141414; margin-bottom:10px;">Copie o código abaixo, pague no seu banco e o sistema aprova sozinho. Escolha o banco:</p>
+            
+            <div style="display: flex; gap: 10px;">
+    <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'nubank', event)" style="flex:1; background:#a203e0; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(138,5,190,0.3);">
+        🟣 Copiar (Nubank)
+    </button>
+    
+    <button onclick="copiarPixExato(document.getElementById('pay-order-id').value, 'mp', event)" style="flex:1; background:#e3df00; color:white; border:none; padding:12px; border-radius:5px; cursor:pointer; font-weight:bold; font-size: 13px; box-shadow: 0 4px 6px rgba(0,158,227,0.3);">
+        🔵 Copiar (Mercado Pago)
+    </button>
+</div>
+        </div>
+
+       <input type="hidden" id="pay-order-id">
+       <input type="hidden" id="pay-amount">
+    </div>
+</div>
+
+
+<style>
+    @keyframes slideUp {
+        from { bottom: -100%; opacity: 0; }
+        to { bottom: 0; opacity: 1; }
+    }
+</style>
+
+<script>
+async function copiarPixExato(idFatura, banco, eventoClique) {
+    if (!idFatura) {
+        alert("❌ Erro: Fatura não identificada.");
+        return;
+    }
+
+    const btnClicado = eventoClique ? eventoClique.currentTarget : null;
+    let textoOriginal = "";
+    
+    if (btnClicado) {
+        textoOriginal = btnClicado.innerHTML;
+        btnClicado.innerHTML = "⏳ Gerando...";
+        btnClicado.disabled = true;
+    }
+
+    try {
+        const resposta = await fetch(`/api/gerar-pix/${banco}/${idFatura}`);
+        const dados = await resposta.json();
+
+        if (btnClicado) {
+            btnClicado.innerHTML = textoOriginal;
+            btnClicado.disabled = false;
+        }
+
+        if (dados.sucesso) {
+            const textoPix = dados.pix_copia_cola;
+            let copiouComSucesso = false;
+
+            // 1. TENTA A CÓPIA MODERNA (Funciona no Android e PC)
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(textoPix);
+                    copiouComSucesso = true;
+                } catch (err) {
+                    console.warn("API moderna bloqueada pelo iPhone.");
+                }
+            }
+
+            if (copiouComSucesso) {
+                const nomeBanco = banco === 'mp' ? 'Mercado Pago' : 'Nubank';
+                alert(`✅ Código Pix do ${nomeBanco} copiado com sucesso!\n\n💳 Valor: R$ ${dados.valor}\n\nAbra o app do seu banco, escolha "Pix Copia e Cola" e realize o pagamento.`);
+                return; // Acaba aqui se deu certo
+            }
+
+            // ========================================================
+            // 2. O PULO DO GATO PARA IPHONE: Menu Nativo do iOS
+            // ========================================================
+            if (navigator.share && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                try {
+                    await navigator.share({
+                        title: 'Pagamento Guineexpress',
+                        text: textoPix
+                    });
+                    // Se o menu abriu, o usuário pode clicar em "Copiar" lá dentro.
+                    return; 
+                } catch (err) {
+                    console.warn("Usuário fechou o menu de share ou falhou.");
+                }
+            }
+
+            // ========================================================
+            // 3. PLANO C: Mostra na tela pro cliente copiar no dedo
+            // ========================================================
+            let fallbackDiv = document.getElementById("pix-fallback-area");
+            if (!fallbackDiv) {
+                fallbackDiv = document.createElement("div");
+                fallbackDiv.id = "pix-fallback-area";
+                fallbackDiv.style.marginTop = "20px";
+                fallbackDiv.style.padding = "15px";
+                fallbackDiv.style.background = "#fff3cd";
+                fallbackDiv.style.border = "2px dashed #ffeeba";
+                fallbackDiv.style.borderRadius = "8px";
+                fallbackDiv.innerHTML = `
+                    <p style="font-size:14px; color:#856404; margin-bottom:10px; font-weight:bold;">
+                        ⚠️ Pressione e segure o texto abaixo para copiar:
+                    </p>
+                    <textarea id="pix-texto-visivel" readonly style="width: 100%; padding: 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 13px; resize: none; word-break: break-all; background: #fff;" rows="4"></textarea>
+                `;
+                
+                // Insere no modal, logo acima dos botões ocultos
+                const containerAvo = document.getElementById("pay-order-id").parentElement;
+                containerAvo.appendChild(fallbackDiv);
+            }
+            
+            const textAreaVisivel = document.getElementById("pix-texto-visivel");
+            textAreaVisivel.value = textoPix;
+            fallbackDiv.style.display = "block";
+            
+            // Foca e seleciona automaticamente para facilitar a vida do cliente
+            textAreaVisivel.focus();
+            textAreaVisivel.select();
+            textAreaVisivel.setSelectionRange(0, 99999);
+
+        } else {
+            alert("❌ Erro ao gerar o Pix automático. O servidor recusou o pedido.");
+        }
+    } catch (erro) {
+        console.error("Erro interno no cliente:", erro);
+        if (btnClicado) {
+            btnClicado.innerHTML = textoOriginal;
+            btnClicado.disabled = false;
+        }
+        alert("❌ Erro de conexão com o servidor. Tente novamente.");
+    }
+}
+</script>
+
+    <div id="print-area" class="hidden-print-area"></div>
+
+    
+<div id="delivery-photo-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="text-align:center; max-width: 400px;">
+        <h3>📸 Comprovante de Entrega</h3>
+        <p>Tire uma foto do pacote com o cliente.</p>
+        
+        <div style="position: relative; width: 100%; height: 250px; background: #000; margin-bottom: 15px; border-radius: 8px; overflow: hidden;">
+            <video id="delivery-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+            <canvas id="delivery-canvas" style="display:none;"></canvas>
+            <img id="delivery-preview" style="display:none; width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+        </div>
+
+        <div class="modal-actions" style="justify-content: center; gap: 10px;">
+            <button class="btn btn-secondary" onclick="DeliveryProof.close()">Cancelar</button>
+            <button id="btn-snap-photo" class="btn btn-primary" onclick="DeliveryProof.snap()">📷 Tirar Foto</button>
+            <button id="btn-confirm-delivery" class="btn btn-success hidden" onclick="DeliveryProof.confirm()">✅ Confirmar Entrega</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-receiver" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>👤 Quem vai retirar a caixa?</h3>
+            <button class="btn-close" onclick="closeModal('modal-receiver')">&times;</button>
+        </div>
+        <p style="font-size:13px; color:#666; margin-bottom:15px;">Informe os dados exatos da pessoa que irá buscar esta encomenda em Bissau (Rotunda de Nhonho). Isso aparecerá no recibo!</p>
+        <form onsubmit="saveReceiver(event)">
+            <input type="hidden" id="rec-box-id">
+            <div class="form-group">
+                <label>Nome Completo do Recebedor</label>
+                <input type="text" id="rec-name" class="form-control" required placeholder="Ex: João Silva Cande">
+            </div>
+            <div class="form-group">
+                <label>Nº do Bilhete / Documento</label>
+                <input type="text" id="rec-doc" class="form-control" required placeholder="Ex: 123456789">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; font-weight:bold;">Salvar Recebedor</button>
+        </form>
+    </div>
+</div>
+<div id="floating-cici-cart" onclick="abrirModalCarrinho()" title="Ver meu carrinho VIP">
+    <i class="fas fa-shopping-bag"></i>
+    
+    <div id="cart-counter" class="hidden">0</div>
+</div>
+    <div id="side-cart" class="modal-carrinho">
+    <div class="cart-header">
+        <div>
+            <h3 style="margin:0; color:#dfaf12;"><i class="fas fa-shopping-bag"></i> Seu Carrinho</h3>
+            <span id="cart-status-text" style="font-size: 12px; opacity: 0.8;">Cicí está conferindo seus itens...</span>
+        </div>
+        <button onclick="fecharModalCarrinho()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+    </div>
+
+    <div id="cart-items-container" class="cart-items-list">
+        </div>
+
+    <div class="cart-footer">
+        <div class="total-row">
+            <span>Total Estimado:</span>
+            <span id="cart-total-value" style="color: #d32f2f;">R$ 0,00</span>
+        </div>
+        
+        <p style="font-size: 11px; color: #666; margin-bottom: 15px; text-align: center;">
+            <i class="fas fa-info-circle"></i> O valor final será confirmado pela Cicí no WhatsApp.
+        </p>
+          <div style="margin-bottom: 15px; text-align: left; background: #f8fafc; padding: 10px; border-radius: 10px; border: 1px dashed #cbd5e1;">
+            <label style="font-size: 12px; font-weight: bold; color: #475569; display: block; margin-bottom: 5px;">📍 Entregar em qual Morada?</label>
+            <select id="checkout-seletor-morada" onchange="autofillMoradaSelecionada(this)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13px; font-weight: 600; outline: none; background: white;">
+                <option value="">-- Selecione uma morada guardada --</option>
+            </select>
+        </div>
+        <button onclick="finalizarCompraComCici()" style="width:100%; background:#0a1931; color:#dfaf12; border:none; padding: 15px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;">
+            <i class="fab fa-whatsapp"></i> FECHAR PEDIDO COM A CICÍ
+        </button>
+    </div>
+</div>
+<div id="modal-theme" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0, 0, 0, 0.897); z-index:10001; backdrop-filter: blur(5px);">
+    <div class="modal-content" style="background:#e1e2dd; margin:15% auto; padding:25px; border-radius:20px; width:90%; max-width:400px; text-align:center; position:relative; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+        <span onclick="concluirPedidoAposPix()" style="position:absolute; right:15px; top:10px; cursor:pointer; font-size:24px; color:#999;">&times;</span>
+        
+        <h3 style="margin-bottom: 5px; color: #13356d;">Estilo do Painel 🎨</h3>
+        <p style="font-size: 13px; color: #3f1c1c; margin-bottom: 20px;">Deixe o Guineexpress com a sua cara!</p>
+
+        <label style="display:block; text-align:left; font-size:12px; font-weight:bold; margin-bottom:8px;">Arraste para criar sua cor:</label>
+        <input type="range" id="hue-slider" min="0" max="360" value="210" style="width:100%; height:15px; border-radius:10px; appearance:none; background: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red); cursor:pointer; margin-bottom:25px;" oninput="updateThemeBySlider(this.value)">
+
+        <label style="display:block; text-align:left; font-size:12px; font-weight:bold; margin-bottom:10px;">Cores Favoritas:</label>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+            <div onclick="setThemeColor('#f002f0')" style="background:#f002f0; height:40px; border-radius:10px; border:1px solid #ddd; cursor:pointer;"></div> 
+            <div onclick="setThemeColor('#e3f2fd')" style="background:#e3f2fd; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#f1f8e9')" style="background:#f1f8e9; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#f1a832')" style="background:#f1a832; height:40px; border-radius:10px; cursor:pointer;"></div>
+            
+            <div onclick="setThemeColor('#ce0a4c')" style="background:#ce0a4c; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#efebe9')" style="background:#efebe9; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#10beb6')" style="background:#10beb6; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#532597')" style="background:#532597; height:40px; border-radius:10px; cursor:pointer;"></div>
+            
+            <div onclick="setThemeColor('#1e1e2d')" style="background:#1e1e2d; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#0a1931')" style="background:#0a1931; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#2c3e50')" style="background:#2c3e50; height:40px; border-radius:10px; cursor:pointer;"></div>
+            <div onclick="setThemeColor('#121212')" style="background:#121212; height:40px; border-radius:10px; cursor:pointer;"></div>
+        </div>
+
+        <button onclick="closeThemeModal()" style="width:100%; background:#0a1931; color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; cursor:pointer;">Pronto!</button>
+    </div>
+</div>
+
+<script>
+        // Seleciona todos os cards de estatística
+    const cards = document.querySelectorAll('.stat-card');
+
+    cards.forEach(card => {
+        card.addEventListener('click', function(e) {
+            
+            // Pega a posição exata de onde foi o clique
+            const rect = card.getBoundingClientRect();
+            // Calcula o centro do card para sair os confetes dali
+            const x = (rect.left + rect.width / 2) / window.innerWidth;
+            const y = (rect.top + rect.height / 2) / window.innerHeight;
+
+            // Dispara a celebração!
+            confetti({
+                particleCount: 100,     // Quantidade de confetes
+                spread: 70,             // O quão espalhado é
+                origin: { x: x, y: y }, // Sai exatamente do card clicado
+                colors: ['#d4af37', '#0a1931', '#ffffff'], // Dourado, Azul e Branco
+                disableForReducedMotion: true,
+                zIndex: 9999, // Fica por cima de tudo
+            });
+
+            // Se for o card de "Entregues", faz uma chuva maior (O Grande Prêmio)
+            if(card.querySelector('.fa-check-circle')) {
+                setTimeout(() => {
+                    confetti({
+                        particleCount: 50,
+                        angle: 60,
+                        spread: 55,
+                        origin: { x: 0 },
+                        colors: ['#d4af37']
+                    });
+                    confetti({
+                        particleCount: 50,
+                        angle: 120,
+                        spread: 55,
+                        origin: { x: 1 },
+                        colors: ['#d4af37']
+                    });
+                }, 200);
+            }
+        });
+    });
+</script>
+<script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister().then(function() {
+                        console.log("Service Worker antigo destruído com sucesso!");
+                    });
+                }
+            });
+            // Opcional: Limpa também o armazenamento local para garantir
+            localStorage.removeItem('cici_cache'); 
+        }
+    </script>
+    <script src="script.js?v=4.0"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => { 
+            // 1. Inicia o Dashboard e aguarda ele terminar
+            await initDashboard(); 
+            
+            // 2. Agora que o currentUser já existe, preenche a tela
+            if(window.currentUser) {
+                // Mensagem de Boas-vindas
+                if(currentUser.name) {
+                    const firstName = currentUser.name.split(' ')[0];
+                    const welcomeMsg = document.getElementById('welcome-msg');
+                    if(welcomeMsg) welcomeMsg.innerText = `Olá, ${firstName}!`;
+                    
+                    const nameInput = document.getElementById('profile-name');
+                    if(nameInput) nameInput.value = currentUser.name;
+                }
+
+                // Preenche Email e Telefone
+                const emailInput = document.getElementById('profile-email');
+                if(emailInput && currentUser.email) emailInput.value = currentUser.email;
+
+                const phoneInput = document.getElementById('profile-phone');
+                if(phoneInput && currentUser.phone) phoneInput.value = currentUser.phone;
+
+                // Foto de Perfil
+                if(currentUser.profile_pic) {
+                    const imgDisplay = document.getElementById('profile-img-display');
+                    if(imgDisplay) {
+                        imgDisplay.src = '/uploads/' + currentUser.profile_pic + '?v=' + new Date().getTime();
+                    }
+                }
+            }
+            
+            // 3. Carrega as tabelas específicas do Cliente
+            if(typeof loadOrders === 'function') loadOrders().then(() => {
+                const count = document.getElementById('orders-list')?.rows.length || 0;
+                const dashCount = document.getElementById('dash-orders-count');
+                if(dashCount) dashCount.innerText = count;
+            });
+
+            if(typeof loadBoxes === 'function') loadBoxes().then(() => {
+                const count = document.getElementById('box-table-body')?.rows.length || 0;
+                const dashCount = document.getElementById('dash-boxes-count');
+                if(dashCount) dashCount.innerText = count;
+            });
+
+            if(typeof loadClientInvoices === 'function') loadClientInvoices().then(() => {
+                const list = document.getElementById('client-invoices-list');
+                if(list) {
+                    const rows = list.querySelectorAll('tr');
+                    let pending = 0;
+                    rows.forEach(r => { if(r.innerText.includes('Pendente')) pending++; });
+                    const dashCount = document.getElementById('dash-invoices-count');
+                    if(dashCount) dashCount.innerText = pending;
+                }
+            });
+
+            // 4. Mantém a aba ativa
+            const activeTab = localStorage.getItem('activeTab');
+            if(activeTab) showSection(activeTab);
+            else showSection('home-view');
+        });
+
+        // Pré-visualização da imagem
+        function previewImage(event) {
+            const reader = new FileReader();
+            reader.onload = function(){ document.getElementById('profile-img-display').src = reader.result; };
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        // Função para Trocar a Senha
+        async function changePassword() {
+            const currentPass = document.getElementById('profile-current-pass').value;
+            const newPass = document.getElementById('profile-new-pass').value;
+            const confirmPass = document.getElementById('profile-confirm-pass').value;
+
+            if (!currentPass || !newPass || !confirmPass) {
+                return alert("Por favor, preencha todos os campos de senha.");
+            }
+
+            if (newPass !== confirmPass) {
+                return alert("❌ A nova senha e a confirmação não coincidem.");
+            }
+
+            if (newPass.length < 6) {
+                return alert("⚠️ A nova senha deve ter pelo menos 6 caracteres.");
+            }
+
+            try {
+                const res = await fetch('/api/users/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPass, newPass })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    document.getElementById('profile-current-pass').value = '';
+                    document.getElementById('profile-new-pass').value = '';
+                    document.getElementById('profile-confirm-pass').value = '';
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao conectar com o servidor.");
+            }
+        }
+    </script>
+    <script>
+    async function initRealChart() {
+        const ctx = document.getElementById('shipmentChart');
+        if (!ctx) return;
+
+        let orders = [];
+        try {
+            const res = await fetch('/api/orders');
+            orders = await res.json();
+        } catch (e) { console.error(e); }
+
+        const labels = [];
+        const dataValues = [];
+        const today = new Date();
+
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const monthName = d.toLocaleString('pt-BR', { month: 'short' });
+            labels.push(monthName.charAt(0).toUpperCase() + monthName.slice(1));
+
+            const totalWeight = orders.reduce((sum, order) => {
+                const orderDate = new Date(order.created_at || order.date || Date.now());
+                if (orderDate.getMonth() === d.getMonth() && orderDate.getFullYear() === d.getFullYear()) {
+                    let w = order.weight ? parseFloat(order.weight.toString().replace(',', '.')) : 0;
+                    return sum + w;
+                }
+                return sum;
+            }, 0);
+            dataValues.push(totalWeight);
+        }
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Peso (kg)',
+                    data: dataValues,
+                    borderColor: '#0a1931',
+                    backgroundColor: 'rgba(212, 175, 55, 0.2)',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#d4af37',
+                    pointBorderColor: '#fff',
+                    pointRadius: 5,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                    x: { grid: { display: false } }
+                },
+                animation: { duration: 1000 }
+            }
+        });
+    }
+
+    function getStatusBadge(status) {
+        let badgeClass = 'status-info';
+        let icon = '';
+        let radar = '';
+
+        if (['Entregue', 'Pago', 'Chegou ao Destino', 'Finalizado'].includes(status)) {
+            badgeClass = 'status-success';
+        } 
+        else if (['Pendente', 'Processando', 'Em Trânsito', 'Recebido'].includes(status)) {
+            badgeClass = 'status-pending';
+            if (status === 'Em Trânsito') {
+                icon = '✈️ ';
+                radar = `<div class="radar-wrapper"><div class="radar-ring"></div><div class="radar-dot"></div></div>`;
+            }
+        } 
+        else if (['Cancelado', 'Avaria', 'Extraviado'].includes(status)) {
+            badgeClass = 'status-danger';
+        }
+
+        return `<span class="status-badge ${badgeClass}" style="display:inline-flex; align-items:center;">
+                    ${radar} ${icon}${status}
+                </span>`;
+    }
+
+    function init3DTilt() {
+        const cards = document.querySelectorAll('.stat-card');
+        cards.forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const xRotation = -((y - rect.height/2) / 10);
+                const yRotation = ((x - rect.width/2) / 10);
+                card.style.transform = `perspective(1000px) scale(1.02) rotateX(${xRotation}deg) rotateY(${yRotation}deg)`;
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'perspective(1000px) scale(1) rotateX(0) rotateY(0)';
+                card.style.transition = 'transform 0.5s ease';
+            });
+            card.addEventListener('mouseenter', () => { card.style.transition = 'none'; });
+        });
+    }
+
+    // --- 4. INICIALIZAÇÃO (SEM TREMEDEIRA) ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        setTimeout(initRealChart, 800);
+        setTimeout(init3DTilt, 500);
+
+        // MUTATION OBSERVER LIMPO: Só atualiza as cores, NÃO anima mais as linhas
+        const targetNode = document.getElementById('orders-list');
+        if (targetNode) {
+            const observer = new MutationObserver((mutationsList) => {
+                mutationsList.forEach(mutation => {
+                    if (mutation.type === 'childList') {
+                        const rows = document.querySelectorAll('#orders-list tr');
+                        rows.forEach((row) => {
+                            const statusCell = row.cells[5]; 
+                            // Aplica a cor do badge se ainda for texto puro
+                            if (statusCell && !statusCell.innerHTML.includes('span')) {
+                                statusCell.innerHTML = getStatusBadge(statusCell.innerText.trim());
+                            }
+                            // AQUI EU REMOVI A ANIMAÇÃO QUE TREMIA A TELA!
+                        });
+                    }
+                });
+            });
+            observer.observe(targetNode, { childList: true });
+        }
+    });
+</script>
+
+<script>
+fetch('/api/user/me') // Certifique-se que essa rota existe no server.js (eu mandei ela nos passos anteriores)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 1. Atualiza o Nome (Pega só o primeiro nome)
+            if (data.name) {
+                const firstName = data.name.split(' ')[0];
+                const nameElement = document.getElementById('user-name-display');
+                if (nameElement) nameElement.innerText = firstName;
+            }
+            
+            // 2. Atualiza a Foto
+            const profileImg = document.getElementById('profile-img-preview'); // O ID da sua imagem no topo
+            if (profileImg && data.profile_pic) {
+                // Se for "default.png" ou um arquivo enviado pelo multer
+                if (!data.profile_pic.startsWith('http') && !data.profile_pic.startsWith('data:')) {
+                    // Adiciona o caminho da pasta
+                    profileImg.src = '/uploads/' + data.profile_pic;
+                } else {
+                    // Caso seja um link externo (Google auth) ou base64 antigo
+                    profileImg.src = data.profile_pic;
+                }
+            }
+        }
+    })
+    .catch(err => console.error("Erro ao carregar perfil:", err));
+</script>
+<script>
+    // ==============================================================
+    // 🔔 SISTEMA DE NOTIFICAÇÕES VIP (COM INSISTÊNCIA INTELIGENTE)
+    // ==============================================================
+    
+    // COLE A SUA CHAVE PÚBLICA DO RENDER AQUI DENTRO DAS ASPAS! 👇
+    const CHAVE_PUBLICA_VAPID = 'BHz6ezs_RX0nln77mT3xRFrBpf6WhAWwiedXWOwDoRl90r32Iwmgx4ROqxzLRWhwXHc_pvIejfWcKNOaPNFzEsY';
+
+    // Função que converte a chave para o formato que o navegador exige
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    // Função principal que pede a permissão e envia pro servidor
+    async function ativarNotificacoes() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            return; // Navegador antigo, não faz nada
+        }
+
+        try {
+            // Pede a permissão pro cliente (A janelinha do navegador)
+            const permission = await Notification.requestPermission();
+            
+            if (permission === 'granted') {
+                // Ele aceitou! Vamos registrar ele com a CHAVE NOVA
+                const register = await navigator.serviceWorker.register('/sw.js');
+                await navigator.serviceWorker.ready;
+
+                const subscription = await register.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(CHAVE_PUBLICA_VAPID)
+                });
+
+                // Envia a assinatura pro seu server.js salvar no banco
+                await fetch('/subscribe', {
+                    method: 'POST',
+                    body: JSON.stringify(subscription),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                console.log('✅ Inscrição Push atualizada com a chave nova!');
+                
+            } else if (permission === 'denied') {
+                // Ele clicou em BLOQUEAR! O navegador não deixa pedir de novo.
+                // Então mostramos um alerta na tela dele!
+                alert("⚠️ AVISO: Você bloqueou as notificações! Para saber quando sua encomenda chegar, clique no cadeado ao lado do link do site e mude Notificações para 'Permitir'.");
+            }
+        } catch (error) {
+            console.error('❌ Erro na assinatura Push:', error);
+        }
+    }
+
+    // ==============================================================
+    // 🚀 A MÁGICA DA INSISTÊNCIA: Roda toda vez que ele abre o painel
+    // ==============================================================
+    window.addEventListener('load', () => {
+        // Se a permissão for 'default' (ele não escolheu ainda ou fechou no X), pede de novo!
+        if (Notification.permission === 'default') {
+            setTimeout(() => {
+                ativarNotificacoes();
+            }, 2000); // Espera 2 segundos após logar para pedir
+        } 
+        // Se ele já tinha permitido antes, roda de novo em modo silencioso
+        // APENAS para forçar o navegador a usar a sua CHAVE NOVA!
+        else if (Notification.permission === 'granted') {
+            ativarNotificacoes();
+        }
+        // Se for 'denied' (bloqueado), o alerta lá de cima já deu o recado ou você pode adicionar outro aqui.
+    });
+</script>
+<script>
+    // --- EFEITO RIPPLE (ONDA) NOS BOTÕES ---
+    document.addEventListener('click', function (e) {
+        // Verifica se o elemento clicado (ou pai) é um botão
+        const target = e.target.closest('button');
+
+        if (target) {
+            // Cria o elemento da onda
+            const ripple = document.createElement('span');
+            ripple.classList.add('ripple');
+
+            // Calcula a posição do clique dentro do botão
+            const rect = target.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+
+            // Define tamanho e posição
+            ripple.style.width = ripple.style.height = `${size}px`;
+            ripple.style.left = `${x}px`;
+            ripple.style.top = `${y}px`;
+
+            // Adiciona ao botão e remove depois que acabar a animação
+            target.appendChild(ripple);
+            setTimeout(() => {
+                ripple.remove();
+            }, 600);
+        }
+    });
+</script>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script src="cici.js"></script>
+</body>
+</html>
