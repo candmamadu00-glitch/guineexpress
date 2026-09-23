@@ -2039,12 +2039,13 @@ app.post('/api/schedule/status', (req, res) => db.run("UPDATE appointments SET s
 app.post('/api/schedule/cancel', (req, res) => db.run("UPDATE appointments SET status = 'Cancelado' WHERE id = ? AND client_id = ?", [req.body.id, req.session.userId], (err) => res.json({success: !err})));
 
 // ==========================================
-// ROTA: BUSCAR ENCOMENDAS (AGORA LEVE - SEM FOTOS PESADAS)
+// ROTA: BUSCAR ENCOMENDAS (AGORA LEVE E COMPLETA)
 // ==========================================
 app.get('/api/orders', (req, res) => {
-    // Trocamos 'o.*' por colunas específicas e um indicativo (1 ou 0) se tem foto
+    // ✅ Adicionadas as colunas o.description, o.weight e o.price de volta!
     let sql = `SELECT 
                 o.id, o.code, o.status, o.lote, o.volumes, o.client_id, o.created_at,
+                o.description, o.weight, o.price, 
                 (CASE WHEN o.proof_image IS NOT NULL AND o.proof_image != '' THEN 1 ELSE 0 END) as has_proof_image,
                 u.name as client_name, 
                 u.phone as client_phone, 
@@ -2068,7 +2069,7 @@ app.get('/api/orders', (req, res) => {
     sql += " GROUP BY o.id ORDER BY o.id DESC"; 
 
     db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({error: "Erro no banco de dados"});
+        if (err) return res.status(500).json({error: "Erro na base de dados ao buscar encomendas"});
         res.json(rows);
     });
 });
