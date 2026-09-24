@@ -110,9 +110,16 @@ webpush.setVapidDetails(
     process.env.VAPID_PRIVATE_KEY
 );
 
-// ==================================================================
-// FUNÇÃO DE ENVIO DE RECIBO VIP (COMPATÍVEL COM BAILEYS)
-// ==================================================================
+// ==============================================================
+// 🤖 PONTE DE COMUNICAÇÃO COM O NOVO MOTOR DO ZAP ISOLADO
+// (Mantenha estas duas linhas no TOPO do arquivo, logo após os requires)
+// ==============================================================
+const ZAP_API_URL = process.env.ZAP_API_URL || 'https://guineexpress-zap.onrender.com';
+const ZAP_SECRET = process.env.ZAP_SECRET || '5800991m@Mm12345';
+
+// ==============================================================
+// FUNÇÃO DE ENVIO DE RECIBO VIP (COMPATÍVEL COM BAILEYS / API)
+// ==============================================================
 async function enviarReciboPDF(invoiceId) {
     const sql = `
         SELECT i.*, u.name as client_name, u.phone, u.document, u.email, 
@@ -136,40 +143,48 @@ async function enviarReciboPDF(invoiceId) {
             const pdfData = Buffer.concat(buffers);
             const fileName = `Recibo_Guineexpress_${fatura.box_code || fatura.id}.pdf`;
 
-            // Substitua o bloco `if (fatura.phone && clientZap && clientZap.user) { ... }` por isto:
-if (fatura.phone) {
-    let cleanPhone = fatura.phone.replace(/\D/g, '');
-    const captionText = `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅`;
-    
-    // Converte o PDF gerado em Base64 para enviar via API
-    const arquivoBase64 = pdfData.toString('base64');
+            // ✅ CORRIGIDO: Removida a checagem do antigo 'clientZap'
+            if (fatura.phone) {
+                let cleanPhone = fatura.phone.replace(/\D/g, '');
+                const captionText = `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅`;
+                const arquivoBase64 = pdfData.toString('base64');
 
-    try {
-        fetch(`${ZAP_API_URL}/api/enviar`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${ZAP_SECRET}`
-            },
-            body: JSON.stringify({
-                numero: cleanPhone,
-                tipo: 'documento',
-                arquivoBase64: arquivoBase64,
-                fileName: fileName,
-                mimetype: 'application/pdf',
-                legenda: captionText
-            })
-        })
-        .then(res => res.json())
-        .then(resultado => {
-            if(resultado.success) console.log(`📄 Recibo VIP enviado com sucesso via Zap API para ${fatura.client_name}`);
-        });
-    } catch (err) {
-        console.error("❌ Erro ao processar envio do Recibo VIP via API:", err.message);
-    }
-} else {
-    console.log(`⚠️ Cliente ${fatura.client_name} não tem telefone.`);
-}
+                try {
+                    const response = await fetch(`${ZAP_API_URL}/api/enviar`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${ZAP_SECRET}`
+                        },
+                        body: JSON.stringify({
+                            numero: cleanPhone,
+                            tipo: 'documento',
+                            arquivoBase64: arquivoBase64,
+                            fileName: fileName,
+                            mimetype: 'application/pdf',
+                            legenda: captionText
+                        })
+                    });
+
+                    // ✅ CORRIGIDO: Leitura segura para evitar crash com HTML
+                    const textResponse = await response.text();
+                    try {
+                        const resultado = JSON.parse(textResponse);
+                        if (resultado.success) {
+                            console.log(`📄 Recibo VIP enviado com sucesso via Zap API para ${fatura.client_name}`);
+                        } else {
+                            console.error(`⚠️ Zap API recusou o envio:`, resultado);
+                        }
+                    } catch (jsonErr) {
+                        console.error("❌ O microserviço do Zap retornou HTML em vez de JSON. Verifique se o serviço Zap está online.");
+                    }
+
+                } catch (err) {
+                    console.error("❌ Erro de conexão com a Zap API:", err.message);
+                }
+            } else {
+                console.log(`⚠️ Cliente ${fatura.client_name} não possui telefone cadastrado.`);
+            }
         });
 
         // Visual do PDF
@@ -404,16 +419,14 @@ const uploadLimiter = rateLimit({
     message: { success: false, msg: "🚫 Limite de uploads excedido. Tente mais tarde." }
 });
 
-// NODEMAILER
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, 
+    port: 465, // Mudado para 465
+    secure: true, // Mudado para true
     auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    tls: { rejectUnauthorized: false }
+        pass: process.env.EMAIL_PASS // Use a Senha de App de 16 caracteres gerada no Google
+    }
 });
 
 async function sendEmailHtml(to, subject, title, message) {
@@ -1358,11 +1371,8 @@ app.get('/api/expenses/list', (req, res) => {
 });
 
 // ==============================================================
-// 🤖 PONTE DE COMUNICAÇÃO COM O NOVO MOTOR DO ZAP ISOLADO
+// PROCESSAMENTO DA FILA DO ZAP (COM PROTEÇÃO CONTRA HTML)
 // ==============================================================
-const ZAP_API_URL = process.env.ZAP_API_URL || 'https://guineexpress-zap.onrender.com';
-const ZAP_SECRET = process.env.ZAP_SECRET || '5800991m@Mm12345';
-
 function processarFilaDoZap() {
     console.log("🚦 [FILA DO ZAP] Verificando se há mensagens pendentes...");
     
@@ -1397,14 +1407,22 @@ function processarFilaDoZap() {
                     body: JSON.stringify(payload)
                 });
 
-                const resultado = await response.json();
+                // ✅ CORRIGIDO: Tratamento contra respostas HTML
+                const rawText = await response.text();
+                let resultado = {};
+                try {
+                    resultado = JSON.parse(rawText);
+                } catch(e) {
+                    console.error("⚠️ [FILA DO ZAP] O microserviço Zap retornou HTML em vez de JSON.");
+                    break;
+                }
 
                 if (response.ok && resultado.success) {
                     console.log(`🚀 [FILA DO ZAP] Mensagem ${msg.id} entregue com sucesso!`);
                     db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
                 } else {
                     console.log(`⚠️ [FILA DO ZAP] Microserviço offline ou indisponível. Aguardando próximo ciclo...`);
-                    break; // Pausa o loop até o microserviço ficar online
+                    break; 
                 }
 
                 await new Promise(resolve => setTimeout(resolve, 3000));
