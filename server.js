@@ -48,9 +48,10 @@ app.use(xss());
 app.use(express.static(path.join(__dirname, 'public')));
 // 🛡️ 1. PROTEÇÃO CORS (Bloqueia sites de terceiros acessando sua API)
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production' 
-        ? ['https://https://guineexpress-f6ab.onrender.com', 'https://https://guineexpress-f6ab.onrender.com'] // Coloque seus domínios reais
-        : '*', 
+    // CORRETO:
+origin: process.env.NODE_ENV === 'production' 
+    ? ['https://guineexpress-f6ab.onrender.com']
+    : '*', 
     credentials: true
 }));
 // ⚡ 2. COMPRESSÃO DE DADOS (Deixa o sistema mais rápido, gasta menos banda)
@@ -135,28 +136,40 @@ async function enviarReciboPDF(invoiceId) {
             const pdfData = Buffer.concat(buffers);
             const fileName = `Recibo_Guineexpress_${fatura.box_code || fatura.id}.pdf`;
 
-            if (fatura.phone && clientZap && clientZap.user) {
-                let cleanPhone = fatura.phone.replace(/\D/g, '');
-                if (!cleanPhone.includes('@s.whatsapp.net')) {
-                    cleanPhone = `${cleanPhone}@s.whatsapp.net`;
-                }
+            // Substitua o bloco `if (fatura.phone && clientZap && clientZap.user) { ... }` por isto:
+if (fatura.phone) {
+    let cleanPhone = fatura.phone.replace(/\D/g, '');
+    const captionText = `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅`;
+    
+    // Converte o PDF gerado em Base64 para enviar via API
+    const arquivoBase64 = pdfData.toString('base64');
 
-                const captionText = `Olá *${fatura.client_name.split(' ')[0]}*! O seu pagamento foi confirmado. Segue em anexo o seu recibo oficial da Guineexpress. 📦✅`;
-
-                try {
-                    await clientZap.sendMessage(cleanPhone, {
-                        document: pdfData,
-                        mimetype: 'application/pdf',
-                        fileName: fileName,
-                        caption: captionText
-                    });
-                    console.log(`📄 Recibo VIP enviado com sucesso via Zap para ${fatura.client_name}`);
-                } catch (err) {
-                    console.error("❌ Erro ao processar envio do Recibo VIP:", err.message);
-                }
-            } else {
-                console.log(`⚠️ Cliente ${fatura.client_name} não tem telefone ou Zap offline.`);
-            }
+    try {
+        fetch(`${ZAP_API_URL}/api/enviar`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${ZAP_SECRET}`
+            },
+            body: JSON.stringify({
+                numero: cleanPhone,
+                tipo: 'documento',
+                arquivoBase64: arquivoBase64,
+                fileName: fileName,
+                mimetype: 'application/pdf',
+                legenda: captionText
+            })
+        })
+        .then(res => res.json())
+        .then(resultado => {
+            if(resultado.success) console.log(`📄 Recibo VIP enviado com sucesso via Zap API para ${fatura.client_name}`);
+        });
+    } catch (err) {
+        console.error("❌ Erro ao processar envio do Recibo VIP via API:", err.message);
+    }
+} else {
+    console.log(`⚠️ Cliente ${fatura.client_name} não tem telefone.`);
+}
         });
 
         // Visual do PDF
@@ -1422,7 +1435,7 @@ async function ligarMotorDoZap(res = null) {
 // =========================================================================
 // 🚀 FUNÇÃO PARA ESVAZIAR A SALA DE ESPERA (DISPARAR MENSAGENS ATRASADAS)
 // =========================================================================
-function processarFilaDoZap() {
+/*function processarFilaDoZap() {
     console.log("🚦 [FILA DO ZAP] Verificando se há mensagens pendentes...");
     
     db.all("SELECT * FROM zap_queue ORDER BY id ASC", async (err, rows) => {
@@ -1478,7 +1491,7 @@ function processarFilaDoZap() {
             }
         }
     });
-}
+}*/
 // ==============================================================
 // 📱 ROTA PARA GERAR QR CODE
 // ==============================================================
@@ -1498,7 +1511,7 @@ app.get('/api/admin/zap-qr', async (req, res) => {
 
 
 // ==============================================================
-// 📢 ROTA DE ENVIO EM MASSA (ATUALIZADA PARA BAILEYS)
+// 📢 ROTA DE ENVIO EM MASSA (ATUALIZADA PARA API EXTERNA)
 // ==============================================================
 app.post('/api/admin/broadcast-zap', (req, res) => {
     const { subject, message, sendZap } = req.body;
@@ -1512,23 +1525,23 @@ app.post('/api/admin/broadcast-zap', (req, res) => {
             // 1. Enviar E-mail (Normal)
             sendEmailHtml(client.email, `📢 ${subject}`, subject, `Olá ${client.name},<br><br>${message}`);
             
-            // 2. Enviar WhatsApp Global
-            if (sendZap && typeof sock !== 'undefined' && sock && sock.user && client.phone) {
+            // 2. Enviar WhatsApp Global via API
+            if (sendZap && client.phone) {
                 let num = client.phone.replace(/\D/g, '');
+                const textoZap = `*${subject}*\n\nOlá ${client.name},\n${message}`;
 
                 try {
-                    // Busca o ID oficial no WhatsApp usando o motor Baileys
-                    const [resultado] = await sock.onWhatsApp(num);
-
-                    if (resultado && resultado.exists) {
-                        const textoZap = `*${subject}*\n\nOlá ${client.name},\n${message}`;
-                        await sock.sendMessage(resultado.jid, { text: textoZap });
-                        console.log(`✓ Zap Global enviado para: ${num}`);
-                    } else {
-                        console.error(`x Número não encontrado no WhatsApp: ${num}`);
-                    }
+                    await fetch(`${ZAP_API_URL}/api/enviar`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${ZAP_SECRET}`
+                        },
+                        body: JSON.stringify({ numero: num, tipo: 'texto', texto: textoZap })
+                    });
+                    console.log(`✓ Zap Global enviado para: ${num}`);
                     
-                    // Delay de 3 segundos para evitar bloqueios por spam
+                    // Delay de 3 segundos para evitar bloqueios
                     await new Promise(resolve => setTimeout(resolve, 3000)); 
                 } catch (e) {
                     console.error(`x Erro no número ${num}:`, e.message);
@@ -1657,21 +1670,30 @@ app.post('/api/schedule/create-availability', async (req, res) => {
                 let periodoMsg = inicio === fim ? `para o dia *${formatar(inicio)}*` : `para o período de *${formatar(inicio)}* até *${formatar(fim)}*`;
 
                 for (let cliente of clientesPagos) {
-                    try {
-                        let cleanPhone = cliente.phone.replace(/\D/g, '');
-                        const zapMsg = `Olá, *${cliente.name}*! 📅\n\nA Guineexpress acabou de abrir vagas na agenda para o *${lote}* ${periodoMsg}.\n\nComo o seu pagamento já foi confirmado, acesse o seu painel agora mesmo para garantir o seu horário de atendimento!\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-                        
-                        const numberId = await clientZap.getNumberId(cleanPhone);
-                        if (numberId) {
-                            await clientZap.sendMessage(numberId._serialized, zapMsg);
-                            console.log(`✅ [ZAP] Aviso do ${lote} enviado para ${cliente.name}`);
-                        }
-                        if (cliente.id) {
-                            enviarNotificacaoNaTela(cliente.id, "📅 Agenda Liberada!", `Abrimos vagas para o ${lote} ${periodoMsg}. Corra e agende!`, "/dashboard-client.html");
-                        }
-                    } catch(e) {
-                        console.log(`⚠️ Erro ao avisar ${cliente.name} sobre a agenda.`);
-                    }
+                    // Substitua o try/catch original da notificação por isto:
+try {
+    let cleanPhone = cliente.phone.replace(/\D/g, '');
+    const zapMsg = `Olá, *${cliente.name}*! 📅\n\nA Guineexpress acabou de abrir vagas na agenda para o *${lote}* ${periodoMsg}.\n\nComo o seu pagamento já foi confirmado, acesse o seu painel agora mesmo para garantir o seu horário de atendimento!\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+    
+    fetch(`${ZAP_API_URL}/api/enviar`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${ZAP_SECRET}`
+        },
+        body: JSON.stringify({
+            numero: cleanPhone,
+            tipo: 'texto',
+            texto: zapMsg
+        })
+    }).then(() => console.log(`✅ [ZAP API] Aviso do ${lote} enviado para ${cliente.name}`));
+
+    if (cliente.id) {
+        enviarNotificacaoNaTela(cliente.id, "📅 Agenda Liberada!", `Abrimos vagas para o ${lote} ${periodoMsg}. Corra e agende!`, "/dashboard-client.html");
+    }
+} catch(e) {
+    console.log(`⚠️ Erro ao avisar ${cliente.name} sobre a agenda.`);
+}
                 }
             }
         });
