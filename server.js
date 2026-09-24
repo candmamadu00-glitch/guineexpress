@@ -2554,38 +2554,30 @@ app.get('/api/invoices/check_amount', (req, res) => {
 // ==========================================
 app.post('/api/invoices/create', async (req, res) => {
     
-    // 🔴 APAGUE OU COMENTE ESTA LINHA:
-    // if(req.session.role !== 'admin') return res.status(403).json({msg: 'Sem permissão'});
-
-    // 🟢 COLOQUE ESTA LINHA NO LUGAR:
-    // Permite se for 'admin' OU 'employee' OU 'funcionario'
     if(req.session.role !== 'admin' && req.session.role !== 'employee' && req.session.role !== 'funcionario') {
         return res.status(403).json({msg: 'Sem permissão para criar faturas'});
     }
 
-    // Adicionamos os novos campos nf_amount e freight_amount aqui
     const { client_id, box_id, amount, description, email, nf_amount, freight_amount } = req.body; 
 
     try {
-        // A. Salva direto no Banco, agora com as colunas novas
         db.run(`INSERT INTO invoices (client_id, box_id, amount, description, status, nf_amount, freight_amount) 
                 VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-                [client_id, box_id, amount, description, nf_amount || 0, freight_amount || amount], // Se não vier frete, assume o total
+                [client_id, box_id, amount, description, nf_amount || 0, freight_amount || amount],
                 function(err) {
                     if(err) {
                         console.error("Erro SQL ao criar fatura:", err);
                         return res.json({success: false, msg: 'Erro ao salvar fatura'});
                     }
-// 🔔 COLE A NOTIFICAÇÃO DE FATURA AQUI:
-            enviarNotificacaoNaTela(client_id, "Nova Fatura Gerada 🧾", "Uma nova fatura acabou de ser disponibilizada no seu painel. Clique para pagar.", "/dashboard-client.html");
-                    const novaFaturaId = this.lastID;
 
-                    // B. BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO PARA AVISAR
+                    enviarNotificacaoNaTela(client_id, "Nova Fatura Gerada 🧾", "Uma nova fatura acabou de ser disponibilizada no seu painel. Clique para pagar.", "/dashboard-client.html");
+
+                    // BUSCA O NOME E O TELEFONE DO CLIENTE NO BANCO
                     db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (e, u) => {
                         const name = u ? u.name : 'Cliente';
                         const phone = u ? u.phone : null;
                         
-                        // 1. ENVIA O EMAIL (Simplificado para PIX Manual)
+                        // 1. ENVIA O EMAIL
                         if (email) {
                             const subject = `Nova Fatura Pendente: R$ ${amount}`;
                             const title = "Pagamento Pendente";
@@ -2598,28 +2590,42 @@ app.post('/api/invoices/create', async (req, res) => {
                             sendEmailHtml(email, subject, title, msg);
                         }
 
-                        // 2. ENVIA O WHATSAPP COM SEGURANÇA E FILA DE ESPERA!
-                        if (phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
+                        // 2. ENVIA O WHATSAPP VIA MICROSERVIÇO (ZAP API)
+                        if (phone) {
                             try {
                                 let cleanPhone = phone.replace(/\D/g, '');
-                                
-                                // A MENSAGEM FICA AQUI FORA!
                                 const zapMsg = `Olá, *${name}*! 👋\n\nUma nova fatura foi gerada na Guineexpress para o seu envio (*${description}*).\n\n💰 *Valor Total:* R$ ${amount}\n\nAcesse o seu painel agora para efetuar o pagamento via PIX ou EcoBank e anexar o seu comprovante:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
 
-                                // Mandamos direto! O nosso motor inteligente da fila resolve o resto.
-                                await clientZap.sendMessage(cleanPhone, zapMsg);
-                                
-                                console.log(`✅ [ZAP] Fatura processada para o cliente ${cleanPhone}`);
+                                fetch(`${ZAP_API_URL}/api/enviar`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${ZAP_SECRET}`
+                                    },
+                                    body: JSON.stringify({
+                                        numero: cleanPhone,
+                                        tipo: 'texto',
+                                        texto: zapMsg
+                                    })
+                                })
+                                .then(r => r.json())
+                                .then(resZap => {
+                                    if(resZap.success) {
+                                        console.log(`✅ [ZAP API] Avisado cliente ${cleanPhone} sobre nova fatura.`);
+                                    } else {
+                                        console.log(`⚠️ [ZAP API] Falha no envio: ${resZap.msg || resZap.error}`);
+                                    }
+                                })
+                                .catch(err => console.error("❌ Erro na requisição Zap API:", err.message));
                                 
                             } catch (zapErr) {
                                 console.error("❌ Erro ao enviar Zap da fatura:", zapErr.message);
                             }
                         } else {
-                            console.log("⚠️ [ZAP] Cliente não notificado: Sem telefone ou Robô desconectado.");
+                            console.log("⚠️ [ZAP] Cliente sem telefone cadastrado.");
                         }
                     });
 
-                    // Retorna sucesso rápido para o painel do Admin não travar
                     res.json({success: true});
                 });
 
