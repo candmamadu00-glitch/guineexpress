@@ -21,15 +21,6 @@ const path = require('path');
 const SQLiteStore = require('connect-sqlite3')(session);
 const db = require('./database'); 
 const fs = require('fs');
-const { 
-    default: makeWASocket, 
-    useMultiFileAuthState, 
-    DisconnectReason, 
-    fetchLatestBaileysVersion, 
-    Browsers 
-} = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const qrcode = require('qrcode');
 const webpush = require('web-push');
 const ExcelJS = require('exceljs');
 const ffmpeg = require('fluent-ffmpeg');
@@ -1352,200 +1343,82 @@ app.get('/api/expenses/list', (req, res) => {
         res.json(rows || []);
     });
 });
+
 // ==============================================================
-// 🤖 NOVO MOTOR DO ZAP (BAILEYS - COM MÍDIA E VÍDEOS RESTAURADOS)
+// 🤖 PONTE DE COMUNICAÇÃO COM O NOVO MOTOR DO ZAP ISOLADO
 // ==============================================================
+const ZAP_API_URL = process.env.ZAP_API_URL || 'https://guineexpress-zap.onrender.com';
+const ZAP_SECRET = process.env.ZAP_SECRET || '5800991m@Mm12345';
 
-// 🎭 1. O SIMULADOR DE MÍDIAS (Faz o Baileys processar Vídeos, Áudios e PDFs como o sistema antigo)
-global.MessageMedia = class MessageMedia {
-    constructor(mimetype, data, filename, filePath = null) {
-        this.mimetype = mimetype;
-        this.data = data;
-        this.filename = filename;
-        this.filePath = filePath; // <-- Guardamos onde o arquivo está no HD
-    }
-    static fromFilePath(caminho) {
-        let mime = 'application/octet-stream';
-        if (caminho.endsWith('.mp3')) mime = 'audio/mp3';
-        else if (caminho.endsWith('.mp4')) mime = 'video/mp4';
-        else if (caminho.endsWith('.png')) mime = 'image/png';
-        else if (caminho.endsWith('.jpg') || caminho.endsWith('.jpeg')) mime = 'image/jpeg';
-        else if (caminho.endsWith('.pdf')) mime = 'application/pdf';
-        
-        // Se for vídeo, NÃO lê pro banco de dados. Só salva o caminho.
-        if (mime.startsWith('video/')) {
-            return new MessageMedia(mime, null, path.basename(caminho), caminho);
-        }
-        
-        // Outros arquivos leves podem virar Base64 normalmente
-        const b64data = fs.readFileSync(caminho, { encoding: 'base64' });
-        return new MessageMedia(mime, b64data, path.basename(caminho), caminho);
-    }
-};
-
-let sock = null; 
-
-async function ligarMotorDoZap(res = null) {
-    if (sock && sock.user) {
-        if (res && !res.headersSent) return res.json({ success: true, msg: "WhatsApp já está conectado!" });
-        return; 
-    }
-
-    console.log("📞 [ZAP] Iniciando motor com Sistema de Fila (Sala de Espera)...");
+function processarFilaDoZap() {
+    console.log("🚦 [FILA DO ZAP] Verificando se há mensagens pendentes...");
     
-    const authPath = path.join(discoPermanente, 'sessao_zap_nova');
-    const { state, saveCreds } = await useMultiFileAuthState(authPath);
-
-    // 🌟 BUSCA A VERSÃO OFICIAL MAIS RECENTE DO WHATSAPP WEB
-    const { version } = await fetchLatestBaileysVersion();
-    console.log(`📡 [ZAP] Conectando na versão do WhatsApp Web: ${version.join('.')}`);
-
-    sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: true,
-    logger: pino({ level: 'silent' }), 
-    browser: Browsers.ubuntu('Chrome'),
-    connectTimeoutMs: 120000,
-    keepAliveIntervalMs: 15000, // <-- REDUZIDO DE 30000 para 15000. Essencial para o Render.
-    defaultQueryTimeoutMs: 60000,
-    retryRequestDelayMs: 5000,
-    shouldSyncHistoryMessage: () => false,
-    markOnlineOnConnect: true,
-});
-
-    // 🎭 NOSSO CLIENTE ZAP AGORA TEM INTELIGÊNCIA DE FILA E RADAR DE 9º DÍGITO
-    clientZap = {
-        info: true,
-        sendMessage: async (numero, conteudo, options = {}) => {
-            const numLimpo = numero.replace(/\D/g, '');
-            let jid = numero.includes('@') ? numero : `${numLimpo}@s.whatsapp.net`;
-            
-            // 📦 Função interna para mandar pra fila de espera
-            const mandarPraFila = () => {
-    console.log(`⚠️ [SALA DE ESPERA] Guardando mensagem para ${numLimpo}...`);
-    let tipo = 'text';
-    let dadoConteudo = conteudo;
-    
-    if (typeof conteudo === 'object' && conteudo.mimetype) {
-        if (options.sendAudioAsVoice || conteudo.mimetype.startsWith('audio/')) tipo = 'audio';
-        else if (conteudo.mimetype.startsWith('video/')) tipo = 'video';
-        else if (conteudo.mimetype.startsWith('image/')) tipo = 'image';
-        else tipo = 'document';
+    db.all("SELECT * FROM zap_queue ORDER BY id ASC", async (err, rows) => {
+        if (err || !rows || rows.length === 0) return;
         
-        // Salvamos filePath, não o data inteiro se for vídeo
-        dadoConteudo = JSON.stringify({ 
-            data: tipo === 'video' ? null : conteudo.data, 
-            mimetype: conteudo.mimetype, 
-            filename: conteudo.filename,
-            filePath: conteudo.filePath // Fundamental para ler depois
-        });
-    }
-    
-    db.run(`INSERT INTO zap_queue (numero, tipo, conteudo, opcoes) VALUES (?, ?, ?, ?)`, 
-        [jid, tipo, dadoConteudo, JSON.stringify(options)]
-    );
-};
-
-            // 🛑 SE O ZAP ESTIVER LOGICAMENTE OFFLINE, VAI PRA FILA!
-            if (!sock || !sock.user) {
-                mandarPraFila();
-                return { status: "queued" };
-            }
-
-            // ✅ SE ESTIVER ONLINE, TENTA ENVIAR
+        console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens! Enviando via microserviço...`);
+        
+        for (const msg of rows) {
             try {
-                // 🔥 O RADAR: Descobre o número verdadeiro (com ou sem o 9)
-                if (!numero.includes('@')) {
-                    const [resultado] = await sock.onWhatsApp(numLimpo).catch(()=>[]);
-                    if (resultado && resultado.exists) jid = resultado.jid;
+                let payload = {
+                    numero: msg.numero,
+                    tipo: msg.tipo === 'text' ? 'texto' : 'documento',
+                    texto: msg.tipo === 'text' ? msg.conteudo : undefined
+                };
+
+                if (msg.tipo !== 'text') {
+                    const conteudoPronto = JSON.parse(msg.conteudo);
+                    payload.arquivoBase64 = conteudoPronto.data;
+                    payload.fileName = conteudoPronto.filename || 'Documento.pdf';
+                    payload.mimetype = conteudoPronto.mimetype || 'application/pdf';
+                    payload.legenda = msg.opcoes ? JSON.parse(msg.opcoes).caption : '';
                 }
 
-                if (typeof conteudo === 'string') {
-                    return await sock.sendMessage(jid, { text: conteudo });
+                // Dispara a requisição HTTP para o microserviço isolado
+                const response = await fetch(`${ZAP_API_URL}/api/enviar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${ZAP_SECRET}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const resultado = await response.json();
+
+                if (response.ok && resultado.success) {
+                    console.log(`🚀 [FILA DO ZAP] Mensagem ${msg.id} entregue com sucesso!`);
+                    db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
+                } else {
+                    console.log(`⚠️ [FILA DO ZAP] Microserviço offline ou indisponível. Aguardando próximo ciclo...`);
+                    break; // Pausa o loop até o microserviço ficar online
                 }
+
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 
-                if (conteudo && typeof conteudo === 'object' && conteudo.mimetype) {
-                    const buffer = Buffer.from(conteudo.data, 'base64');
-                    const mime = conteudo.mimetype;
-                    if (options.sendAudioAsVoice || mime.startsWith('audio/')) {
-                        return await sock.sendMessage(jid, { audio: buffer, mimetype: 'audio/mp4', ptt: options.sendAudioAsVoice || false });
-                    } else if (mime.startsWith('video/')) {
-                        return await sock.sendMessage(jid, { video: buffer, caption: options.caption || '', mimetype: 'video/mp4' });
-                    } else if (mime.startsWith('image/')) {
-                        return await sock.sendMessage(jid, { image: buffer, caption: options.caption || '' });
-                    } else {
-                        return await sock.sendMessage(jid, { document: buffer, mimetype: mime, fileName: conteudo.filename || 'Arquivo.pdf', caption: options.caption || '' });
-                    }
-                }
-            } catch (e) {
-                // 🚨 O GRANDE SEGREDO ESTÁ AQUI:
-                // Se tentou enviar e a internet falhou (Connection Closed), ELE SALVA NA FILA!
-                console.error("❌ Erro ao enviar mensagem Zap (Caiu na hora de enviar):", e.message);
-                mandarPraFila();
-                return { status: "queued_after_error" };
+            } catch (erroEnvio) {
+                console.error(`❌ [FILA DO ZAP] Falha na comunicação com o microserviço:`, erroEnvio.message);
+                break;
             }
-        },
-        getNumberId: async (numero) => {
-            if (!sock || !sock.user) return null; 
-            try {
-                const numLimpo = numero.replace(/\D/g, '');
-                const [resultado] = await sock.onWhatsApp(numLimpo);
-                if (resultado && resultado.exists) return { _serialized: resultado.jid }; 
-            } catch (e) { return null; }
-            return null;
-        }
-    };
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
-
-        if (qr && res && !res.headersSent) {
-            try {
-                const qrImage = await qrcode.toDataURL(qr);
-                res.json({ success: true, qr: qrImage });
-            } catch (err) { }
-        }
-
-        if (connection === 'close') {
-    const status = lastDisconnect?.error?.output?.statusCode;
-    const sessaoInvalida = [401, 403, 405, DisconnectReason.loggedOut].includes(status);
-
-    console.log(`⚠️ [ZAP] Conexão perdida no Render (Status: ${status}).`);
-
-    if (sessaoInvalida) {
-        console.log("❌ [ZAP] Sessão expirada/invalidada. Apagando pasta automaticamente...");
-        sock = null;
-        try {
-            fs.rmSync(authPath, { recursive: true, force: true });
-        } catch (e) {}
-        console.log("🔄 Reiniciando para novo QR Code em 5s...");
-        setTimeout(() => ligarMotorDoZap(), 5000); 
-        
-    } else if (status === 408 || status === 428 || status === 515 || status === 503) {
-        // AQUI ESTÁ A CURA DO LOOP! 
-        // 408 = Timeout, 503 = Server Unavailable. O WhatsApp está instável.
-        console.log(`⏳ [ZAP] WhatsApp instável (Status ${status}). Aguardando 15s para não bugar o servidor...`);
-        sock = null;
-        setTimeout(() => ligarMotorDoZap(), 15000); // <-- Respiro de 15 segundos!
-    } else {
-        // Oscilação normal de rede
-        sock = null; 
-        setTimeout(() => ligarMotorDoZap(), 5000); // <-- Aumentado de 2s para 5s
-    }
-        } else if (connection === 'open') {
-            console.log('✅ [ZAP] CONEXÃO ESTABELECIDA AUTOMATICAMENTE! Sistema online.');
-            if (res && !res.headersSent) res.json({ success: true, msg: "Conectado!" });
-            if (typeof configurarEventosDoZap === 'function') configurarEventosDoZap(sock);
-            
-            // 🚀 Esvazia a Sala de Espera imediatamente ao voltar!
-            processarFilaDoZap();
         }
     });
 }
+// Substitui a inicialização pesada por um verificador de status simples
+async function ligarMotorDoZap(res = null) {
+    try {
+        const response = await fetch(`${ZAP_API_URL}/api/status`, {
+            headers: { 'Authorization': `Bearer ${ZAP_SECRET}` }
+        });
+        const data = await response.json();
 
+        if (res && !res.headersSent) {
+            if (data.qr) return res.json({ success: true, qr: data.qr });
+            return res.json({ success: true, msg: data.status });
+        }
+    } catch (error) {
+        if (res && !res.headersSent) res.json({ success: false, msg: "Servidor do Zap está offline." });
+    }
+}
 // =========================================================================
 // 🚀 FUNÇÃO PARA ESVAZIAR A SALA DE ESPERA (DISPARAR MENSAGENS ATRASADAS)
 // =========================================================================
@@ -1609,79 +1482,19 @@ function processarFilaDoZap() {
 // ==============================================================
 // 📱 ROTA PARA GERAR QR CODE
 // ==============================================================
-app.get('/api/admin/zap-qr', (req, res) => {
-    ligarMotorDoZap(res);
+app.get('/api/admin/zap-qr', async (req, res) => {
+    try {
+        const response = await fetch(`${ZAP_API_URL}/api/status`, {
+            headers: { 'Authorization': `Bearer ${ZAP_SECRET}` }
+        });
+        const statusZap = await response.json();
+        res.json(statusZap);
+    } catch (e) {
+        res.status(500).json({ status: 'erro', message: 'Não foi possível conectar ao microserviço do WhatsApp.' });
+    }
 });
 
-// ==============================================================
-// 🧠 CONTROLE DE INTELIGÊNCIA, PACIÊNCIA E EVENTOS (BAILEYS)
-// ==============================================================
 
-const conversasEmPausa = new Map();
-const cronometrosCici = new Map();
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
-
-function configurarEventosDoZap(socket) {
-    socket.ev.on('messages.upsert', async ({ messages, type }) => {
-        if (type !== 'notify') return;
-        const msg = messages[0];
-        if (!msg.message) return;
-
-        const chatID = msg.key.remoteJid;
-        if (chatID === 'status@broadcast' || chatID.endsWith('@g.us')) return;
-
-        // 🛑 SE O LELO RESPONDER, A CICÍ FICA CALADA POR 1 HORA
-        if (msg.key.fromMe) {
-            conversasEmPausa.set(chatID, Date.now() + 3600000);
-            console.log(`👤 [CICÍ] Lelo assumiu o chat com ${chatID.split('@')[0]}. Ficarei calada por 1 hora aqui.`);
-            if (cronometrosCici.has(chatID)) {
-                clearTimeout(cronometrosCici.get(chatID));
-                cronometrosCici.delete(chatID);
-            }
-            return;
-        }
-
-        let tempoPausa = conversasEmPausa.get(chatID);
-        if (tempoPausa && tempoPausa > Date.now()) return; 
-
-        let textoUsuario = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
-        let mensagemFoiDeAudio = false;
-
-        // 🎙️ TRATAMENTO DE ÁUDIO
-        const temAudio = msg.message.audioMessage;
-        if (temAudio) {
-            mensagemFoiDeAudio = true;
-        } else if (msg.message.imageMessage || msg.message.videoMessage || msg.message.documentMessage) {
-            return; // Ignora imagens/vídeos soltos
-        }
-
-        if (!textoUsuario && !mensagemFoiDeAudio) return;
-
-        if (cronometrosCici.has(chatID)) clearTimeout(cronometrosCici.get(chatID));
-
-        const timer = setTimeout(async () => {
-            try {
-                let checkFinal = conversasEmPausa.get(chatID);
-                if (checkFinal && checkFinal > Date.now()) return; 
-
-                // 🛑 AQUI ESTÁ A MUDANÇA: O CÉREBRO DA CICÍ FOI DESLIGADO.
-                // O sistema não vai mais chamar o Google Gemini, evitando o Erro 429.
-                console.log(`🛑 [CICÍ] MODO SUSPENSO: Ignorando mensagem de ${chatID.split('@')[0]} para poupar a cota da IA.`);
-
-                // 👇 Se você quiser que ela envie uma mensagem avisando que está em manutenção, 
-                // basta tirar as duas barras (//) do início da linha abaixo:
-                // await socket.sendMessage(chatID, { text: "🤖 Oi! A Cicí está em manutenção rápida no momento. Por favor, aguarde que o Lelo já vai te atender! 📦" }, { quoted: msg });
-
-            } catch (erroIA) {
-                console.error("❌ Erro no timer:", erroIA.message);
-            } finally {
-                cronometrosCici.delete(chatID);
-            }
-        }, 8000);
-
-        cronometrosCici.set(chatID, timer);
-    });
-}
 
 
 // ==============================================================
