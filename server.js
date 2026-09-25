@@ -1373,31 +1373,49 @@ app.get('/api/expenses/list', (req, res) => {
 // ==============================================================
 // PROCESSAMENTO DA FILA DO ZAP (COM PROTEÇÃO CONTRA HTML)
 // ==============================================================
+// ==============================================================
+// PROCESSAMENTO DA FILA DO ZAP (COM SUPORTE A DISPARO EM MASSA)
+// ==============================================================
 function processarFilaDoZap() {
-    console.log("🚦 [FILA DO ZAP] Verificando se há mensagens pendentes...");
-    
-    db.all("SELECT * FROM zap_queue ORDER BY id ASC", async (err, rows) => {
+    // Procura no máximo 15 mensagens por ciclo para otimizar a memória
+    db.all("SELECT * FROM zap_queue ORDER BY id ASC LIMIT 15", async (err, rows) => {
         if (err || !rows || rows.length === 0) return;
         
-        console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens! Enviando via microserviço...`);
+        console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens! Processando envio em massa...`);
         
         for (const msg of rows) {
             try {
+                // 1. Sanitização do número de telefone (remove parênteses, espaços e traços)
+                let cleanPhone = msg.numero ? msg.numero.replace(/\D/g, '') : '';
+                
+                if (!cleanPhone || cleanPhone.length < 8) {
+                    console.log(`⚠️ Mensagem ${msg.id} descartada: número de telefone inválido (${msg.numero}).`);
+                    db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
+                    continue; // ✅ Pula para a próxima mensagem sem parar a fila!
+                }
+
                 let payload = {
-                    numero: msg.numero,
+                    numero: cleanPhone,
                     tipo: msg.tipo === 'text' ? 'texto' : 'documento',
                     texto: msg.tipo === 'text' ? msg.conteudo : undefined
                 };
 
+                // 2. Tratamento seguro de arquivos e anexos
                 if (msg.tipo !== 'text') {
-                    const conteudoPronto = JSON.parse(msg.conteudo);
-                    payload.arquivoBase64 = conteudoPronto.data;
-                    payload.fileName = conteudoPronto.filename || 'Documento.pdf';
-                    payload.mimetype = conteudoPronto.mimetype || 'application/pdf';
-                    payload.legenda = msg.opcoes ? JSON.parse(msg.opcoes).caption : '';
+                    try {
+                        const conteudoPronto = JSON.parse(msg.conteudo);
+                        payload.arquivoBase64 = conteudoPronto.data;
+                        payload.fileName = conteudoPronto.filename || 'Documento.pdf';
+                        payload.mimetype = conteudoPronto.mimetype || 'application/pdf';
+                        payload.legenda = msg.opcoes ? JSON.parse(msg.opcoes).caption : '';
+                    } catch (errJson) {
+                        console.error(`❌ Mensagem ${msg.id} com anexo corrompido. Removendo da fila.`);
+                        db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
+                        continue; // Pula para a próxima mensagem
+                    }
                 }
 
-                // Dispara a requisição HTTP para o microserviço isolado
+                // 3. Dispara a requisição HTTP para o microserviço do WhatsApp
                 const response = await fetch(`${ZAP_API_URL}/api/enviar`, {
                     method: 'POST',
                     headers: {
@@ -1407,33 +1425,37 @@ function processarFilaDoZap() {
                     body: JSON.stringify(payload)
                 });
 
-                // ✅ CORRIGIDO: Tratamento contra respostas HTML
+                // 4. Leitura segura do retorno HTTP
                 const rawText = await response.text();
                 let resultado = {};
                 try {
                     resultado = JSON.parse(rawText);
                 } catch(e) {
-                    console.error("⚠️ [FILA DO ZAP] O microserviço Zap retornou HTML em vez de JSON.");
-                    break;
+                    console.error("⚠️ Microserviço do Zap retornou resposta em HTML. Servidor pode estar offline.");
+                    break; // Interrompe apenas se o serviço do Zap estiver indisponível
                 }
 
                 if (response.ok && resultado.success) {
-                    console.log(`🚀 [FILA DO ZAP] Mensagem ${msg.id} entregue com sucesso!`);
+                    console.log(`🚀 [FILA DO ZAP] Mensagem ${msg.id} enviada com sucesso para ${cleanPhone}!`);
                     db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
                 } else {
-                    console.log(`⚠️ [FILA DO ZAP] Microserviço offline ou indisponível. Aguardando próximo ciclo...`);
-                    break; 
+                    console.log(`⚠️ Falha ao enviar mensagem ${msg.id} para ${cleanPhone}. Removendo da fila para não bloquear o restante.`);
+                    db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
                 }
 
+                // Pausa de 3 segundos entre envios para evitar bloqueio do número pelo WhatsApp
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 
             } catch (erroEnvio) {
-                console.error(`❌ [FILA DO ZAP] Falha na comunicação com o microserviço:`, erroEnvio.message);
+                console.error(`❌ Erro na comunicação com o microserviço na mensagem ${msg.id}:`, erroEnvio.message);
                 break;
             }
         }
     });
 }
+
+// 🚀 CÓDIGO ESSENCIAL: Ativa a verificação automática da fila a cada 10 segundos
+setInterval(processarFilaDoZap, 10000);
 // Substitui a inicialização pesada por um verificador de status simples
 async function ligarMotorDoZap(res = null) {
     try {
@@ -1667,7 +1689,7 @@ app.post('/api/schedule/create-availability', async (req, res) => {
         );
     }
 
-    // Função interna que manda o WhatsApp
+   // Função interna que envia o aviso para a fila do WhatsApp e notifica a tela
     function notificarClientesDoLote(lote, inicio, fim) {
         const sql = `SELECT DISTINCT u.phone, u.name, u.id 
                      FROM users u 
@@ -1678,42 +1700,42 @@ app.post('/api/schedule/create-availability', async (req, res) => {
                      AND u.phone IS NOT NULL 
                      AND COALESCE(b.lote, o.lote, 'Sem Lote') = ?`;
 
-        db.all(sql, [lote], async (err2, clientesPagos) => {
-            if(!err2 && clientesPagos.length > 0 && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                
-                // Formata a data para ficar bonitinha na mensagem
-                const formatar = (d) => { const [a,m,di] = d.split('-'); return `${di}/${m}/${a}`; };
-                
-                // Se for só um dia, fala "para o dia X". Se forem vários, fala "do dia X até Y"
-                let periodoMsg = inicio === fim ? `para o dia *${formatar(inicio)}*` : `para o período de *${formatar(inicio)}* até *${formatar(fim)}*`;
+        db.all(sql, [lote], (err2, clientesPagos) => {
+            if (err2 || !clientesPagos || clientesPagos.length === 0) return;
 
-                for (let cliente of clientesPagos) {
-                    // Substitua o try/catch original da notificação por isto:
-try {
-    let cleanPhone = cliente.phone.replace(/\D/g, '');
-    const zapMsg = `Olá, *${cliente.name}*! 📅\n\nA Guineexpress acabou de abrir vagas na agenda para o *${lote}* ${periodoMsg}.\n\nComo o seu pagamento já foi confirmado, acesse o seu painel agora mesmo para garantir o seu horário de atendimento!\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-    
-    fetch(`${ZAP_API_URL}/api/enviar`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${ZAP_SECRET}`
-        },
-        body: JSON.stringify({
-            numero: cleanPhone,
-            tipo: 'texto',
-            texto: zapMsg
-        })
-    }).then(() => console.log(`✅ [ZAP API] Aviso do ${lote} enviado para ${cliente.name}`));
+            // Formata a data para DD/MM/AAAA
+            const formatar = (d) => { const [a, m, di] = d.split('-'); return `${di}/${m}/${a}`; };
+            
+            let periodoMsg = inicio === fim 
+                ? `para o dia *${formatar(inicio)}*` 
+                : `para o período de *${formatar(inicio)}* até *${formatar(fim)}*`;
 
-    if (cliente.id) {
-        enviarNotificacaoNaTela(cliente.id, "📅 Agenda Liberada!", `Abrimos vagas para o ${lote} ${periodoMsg}. Corra e agende!`, "/dashboard-client.html");
-    }
-} catch(e) {
-    console.log(`⚠️ Erro ao avisar ${cliente.name} sobre a agenda.`);
-}
+            for (let cliente of clientesPagos) {
+                try {
+                    let cleanPhone = cliente.phone.replace(/\D/g, '');
+                    
+                    if (!cleanPhone || cleanPhone.length < 8) continue;
+
+                    const zapMsg = `Olá, *${cliente.name}*! 📅\n\nA Guineexpress acabou de abrir vagas na agenda para o *${lote}* ${periodoMsg}.\n\nComo o seu pagamento já foi confirmado, acesse o seu painel agora mesmo para garantir o seu horário de atendimento!\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+                    
+                    // 🚀 ENVIADO PARA A FILA: Garante o envio sequencial sem travar o servidor
+                    db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", [cleanPhone, zapMsg]);
+
+                    // Notificação web dentro do painel do cliente
+                    if (cliente.id && typeof enviarNotificacaoNaTela === 'function') {
+                        enviarNotificacaoNaTela(
+                            cliente.id, 
+                            "📅 Agenda Liberada!", 
+                            `Abrimos vagas para o ${lote} ${periodoMsg}. Corra e agende!`, 
+                            "/dashboard-client.html"
+                        );
+                    }
+                } catch(e) {
+                    console.log(`⚠️ Erro ao colocar aviso de agenda na fila para ${cliente.name}:`, e.message);
                 }
             }
+            
+            console.log(`🚀 [AGENDA] ${clientesPagos.length} avisos de agenda inseridos na fila do Zap para o ${lote}!`);
         });
     }
 });
@@ -1823,8 +1845,9 @@ app.delete('/api/schedule/delete-appointment/:id', (req, res) => {
         res.json({ success: true });
     });
 });
+
 // ==================================================================
-// ROTA: RESERVAR AGENDAMENTO (DUPLA CHECAGEM DE SEGURANÇA 🛡️)
+// ROTA: RESERVAR AGENDAMENTO (COM ENVIO DE CONFIRMAÇÃO NO ZAP 📲)
 // ==================================================================
 app.post('/api/schedule/book', (req, res) => {
     const { availability_id, date, time } = req.body;
@@ -1838,7 +1861,7 @@ app.post('/api/schedule/book', (req, res) => {
     [client_id, date], (err, hasBooking) => {
         if (hasBooking) return res.json({ success: false, msg: 'Você já tem um agendamento neste dia.' });
 
-        // B. CHECAGEM 1: O dia inteiro já bateu as 20 vagas?
+        // B. CHECAGEM 1: O dia inteiro já bateu as vagas máximas?
         db.get(`SELECT count(*) as totalDia FROM appointments WHERE availability_id = ? AND status != 'Cancelado'`, 
         [availability_id], (err, rowTotal) => {
             db.get("SELECT max_slots FROM availability WHERE id = ?", [availability_id], (err, avail) => {
@@ -1848,24 +1871,38 @@ app.post('/api/schedule/book', (req, res) => {
                     return res.json({ success: false, msg: 'Todas as vagas para este dia esgotaram!' });
                 }
 
-                // C. CHECAGEM 2: Alguém acabou de roubar esse exato horário (ex: 08:00)?
+                // C. CHECAGEM 2: Alguém acabou de reservar esse exato horário?
                 db.get(`SELECT count(*) as totalHorario FROM appointments WHERE availability_id = ? AND time_slot = ? AND status != 'Cancelado'`, 
                 [availability_id, time], (err, rowHorario) => {
                     
-                    // Limite rígido de 1 PESSOA POR HORÁRIO
                     if (rowHorario.totalHorario >= 1) { 
                         return res.json({ success: false, msg: 'Outro cliente acabou de reservar este horário. Escolha outro!' });
                     }
 
-                    // D. Tudo certo! Salva o agendamento direto como Confirmado
+                    // D. Salva o agendamento direto como Confirmado
                     db.run("INSERT INTO appointments (availability_id, client_id, time_slot, status) VALUES (?,?,?, 'Confirmado')", 
                         [availability_id, client_id, time], function(err) {
                             if (err) return res.json({success: false, msg: "Erro ao salvar agendamento."});
                             
+                            const appointmentId = this.lastID;
+
+                            // 🚀 INTEGRAÇÃO ZAP: Busca os dados do cliente e envia o comprovante de agendamento
+                            db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], (errUser, user) => {
+                                if (user && user.phone) {
+                                    // Formata a data de AAAA-MM-DD para DD/MM/AAAA
+                                    const dataFormatada = date.includes('-') ? date.split('-').reverse().join('/') : date;
+                                    
+                                    const msgZap = `📅 *AGENDAMENTO CONFIRMADO!*\n\nOlá, *${user.name}*!\nSeu agendamento foi realizado com sucesso.\n\n📌 *Código:* #${appointmentId}\n🗓️ *Data:* ${dataFormatada}\n⏰ *Horário:* ${time}\n\nGuarde este comprovante!`;
+
+                                    // Adiciona na fila do Zap para o microserviço enviar com segurança
+                                    db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", [user.phone, msgZap]);
+                                }
+                            });
+
                             res.json({
                                 success: true, 
                                 msg: 'Agendamento confirmado automaticamente!',
-                                appointmentId: this.lastID
+                                appointmentId: appointmentId
                             });
                         }
                     );
