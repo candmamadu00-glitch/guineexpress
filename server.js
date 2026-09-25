@@ -2341,82 +2341,76 @@ app.post('/api/config/price', (req, res) => {
 app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
     if(!req.file) return res.status(400).json({success: false, msg: "Nenhum vídeo enviado."});
     
-    // 🚀 AQUI: Adicionado o order_code para receber do front-end
     const { client_id, description, order_code } = req.body;
     if(!client_id) return res.status(400).json({success: false, msg: "Cliente não identificado."});
 
-    // 1. Caminhos do arquivo
-    const videoOriginalWebm = req.file.path; // Arquivo .webm original que o multer salvou
-    const nomeArquivoMp4 = req.file.filename.replace('.webm', '.mp4'); // Troca a extensão no nome
-    const videoConvertidoMp4 = path.join(videosFolder, nomeArquivoMp4); // Caminho final do .mp4
+    const videoOriginalWebm = req.file.path; 
+    const nomeArquivoMp4 = req.file.filename.replace(/\.webm$/i, '') + '.mp4'; 
+    const videoConvertidoMp4 = path.join(videosFolder, nomeArquivoMp4); 
 
     console.log(`⏳ Convertendo vídeo de .webm para .mp4... Aguarde.`);
 
-    // 2. Inicia a conversão com FFmpeg
     ffmpeg(videoOriginalWebm)
         .outputOptions([
-            '-preset veryfast', // Converte rápido
-            '-c:v libx264',     // Formato de vídeo universal (H.264)
-            '-c:a aac'          // Formato de áudio universal
+            '-preset ultrafast', // Otimizado para não estourar o limite do Render
+            '-c:v libx264',     
+            '-c:a aac'          
         ])
         .save(videoConvertidoMp4)
         .on('end', () => {
             console.log(`✅ Vídeo convertido com sucesso para MP4!`);
 
-            // Apaga o arquivo .webm antigo para não lotar seu servidor
+            // Remove o WebM temporário
             fs.unlink(videoOriginalWebm, (err) => {
-                if (err) console.error("⚠️ Erro ao apagar arquivo .webm antigo:", err);
+                if (err) console.error("⚠️ Erro ao apagar .webm antigo:", err);
             });
 
-            // 3. 🚀 AQUI: Salva no banco de dados com a nova coluna order_code
+            // Salva no Banco de Dados
             db.run("INSERT INTO videos (client_id, order_code, filename, description) VALUES (?, ?, ?, ?)", 
             [client_id, order_code, nomeArquivoMp4, description], function(err) {
                 if(err) return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
                 
                 console.log(`✅ Vídeo MP4 salvo no banco!`);
-                // 🔔 COLE A NOTIFICAÇÃO DE VÍDEO AQUI:
+                
+                // Notificação na plataforma
                 enviarNotificacaoNaTela(client_id, "🎥 Novo Vídeo Disponível!", "Acabamos de subir um vídeo mostrando os detalhes da sua encomenda.", "/dashboard-client.html");
                 
-                // 4. Fluxo do WhatsApp (Com suporte a Fila de Espera)
-                // 4. Fluxo do WhatsApp (Com suporte a Fila de Espera)
+                // Envio via API do Zap (Microserviço)
                 db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
                     if (err || !user || !user.phone) {
                         return res.json({success: true, msg: "Vídeo salvo, mas cliente sem telefone."});
                     }
 
-                    if (typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                        try {
-                            let cleanPhone = user.phone.replace(/\D/g, '');
-                            
-                            // 🚀 CORREÇÃO 1: Validar o número e pegar o ID exato do WhatsApp (@c.us)
-                            const numberId = await clientZap.getNumberId(cleanPhone);
-                            const chatId = numberId ? numberId._serialized : `${cleanPhone}@c.us`; // Prevenção de falha
+                    try {
+                        let cleanPhone = user.phone.replace(/\D/g, '');
+                        const captionText = `Olá *${user.name.split(' ')[0]}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_${description || 'Vídeo do seu pacote'}_`;
+                        
+                        // Lê o vídeo convertido e envia via API do Zap
+                        if (fs.existsSync(videoConvertidoMp4)) {
+                            const videoBuffer = fs.readFileSync(videoConvertidoMp4);
+                            const arquivoBase64 = videoBuffer.toString('base64');
 
-                            const message = `Olá *${user.name}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_(Você também pode ver este e outros vídeos no seu painel de cliente)_`;
-                            
-                            // 1. Envia o texto formatado para o chatId correto
-                            await clientZap.sendMessage(chatId, message);
-
-                            // 2. Envia o vídeo (🚀 CORREÇÃO 2: Lendo direto do disco sem explodir a RAM)
-                            if (fs.existsSync(videoConvertidoMp4)) {
-                                // Importa a ferramenta de mídia do whatsapp-web.js
-                                const { MessageMedia } = require('whatsapp-web.js');
-                                
-                                // O fromFilePath cria o fluxo perfeito direto do HD
-                                const media = MessageMedia.fromFilePath(videoConvertidoMp4);
-                                
-                                await clientZap.sendMessage(chatId, media, { 
-                                    caption: `Vídeo: ${description || 'Sua encomenda'}` 
-                                });
-                                console.log(`✅ Vídeo nativo processado e enviado para ${cleanPhone}`);
-                            }
-                            
-                        } catch (zapErr) {
-                            console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
+                            await fetch(`${ZAP_API_URL}/api/enviar`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${ZAP_SECRET}`
+                                },
+                                body: JSON.stringify({
+                                    numero: cleanPhone,
+                                    tipo: 'documento',
+                                    arquivoBase64: arquivoBase64,
+                                    fileName: nomeArquivoMp4,
+                                    mimetype: 'video/mp4',
+                                    legenda: captionText
+                                })
+                            });
+                            console.log(`✅ Vídeo enviado via Zap API para ${cleanPhone}`);
                         }
+                    } catch (zapErr) {
+                        console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
                     }
                     
-                    // Retorna sucesso para liberar a tela do funcionário imediatamente
                     res.json({success: true});
                 });
             });
