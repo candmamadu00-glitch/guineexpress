@@ -3785,11 +3785,10 @@ app.get('/api/orders/by-client/:clientId', (req, res) => {
     });
 });
 // ==========================================================
-// 🌟 ROTA POST: ATUALIZAÇÃO EM MASSA (EXATA PARA O FRONTEND)
+// 🌟 ROTA POST: ATUALIZAÇÃO EM MASSA (BLINDADA CONTRA ERROS)
 // ==========================================================
 app.post('/api/orders/bulk-update-status', express.json(), (req, res) => {
     console.log("🚨 [SISTEMA] Recebido pedido de alteração em massa!");
-    console.log("🚨 [SISTEMA] Body:", req.body);
 
     if (!req.session || !req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: "Acesso Negado." });
@@ -3809,49 +3808,56 @@ app.post('/api/orders/bulk-update-status', express.json(), (req, res) => {
 
     db.run(sqlUpdate, [status, ...ids], function(err) {
         if (err) {
-            console.error("❌ Erro BD:", err);
-            return res.status(500).json({ success: false, message: "Erro de banco de dados ao atualizar." });
+            console.error("❌ Erro DB:", err);
+            return res.status(500).json({ success: false, message: "Erro ao atualizar banco de dados." });
         }
 
         const updatedCount = this.changes;
-        console.log(`✅ Status de ${updatedCount} encomendas alterado para '${status}'.`);
 
-        // Responde com sucesso IMEDIATAMENTE para a interface liberar a tela
+        // 1. Responde PRIMEIRO e IMEDIATAMENTE ao navegador para fechar a requisição com sucesso
         res.json({ success: true, updated: updatedCount });
 
-        // Insere na fila do WhatsApp em segundo plano
-        const sqlSelect = `
-            SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
-            FROM orders o
-            JOIN users u ON o.client_id = u.id
-            WHERE o.id IN (${placeholders})
-        `;
+        // 2. Processa mensagens em segundo plano sem risco de derrubar o servidor
+        try {
+            const sqlSelect = `
+                SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
+                FROM orders o
+                JOIN users u ON o.client_id = u.id
+                WHERE o.id IN (${placeholders})
+            `;
 
-        db.all(sqlSelect, ids, (errSel, rows) => {
-            if (errSel || !rows || rows.length === 0) return;
+            db.all(sqlSelect, ids, (errSel, rows) => {
+                if (errSel || !rows) return;
 
-            for (const row of rows) {
-                const desc = row.description || 'Sua encomenda';
-                
-                // Notificação Interna
-                db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)",
-                    [row.client_id, "Atualização de Encomenda", `Sua encomenda ${row.code} mudou para: ${status}`]);
+                for (const row of rows) {
+                    try {
+                        const desc = row.description || 'Sua encomenda';
+                        
+                        // Notificação Interna
+                        db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)",
+                            [row.client_id, "Atualização de Encomenda", `Sua encomenda ${row.code} mudou para: ${status}`]);
 
-                // Fila do WhatsApp (zap_queue)
-                if (row.phone) {
-                    let cleanPhone = String(row.phone).replace(/\D/g, '');
-                    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-                        cleanPhone = '55' + cleanPhone;
-                    }
+                        // Trata o telefone convertendo obrigatoriamente para String
+                        if (row.phone) {
+                            let cleanPhone = String(row.phone).replace(/\D/g, '');
+                            if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+                                cleanPhone = '55' + cleanPhone;
+                            }
 
-                    if (cleanPhone.length >= 8) {
-                        const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+                            if (cleanPhone.length >= 8) {
+                                const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
 
-                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", [cleanPhone, zapMsg]);
+                                db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", [cleanPhone, zapMsg]);
+                            }
+                        }
+                    } catch (itemError) {
+                        console.error("⚠️ Erro ao processar notificação individual:", itemError);
                     }
                 }
-            }
-        });
+            });
+        } catch (bgError) {
+            console.error("⚠️ Erro no processamento de notificações:", bgError);
+        }
     });
 });
 app.delete('/api/orders/:id', (req, res) => {
