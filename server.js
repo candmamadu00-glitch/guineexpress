@@ -1371,9 +1371,6 @@ app.get('/api/expenses/list', (req, res) => {
 });
 
 // ==============================================================
-// PROCESSAMENTO DA FILA DO ZAP (COM PROTEÇÃO CONTRA HTML)
-// ==============================================================
-// ==============================================================
 // PROCESSAMENTO DA FILA DO ZAP (COM SUPORTE A DISPARO EM MASSA)
 // ==============================================================
 function processarFilaDoZap() {
@@ -4682,10 +4679,9 @@ app.delete('/api/client/me', (req, res) => {
     });
 });
 // ==============================================================
-// 🌟 NOVA ROTA MESTRE: AÇÃO EM MASSA COM WHATSAPP (PADRÃO INDIVIDUAL)
+// 🌟 ROTA DE ATUALIZAÇÃO EM MASSA DE STATUS (INTEGRADA COM ZAP QUEUE)
 // ==============================================================
 app.post('/api/orders/bulk-update-status', (req, res) => {
-    // 1. Segurança
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: "Acesso Negado." });
     }
@@ -4696,25 +4692,22 @@ app.post('/api/orders/bulk-update-status', (req, res) => {
         return res.status(400).json({ success: false, message: "Nenhum ID fornecido." });
     }
 
-    // 2. Atualiza no Banco de Dados
     const placeholders = ids.map(() => '?').join(',');
     const sqlUpdate = `UPDATE orders SET status = ? WHERE id IN (${placeholders})`;
-    
+
     db.run(sqlUpdate, [status, ...ids], function(err) {
         if (err) {
             console.error("❌ Erro BD Ação em Massa:", err);
             return res.status(500).json({ success: false, message: "Erro no banco de dados." });
         }
-        
-        const updatedCount = this.changes; // Conta quantas foram atualizadas
-        console.log(`\n✅ [AÇÃO EM MASSA] Iniciando ${updatedCount} atualizações para o status: '${status}'`);
 
-        // 3. Responde pro painel não travar e mostrar a mensagem de Sucesso (Fim do "undefined")
+        const updatedCount = this.changes;
+        console.log(`\n✅ [AÇÃO EM MASSA] ${updatedCount} encomendas alteradas para '${status}'`);
+
+        // Responde rápido para a interface do painel
         res.json({ success: true, updated: updatedCount });
 
-        // ==========================================================
-        // 4. MOTOR DO WHATSAPP E PAINEL (Sincronizado)
-        // ==========================================================
+        // Busca os clientes afetados para notificar
         const sqlSelect = `
             SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
             FROM orders o
@@ -4722,52 +4715,38 @@ app.post('/api/orders/bulk-update-status', (req, res) => {
             WHERE o.id IN (${placeholders})
         `;
 
-        db.all(sqlSelect, ids, async (err, rows) => {
-            if (err) return console.error("Erro ao buscar clientes do disparo em massa:", err);
-            
-            if (rows && rows.length > 0) {
-                for (const row of rows) {
-                    const desc = row.description ? row.description : 'Sua encomenda';
-                    
-                    // -- Painel de Notificação Interno --
-                    const tituloAviso = "Atualização de Encomenda";
-                    const msgAviso = `Sua encomenda ${row.code} mudou para: ${status}`;
-                    db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)", 
-                          [row.client_id, tituloAviso, msgAviso], function(e) {});
+        db.all(sqlSelect, ids, (err, rows) => {
+            if (err || !rows) return console.error("Erro ao buscar clientes em massa:", err);
 
-                    // -- Motor WhatsApp --
-                    if (row.phone && typeof clientZap !== 'undefined' && clientZap && clientZap.info) {
-                        try {
-                            let cleanPhone = row.phone.replace(/\D/g, '');
-                            
-                            // Padroniza DDI Brasileiro se estiver faltando
-                            if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-                                cleanPhone = '55' + cleanPhone;
-                            }
-                            
-                            const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar todas as atualizações:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+            for (const row of rows) {
+                const desc = row.description ? row.description : 'Sua encomenda';
 
-                            const numberId = await clientZap.getNumberId(cleanPhone);
-                            
-                            if (numberId) {
-                                await clientZap.sendMessage(numberId._serialized, zapMsg);
-                                console.log(`  🟢 [ZAP ENVIADO] ${row.name} (${row.code})`);
-                            } else {
-                                await clientZap.sendMessage(`${cleanPhone}@c.us`, zapMsg);
-                                console.log(`  🟡 [ZAP FORÇADO] ${row.name} (${row.code})`);
-                            }
+                // 1. Notificação interna do painel
+                const tituloAviso = "Atualização de Encomenda";
+                const msgAviso = `Sua encomenda ${row.code} mudou para: ${status}`;
+                db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)", 
+                    [row.client_id, tituloAviso, msgAviso]);
 
-                            // Trava Antibolqueio: 2 Segundos entre cada mensagem!
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                        } catch (zapErr) {
-                            console.error(`  ❌ [ERRO ZAP] ${row.name}:`, zapErr.message);
-                        }
-                    } else {
-                        console.log(`  ⚠️ [SEM ZAP] ${row.name} não possui número válido ou robô offline.`);
+                if (typeof enviarNotificacaoNaTela === 'function') {
+                    enviarNotificacaoNaTela(row.client_id, tituloAviso, msgAviso, "/dashboard-client.html");
+                }
+
+                // 2. Coloca a mensagem na Fila do WhatsApp
+                if (row.phone) {
+                    let cleanPhone = row.phone.replace(/\D/g, '');
+                    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+                        cleanPhone = '55' + cleanPhone;
+                    }
+
+                    if (cleanPhone.length >= 8) {
+                        const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+
+                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", 
+                            [cleanPhone, zapMsg]);
                     }
                 }
-                console.log(`✅ [AÇÃO EM MASSA] Todos os disparos concluídos!\n`);
             }
+            console.log(`🚀 [AÇÃO EM MASSA] ${rows.length} mensagens inseridas na fila do WhatsApp com sucesso!`);
         });
     });
 });
