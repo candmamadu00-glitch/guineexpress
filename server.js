@@ -1371,34 +1371,38 @@ app.get('/api/expenses/list', (req, res) => {
 });
 
 // ==============================================================
-// PROCESSAMENTO DA FILA DO ZAP (COM SUPORTE A DISPARO EM MASSA)
+// 🌟 PROCESSAMENTO DA FILA DO ZAP (INTEGRADO AO RENDER)
 // ==============================================================
-function processarFilaDoZap() {
-    // Procura no máximo 15 mensagens por ciclo para otimizar a memória
-    db.all("SELECT * FROM zap_queue ORDER BY id ASC LIMIT 15", async (err, rows) => {
+async function processarFilaDoZap() {
+    // Pega as variáveis do .env ou usa os valores padrão sem redeclarar 'const ZAP_SECRET'
+    const targetUrl = process.env.ZAP_API_URL || process.env.ZAP_MICROSERVICE_URL || 'https://guineexpress-zap.onrender.com';
+    const targetSecret = process.env.ZAP_SECRET || '5800991m@Mm12345';
+
+    db.all("SELECT * FROM zap_queue ORDER BY id ASC LIMIT 10", async (err, rows) => {
         if (err || !rows || rows.length === 0) return;
-        
-        console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens! Processando envio em massa...`);
-        
+
+        console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens. Processando...`);
+
         for (const msg of rows) {
             try {
-                // 1. Sanitização do número de telefone (remove parênteses, espaços e traços)
+                // 1. Sanitização do número
                 let cleanPhone = msg.numero ? msg.numero.replace(/\D/g, '') : '';
-                
                 if (!cleanPhone || cleanPhone.length < 8) {
-                    console.log(`⚠️ Mensagem ${msg.id} descartada: número de telefone inválido (${msg.numero}).`);
+                    console.log(`⚠️ Mensagem #${msg.id} descartada: número inválido (${msg.numero}).`);
                     db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
-                    continue; // ✅ Pula para a próxima mensagem sem parar a fila!
+                    continue;
                 }
 
+                // 2. Mapeamento dos campos para o Microserviço
+                const isTexto = (msg.tipo === 'text' || msg.tipo === 'texto');
                 let payload = {
                     numero: cleanPhone,
-                    tipo: msg.tipo === 'text' ? 'texto' : 'documento',
-                    texto: msg.tipo === 'text' ? msg.conteudo : undefined
+                    tipo: isTexto ? 'texto' : 'documento',
+                    texto: isTexto ? msg.conteudo : undefined
                 };
 
-                // 2. Tratamento seguro de arquivos e anexos
-                if (msg.tipo !== 'text') {
+                // 3. Tratamento de Anexos/PDFs
+                if (!isTexto && msg.conteudo) {
                     try {
                         const conteudoPronto = JSON.parse(msg.conteudo);
                         payload.arquivoBase64 = conteudoPronto.data;
@@ -1406,53 +1410,53 @@ function processarFilaDoZap() {
                         payload.mimetype = conteudoPronto.mimetype || 'application/pdf';
                         payload.legenda = msg.opcoes ? JSON.parse(msg.opcoes).caption : '';
                     } catch (errJson) {
-                        console.error(`❌ Mensagem ${msg.id} com anexo corrompido. Removendo da fila.`);
+                        console.error(`❌ Mensagem #${msg.id} com anexo corrompido. Removendo da fila.`);
                         db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
-                        continue; // Pula para a próxima mensagem
+                        continue;
                     }
                 }
 
-                // 3. Dispara a requisição HTTP para o microserviço do WhatsApp
-                const response = await fetch(`${ZAP_API_URL}/api/enviar`, {
+                // 4. Requisição HTTP ao Microserviço no Render
+                const response = await fetch(`${targetUrl}/api/enviar`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${ZAP_SECRET}`
+                        'Authorization': `Bearer ${targetSecret}`
                     },
                     body: JSON.stringify(payload)
                 });
 
-                // 4. Leitura segura do retorno HTTP
                 const rawText = await response.text();
                 let resultado = {};
                 try {
                     resultado = JSON.parse(rawText);
                 } catch(e) {
-                    console.error("⚠️ Microserviço do Zap retornou resposta em HTML. Servidor pode estar offline.");
-                    break; // Interrompe apenas se o serviço do Zap estiver indisponível
+                    console.error(`⚠️ Microserviço (${targetUrl}) pode estar acordando ou offline.`);
+                    break;
                 }
 
                 if (response.ok && resultado.success) {
-                    console.log(`🚀 [FILA DO ZAP] Mensagem ${msg.id} enviada com sucesso para ${cleanPhone}!`);
+                    console.log(`🚀 [FILA DO ZAP] Mensagem #${msg.id} enviada para ${cleanPhone}!`);
                     db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
                 } else {
-                    console.log(`⚠️ Falha ao enviar mensagem ${msg.id} para ${cleanPhone}. Removendo da fila para não bloquear o restante.`);
+                    console.error(`❌ Falha no microserviço para msg #${msg.id}:`, resultado.error || resultado);
                     db.run("DELETE FROM zap_queue WHERE id = ?", [msg.id]);
                 }
 
-                // Pausa de 3 segundos entre envios para evitar bloqueio do número pelo WhatsApp
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
+                // Intervalo de segurança de 2 segundos entre envios
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
             } catch (erroEnvio) {
-                console.error(`❌ Erro na comunicação com o microserviço na mensagem ${msg.id}:`, erroEnvio.message);
+                console.error(`❌ Erro na comunicação com ${targetUrl}:`, erroEnvio.message);
                 break;
             }
         }
     });
 }
 
-// 🚀 CÓDIGO ESSENCIAL: Ativa a verificação automática da fila a cada 10 segundos
+// Executa a cada 10 segundos
 setInterval(processarFilaDoZap, 10000);
+// 🚀 CÓDIGO ESSENCIAL: Ativa a verificação automática da fila a cada 10 segundos
 // Substitui a inicialização pesada por um verificador de status simples
 async function ligarMotorDoZap(res = null) {
     try {
