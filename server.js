@@ -44,6 +44,16 @@ if (!fs.existsSync(backupsPath)) {
 }
 
 const app = express();
+// ==========================================================
+// 🛡️ TRAVA ANTI-CRASH GLOBAL (EVITA O ERRO 502 BAD GATEWAY)
+// ==========================================================
+process.on('uncaughtException', (err) => {
+    console.error('🚨 [SISTEMA] Erro não capturado evitado:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('🚨 [SISTEMA] Promessa rejeitada evitada:', reason);
+});
 app.use(xss());
 app.use(express.static(path.join(__dirname, 'public')));
 // 🛡️ 1. PROTEÇÃO CORS (Bloqueia sites de terceiros acessando sua API)
@@ -3785,80 +3795,96 @@ app.get('/api/orders/by-client/:clientId', (req, res) => {
     });
 });
 // ==========================================================
-// 🌟 ROTA POST: ATUALIZAÇÃO EM MASSA (BLINDADA CONTRA ERROS)
+// 🌟 ROTA POST: ATUALIZAÇÃO EM MASSA (BLINDADA)
 // ==========================================================
 app.post('/api/orders/bulk-update-status', express.json(), (req, res) => {
-    console.log("🚨 [SISTEMA] Recebido pedido de alteração em massa!");
+    try {
+        console.log("🚨 [SISTEMA] Pedido de alteração em massa recebido:", req.body);
 
-    if (!req.session || !req.session.userId || req.session.role === 'client') {
-        return res.status(403).json({ success: false, message: "Acesso Negado." });
-    }
-
-    const { ids, status } = req.body;
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ success: false, message: "Nenhum ID de encomenda selecionado." });
-    }
-    if (!status) {
-        return res.status(400).json({ success: false, message: "Status não fornecido." });
-    }
-
-    const placeholders = ids.map(() => '?').join(',');
-    const sqlUpdate = `UPDATE orders SET status = ? WHERE id IN (${placeholders})`;
-
-    db.run(sqlUpdate, [status, ...ids], function(err) {
-        if (err) {
-            console.error("❌ Erro DB:", err);
-            return res.status(500).json({ success: false, message: "Erro ao atualizar banco de dados." });
+        if (!req.session || !req.session.userId || req.session.role === 'client') {
+            return res.status(403).json({ success: false, message: "Acesso Negado." });
         }
 
-        const updatedCount = this.changes;
+        const ids = req.body.ids || req.body.orderIds;
+        const status = req.body.status;
 
-        // 1. Responde PRIMEIRO e IMEDIATAMENTE ao navegador para fechar a requisição com sucesso
-        res.json({ success: true, updated: updatedCount });
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ success: false, message: "Nenhum ID fornecido." });
+        }
+        if (!status) {
+            return res.status(400).json({ success: false, message: "Status não fornecido." });
+        }
 
-        // 2. Processa mensagens em segundo plano sem risco de derrubar o servidor
-        try {
-            const sqlSelect = `
-                SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
-                FROM orders o
-                JOIN users u ON o.client_id = u.id
-                WHERE o.id IN (${placeholders})
-            `;
+        const placeholders = ids.map(() => '?').join(',');
+        const sqlUpdate = `UPDATE orders SET status = ? WHERE id IN (${placeholders})`;
 
-            db.all(sqlSelect, ids, (errSel, rows) => {
-                if (errSel || !rows) return;
+        db.run(sqlUpdate, [status, ...ids], function(err) {
+            if (err) {
+                console.error("❌ Erro DB Update:", err);
+                return res.status(500).json({ success: false, message: "Erro no banco de dados." });
+            }
 
-                for (const row of rows) {
-                    try {
-                        const desc = row.description || 'Sua encomenda';
-                        
-                        // Notificação Interna
-                        db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)",
-                            [row.client_id, "Atualização de Encomenda", `Sua encomenda ${row.code} mudou para: ${status}`]);
+            const updatedCount = this.changes || ids.length;
 
-                        // Trata o telefone convertendo obrigatoriamente para String
-                        if (row.phone) {
-                            let cleanPhone = String(row.phone).replace(/\D/g, '');
-                            if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-                                cleanPhone = '55' + cleanPhone;
-                            }
+            // Responde Sucesso Imediatamente para destravar o painel
+            res.json({ success: true, updated: updatedCount, message: "Atualizado com sucesso" });
 
-                            if (cleanPhone.length >= 8) {
-                                const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+            // Executa envios de mensagens em segundo plano
+            setTimeout(() => {
+                try {
+                    const sqlSelect = `
+                        SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
+                        FROM orders o
+                        JOIN users u ON o.client_id = u.id
+                        WHERE o.id IN (${placeholders})
+                    `;
 
-                                db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", [cleanPhone, zapMsg]);
+                    db.all(sqlSelect, ids, (errSel, rows) => {
+                        if (errSel || !rows) return;
+
+                        for (const row of rows) {
+                            try {
+                                const desc = row.description || 'Sua encomenda';
+                                
+                                // Notificação no Painel
+                                db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)",
+                                    [row.client_id, "Atualização de Encomenda", `Sua encomenda ${row.code} mudou para: ${status}`], () => {});
+
+                                // Inserção na Fila do WhatsApp
+                                if (row.phone) {
+                                    let cleanPhone = String(row.phone).replace(/\D/g, '');
+                                    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+                                        cleanPhone = '55' + cleanPhone;
+                                    }
+
+                                    if (cleanPhone.length >= 8) {
+                                        const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
+
+                                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", 
+                                            [cleanPhone, zapMsg], (errZap) => {
+                                                if (errZap) {
+                                                    db.run("INSERT INTO zap_queue (numero, mensagem) VALUES (?, ?)", [cleanPhone, zapMsg], () => {});
+                                                }
+                                            }
+                                        );
+                                    }
+                                }
+                            } catch (eSub) {
+                                console.error("⚠️ Erro individual de notificação:", eSub);
                             }
                         }
-                    } catch (itemError) {
-                        console.error("⚠️ Erro ao processar notificação individual:", itemError);
-                    }
+                    });
+                } catch (eBg) {
+                    console.error("⚠️ Erro em segundo plano:", eBg);
                 }
-            });
-        } catch (bgError) {
-            console.error("⚠️ Erro no processamento de notificações:", bgError);
+            }, 100);
+        });
+    } catch (eMain) {
+        console.error("❌ Erro fatal na rota bulk-update-status:", eMain);
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: "Erro interno no servidor." });
         }
-    });
+    }
 });
 app.delete('/api/orders/:id', (req, res) => {
     if (!req.session.userId || req.session.role === 'client') {
