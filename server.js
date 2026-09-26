@@ -3785,42 +3785,41 @@ app.get('/api/orders/by-client/:clientId', (req, res) => {
     });
 });
 // ==========================================================
-// 🌟 ROTA UNIFICADA: ATUALIZAÇÃO EM MASSA DE ENCOMENDAS
+// 🌟 ROTA POST: ATUALIZAÇÃO EM MASSA (EXATA PARA O FRONTEND)
 // ==========================================================
-const processarAtualizacaoEmMassa = (req, res) => {
-    console.log("🚨 [SISTEMA] O servidor RECEBEU o pedido de alteração de encomendas!");
-    console.log("🚨 [SISTEMA] Dados recebidos:", req.body);
+app.post('/api/orders/bulk-update-status', express.json(), (req, res) => {
+    console.log("🚨 [SISTEMA] Recebido pedido de alteração em massa!");
+    console.log("🚨 [SISTEMA] Body:", req.body);
 
-    if (!req.session.userId || req.session.role === 'client') {
+    if (!req.session || !req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: "Acesso Negado." });
     }
 
     const { ids, status } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ success: false, message: "Nenhum ID de encomenda fornecido." });
+        return res.status(400).json({ success: false, message: "Nenhum ID de encomenda selecionado." });
     }
     if (!status) {
         return res.status(400).json({ success: false, message: "Status não fornecido." });
     }
 
-    // 1. Atualiza no banco de dados
     const placeholders = ids.map(() => '?').join(',');
     const sqlUpdate = `UPDATE orders SET status = ? WHERE id IN (${placeholders})`;
 
     db.run(sqlUpdate, [status, ...ids], function(err) {
         if (err) {
-            console.error("❌ [SISTEMA] Erro no Banco de Dados:", err);
-            return res.status(500).json({ success: false, message: "Erro interno no banco de dados." });
+            console.error("❌ Erro BD:", err);
+            return res.status(500).json({ success: false, message: "Erro de banco de dados ao atualizar." });
         }
 
         const updatedCount = this.changes;
-        console.log(`✅ [AÇÃO EM MASSA] Status de ${updatedCount} encomendas alterado para '${status}'.`);
+        console.log(`✅ Status de ${updatedCount} encomendas alterado para '${status}'.`);
 
-        // Responde rápido para a interface do painel
+        // Responde com sucesso IMEDIATAMENTE para a interface liberar a tela
         res.json({ success: true, updated: updatedCount });
 
-        // 2. Busca contatos para criar notificações e adicionar à Fila do WhatsApp
+        // Insere na fila do WhatsApp em segundo plano
         const sqlSelect = `
             SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
             FROM orders o
@@ -3828,28 +3827,19 @@ const processarAtualizacaoEmMassa = (req, res) => {
             WHERE o.id IN (${placeholders})
         `;
 
-        db.all(sqlSelect, ids, (err, rows) => {
-            if (err || !rows || rows.length === 0) return;
-
-            console.log(`📡 Inserindo ${rows.length} mensagens na fila do WhatsApp (zap_queue)...`);
+        db.all(sqlSelect, ids, (errSel, rows) => {
+            if (errSel || !rows || rows.length === 0) return;
 
             for (const row of rows) {
-                const desc = row.description ? row.description : 'Sua encomenda';
+                const desc = row.description || 'Sua encomenda';
+                
+                // Notificação Interna
+                db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)",
+                    [row.client_id, "Atualização de Encomenda", `Sua encomenda ${row.code} mudou para: ${status}`]);
 
-                // Aviso no painel do cliente
-                const tituloAviso = "Atualização de Encomenda";
-                const msgAviso = `Sua encomenda ${row.code} mudou para: ${status}`;
-
-                db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)", 
-                    [row.client_id, tituloAviso, msgAviso]);
-
-                if (typeof enviarNotificacaoNaTela === 'function') {
-                    enviarNotificacaoNaTela(row.client_id, tituloAviso, msgAviso, "/dashboard-client.html");
-                }
-
-                // Insere mensagem na Fila do WhatsApp (zap_queue)
+                // Fila do WhatsApp (zap_queue)
                 if (row.phone) {
-                    let cleanPhone = row.phone.replace(/\D/g, '');
+                    let cleanPhone = String(row.phone).replace(/\D/g, '');
                     if (cleanPhone.length === 10 || cleanPhone.length === 11) {
                         cleanPhone = '55' + cleanPhone;
                     }
@@ -3857,21 +3847,13 @@ const processarAtualizacaoEmMassa = (req, res) => {
                     if (cleanPhone.length >= 8) {
                         const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
 
-                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", 
-                            [cleanPhone, zapMsg]);
+                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", [cleanPhone, zapMsg]);
                     }
                 }
             }
-            console.log(`🚀 [AÇÃO EM MASSA] Mensagens adicionadas à fila do WhatsApp com sucesso!`);
         });
     });
-};
-
-// 🟢 Mapeia todas as variações possíveis chamadas pelo frontend
-app.put('/api/orders/bulk-status', express.json(), processarAtualizacaoEmMassa);
-app.post('/api/orders/bulk-status', express.json(), processarAtualizacaoEmMassa);
-app.put('/api/orders/bulk-update-status', express.json(), processarAtualizacaoEmMassa);
-app.post('/api/orders/bulk-update-status', express.json(), processarAtualizacaoEmMassa);
+});
 app.delete('/api/orders/:id', (req, res) => {
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });

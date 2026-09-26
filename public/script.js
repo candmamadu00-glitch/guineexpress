@@ -7063,7 +7063,7 @@ function updateBulkCounter() {
 }
 
 // ==============================================================
-// FUNÇÃO: APLICAR STATUS EM MASSA (FRONT-END CORRIGIDO)
+// FUNÇÃO: APLICAR STATUS EM MASSA (ROBUSTA)
 // ==============================================================
 async function applyBulkStatus() {
     const checkboxes = document.querySelectorAll('.order-checkbox:checked');
@@ -7077,38 +7077,46 @@ async function applyBulkStatus() {
     // Pega os IDs selecionados
     const orderIds = Array.from(checkboxes).map(cb => cb.value);
 
-    // Muda o texto do botão para dar feedback visual
+    // Feedback visual no botão
     const btnAplicar = document.querySelector('#bulk-action-container button');
-    if(btnAplicar) btnAplicar.innerText = "Atualizando...";
+    if (btnAplicar) btnAplicar.innerText = "Atualizando...";
 
     try {
-        // 🌟 NOME DA ROTA NOVA E MÉTODO POST
         const response = await fetch('/api/orders/bulk-update-status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: orderIds, status: newStatus })
         });
 
-        const data = await response.json();
+        const contentType = response.headers.get("content-type");
+        let data = {};
         
-        if (data.success) {
-            alert(`✅ ${data.updated} encomendas atualizadas com sucesso!\nO sistema está enviando as notificações.`);
+        if (contentType && contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            throw new Error(`Resposta do servidor inválida (Status: ${response.status})`);
+        }
+        
+        if (response.ok && data.success) {
+            alert(`✅ ${data.updated || orderIds.length} encomendas atualizadas com sucesso!`);
             
             // Reseta a interface
-            document.getElementById('selectAllOrders').checked = false;
+            const checkAll = document.getElementById('selectAllOrders');
+            if (checkAll) checkAll.checked = false;
+            
             document.getElementById('bulk-status-select').value = "";
             document.getElementById('bulk-action-container').style.display = 'none';
             
-            // Atualiza a tabela imediatamente
+            // Recarrega a tabela de encomendas
             if (typeof loadOrders === 'function') loadOrders(); 
         } else {
-            alert("Erro: " + data.message);
+            alert("⚠️ Erro do Servidor: " + (data.message || "Falha ao processar alteração."));
         }
     } catch (error) {
-        console.error(error);
-        alert("Erro de conexão ao tentar atualizar em massa.");
+        console.error("Erro na atualização em massa:", error);
+        alert("Erro de comunicação: " + error.message);
     } finally {
-        if(btnAplicar) btnAplicar.innerText = "Aplicar";
+        if (btnAplicar) btnAplicar.innerText = "Aplicar";
     }
 }
 // Alternar entre CNPJ e E-mail (BLINDADA 🛡️)
