@@ -3785,9 +3785,9 @@ app.get('/api/orders/by-client/:clientId', (req, res) => {
     });
 });
 // ==========================================================
-// 🌟 ROTA: ATUALIZAÇÃO EM MASSA E SELEÇÃO DE CLIENTES (ZAP QUEUE)
+// 🌟 ROTA UNIFICADA: ATUALIZAÇÃO EM MASSA DE ENCOMENDAS
 // ==========================================================
-app.put('/api/orders/bulk-status', express.json(), (req, res) => {
+const processarAtualizacaoEmMassa = (req, res) => {
     console.log("🚨 [SISTEMA] O servidor RECEBEU o pedido de alteração de encomendas!");
     console.log("🚨 [SISTEMA] Dados recebidos:", req.body);
 
@@ -3817,10 +3817,10 @@ app.put('/api/orders/bulk-status', express.json(), (req, res) => {
         const updatedCount = this.changes;
         console.log(`✅ [AÇÃO EM MASSA] Status de ${updatedCount} encomendas alterado para '${status}'.`);
 
-        // Responde rápido para a interface do painel atualizar na hora
+        // Responde rápido para a interface do painel
         res.json({ success: true, updated: updatedCount });
 
-        // 2. Busca contatos para criar notificações e enviar para a Fila do WhatsApp
+        // 2. Busca contatos para criar notificações e adicionar à Fila do WhatsApp
         const sqlSelect = `
             SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
             FROM orders o
@@ -3865,7 +3865,13 @@ app.put('/api/orders/bulk-status', express.json(), (req, res) => {
             console.log(`🚀 [AÇÃO EM MASSA] Mensagens adicionadas à fila do WhatsApp com sucesso!`);
         });
     });
-});
+};
+
+// 🟢 Mapeia todas as variações possíveis chamadas pelo frontend
+app.put('/api/orders/bulk-status', express.json(), processarAtualizacaoEmMassa);
+app.post('/api/orders/bulk-status', express.json(), processarAtualizacaoEmMassa);
+app.put('/api/orders/bulk-update-status', express.json(), processarAtualizacaoEmMassa);
+app.post('/api/orders/bulk-update-status', express.json(), processarAtualizacaoEmMassa);
 app.delete('/api/orders/:id', (req, res) => {
     if (!req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
