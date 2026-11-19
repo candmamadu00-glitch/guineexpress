@@ -1383,17 +1383,28 @@ app.get('/api/expenses/list', (req, res) => {
 // ==============================================================
 // 🌟 PROCESSAMENTO DA FILA DO ZAP (INTEGRADO AO RENDER)
 // ==============================================================
+let isProcessingZapQueue = false;
+const processingZapIds = new Set();
+
 async function processarFilaDoZap() {
-    // Pega as variáveis do .env ou usa os valores padrão sem redeclarar 'const ZAP_SECRET'
+    if (isProcessingZapQueue) return;
+    isProcessingZapQueue = true;
+
     const targetUrl = process.env.ZAP_API_URL || process.env.ZAP_MICROSERVICE_URL || 'https://guineexpress-zap.onrender.com';
     const targetSecret = process.env.ZAP_SECRET || '5800991m@Mm12345';
 
     db.all("SELECT * FROM zap_queue ORDER BY id ASC LIMIT 10", async (err, rows) => {
-        if (err || !rows || rows.length === 0) return;
+        try {
+            if (err || !rows || rows.length === 0) {
+                isProcessingZapQueue = false;
+                return;
+            }
 
         console.log(`📦 [FILA DO ZAP] Encontradas ${rows.length} mensagens. Processando...`);
 
         for (const msg of rows) {
+            if (processingZapIds.has(msg.id)) continue;
+            processingZapIds.add(msg.id);
             try {
                 // 1. Sanitização do número
                 let cleanPhone = msg.numero ? msg.numero.replace(/\D/g, '') : '';
@@ -1459,7 +1470,12 @@ async function processarFilaDoZap() {
             } catch (erroEnvio) {
                 console.error(`❌ Erro na comunicação com ${targetUrl}:`, erroEnvio.message);
                 break;
+            } finally {
+                processingZapIds.delete(msg.id);
             }
+        }
+        } finally {
+            isProcessingZapQueue = false;
         }
     });
 }
@@ -2178,10 +2194,12 @@ app.put('/api/orders/:id', (req, res) => {
         return res.status(403).json({ success: false, msg: 'Sem permissão' });
     }
     
-    // PEGANDO O NOVO CAMPO 'LOTE' NA EDIÇÃO
     const { code, description, weight, status, lote } = req.body;
     const id = req.params.id;
+    const cleanCode = code ? code.trim() : '';
 
+    // Remove eventual fantasma deleted=1 com o mesmo codigo antes de atualizar
+    db.run("DELETE FROM orders WHERE LOWER(code) = LOWER(?) AND deleted = 1 AND id != ?", [cleanCode, id], () => {
     db.get("SELECT value FROM settings WHERE key = 'price_per_kg'", (err, row) => {
         const pricePerKg = row ? parseFloat(row.value) : 0;
         const newPrice = (parseFloat(weight) * pricePerKg).toFixed(2);
@@ -2191,10 +2209,11 @@ app.put('/api/orders/:id', (req, res) => {
         // ADICIONAMOS O LOTE NO UPDATE
         const sql = `UPDATE orders SET code = ?, description = ?, weight = ?, status = ?, price = ?, lote = ? WHERE id = ?`;
         
-        db.run(sql, [code, description, weight, status, newPrice, loteFinal, id], function(err) {
+        db.run(sql, [cleanCode, description, weight, status, newPrice, loteFinal, id], function(err) {
             if (err) return res.json({ success: false, msg: err.message });
             res.json({ success: true });
         });
+    });
     });
 });
 // ==========================================
@@ -2387,85 +2406,91 @@ app.post('/api/config/price', (req, res) => {
     });
 });
 app.post('/api/videos/upload', uploadVideo.single('video'), (req, res) => {
-    if(!req.file) return res.status(400).json({success: false, msg: "Nenhum vídeo enviado."});
-    
+    if (!req.file) return res.status(400).json({ success: false, msg: "Nenhum vídeo enviado." });
+
     const { client_id, description, order_code } = req.body;
-    if(!client_id) return res.status(400).json({success: false, msg: "Cliente não identificado."});
+    if (!client_id) return res.status(400).json({ success: false, msg: "Cliente não identificado." });
 
-    const videoOriginalWebm = req.file.path; 
-    const nomeArquivoMp4 = req.file.filename.replace(/\.webm$/i, '') + '.mp4'; 
-    const videoConvertidoMp4 = path.join(videosFolder, nomeArquivoMp4); 
+    const videoOriginal = req.file.path;
+    const baseName = path.parse(req.file.filename).name;
+    const nomeArquivoMp4 = `${baseName}-final.mp4`;
+    const videoConvertidoMp4 = path.join(videosFolder, nomeArquivoMp4);
 
-    console.log(`⏳ Convertendo vídeo de .webm para .mp4... Aguarde.`);
+    const finalizarSalvarVideo = (arquivoFinalNome, caminhoFinalMp4) => {
+        db.run(
+            "INSERT INTO videos (client_id, order_code, filename, description) VALUES (?, ?, ?, ?)",
+            [client_id, order_code, arquivoFinalNome, description],
+            function(err) {
+                if (err) return res.status(500).json({ success: false, msg: "Erro ao salvar no banco." });
 
-    ffmpeg(videoOriginalWebm)
-        .outputOptions([
-            '-preset ultrafast', // Otimizado para não estourar o limite do Render
-            '-c:v libx264',     
-            '-c:a aac'          
-        ])
-        .save(videoConvertidoMp4)
-        .on('end', () => {
-            console.log(`✅ Vídeo convertido com sucesso para MP4!`);
+                if (typeof enviarNotificacaoNaTela === 'function') {
+                    enviarNotificacaoNaTela(client_id, "🎥 Novo Vídeo Disponível!", "Acabamos de subir um vídeo mostrando os detalhes da sua encomenda.", "/dashboard-client.html");
+                }
 
-            // Remove o WebM temporário
-            fs.unlink(videoOriginalWebm, (err) => {
-                if (err) console.error("⚠️ Erro ao apagar .webm antigo:", err);
-            });
+                // Responde IMEDIATAMENTE ao painel para não travar a interface
+                res.json({ success: true, filename: arquivoFinalNome });
 
-            // Salva no Banco de Dados
-            db.run("INSERT INTO videos (client_id, order_code, filename, description) VALUES (?, ?, ?, ?)", 
-            [client_id, order_code, nomeArquivoMp4, description], function(err) {
-                if(err) return res.status(500).json({success: false, msg: "Erro ao salvar no banco."});
-                
-                console.log(`✅ Vídeo MP4 salvo no banco!`);
-                
-                // Notificação na plataforma
-                enviarNotificacaoNaTela(client_id, "🎥 Novo Vídeo Disponível!", "Acabamos de subir um vídeo mostrando os detalhes da sua encomenda.", "/dashboard-client.html");
-                
-                // Envio via API do Zap (Microserviço)
-                db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (err, user) => {
-                    if (err || !user || !user.phone) {
-                        return res.json({success: true, msg: "Vídeo salvo, mas cliente sem telefone."});
-                    }
-
+                // Envia pelo WhatsApp em segundo plano sem bloquear o servidor
+                db.get("SELECT name, phone FROM users WHERE id = ?", [client_id], async (errU, user) => {
+                    if (errU || !user || !user.phone) return;
                     try {
-                        let cleanPhone = user.phone.replace(/\D/g, '');
-                        const captionText = `Olá *${user.name.split(' ')[0]}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_${description || 'Vídeo do seu pacote'}_`;
-                        
-                        // Lê o vídeo convertido e envia via API do Zap
-                        if (fs.existsSync(videoConvertidoMp4)) {
-                            const videoBuffer = fs.readFileSync(videoConvertidoMp4);
-                            const arquivoBase64 = videoBuffer.toString('base64');
+                        let cleanPhone = String(user.phone).replace(/\D/g, '');
+                        if (cleanPhone.length === 10 || cleanPhone.length === 11) cleanPhone = '55' + cleanPhone;
+                        if (cleanPhone.length < 8) return;
 
-                            await fetch(`${ZAP_API_URL}/api/enviar`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${ZAP_SECRET}`
-                                },
-                                body: JSON.stringify({
-                                    numero: cleanPhone,
-                                    tipo: 'documento',
-                                    arquivoBase64: arquivoBase64,
-                                    fileName: nomeArquivoMp4,
-                                    mimetype: 'video/mp4',
-                                    legenda: captionText
-                                })
-                            });
-                            console.log(`✅ Vídeo enviado via Zap API para ${cleanPhone}`);
+                        const captionText = `Olá *${user.name.split(' ')[0]}*! 📦🎬\n\nSegue o vídeo da sua encomenda na *Guineexpress*:\n\n_${description || 'Vídeo de conferência'}_`;
+
+                        if (fs.existsSync(caminhoFinalMp4)) {
+                            const stats = fs.statSync(caminhoFinalMp4);
+                            if (stats.size <= 16 * 1024 * 1024) {
+                                const arquivoBase64 = fs.readFileSync(caminhoFinalMp4).toString('base64');
+                                await fetch(`${ZAP_API_URL}/api/enviar`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${ZAP_SECRET}`
+                                    },
+                                    body: JSON.stringify({
+                                        numero: cleanPhone,
+                                        tipo: 'documento',
+                                        arquivoBase64: arquivoBase64,
+                                        fileName: arquivoFinalNome,
+                                        mimetype: 'video/mp4',
+                                        legenda: captionText
+                                    })
+                                });
+                            }
                         }
                     } catch (zapErr) {
                         console.error("❌ Erro no envio do Zap de vídeo:", zapErr.message);
                     }
-                    
-                    res.json({success: true});
                 });
-            });
+            }
+        );
+    };
+
+    // Compressão leve otimizada para CPU/RAM do Render
+    ffmpeg(videoOriginal)
+        .outputOptions([
+            '-threads 1',
+            '-preset ultrafast',
+            '-crf 28',
+            '-vf scale=min(720\,iw):-2',
+            '-c:v libx264',
+            '-pix_fmt yuv420p',
+            '-c:a aac',
+            '-b:a 96k',
+            '-movflags +faststart'
+        ])
+        .save(videoConvertidoMp4)
+        .on('end', () => {
+            fs.unlink(videoOriginal, () => {});
+            finalizarSalvarVideo(nomeArquivoMp4, videoConvertidoMp4);
         })
         .on('error', (err) => {
-            console.error("❌ Erro na conversão do vídeo:", err);
-            res.status(500).json({success: false, msg: "Erro ao converter vídeo para MP4."});
+            console.error("⚠️ Fallback vídeo original (FFmpeg):", err.message);
+            // Fallback seguro: se o celular já enviou MP4 compatível, salva direto sem perder o vídeo
+            finalizarSalvarVideo(req.file.filename, videoOriginal);
         });
 });
 // 2. Listar Vídeos (COM LOTES CORRIGIDOS! 🚀)
@@ -2528,7 +2553,7 @@ app.post('/api/videos/delete', (req, res) => {
 
             // 4. Deleta o arquivo MP4 físico do servidor para não lotar o HD
             // * Ajuste "uploads/videos" se a sua pasta tiver outro nome (como "public/videos")
-            const videoPath = path.join(__dirname, 'uploads', 'videos', video.filename);
+            const videoPath = path.join(videosFolder, video.filename);
             
             fs.unlink(videoPath, (errFs) => {
                 if (errFs) {
@@ -3611,34 +3636,28 @@ app.post('/api/invoices/bulk-delete', (req, res) => {
 // 🗑️ ROTA: APAGAR ENCOMENDAS EM MASSA
 // ==========================================
 app.post('/api/orders/bulk-delete', (req, res) => {
-    // Segurança: só o admin pode apagar
-    if (!req.session || req.session.role !== 'admin') {
+    if (!req.session || !req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Acesso negado.' });
     }
 
-    const { ids } = req.body;
-    if (!ids || ids.length === 0) return res.json({ success: true });
+    const ids = (req.body.ids || []).map(x => Number(x)).filter(n => Number.isFinite(n) && n > 0);
+    if (ids.length === 0) {
+        return res.status(400).json({ success: false, message: 'Nenhuma encomenda selecionada.' });
+    }
 
-    let concluidos = 0;
-    let houveErro = false;
-
-    ids.forEach(id => {
-        // Usa o "deleted = 1" que já tínhamos configurado para proteger o banco!
-        db.run(`UPDATE orders SET deleted = 1 WHERE id = ?`, [id], (err) => {
+    const placeholders = ids.map(() => '?').join(',');
+    db.serialize(() => {
+        // Desvincula caixas associadas para evitar bloqueio de chave estrangeira e liberar o codigo
+        db.run(`UPDATE boxes SET order_id = NULL WHERE order_id IN (${placeholders})`, ids);
+        db.run(`DELETE FROM orders WHERE id IN (${placeholders})`, ids, function(err) {
             if (err) {
-                console.error(`Erro ao apagar encomenda ${id}:`, err);
-                houveErro = true;
+                console.error('Erro ao apagar encomendas em massa:', err);
+                return res.status(500).json({ success: false, message: 'Erro ao apagar encomendas.' });
             }
-            
-            concluidos++;
-            // Avisa quando terminar a última
-            if (concluidos === ids.length) {
-                if (houveErro) {
-                    res.json({ success: false, message: 'Erro ao apagar algumas encomendas.' });
-                } else {
-                    res.json({ success: true });
-                }
+            if (typeof logSystemAction === 'function') {
+                logSystemAction(req, 'Exclusão em Massa', `🗑️ Apagou ${this.changes} encomenda(s) definitivamente (IDs: ${ids.join(', ')})`);
             }
+            res.json({ success: true, deleted: this.changes });
         });
     });
 });
@@ -3648,8 +3667,8 @@ app.post('/api/orders/bulk-delete', (req, res) => {
 
 // Função que executa a cópia do arquivo
 function performBackup() {
-    const backupDir = './backups';
-    const dbFile = './guineexpress_v4.db';
+    const backupDir = backupsPath;
+    const dbFile = dbPath;
     
     // 1. Cria a pasta 'backups' se não existir
     if (!fs.existsSync(backupDir)){
@@ -3797,22 +3816,34 @@ app.get('/api/orders/by-client/:clientId', (req, res) => {
 // ==========================================================
 // 🌟 ROTA POST: ATUALIZAÇÃO EM MASSA (BLINDADA)
 // ==========================================================
+const recentBulkDispatches = new Map();
+
 app.post('/api/orders/bulk-update-status', express.json(), (req, res) => {
     try {
-        console.log("🚨 [SISTEMA] Pedido de alteração em massa recebido:", req.body);
-
         if (!req.session || !req.session.userId || req.session.role === 'client') {
             return res.status(403).json({ success: false, message: "Acesso Negado." });
         }
 
-        const ids = req.body.ids || req.body.orderIds;
-        const status = req.body.status;
+        const rawIds = req.body.ids || req.body.orderIds || [];
+        const ids = [...new Set(rawIds.map(x => Number(x)).filter(n => Number.isFinite(n) && n > 0))];
+        const status = (req.body.status || '').trim();
 
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        if (ids.length === 0) {
             return res.status(400).json({ success: false, message: "Nenhum ID fornecido." });
         }
         if (!status) {
             return res.status(400).json({ success: false, message: "Status não fornecido." });
+        }
+
+        // Trava anti-duplo-clique (30 segundos)
+        const dispatchKey = `${status}:${ids.slice().sort((a,b)=>a-b).join(',')}`;
+        const now = Date.now();
+        if (recentBulkDispatches.has(dispatchKey) && (now - recentBulkDispatches.get(dispatchKey)) < 30000) {
+            return res.json({ success: true, updated: ids.length, message: "Atualização já processada." });
+        }
+        recentBulkDispatches.set(dispatchKey, now);
+        for (const [k, ts] of recentBulkDispatches.entries()) {
+            if (now - ts > 60000) recentBulkDispatches.delete(k);
         }
 
         const placeholders = ids.map(() => '?').join(',');
@@ -3825,58 +3856,64 @@ app.post('/api/orders/bulk-update-status', express.json(), (req, res) => {
             }
 
             const updatedCount = this.changes || ids.length;
-
-            // Responde Sucesso Imediatamente para destravar o painel
             res.json({ success: true, updated: updatedCount, message: "Atualizado com sucesso" });
 
-            // Executa envios de mensagens em segundo plano
             setTimeout(() => {
-                try {
-                    const sqlSelect = `
-                        SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
-                        FROM orders o
-                        JOIN users u ON o.client_id = u.id
-                        WHERE o.id IN (${placeholders})
-                    `;
+                const sqlSelect = `
+                    SELECT DISTINCT o.id, o.code, o.description, u.id as client_id, u.name, u.phone
+                    FROM orders o
+                    JOIN users u ON o.client_id = u.id
+                    WHERE o.id IN (${placeholders})
+                `;
 
-                    db.all(sqlSelect, ids, (errSel, rows) => {
-                        if (errSel || !rows) return;
+                db.all(sqlSelect, ids, (errSel, rows) => {
+                    if (errSel || !rows || rows.length === 0) return;
 
-                        for (const row of rows) {
-                            try {
-                                const desc = row.description || 'Sua encomenda';
-                                
-                                // Notificação no Painel
-                                db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)",
-                                    [row.client_id, "Atualização de Encomenda", `Sua encomenda ${row.code} mudou para: ${status}`], () => {});
+                    // Agrupa encomendas por cliente/telefone para enviar UMA unica mensagem por cliente
+                    const porCliente = new Map();
 
-                                // Inserção na Fila do WhatsApp
-                                if (row.phone) {
-                                    let cleanPhone = String(row.phone).replace(/\D/g, '');
-                                    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-                                        cleanPhone = '55' + cleanPhone;
-                                    }
+                    for (const row of rows) {
+                        const tituloAviso = "Atualização de Encomenda";
+                        const msgAviso = `Sua encomenda ${row.code} mudou para: ${status}`;
+                        db.run("INSERT INTO notifications (client_id, title, message, is_read) VALUES (?, ?, ?, 0)",
+                            [row.client_id, tituloAviso, msgAviso], () => {});
 
-                                    if (cleanPhone.length >= 8) {
-                                        const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-
-                                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", 
-                                            [cleanPhone, zapMsg], (errZap) => {
-                                                if (errZap) {
-                                                    db.run("INSERT INTO zap_queue (numero, mensagem) VALUES (?, ?)", [cleanPhone, zapMsg], () => {});
-                                                }
-                                            }
-                                        );
-                                    }
-                                }
-                            } catch (eSub) {
-                                console.error("⚠️ Erro individual de notificação:", eSub);
-                            }
+                        if (typeof enviarNotificacaoNaTela === 'function') {
+                            enviarNotificacaoNaTela(row.client_id, tituloAviso, msgAviso, "/dashboard-client.html");
                         }
-                    });
-                } catch (eBg) {
-                    console.error("⚠️ Erro em segundo plano:", eBg);
-                }
+
+                        if (!row.phone) continue;
+                        let cleanPhone = String(row.phone).replace(/\D/g, '');
+                        if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+                            cleanPhone = '55' + cleanPhone;
+                        }
+                        if (cleanPhone.length < 8) continue;
+
+                        if (!porCliente.has(cleanPhone)) {
+                            porCliente.set(cleanPhone, {
+                                name: row.name || 'Cliente',
+                                items: []
+                            });
+                        }
+                        porCliente.get(cleanPhone).items.push({
+                            code: row.code,
+                            desc: row.description || 'Encomenda'
+                        });
+                    }
+
+                    for (const [cleanPhone, info] of porCliente.entries()) {
+                        let zapMsg = '';
+                        if (info.items.length === 1) {
+                            const it = info.items[0];
+                            zapMsg = `Olá, *${info.name}*! 👋\n\nAtualização da *Guineexpress* para o seu envio (*${it.desc}* / Código: *${it.code}*):\n\n📍 Novo status: *${status}*`;
+                        } else {
+                            const listaCodigos = info.items.map(it => `• *${it.code}* (${it.desc})`).join('\n');
+                            zapMsg = `Olá, *${info.name}*! 👋\n\nAtualização da *Guineexpress* para as suas *${info.items.length} encomendas*:\n${listaCodigos}\n\n📍 Novo status: *${status}*`;
+                        }
+
+                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", [cleanPhone, zapMsg]);
+                    }
+                });
             }, 100);
         });
     } catch (eMain) {
@@ -3887,23 +3924,24 @@ app.post('/api/orders/bulk-update-status', express.json(), (req, res) => {
     }
 });
 app.delete('/api/orders/:id', (req, res) => {
-    if (!req.session.userId || req.session.role === 'client') {
+    if (!req.session || !req.session.userId || req.session.role === 'client') {
         return res.status(403).json({ success: false, message: 'Sem permissão' });
     }
 
-    const id = req.params.id;
+    const id = Number(req.params.id);
     db.get("SELECT code FROM orders WHERE id = ?", [id], (err, row) => {
         const orderCode = row ? row.code : 'Desconhecido';
-
-        // MÁGICA: Em vez de atualizar, nós APAGAMOS o registro de verdade!
-        // Isso libera o código no banco de dados automaticamente.
-        db.run("DELETE FROM orders WHERE id = ?", [id], function(err) {
-            if (err) return res.json({ success: false, message: "Erro ao excluir." });
-
-            const reason = `🗑️ Apagou Definitivamente a Encomenda: ${orderCode} (ID: ${id})`;
-            if (typeof logSystemAction === 'function') logSystemAction(req, 'Exclusão de Encomenda', reason);
-
-            res.json({ success: true });
+        db.serialize(() => {
+            db.run("UPDATE boxes SET order_id = NULL WHERE order_id = ?", [id]);
+            db.run("DELETE FROM orders WHERE id = ?", [id], function(errDel) {
+                if (errDel) {
+                    console.error("Erro ao excluir encomenda:", errDel);
+                    return res.json({ success: false, message: "Erro ao excluir." });
+                }
+                const reason = `🗑️ Apagou Definitivamente a Encomenda: ${orderCode} (ID: ${id})`;
+                if (typeof logSystemAction === 'function') logSystemAction(req, 'Exclusão de Encomenda', reason);
+                res.json({ success: true });
+            });
         });
     });
 });
@@ -4172,6 +4210,9 @@ app.post('/api/cici/chat', async (req, res) => {
                         db.get("SELECT id, deleted FROM orders WHERE LOWER(code) = LOWER(?)", [cleanCode], (err, existingOrder) => {
                             if (err) return resolve({ erro: err.message });
                             
+                            if (existingOrder && existingOrder.deleted === 1) {
+                                db.run("DELETE FROM orders WHERE id = ?", [existingOrder.id]);
+                            }
                             // Se existir e estiver ativo (deleted != 1), bloqueia
                             if (existingOrder && existingOrder.deleted !== 1) {
                                 return resolve({ erro: `O código "${cleanCode}" já existe no sistema! Peça outro código.` });
@@ -4694,75 +4735,7 @@ app.delete('/api/client/me', (req, res) => {
 // ==============================================================
 // 🌟 ROTA DE ATUALIZAÇÃO EM MASSA DE STATUS (INTEGRADA COM ZAP QUEUE)
 // ==============================================================
-app.post('/api/orders/bulk-update-status', (req, res) => {
-    if (!req.session.userId || req.session.role === 'client') {
-        return res.status(403).json({ success: false, message: "Acesso Negado." });
-    }
-
-    const { ids, status } = req.body;
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ success: false, message: "Nenhum ID fornecido." });
-    }
-
-    const placeholders = ids.map(() => '?').join(',');
-    const sqlUpdate = `UPDATE orders SET status = ? WHERE id IN (${placeholders})`;
-
-    db.run(sqlUpdate, [status, ...ids], function(err) {
-        if (err) {
-            console.error("❌ Erro BD Ação em Massa:", err);
-            return res.status(500).json({ success: false, message: "Erro no banco de dados." });
-        }
-
-        const updatedCount = this.changes;
-        console.log(`\n✅ [AÇÃO EM MASSA] ${updatedCount} encomendas alteradas para '${status}'`);
-
-        // Responde rápido para a interface do painel
-        res.json({ success: true, updated: updatedCount });
-
-        // Busca os clientes afetados para notificar
-        const sqlSelect = `
-            SELECT o.code, o.description, u.id as client_id, u.name, u.phone 
-            FROM orders o
-            JOIN users u ON o.client_id = u.id
-            WHERE o.id IN (${placeholders})
-        `;
-
-        db.all(sqlSelect, ids, (err, rows) => {
-            if (err || !rows) return console.error("Erro ao buscar clientes em massa:", err);
-
-            for (const row of rows) {
-                const desc = row.description ? row.description : 'Sua encomenda';
-
-                // 1. Notificação interna do painel
-                const tituloAviso = "Atualização de Encomenda";
-                const msgAviso = `Sua encomenda ${row.code} mudou para: ${status}`;
-                db.run("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)", 
-                    [row.client_id, tituloAviso, msgAviso]);
-
-                if (typeof enviarNotificacaoNaTela === 'function') {
-                    enviarNotificacaoNaTela(row.client_id, tituloAviso, msgAviso, "/dashboard-client.html");
-                }
-
-                // 2. Coloca a mensagem na Fila do WhatsApp
-                if (row.phone) {
-                    let cleanPhone = row.phone.replace(/\D/g, '');
-                    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-                        cleanPhone = '55' + cleanPhone;
-                    }
-
-                    if (cleanPhone.length >= 8) {
-                        const zapMsg = `Olá, *${row.name}*! 👋\n\nUma atualização importante na Guineexpress para o seu envio (*${desc}* / Código: *${row.code}*).\n\n📦 *Novo Status:* ${status}\n\nAcesse o seu painel agora para acompanhar:\n\n🔗 https://guineexpress-f6ab.onrender.com/`;
-
-                        db.run("INSERT INTO zap_queue (numero, tipo, conteudo) VALUES (?, 'text', ?)", 
-                            [cleanPhone, zapMsg]);
-                    }
-                }
-            }
-            console.log(`🚀 [AÇÃO EM MASSA] ${rows.length} mensagens inseridas na fila do WhatsApp com sucesso!`);
-        });
-    });
-});
+// [ROTA DUPLICADA REMOVIDA]
 // ==========================================
 // ROTA: ENTREGAR OS AVISOS DA CICÍ PARA O LELO
 // ==========================================
@@ -5008,7 +4981,7 @@ app.delete('/api/videos/:id', (req, res) => {
             }
 
             // 3. Apagamos o arquivo de vídeo real da pasta
-            const videoPath = path.join(__dirname, 'uploads/videos', row.filename);
+            const videoPath = path.join(videosFolder, row.filename);
             
             try {
                 if (fs.existsSync(videoPath)) {

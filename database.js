@@ -39,6 +39,18 @@ function addColumn(table, column, definition) {
 db.serialize(() => {
     console.log("🔄 Verificando e atualizando estrutura do banco...");
 
+
+    // Garante colunas essenciais e indices para velocidade no Render
+    addColumn('orders', 'deleted', 'INTEGER DEFAULT 0');
+    addColumn('orders', 'lote', "TEXT DEFAULT 'Sem Lote'");
+    db.run("DELETE FROM orders WHERE deleted = 1");
+    db.run("CREATE INDEX IF NOT EXISTS idx_orders_deleted_id ON orders(deleted, id DESC)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_orders_client_id ON orders(client_id)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_orders_code ON orders(code)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_boxes_order_id ON boxes(order_id)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_invoices_box_id ON invoices(box_id)");
+    db.run("CREATE INDEX IF NOT EXISTS idx_videos_client_id ON videos(client_id)");
+
     // --- TABELAS BASE ---
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

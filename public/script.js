@@ -2155,10 +2155,11 @@ function closeFullscreenCamera() {
         video.srcObject = null;
     }
 
-    // Reseta variaveis globais
-    recordedBlob = null;
+    // Reseta variaveis globais corretamente
+    currentBlob = null;
     mediaRecorder = null;
-    chunks = [];
+    recordedChunks = [];
+    if (typeof recInterval !== 'undefined') clearInterval(recInterval);
 
     // Reseta visual dos botões (UI) com segurança
     const recordUI = document.getElementById('record-ui');
@@ -2231,80 +2232,92 @@ let recInterval;
 let recSeconds = 0;
 
 // 5. Gravação
+let recordedMimeType = 'video/webm';
+
 function startRecording() {
+    if (!currentStream) {
+        return alert("⚠️ A câmera ainda não está pronta. Aguarde um segundo e tente novamente.");
+    }
     recordedChunks = [];
-    
-    // Tenta codecs melhores para celular
-    let options = { mimeType: 'video/webm;codecs=vp8' };
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/webm' }; // Fallback
+
+    const candidateTypes = [
+        'video/mp4;codecs=avc1,mp4a.40.2',
+        'video/mp4',
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp8',
+        'video/webm'
+    ];
+
+    let chosenType = '';
+    if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+        for (const t of candidateTypes) {
+            if (MediaRecorder.isTypeSupported(t)) {
+                chosenType = t;
+                break;
+            }
+        }
     }
 
     try {
-        mediaRecorder = new MediaRecorder(currentStream, options);
-    } catch(e) {
+        mediaRecorder = chosenType ? new MediaRecorder(currentStream, { mimeType: chosenType }) : new MediaRecorder(currentStream);
+        recordedMimeType = mediaRecorder.mimeType || chosenType || 'video/webm';
+    } catch (e) {
         mediaRecorder = new MediaRecorder(currentStream);
+        recordedMimeType = mediaRecorder.mimeType || 'video/webm';
     }
 
     mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) recordedChunks.push(event.data);
+        if (event.data && event.data.size > 0) recordedChunks.push(event.data);
     };
 
     mediaRecorder.onstop = () => {
-        currentBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        const finalType = recordedMimeType || 'video/webm';
+        currentBlob = new Blob(recordedChunks, { type: finalType });
         const videoURL = URL.createObjectURL(currentBlob);
-        
+
         const previewEl = document.getElementById('video-preview');
         previewEl.src = videoURL;
-        
-        // Troca visualização: Câmera -> Preview Gravado
+        previewEl.load();
+
         document.getElementById('camera-feed').style.display = 'none';
         previewEl.style.display = 'block';
-        
-        // Troca botões: Gravar -> Enviar
+
         document.getElementById('record-ui').classList.add('hidden');
         document.getElementById('upload-ui').classList.remove('hidden');
-        
-        previewEl.play(); // Toca o vídeo automaticamente pra conferir
     };
 
-    mediaRecorder.start();
+    // Grava em fatias de 1s para não estourar memória do celular
+    mediaRecorder.start(1000);
 
-    // ==========================================
-    // MOTOR DO CRONÔMETRO (NOVO)
-    // ==========================================
     const timerEl = document.getElementById('recording-timer');
-    timerEl.classList.remove('hidden'); // Mostra o relógio
-    recSeconds = 0; // Zera os segundos
-    timerEl.innerText = "00:00"; // Zera o texto na tela
+    if (timerEl) {
+        timerEl.classList.remove('hidden');
+        recSeconds = 0;
+        timerEl.innerText = "00:00";
+    }
 
-    // Limpa qualquer timer travado antes de começar
-    if(typeof recInterval !== 'undefined') clearInterval(recInterval);
+    if (typeof recInterval !== 'undefined') clearInterval(recInterval);
 
-    // Faz o relógio rodar a cada 1 segundo (1000 milissegundos)
     recInterval = setInterval(() => {
-        recSeconds++; // Soma 1 segundo
-        // Formata para ficar 00:00 (com zero à esquerda)
+        recSeconds++;
         let m = Math.floor(recSeconds / 60).toString().padStart(2, '0');
         let s = (recSeconds % 60).toString().padStart(2, '0');
-        timerEl.innerText = `${m}:${s}`; // Atualiza a tela
+        if (timerEl) timerEl.innerText = `${m}:${s}`;
     }, 1000);
 
-    // UI de gravando
     document.getElementById('btn-start-rec').classList.add('hidden');
     document.getElementById('btn-stop-rec').classList.remove('hidden');
 }
 
 function stopRecording() {
-    mediaRecorder.stop();
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
     document.getElementById('btn-start-rec').classList.remove('hidden');
     document.getElementById('btn-stop-rec').classList.add('hidden');
     document.getElementById('recording-timer').classList.add('hidden');
-    
-    // ==========================================
-    // PARA O MOTOR DO CRONÔMETRO
-    // ==========================================
-    if(typeof recInterval !== 'undefined') {
+
+    if (typeof recInterval !== 'undefined') {
         clearInterval(recInterval);
     }
 }
@@ -2515,7 +2528,8 @@ async function confirmUpload() {
     formData.append('client_id', clientId);
     formData.append('order_code', orderCode); // ENVIANDO O CÓDIGO PRO SERVIDOR 🚀
     formData.append('description', descText);
-    formData.append('video', currentBlob, `rec-${Date.now()}.webm`);
+    const videoExt = (currentBlob.type && currentBlob.type.includes('mp4')) ? 'mp4' : 'webm';
+    formData.append('video', currentBlob, `rec-${Date.now()}.${videoExt}`);
 
     // 3. Feedback Visual (Bloqueia botão)
     let btn = document.getElementById('btn-confirm-upload'); // Tente usar ID fixo se possível
@@ -4843,24 +4857,7 @@ async function editOrder(id) {
         alert('Erro ao carregar dados.');
     }
 }
-// 3. Função EXCLUIR
-async function deleteOrder(id) {
-    if (!confirm("⚠️ Tem certeza que deseja EXCLUIR esta encomenda?")) return;
-
-    try {
-        const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
-        const data = await res.json();
-
-        if (data.success) {
-            alert("✅ Excluído com sucesso!");
-            loadOrders(); // Recarrega a tabela
-        } else {
-            alert("Erro ao excluir.");
-        }
-    } catch (error) {
-        alert("Erro de conexão.");
-    }
-}
+// [deleteOrder duplicada removida]
 
 // 3. Salva a Encomenda (Detecta se é Nova ou Edição)
 async function handleOrderSubmit(event) {
@@ -7079,7 +7076,7 @@ async function applyBulkStatus() {
 
     // Feedback visual no botão
     const btnAplicar = document.querySelector('#bulk-action-container button');
-    if (btnAplicar) btnAplicar.innerText = "Atualizando...";
+    if (btnAplicar) { btnAplicar.disabled = true; btnAplicar.innerText = "Atualizando..."; }
 
     try {
         const response = await fetch('/api/orders/bulk-update-status', {
@@ -7116,7 +7113,7 @@ async function applyBulkStatus() {
         console.error("Erro na atualização em massa:", error);
         alert("Erro de comunicação: " + error.message);
     } finally {
-        if (btnAplicar) btnAplicar.innerText = "Aplicar";
+        if (btnAplicar) { btnAplicar.disabled = false; btnAplicar.innerText = "Aplicar"; }
     }
 }
 // Alternar entre CNPJ e E-mail (BLINDADA 🛡️)
@@ -10619,22 +10616,16 @@ async function apagarFaturasSelecionadas() {
 // 🗑️ APAGAR ENCOMENDAS EM MASSA
 // ========================================================
 async function apagarEncomendasSelecionadas() {
-    // Pega todas as caixinhas marcadas dentro da tabela de encomendas
-    const marcados = document.querySelectorAll('#orders-list input[type="checkbox"]:checked');
-    
-    if (marcados.length === 0) {
+    const marcados = document.querySelectorAll('.order-checkbox:checked, #orders-list input[type="checkbox"]:checked');
+    const idsParaApagar = [...new Set(Array.from(marcados).map(cb => Number(cb.value)).filter(n => n > 0))];
+
+    if (idsParaApagar.length === 0) {
         return alert("⚠️ Selecione pelo menos uma encomenda para apagar.");
     }
 
-    if (!confirm(`Tem a certeza que deseja APAGAR (ocultar) estas ${marcados.length} encomendas selecionadas?`)) {
+    if (!confirm(`Tem certeza que deseja APAGAR DEFINITIVAMENTE estas ${idsParaApagar.length} encomendas? Os códigos ficarão livres para reutilização.`)) {
         return;
     }
-
-    // Pega o ID de cada encomenda
-    const idsParaApagar = [];
-    marcados.forEach(checkbox => {
-        idsParaApagar.push(checkbox.value);
-    });
 
     try {
         const res = await fetch('/api/orders/bulk-delete', {
@@ -10642,20 +10633,19 @@ async function apagarEncomendasSelecionadas() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: idsParaApagar })
         });
-        
+
         const data = await res.json();
-        
+
         if (data.success) {
-            alert("✅ Encomendas apagadas com sucesso!");
-            
-            // Reseta as marcações
+            alert("✅ Encomendas apagadas com sucesso! Os códigos já podem ser reutilizados.");
             window.estadoSelecaoEncomendas = false;
             const chkMaster = document.getElementById('selectAllOrders');
             if (chkMaster) chkMaster.checked = false;
-            
-            loadOrders(); // Recarrega a tabela de encomendas
+            const bulkBar = document.getElementById('bulk-action-container');
+            if (bulkBar) bulkBar.style.display = 'none';
+            loadOrders();
         } else {
-            alert("Erro ao apagar: " + data.message);
+            alert("Erro ao apagar: " + (data.message || "Falha no servidor."));
         }
     } catch (e) {
         console.error(e);
