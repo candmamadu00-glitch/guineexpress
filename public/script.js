@@ -6237,7 +6237,17 @@ async function loadInvoices() {
         }
         // ==========================================
 
+        if (!Array.isArray(list)) {
+            tbodyReview.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888;">Nenhuma fatura encontrada.</td></tr>';
+            tbodyPending.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888;">Nenhuma fatura pendente.</td></tr>';
+            tbodyPaid.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#888;">Nenhuma fatura paga.</td></tr>';
+            return;
+        }
+
         let countReview = 0, countPending = 0, countPaid = 0;
+        const rowsPaid = [];
+        const rowsReview = [];
+        const rowsPending = [];
 
         list.forEach(inv => {
             // MÁGICA DO FREIO: Se não for do lote escolhido, pula e esconde! 🚀
@@ -6293,23 +6303,23 @@ async function loadInvoices() {
                     dataFormatada = dataBanco.toLocaleDateString('pt-BR');
                 }
 
-                tbodyPaid.innerHTML += `
+                rowsPaid.push(`
                     <tr style="border-bottom: 1px solid #eee;">
                         ${baseRowHTML}
                         <td style="color:#555; font-weight:bold;">${dataFormatada}</td>
                         <td>${statusHtml}</td>
                         <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
-                    </tr>`;
+                    </tr>`);
                 countPaid++;
             } 
             else if(inv.status === 'in_review') {
                 statusHtml = '<span style="background-color:blue; color:white; padding:2px 5px; border-radius:4px; font-weight:bold;">👀 Em Análise</span>';
-                tbodyReview.innerHTML += `
+                rowsReview.push(`
                     <tr style="border-bottom: 1px solid #eee;">
                         ${baseRowHTML}
                         <td>${statusHtml}</td>
                         <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
-                    </tr>`;
+                    </tr>`);
                 countReview++;
             } 
             else {
@@ -6317,20 +6327,26 @@ async function loadInvoices() {
                     ? '<span style="color:orange; font-weight:bold;">⏳ Pendente</span>' 
                     : '<span style="color:red;">Cancelado</span>';
                 
-                tbodyPending.innerHTML += `
+                rowsPending.push(`
                     <tr style="border-bottom: 1px solid #eee;">
                         ${baseRowHTML}
                         <td>${statusHtml}</td>
                         <td><div style="display:flex; gap:5px; align-items:center;">${actionButtons} ${deleteBtn}</div></td>
-                    </tr>`;
+                    </tr>`);
                 countPending++;
             }
         });
 
-        // Mensagens caso alguma fila esteja vazia (atualizado colspan)
-        if (countReview === 0) tbodyReview.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888;">Nenhuma fatura em análise.</td></tr>';
-        if (countPending === 0) tbodyPending.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888;">Nenhum cliente com pagamento pendente.</td></tr>';
-        if (countPaid === 0) tbodyPaid.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#888;">Nenhuma fatura paga ainda.</td></tr>';
+        // Injeta todas as linhas de uma so vez no DOM (instantaneo, sem travar a aba)
+        tbodyReview.innerHTML = countReview > 0
+            ? rowsReview.join('')
+            : '<tr><td colspan="7" style="text-align:center; color:#888;">Nenhuma fatura em análise.</td></tr>';
+        tbodyPending.innerHTML = countPending > 0
+            ? rowsPending.join('')
+            : '<tr><td colspan="7" style="text-align:center; color:#888;">Nenhum cliente com pagamento pendente.</td></tr>';
+        tbodyPaid.innerHTML = countPaid > 0
+            ? rowsPaid.join('')
+            : '<tr><td colspan="8" style="text-align:center; color:#888;">Nenhuma fatura paga ainda.</td></tr>';
 
     } catch (err) {
         console.error("Erro ao carregar faturas:", err);

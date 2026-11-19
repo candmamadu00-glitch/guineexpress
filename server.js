@@ -102,7 +102,7 @@ app.use(helmet({
 // ==========================================
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 300,
+    max: 1500,
     message: { success: false, msg: "⚠️ Muitas requisições. Sistema de segurança ativado. Aguarde alguns minutos." }
 });
 app.use(generalLimiter);
@@ -2758,7 +2758,7 @@ app.post('/api/invoices/:id/force-pay', (req, res) => {
 app.get('/api/invoices/list', (req, res) => {
     const sql = `
         SELECT 
-            invoices.*,
+            invoices.id, invoices.client_id, invoices.box_id, invoices.amount, invoices.description, invoices.status, invoices.mp_payment_id, invoices.payment_link, invoices.nf_amount, invoices.freight_amount, invoices.receipt_url, invoices.created_at,
             users.name as client_name,
             boxes.box_code,
             -- 🚀 A MÁGICA: Ele puxa o texto do Lote que você salvou direto na Caixa, ou da Encomenda!
@@ -2790,6 +2790,7 @@ app.get('/api/invoices/list', (req, res) => {
 // 1. Atualiza a tabela de faturas para suportar a foto do comprovativo
 // Ele tenta adicionar a coluna. Se já existir, ele ignora silenciosamente.
 db.run("ALTER TABLE invoices ADD COLUMN receipt_url TEXT", (err) => { /* ignora erro se já existir */ });
+db.run("CREATE INDEX IF NOT EXISTS idx_invoices_status_amount ON invoices(status, amount)");
 
 
 // ==========================================

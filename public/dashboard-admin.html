@@ -1802,59 +1802,52 @@
 <script>
 // Função que trava a geração da fatura se o valor for repetido
 async function verificarConflitoDeValor(event) {
-    event.preventDefault(); // Impede o envio imediato
+    event.preventDefault();
 
-    // Pega o valor total que foi calculado na tela
     const valorTotal = document.getElementById('bill-amount').value;
+    if (!valorTotal || parseFloat(valorTotal) <= 0) return;
 
-    if (!valorTotal || valorTotal <= 0) return;
+    const form = event.target;
+    const btnSubmit = form.querySelector('button[type="submit"]');
+    const textoOriginal = btnSubmit ? btnSubmit.innerHTML : '';
+    if (btnSubmit) {
+        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+        btnSubmit.disabled = true;
+    }
 
-    // Muda o botão para mostrar que está pensando...
-    const btnSubmit = event.target.querySelector('button[type="submit"]');
-    const textoOriginal = btnSubmit.innerHTML;
-    btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
-    btnSubmit.disabled = true;
-
+    let temConflito = false;
     try {
-        // Pergunta ao servidor (Render) se já tem alguém devendo esse valor
-        const resposta = await fetch(`/api/invoices/check_amount?amount=${valorTotal}`);
-        const dados = await resposta.json();
-
-        if (dados.conflito) {
-            // 🚨 ALERTA VERMELHO DISPARADO! 🚨
-            alert(`⚠️ ALERTA DA CICÍ!\n\nJá existe uma fatura PENDENTE com o valor exato de R$ ${valorTotal}.\n\nPara a baixa automática do Pix funcionar, adicione ou remova alguns centavos na Nota Fiscal (Exemplo: altere para R$ ${valorTotal}1).`);
-            
-            // Pinta as caixas de vermelho para chamar a atenção
-            document.getElementById('bill-amount').style.color = "red";
-            document.getElementById('bill-nf-amount').style.borderColor = "red";
-            document.getElementById('bill-nf-amount').focus();
-            
-            // Devolve o botão ao normal
-            btnSubmit.innerHTML = textoOriginal;
-            btnSubmit.disabled = false;
-        } else {
-            // ✅ TUDO LIMPO! Restaura o layout e chama a sua função original para criar a fatura
-            document.getElementById('bill-amount').style.color = "#d32f2f";
-            document.getElementById('bill-nf-amount').style.borderColor = "#ccc";
-            
-            // Chama a função que você já tinha no sistema para salvar no banco!
-            createInvoice(event);
-            
-            // Devolve o botão ao normal após um tempinho
-            setTimeout(() => {
-                btnSubmit.innerHTML = textoOriginal;
-                btnSubmit.disabled = false;
-            }, 2000);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        const resposta = await fetch(`/api/invoices/check_amount?amount=${encodeURIComponent(valorTotal)}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (resposta.ok) {
+            const dados = await resposta.json();
+            temConflito = !!dados.conflito;
         }
     } catch (erro) {
-        console.error("Erro ao verificar valor com a Cicí:", erro);
-        // Se a internet falhar, ele cria a fatura mesmo assim para não travar o trabalho
-        createInvoice(event);
-        btnSubmit.innerHTML = textoOriginal;
-        btnSubmit.disabled = false;
+        console.warn("Verificação rápida ignorada (timeout/rede):", erro);
+    } finally {
+        if (btnSubmit) {
+            btnSubmit.innerHTML = textoOriginal;
+            btnSubmit.disabled = false;
+        }
     }
-}
 
+    if (temConflito) {
+        alert(`⚠️ ALERTA DA CICÍ!\n\nJá existe uma fatura PENDENTE com o valor exato de R$ ${valorTotal}.\n\nPara a baixa automática do Pix funcionar, altere alguns centavos na Nota Fiscal.`);
+        document.getElementById('bill-amount').style.color = "red";
+        document.getElementById('bill-nf-amount').style.borderColor = "red";
+        document.getElementById('bill-nf-amount').focus();
+        return;
+    }
+
+    document.getElementById('bill-amount').style.color = "#d32f2f";
+    document.getElementById('bill-nf-amount').style.borderColor = "#ccc";
+    await createInvoice(event);
+}
 </script>
 <script src="script.js?v=5.0"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
