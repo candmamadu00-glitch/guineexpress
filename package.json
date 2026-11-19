@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "npx puppeteer browsers install chrome && npx javascript-obfuscator server.js --output server.js --compact true --self-defending true"
+    "build": "echo Build concluido"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

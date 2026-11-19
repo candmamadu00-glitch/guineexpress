@@ -55,7 +55,14 @@ process.on('unhandledRejection', (reason) => {
     console.error('🚨 [SISTEMA] Promessa rejeitada evitada:', reason);
 });
 app.use(xss());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: '1h',
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+        }
+    }
+}));
 // 🛡️ 1. PROTEÇÃO CORS (Bloqueia sites de terceiros acessando sua API)
 app.use(cors({
     // CORRETO:
@@ -535,15 +542,15 @@ const payment = new Payment(client);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static('public'));
+// static ja configurado no topo
 
 // SESSÕES (CONFIGURAÇÃO PARA RENDER)
 app.set('trust proxy', 1);
 
 app.use(session({
     store: new SQLiteStore({
-        db: 'guineexpress_v4.db',
-        dir: discoPermanente // 🚀 Corrigido para a variável definida no topo
+        db: 'sessions.db',
+        dir: discoPermanente
     }),
     secret: process.env.SESSION_SECRET || 'chave_ultra_secreta_guine_express_2026',
     resave: false,

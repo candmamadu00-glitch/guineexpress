@@ -1,67 +1,50 @@
-const CACHE_NAME = 'guineexpress-v2';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/dashboard-client.html',
-  '/dashboard-employee.html',
-  '/dashboard-admin.html',
-  '/style.css',
-  '/cici.css',
-  '/script.js',
-  '/cici.js',
-  '/logo.png'
-];
+const CACHE_NAME = 'guineexpress-v3';
+const ASSETS = ['/logo.png', '/style.css', '/cici.css'];
 
-// --- LÓGICA DE CACHE (Já existia) ---
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).catch(() => {})
   );
 });
 
-// --- LÓGICA DE CACHE BLINDADA PARA XIAOMI E ANDROID ---
-self.addEventListener('fetch', event => {
-    event.respondWith(
-        fetch(event.request)
-            .catch(() => {
-                return caches.match(event.request).then(response => {
-                    // 1. Se achou no cache, retorna o arquivo salvo
-                    if (response) {
-                        return response;
-                    }
-                    // 2. Se for uma requisição de página, joga para o Início
-                    if (event.request.mode === 'navigate') {
-                        return caches.match('/index.html');
-                    }
-                    // 3. SE NÃO ACHAR NADA, cria uma resposta "falsa" para não travar o app
-                    return new Response('', { status: 404, statusText: 'Not Found' });
-                });
-            })
-    );
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
 });
-// --- NOVO: LÓGICA DE NOTIFICAÇÃO PUSH (Estilo Shein) ---
-self.addEventListener('push', function(event) {
-    let data = {};
-    if (event.data) {
-        data = event.data.json();
-    }
 
-    const options = {
-        body: data.body || 'Novidade na Guineexpress!',
-        icon: data.icon || '/logo.png', // Ícone da sua empresa
-        badge: data.badge || '/logo.png', // Ícone pequeno da barra
-        vibrate: [200, 100, 200],
-        data: { url: data.url || '/dashboard-client.html' } 
-    };
-
-    event.waitUntil(
-        self.registration.showNotification(data.title || 'Guineexpress', options)
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/')) return;
+  if (ASSETS.includes(url.pathname)) {
+    event.respondWith(
+      caches.match(event.request).then(cached => cached || fetch(event.request))
     );
+  }
+});
+
+self.addEventListener('push', function(event) {
+  let data = {};
+  if (event.data) {
+    try { data = event.data.json(); } catch (e) {}
+  }
+  const options = {
+    body: data.body || 'Novidade na Guineexpress!',
+    icon: data.icon || '/logo.png',
+    badge: data.badge || '/logo.png',
+    vibrate: [200, 100, 200],
+    data: { url: data.url || '/dashboard-client.html' }
+  };
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Guineexpress', options)
+  );
 });
 
 self.addEventListener('notificationclick', function(event) {
-    event.notification.close();
-    event.waitUntil(
-        clients.openWindow(event.notification.data.url)
-    );
+  event.notification.close();
+  event.waitUntil(clients.openWindow(event.notification.data.url));
 });
