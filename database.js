@@ -19,12 +19,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
 });
 
 // 🔒 BLINDAGEM DE CONCORRÊNCIA E PERFORMANCE (WAL MODE)
-db.exec(`
-    PRAGMA busy_timeout = 15000;
-    PRAGMA journal_mode = WAL;
-    PRAGMA synchronous = NORMAL;
-    PRAGMA foreign_keys = ON;
-`);
+db.configure("busyTimeout", 15000);
 
 // Helper seguro para adicionar colunas em tabelas existentes sem estourar erro
 function addColumn(table, column, definition) {
@@ -40,10 +35,16 @@ db.serialize(() => {
     console.log("🔄 Verificando e atualizando estrutura do banco...");
 
 
+    db.run("PRAGMA journal_mode = WAL");
+    db.run("PRAGMA synchronous = NORMAL");
+    db.run("PRAGMA foreign_keys = ON");
+
     // Garante colunas essenciais e indices para velocidade no Render
     addColumn('orders', 'deleted', 'INTEGER DEFAULT 0');
     addColumn('orders', 'lote', "TEXT DEFAULT 'Sem Lote'");
-    db.run("DELETE FROM orders WHERE deleted = 1");
+    db.run("UPDATE boxes SET order_id = NULL WHERE order_id IN (SELECT id FROM orders WHERE deleted = 1)", () => {
+        db.run("DELETE FROM orders WHERE deleted = 1", () => {});
+    });
     db.run("CREATE INDEX IF NOT EXISTS idx_orders_deleted_id ON orders(deleted, id DESC)");
     db.run("CREATE INDEX IF NOT EXISTS idx_orders_client_id ON orders(client_id)");
     db.run("CREATE INDEX IF NOT EXISTS idx_orders_code ON orders(code)");
